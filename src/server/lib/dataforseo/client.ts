@@ -48,6 +48,7 @@ import {
   postRankCheckTasks,
 } from "@/server/lib/dataforseo/serp";
 import { fetchLighthouseResult } from "@/server/lib/dataforseo/lighthouse";
+import { fetchAiModeAnswer } from "@/server/lib/dataforseo/ai-mode";
 import {
   fetchLlmAggregatedMetrics,
   fetchLlmCrossAggregatedMetrics,
@@ -128,6 +129,8 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       // free).
       rankCheckTaskPost: meter(customer, postRankCheckTasks, "rank_tracking"),
       local: meter(customer, fetchLocalSerp, "local_seo"),
+      // Google AI Mode: the answer-change monitor (G6). Cites only, no retrieval.
+      aiMode: meter(customer, fetchAiModeAnswer, "rank_tracking"),
     },
     labs: {
       // Callers (e.g. the keyword-metrics MCP tool) can attribute the spend to
