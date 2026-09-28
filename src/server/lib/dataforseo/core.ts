@@ -1,5 +1,6 @@
 import { AppError } from "@/server/lib/errors";
 import { getRequiredEnvValue } from "@/server/lib/runtime-env";
+import { demoResponseFor } from "@/server/lib/dataforseo/demo-fixtures";
 import type { ErrorCode } from "@/shared/error-codes";
 // Type-only: erased at compile, so no runtime cycle with envelope.ts (which
 // imports DataforseoErrorClassifier from here the same way).
@@ -171,6 +172,18 @@ async function requestDataforseo<TTask extends DataforseoTaskLike>(
   body: unknown,
   options: DataforseoRequestOptions,
 ): Promise<DataforseoResponseLike<TTask> | null> {
+  // Demo mode short-circuits here, before auth and before the network, so a
+  // self-hoster with no DataForSEO account still sees a populated product.
+  // Interception sits at the single request seam rather than in each fetch
+  // module, which means a new endpoint is demo-able for free. An un-fixtured
+  // path returns null and the real call proceeds — demo mode must never turn a
+  // working path into an error.
+  const demo = await demoResponseFor(path);
+  if (demo) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- fixtures are our own code and are validated by demo-fixtures.test.ts against the real envelope shape
+    return demo as DataforseoResponseLike<TTask>;
+  }
+
   const doFetch = createAuthenticatedFetch(
     options.classify,
     options.maxServerErrorRetries,

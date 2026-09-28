@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock("cloudflare:workers", () => ({ env: {} }));
 vi.mock("@/server/lib/runtime-env", () => ({
   getRequiredEnvValue: () => Promise.resolve("basic-key"),
+  // DEMO_MODE is read before auth; undefined keeps demo mode off.
+  getOptionalEnvValue: vi.fn(async () => undefined),
   isHostedServerAuthMode: () => Promise.resolve(false),
 }));
 vi.mock("@/server/lib/dataforseo", () => ({ createDataforseoClient: vi.fn() }));

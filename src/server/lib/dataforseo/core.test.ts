@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// The transport reads DEMO_MODE (via demo-mode -> getOptionalEnvValue) before
+// authenticating, so a partial mock of runtime-env must supply both getters.
+// Demo mode is off here, which is the default this suite wants.
 vi.mock("@/server/lib/runtime-env", () => ({
   getRequiredEnvValue: vi.fn(async () => "encoded-credentials"),
+  getOptionalEnvValue: vi.fn(async () => undefined),
 }));
 
 import { dataforseoPost } from "@/server/lib/dataforseo/core";

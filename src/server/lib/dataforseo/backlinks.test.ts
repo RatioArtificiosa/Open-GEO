@@ -3,6 +3,8 @@ import { AppError } from "@/server/lib/errors";
 
 vi.mock("@/server/lib/runtime-env", () => ({
   getRequiredEnvValue: vi.fn(async () => "test-api-key"),
+  // DEMO_MODE is read before auth; undefined keeps demo mode off.
+  getOptionalEnvValue: vi.fn(async () => undefined),
 }));
 
 const { classifyBacklinksError } = vi.hoisted(() => ({
