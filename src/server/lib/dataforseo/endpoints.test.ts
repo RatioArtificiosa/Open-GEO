@@ -301,7 +301,13 @@ describe("DataForSEO SDK-backed endpoints", () => {
   });
 
   it("preserves web_search for Perplexity LLM responses", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+    // The model catalog is cached per platform for its TTL, so this suite may or
+    // may not issue the (free) catalog GET depending on test order. The
+    // assertion is on the paid llm_responses POST and its body, which must be
+    // identical either way.
+    // A fresh Response per call: a Response body can only be read once, and the
+    // model-catalog lookup plus the task POST are two separate fetches.
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () =>
       Response.json({
         status_code: 20000,
         tasks: [
@@ -338,16 +344,15 @@ describe("DataForSEO SDK-backed endpoints", () => {
       webSearchCountryCode: "US",
     });
 
-    expect(
-      fetchMock.mock.calls.map(([url]) =>
-        typeof url === "string" || url instanceof URL
-          ? url.toString()
-          : url.url,
+    const liveCallIndex = fetchMock.mock.calls.findIndex(([url]) =>
+      (url instanceof Request ? url.url : JSON.stringify(url)).includes(
+        "/llm_responses/live",
       ),
+    );
+    expect(liveCallIndex).toBeGreaterThanOrEqual(0);
+    expect(
+      parseDataforseoRequestBody(fetchMock.mock.calls[liveCallIndex]?.[1]),
     ).toEqual([
-      "https://api.dataforseo.com/v3/ai_optimization/perplexity/llm_responses/live",
-    ]);
-    expect(parseDataforseoRequestBody(fetchMock.mock.calls[0]?.[1])).toEqual([
       {
         user_prompt: "What is OpenGeo?",
         model_name: "sonar",
@@ -365,7 +370,22 @@ describe("fetchLlmResponse model_name validation", () => {
   });
 
   it("rejects an unknown model_name before dispatching a paid LLM task", async () => {
-    const fetchMock = vi.fn<typeof fetch>();
+    // The catalog lookup itself is a cheap GET; only the llm_responses POST
+    // costs money. So the assertion is that the POST never happens.
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        status_code: 20000,
+        tasks: [
+          {
+            status_code: 20000,
+            cost: 0,
+            result: [
+              { model_name: "claude-sonnet-4-5", web_search_supported: true },
+            ],
+          },
+        ],
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
@@ -377,6 +397,12 @@ describe("fetchLlmResponse model_name validation", () => {
       }),
     ).rejects.toThrow(/Unsupported DataForSEO model_name/);
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    // The only request allowed is the model-catalog GET — never the paid task.
+    const requested = fetchMock.mock.calls.map(([url]) =>
+      typeof url === "string" || url instanceof URL ? url.toString() : url.url,
+    );
+    expect(requested.some((u) => u.includes("/llm_responses/live"))).toBe(
+      false,
+    );
   });
 });

@@ -14,6 +14,10 @@ import {
 import { createDataforseoBillingClassifier } from "@/server/lib/dataforseoBillingClassification";
 import { AppError } from "@/server/lib/errors";
 import { dataforseoPost } from "@/server/lib/dataforseo/core";
+import {
+  resolveLlmModel,
+  type LlmModelSlug,
+} from "@/server/lib/dataforseo/llm-models";
 import type { LlmPlatform, LlmTarget } from "@/server/lib/dataforseo/shared";
 import {
   assertOk,
@@ -246,25 +250,9 @@ export async function fetchLlmCrossAggregatedMetrics(
 // LLM Responses (per-model)
 // ---------------------------------------------------------------------------
 
-type LlmResponseModelSlug = "chat_gpt" | "claude" | "gemini" | "perplexity";
-
-/**
- * Accepted `model_name` values per slug, mirroring DataForSEO's
- * `/ai_optimization/{model}/llm_responses/models` catalog (verified 2026-06-30).
- * We validate against this before dispatching because DataForSEO BILLS a task
- * that fails with `Invalid Field: 'model_name'` — a stale or mistyped model name
- * would otherwise pay for a guaranteed-rejected call. DataForSEO resolves a
- * basic alias (e.g. `claude-sonnet-4-5`) to its latest dated version.
- */
-const ACCEPTED_LLM_MODEL_NAMES: Record<
-  LlmResponseModelSlug,
-  ReadonlySet<string>
-> = {
-  chat_gpt: new Set(["gpt-5"]),
-  claude: new Set(["claude-sonnet-4-5", "claude-sonnet-4-6"]),
-  gemini: new Set(["gemini-2.5-pro"]),
-  perplexity: new Set(["sonar-reasoning-pro", "sonar-pro", "sonar"]),
-};
+// Alias of the canonical slug union so this module's own signatures stay
+// readable. Deliberately not re-exported: nothing imports it from here.
+type LlmResponseModelSlug = LlmModelSlug;
 
 type LlmResponsesInput = {
   userPrompt: string;
@@ -287,22 +275,22 @@ type LlmResponseRequestFields = {
 export async function fetchLlmResponse(
   input: LlmResponsesInput,
 ): Promise<DataforseoApiResponse<LlmResponseResult>> {
-  // Fail fast on an unknown model_name: DataForSEO charges for tasks that fail
-  // with `Invalid Field: 'model_name'`, so we must never dispatch one.
-  if (!ACCEPTED_LLM_MODEL_NAMES[input.modelSlug].has(input.modelName)) {
-    throw new AppError(
-      "VALIDATION_ERROR",
-      `Unsupported DataForSEO model_name "${input.modelName}" for ${input.modelSlug}`,
-    );
-  }
+  // Resolve against the LIVE catalog. DataForSEO charges for a task that fails
+  // with `Invalid Field: 'model_name'`, so we must reject an unknown model
+  // client-side — and we must not rely on a hardcoded list that goes stale the
+  // day they add a model. See llm-models.ts.
+  const model = await resolveLlmModel(input.modelSlug, input.modelName);
 
   // DataForSEO's Gemini endpoint rejects `web_search_country_iso_code` with a
   // 40501 "Invalid Field" error. The other three models accept it.
   const supportsCountry = input.modelSlug !== "gemini";
+  // Only send web_search when the catalog says the model supports it, so we
+  // never pay for a rejected field.
+  const webSearch = (input.webSearch ?? true) && model.webSearchSupported;
   const fields: LlmResponseRequestFields = {
     user_prompt: input.userPrompt,
-    model_name: input.modelName,
-    web_search: input.webSearch ?? true,
+    model_name: model.modelName,
+    web_search: webSearch,
     max_output_tokens: clampLimit(input.maxOutputTokens ?? 1024, 256, 4096),
     ...(supportsCountry && input.webSearchCountryCode
       ? { web_search_country_iso_code: input.webSearchCountryCode }
