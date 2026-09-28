@@ -64,7 +64,7 @@ export const listSavedKeywordsTool = {
   config: {
     title: "List saved keywords",
     description:
-      "Lists keywords saved to a project (with cached metrics like search volume, difficulty, CPC, and tags if available). Uses no credits â€” reads from OpenGeo's database, no DataForSEO call. Each row includes its saved-keyword ID for remove_saved_keywords. Use tag filters when the user asks for a saved segment; multiple tags match ANY tag.",
+      "Lists keywords saved to a project (with cached metrics like search volume, difficulty, CPC, and tags if available). Uses no credits — reads from OpenGeo's database, no DataForSEO call. Each row includes its saved-keyword ID for remove_saved_keywords. Use tag filters when the user asks for a saved segment; multiple tags match ANY tag.",
     inputSchema,
     outputSchema: z.looseObject({
       rows: z.array(savedKeywordOutputSchema),

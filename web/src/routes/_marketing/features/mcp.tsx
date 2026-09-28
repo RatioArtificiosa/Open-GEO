@@ -228,7 +228,7 @@ function McpPage() {
 
       <section className="mt-12 rounded-lg border border-neutral-200 bg-white p-5">
         <h2 className="text-lg font-semibold text-neutral-900">
-          Google Search Console MCP â€” no Google Cloud setup
+          Google Search Console MCP — no Google Cloud setup
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-neutral-600">
           OpenGeo MCP can read Search Console performance and URL inspection

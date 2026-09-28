@@ -44,7 +44,7 @@ const inputSchema = {
     .min(1)
     .max(10)
     .describe(
-      "1-10 queries. Bulk-friendly â€” prefer this over multiple single-query calls.",
+      "1-10 queries. Bulk-friendly — prefer this over multiple single-query calls.",
     ),
   depth: z
     .number()
@@ -54,7 +54,7 @@ const inputSchema = {
     .multipleOf(10)
     .optional()
     .describe(
-      "How many SERP rows to crawl per keyword â€” a multiple of 10 from 10 to 100, default 20. Google has no offset, so a deeper crawl re-fetches the top too: each additional 10 adds ~2.5 credits per keyword. Only raise it when you need ranks past the top 20.",
+      "How many SERP rows to crawl per keyword — a multiple of 10 from 10 to 100, default 20. Google has no offset, so a deeper crawl re-fetches the top too: each additional 10 adds ~2.5 credits per keyword. Only raise it when you need ranks past the top 20.",
     ),
 } as const;
 
@@ -116,7 +116,7 @@ export const getSerpResultsTool = {
             ...resolveMarket(q, context.project),
             depth,
           });
-          // Trim noise â€” return only essentials per item.
+          // Trim noise — return only essentials per item.
           const trimmed = items.slice(0, depth).map((item) => ({
             type: item.type,
             rank: item.rank_absolute ?? item.rank_group ?? null,
@@ -141,7 +141,7 @@ export const getSerpResultsTool = {
       results
         .map((r) => {
           if (!r.ok) {
-            return `"${r.keyword}": FAILED â€” ${r.error}`;
+            return `"${r.keyword}": FAILED — ${r.error}`;
           }
           if (r.items.length === 0) {
             return `"${r.keyword}" (0 results)`;

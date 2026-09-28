@@ -42,7 +42,7 @@ const hostedBaseUrlSchema = z
 function createAuth() {
   // Hosted needs the real configured URL (cookies, callbacks, /api/auth routes
   // all use it). Self-hosted only builds this instance to mint/refresh Search
-  // Console tokens, which never read baseURL â€” so a placeholder is fine there.
+  // Console tokens, which never read baseURL — so a placeholder is fine there.
   const baseUrl = isHostedAuthMode(env.AUTH_MODE)
     ? getHostedBaseUrl()
     : "http://localhost";
@@ -61,7 +61,7 @@ function createAuth() {
             organizationHooks: {
               // The invite UI only offers "admin", but the endpoint accepts
               // any role string; enforce server-side. This also keeps an
-              // owner from minting a second owner and leaving â€” the path
+              // owner from minting a second owner and leaving — the path
               // that would re-mint a fresh org + free-plan grant at next
               // sign-in.
               beforeCreateInvitation: async ({ invitation }) => {
@@ -88,7 +88,7 @@ function createAuth() {
               // control billing, so a second owner is a billing-escalation
               // path (and, if the first owner then leaves, a fresh-org /
               // free-grant loop at next sign-in). Ownership transfers stay a
-              // support action â€” reject owner here.
+              // support action — reject owner here.
               beforeUpdateMemberRole: async ({ newRole }) => {
                 if (
                   newRole
@@ -114,7 +114,7 @@ function createAuth() {
       : undefined,
   );
 
-  // Turnstile captcha on signup â€” hosted only. Enforcement is driven by the
+  // Turnstile captcha on signup — hosted only. Enforcement is driven by the
   // server-side secret alone so a client build/runtime site-key mismatch cannot
   // silently omit the Better Auth captcha plugin. Hosted deployments that expose
   // the client widget without the matching server secret fail configuration
@@ -137,7 +137,7 @@ function createAuth() {
     secret: getHostedSecret(),
     logger: {
       log: (level, message, ...args: unknown[]) => {
-        // The api-key plugin logs every verification failure at error level â€” a
+        // The api-key plugin logs every verification failure at error level — a
         // stale key or a throttled caller included. The /mcp handler already logs
         // the response it returns at the right level (debug for 401, warn for 429),
         // so drop the duplicate.
@@ -237,8 +237,8 @@ function createAuth() {
         create: {
           before: async (session) => {
             // Runs on every sign-in (each sign-in mints a session row).
-            // Resolution order: last-active org while still a member â†’ most
-            // recently joined org â†’ newly created default organization â€”
+            // Resolution order: last-active org while still a member → most
+            // recently joined org → newly created default organization —
             // except that a membership-less user with a pending invitation
             // gets no organization minted (null active org) so accepting the invite
             // leaves them in exactly the inviter's org. Inject Better Auth's
@@ -331,7 +331,7 @@ function getHostedSecret() {
 function getSocialProviders() {
   // Google social login is hosted-only. Self-hosted builds the auth instance
   // solely for Search Console token ops, which use the genericOAuth provider
-  // (createBaseAuthConfig) with its own creds â€” so it must NOT require the
+  // (createBaseAuthConfig) with its own creds — so it must NOT require the
   // social-login config here, otherwise getAuth() construction would be coupled
   // to GSC creds rather than just BETTER_AUTH_SECRET.
   if (!isHostedAuthMode(env.AUTH_MODE)) {

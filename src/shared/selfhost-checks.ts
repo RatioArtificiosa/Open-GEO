@@ -25,13 +25,13 @@ export function validateTeamDomain(value: string): TeamDomainResult {
       message:
         "TEAM_DOMAIN must be a full https URL like https://your-team.cloudflareaccess.com" +
         (normalized && !normalized.includes("://")
-          ? ` â€” add the https:// prefix to "${normalized}"`
+          ? ` — add the https:// prefix to "${normalized}"`
           : ""),
     };
   }
 }
 
-// DATAFORSEO_API_KEY is NOT the key shown in the DataForSEO dashboard â€” it is
+// DATAFORSEO_API_KEY is NOT the key shown in the DataForSEO dashboard — it is
 // base64("login:password"). Decoding it and finding a colon is a cheap sanity
 // check that catches the most common paste mistake without a paid API call.
 export function looksLikeDataForSeoKey(value: string): boolean {
@@ -44,7 +44,7 @@ export function looksLikeDataForSeoKey(value: string): boolean {
 
 // OPENGEO_TELEMETRY_DISABLED / DO_NOT_TRACK semantics: any value except an
 // explicit "off" string disables telemetry (fail toward privacy), but
-// "0"/"false"/"no"/"off" mean what the operator wrote â€” telemetry stays on.
+// "0"/"false"/"no"/"off" mean what the operator wrote — telemetry stays on.
 export function isTelemetryOptOutValue(
   value: string | undefined | null,
 ): boolean {

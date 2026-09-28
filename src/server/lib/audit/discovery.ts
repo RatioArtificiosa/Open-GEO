@@ -8,8 +8,8 @@ import { isSameOrigin, normalizeUrl } from "./url-utils";
 const SITEMAP_FETCH_TIMEOUT_MS = 15_000;
 // robots.txt is checkpointed as durable Workflow step state (~1MiB cap, shared
 // with the rest of the step's return). RFC 9309 requires parsers to handle at
-// least 500 KiB and permits ignoring anything beyond it â€” Google does exactly
-// that â€” so this cap matches standard crawler behavior while keeping a
+// least 500 KiB and permits ignoring anything beyond it — Google does exactly
+// that — so this cap matches standard crawler behavior while keeping a
 // misbehaving server (e.g. HTML at /robots.txt) from blowing the step limit.
 const MAX_ROBOTS_TXT_BYTES = 500 * 1024;
 const MAX_SITEMAP_DEPTH = 3;
@@ -18,7 +18,7 @@ const SITEMAP_CONCURRENCY = 5;
 const SITEMAP_RETRIES = 1;
 // Sitemap shards can legally reach 50 MB and SITEMAP_CONCURRENCY of them are
 // read at once, so unbounded reads can exhaust Worker memory. Oversized
-// shards are skipped whole â€” truncated XML would not parse anyway, and real
+// shards are skipped whole — truncated XML would not parse anyway, and real
 // generators shard far below this.
 const MAX_SITEMAP_BYTES = 10 * 1024 * 1024;
 
@@ -306,7 +306,7 @@ export async function discoverUrls(
   }
 
   // Cap at the crawl's page budget: these are seeds, the crawl can never use
-  // more â€” and an uncapped list can blow the ~1MiB Workflow step-state limit.
+  // more — and an uncapped list can blow the ~1MiB Workflow step-state limit.
   return {
     urls: Array.from(allUrls).slice(0, maxPages),
     robotsText,

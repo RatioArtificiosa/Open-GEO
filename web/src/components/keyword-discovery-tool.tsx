@@ -78,7 +78,7 @@ export function KeywordDiscoveryTool({
             idleLabel={
               competitor ? "Find competitor keywords" : "Generate keyword ideas"
             }
-            loadingLabel="Finding keywordsâ€¦"
+            loadingLabel="Finding keywords…"
           />
         </div>
       </ToolForm>
@@ -87,7 +87,7 @@ export function KeywordDiscoveryTool({
           <h2 className="break-words text-xl font-semibold text-neutral-950">
             {"target" in result
               ? `Top keywords for ${result.target}`
-              : `Keyword ideas for â€œ${result.keyword}â€`}
+              : `Keyword ideas for “${result.keyword}”`}
           </h2>
           <p className="text-sm leading-6 text-[var(--color-brand-muted)]">
             Showing {result.keywords.length} keywords. Volume is estimated

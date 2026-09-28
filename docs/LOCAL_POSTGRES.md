@@ -6,7 +6,7 @@ written once against a provider-aware `db` layer (see `src/db/`), so the only
 difference at runtime is the `DATABASE_PROVIDER` flag and a connection string.
 
 This guide sets up a throwaway Postgres in Docker so you can develop and test the
-Postgres path locally. **You do not need this for normal development** â€” D1 is the
+Postgres path locally. **You do not need this for normal development** — D1 is the
 default and the path most contributors should use.
 
 ## Prerequisites
@@ -44,7 +44,7 @@ postgres://opengeo:opengeo@localhost:5433/opengeo
 
 The Postgres schema is hand-written (it is the one structural artifact
 `db:generate` does not regenerate) and migrations live in `drizzle-pg/`. Apply
-them with `POSTGRES_DATABASE_URL` set â€” `drizzle-kit` reads it from the shell
+them with `POSTGRES_DATABASE_URL` set — `drizzle-kit` reads it from the shell
 environment:
 
 ```sh
@@ -65,7 +65,7 @@ DATABASE_PROVIDER=postgres
 The connection string comes from the `HYPERDRIVE` binding. The `hyperdrive`
 block in `wrangler.jsonc` ships commented out, so uncomment it first. Miniflare then resolves the binding to its
 `localConnectionString`, which already points at the Docker container from
-step 1. (In deployed Workers the same binding resolves to real Hyperdrive â€”
+step 1. (In deployed Workers the same binding resolves to real Hyperdrive —
 the app never connects to Postgres except through this binding.) If your local
 Postgres lives elsewhere, override without touching the config:
 
@@ -82,7 +82,7 @@ pnpm dev
 To switch back to D1, remove that line (or set `DATABASE_PROVIDER=d1`) and
 restart.
 
-> `POSTGRES_DATABASE_URL` (step 2) is only read by Node-side tooling â€”
+> `POSTGRES_DATABASE_URL` (step 2) is only read by Node-side tooling —
 > `drizzle-kit` and `scripts/migrate-d1-to-postgres.ts`. The app itself ignores
 > it.
 
@@ -106,7 +106,7 @@ When you change a table, update **both** dialects:
 `src/db/schema-parity.test.ts` fails CI if the two dialects drift (mismatched
 tables, columns, nullability, primary keys, unique/partial indexes, or FK
 `onDelete`). It compares the schema definitions, **not** the generated
-migrations â€” so after editing the Postgres schema, always run `pnpm db:generate:pg`
+migrations — so after editing the Postgres schema, always run `pnpm db:generate:pg`
 and commit the new `drizzle-pg/` migration, or a Postgres deploy will be missing
 the change even though the parity test is green.
 

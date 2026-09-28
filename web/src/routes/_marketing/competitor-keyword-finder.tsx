@@ -37,17 +37,17 @@ const FAQS = [
   {
     question: "Can I check my own website?",
     answer:
-      "Yes. Enter your domain or a competitorâ€™s domain. You donâ€™t need to know any of its keywords beforehand.",
+      "Yes. Enter your domain or a competitor’s domain. You don’t need to know any of its keywords beforehand.",
   },
   {
     question: "How is this different from a rank checker?",
     answer:
-      "A rank checker checks the position of a keyword you already know. This tool discovers keywords a domain ranks for, so you can find ideas you havenâ€™t considered.",
+      "A rank checker checks the position of a keyword you already know. This tool discovers keywords a domain ranks for, so you can find ideas you haven’t considered.",
   },
   {
     question: "Where does the data come from?",
     answer:
-      "Results come from DataForSEOâ€™s Google keyword database for the selected country. They are a sample of known rankings, not a live Google search or a complete list. Results may be cached for 24 hours.",
+      "Results come from DataForSEO’s Google keyword database for the selected country. They are a sample of known rankings, not a live Google search or a complete list. Results may be cached for 24 hours.",
   },
   {
     question: "Can I see their top pages or compare two sites?",

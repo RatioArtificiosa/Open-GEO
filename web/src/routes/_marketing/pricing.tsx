@@ -15,7 +15,7 @@ export const Route = createFileRoute("/_marketing/pricing")({
 });
 
 /* ------------------------------------------------------------------ *
- * COST MODEL â€” edit everything pricing-related here.
+ * COST MODEL — edit everything pricing-related here.
  * Verified against the app call paths and live DataForSEO prices (Jul 2026).
  * Keep the math consistent with src/shared/billing.ts:
  *   billedUsd = roundTo5Decimals(rawDataForSeoCostUsd * MARKUP)
@@ -42,7 +42,7 @@ const RAW_COST_USD = {
   // Scheduled checks use the queued API. The app defaults to one device and
   // the top 40 results: $0.0006 for page one + $0.00045 per extra page.
   rankCheck: 0.0006 + (DEFAULT_RANK_DEPTH / 10 - 1) * 0.00045,
-  // A 150â€“300 result Labs search is currently $0.030â€“$0.048 raw. Use the
+  // A 150–300 result Labs search is currently $0.030–$0.048 raw. Use the
   // midpoint so the customer estimate is a memorable $0.05 per search.
   keywordLabs: 0.039,
   // The MCP-only local SERP tool defaults to a live Google Maps/Local Finder
@@ -75,7 +75,7 @@ const CREDITS_PER_UNIT = {
 } as const;
 
 /* ------------------------------------------------------------------ *
- * Personas â€” preset the estimator to the two modeled customers.
+ * Personas — preset the estimator to the two modeled customers.
  * ------------------------------------------------------------------ */
 type Inputs = {
   sites: number;
@@ -439,7 +439,7 @@ function Pricing() {
             </dt>
             <dd className="mt-1.5 text-sm leading-6 text-[var(--color-brand-muted)]">
               Credits are consumed by features that query DataForSEO&apos;s API
-              â€” backlinks, keyword volume, competitor data, and site audits.
+              — backlinks, keyword volume, competitor data, and site audits.
               Your projects, settings, and any data already fetched don&apos;t
               cost credits.
             </dd>
@@ -478,7 +478,7 @@ function Pricing() {
 }
 
 /* ------------------------------------------------------------------ *
- * Slider â€” native range input + live numeric readout.
+ * Slider — native range input + live numeric readout.
  * ------------------------------------------------------------------ */
 function Slider({
   label,

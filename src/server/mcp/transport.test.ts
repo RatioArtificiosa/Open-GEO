@@ -168,7 +168,7 @@ describe("handleSelfHostedOpenSeoMcpRequest", () => {
         baseUrl: "https://open-geo.test",
       },
     });
-    // Self-hosted must not pin Origins to the request's own Host â€” the
+    // Self-hosted must not pin Origins to the request's own Host — the
     // handler's localhost-class default is the rebinding-safe choice.
     expect(selfHostedAuthMocks.createMcpHandler).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -1,6 +1,6 @@
 ---
 title: "Google Search Console MCP Server: No Google Cloud Setup"
-description: Connect Google Search Console to Claude, Cursor, or any MCP client â€” no Google Cloud project needed. Query clicks, impressions, CTR, position, and indexing.
+description: Connect Google Search Console to Claude, Cursor, or any MCP client — no Google Cloud project needed. Query clicks, impressions, CTR, position, and indexing.
 ---
 
 Most Google Search Console (GSC) MCP servers are open source, but they take a lot of effort to set up. You need to create a Google Cloud project, enable an API, build an OAuth client, download a `credentials.json`, then keep a local server running. OpenGeo handles the Google connection for you. You sign up, connect your property, and start asking.
@@ -25,13 +25,13 @@ claude mcp add --transport http --scope user opengeo https://app.opengeo.so/mcp
 
 ### Claude Desktop
 
-1. Open Customize â†’ Connectors.
+1. Open Customize → Connectors.
 2. Click **Add** (or **+**), then choose **Add custom connector**.
 3. Paste `https://app.opengeo.so/mcp`.
 
 ### Cursor
 
-1. Open Cursor Settings â†’ Tools & Integrations â†’ MCP Tools.
+1. Open Cursor Settings → Tools & Integrations → MCP Tools.
 2. Click **New MCP Server** (this opens `mcp.json`) and add:
 
 ```json
@@ -64,7 +64,7 @@ Any other MCP client works the same way: add `https://app.opengeo.so/mcp` as a r
 ## Things to actually ask it
 
 - "Which queries am I ranking on page two for that I'm close to pushing onto page one?"
-- "Show me pages where impressions went up but clicks stayed flat â€” probably a title or meta problem."
+- "Show me pages where impressions went up but clicks stayed flat — probably a title or meta problem."
 - "Are any of my blog posts competing with each other for the same query?"
 - "Is `/pricing` indexed? If not, what's blocking it?"
 - "Which queries lost the most clicks over the last 28 days?"
@@ -81,7 +81,7 @@ The agent can read and inspect. It cannot change anything in your account.
 
 ## What it costs
 
-The Search Console tools use zero credits â€” Google doesn't charge you to read your own data, so reading it through OpenGeo never burns usage. They're included with the OpenGeo plan ($10/month, which includes monthly usage credits for the research tools), alongside the credit-based tools (keyword research, rank tracking, backlinks) that run through the same MCP endpoint. If you'd rather not pay at all, OpenGeo is open source and free to self-host â€” see the FAQ below.
+The Search Console tools use zero credits — Google doesn't charge you to read your own data, so reading it through OpenGeo never burns usage. They're included with the OpenGeo plan ($10/month, which includes monthly usage credits for the research tools), alongside the credit-based tools (keyword research, rank tracking, backlinks) that run through the same MCP endpoint. If you'd rather not pay at all, OpenGeo is open source and free to self-host — see the FAQ below.
 
 ## OpenGeo vs. the alternatives
 

@@ -22,7 +22,7 @@ const faqs = [
   {
     question: "How many seed keywords do I need?",
     answer:
-      "5â€“15 strong seeds per topic. Past that you're expanding, not seeding. Feed them into the long-tail mining strategy next. The same customer vocabulary is worth pointing at your own positioning: see whether anyone searches for what you call yourself.",
+      "5–15 strong seeds per topic. Past that you're expanding, not seeding. Feed them into the long-tail mining strategy next. The same customer vocabulary is worth pointing at your own positioning: see whether anyone searches for what you call yourself.",
   },
 ];
 

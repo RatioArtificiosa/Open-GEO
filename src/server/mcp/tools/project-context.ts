@@ -15,7 +15,7 @@ import {
 
 // Both tools return the whole context, so they share one output shape. Every
 // MCP client pays for these schemas on tools/list, so the rows stay loose
-// objects â€” the rendered markdown in `text` is where the detail lives.
+// objects — the rendered markdown in `text` is where the detail lives.
 // Clients cache this schema across deployments; new context fields must not
 // invalidate a response for clients still using the previous tools/list.
 const contextOutputSchema = z
@@ -80,7 +80,7 @@ const updateInputSchema = {
 
 /**
  * SAM writes through this exact tool (adapted in samChatTools), so the author
- * recorded on every row is the one difference between the two callers â€” a
+ * recorded on every row is the one difference between the two callers — a
  * parameter here instead of a second write path that could drift.
  */
 export function buildUpdateProjectContextTool(author: ContextAuthor) {
@@ -107,8 +107,8 @@ export function buildUpdateProjectContextTool(author: ContextAuthor) {
           author,
         );
         return mcpResponse({
-          // Echoing the whole context back â€” the same digest the read tool
-          // returns â€” is both the confirmation and the caller's next read, so
+          // Echoing the whole context back — the same digest the read tool
+          // returns — is both the confirmation and the caller's next read, so
           // there is no second description of the patch ops to drift from them.
           text: [
             `Updated project context (${args.updates.length} change(s)).`,

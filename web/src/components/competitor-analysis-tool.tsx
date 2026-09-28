@@ -233,7 +233,7 @@ function AnalysisReport({ result }: { result: AnalysisResult }) {
                 {result.pages.map((row) => (
                   <tr key={row.url ?? ""}>
                     <td className="max-w-[420px] truncate px-4 py-3 align-top text-neutral-950">
-                      {row.url ?? "â€”"}
+                      {row.url ?? "—"}
                     </td>
                     <td className="px-4 py-3 align-top tabular-nums text-neutral-700">
                       {formatCount(row.traffic)}

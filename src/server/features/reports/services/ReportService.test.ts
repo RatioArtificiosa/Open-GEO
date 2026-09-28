@@ -118,7 +118,7 @@ describe("saveReport", () => {
   it("measures the byte cap in UTF-8, not code units", async () => {
     // 320,000 two-byte characters: under the cap by String.length, over it by
     // the bytes that actually reach the column.
-    await expect(save({ html: "Ã©".repeat(320_000) })).rejects.toThrow(
+    await expect(save({ html: "é".repeat(320_000) })).rejects.toThrow(
       "Report is 640 KB; the limit is 500 KB. Inlined images are the usual cause. Remove them and save again.",
     );
     expect(mocks.insertReport).not.toHaveBeenCalled();

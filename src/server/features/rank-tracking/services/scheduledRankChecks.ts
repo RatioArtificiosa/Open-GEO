@@ -8,25 +8,25 @@ import {
   isScheduledRankTrackingInterval,
 } from "@/shared/rank-tracking";
 
-// Work admitted per tick, in task units (keywords Ã— devices). Admission
+// Work admitted per tick, in task units (keywords × devices). Admission
 // control, not a hard rate limit: the first start of a tick is always
-// admitted, so a config bigger than the budget (legal max: 1,000 keywords Ã—
+// admitted, so a config bigger than the budget (legal max: 1,000 keywords ×
 // 2 devices = 2,000 units) can never starve. Sized against DataForSEO's
 // 2,000 requests/min account cap, where task_get polling is the binding
 // term: one call per unit per poll round, rounds wake synchronized per tick,
-// and up to three ticks' ~15-minute poll windows overlap the */5 cron â€” so a
+// and up to three ticks' ~15-minute poll windows overlap the */5 cron — so a
 // full tick can burst ~1,000 polls into a single minute, stacking with the
 // residual rounds of the two prior ticks. Overruns aren't
-// loud failures: throttled polls age into the live fallback at ~3Ã— cost,
+// loud failures: throttled polls age into the live fallback at ~3× cost,
 // billed to the customer, so keep real headroom under the cap.
-// 1,000/tick â‰ˆ 288,000 units/day, ~45Ã— steady-state demand â€” it only binds
+// 1,000/tick ≈ 288,000 units/day, ~45× steady-state demand — it only binds
 // during backlog catch-up.
 const SCHEDULED_TASK_UNIT_BUDGET = 1000;
 
 // Wall-clock guard for the per-config loop: sub-hourly crons are killed at 15
 // minutes, and a skip-heavy tick pays serial Autumn round-trips per distinct
 // org (worst case minutes, more when Autumn is degraded). Stopping early is
-// safe â€” unprocessed configs stay due and the next tick resumes oldest-first.
+// safe — unprocessed configs stay due and the next tick resumes oldest-first.
 const TICK_DEADLINE_MS = 3 * 60_000;
 
 // Cap on the per-tick list of configs blocked by an active run. Blocked
@@ -46,7 +46,7 @@ export async function runScheduledRankChecks(env: Env) {
 
   // Function-local so it lives exactly one tick: at module scope this would be
   // cross-invocation global state in Workers, and a rejection would be cached
-  // forever. Within a tick, a rejection staying memoized is intentional â€” one
+  // forever. Within a tick, a rejection staying memoized is intentional — one
   // Autumn call per org, and that org's configs simply stay due.
   const paidPlanChecks = new Map<string, Promise<boolean>>();
   const checkPaidPlan = (organizationId: string) => {
@@ -151,7 +151,7 @@ export async function runScheduledRankChecks(env: Env) {
       }
 
       // Claim the slot before starting. Clearing lastSkipReason here is what
-      // lets an upgraded org drop the "plan_required" badge â€” the workflow only
+      // lets an upgraded org drop the "plan_required" badge — the workflow only
       // writes null on a fully successful run.
       const claimed = await RankTrackingRepository.claimDueConfig({
         configId: config.id,
@@ -212,7 +212,7 @@ export async function runScheduledRankChecks(env: Env) {
       });
       if (!restored) {
         console.log(
-          `[cron] Could not restore schedule for config ${config.id} (${config.domain}) â€” changed concurrently`,
+          `[cron] Could not restore schedule for config ${config.id} (${config.domain}) — changed concurrently`,
         );
       }
     } catch (err) {

@@ -26,7 +26,7 @@ const GRANT_STATUS_KEY = ["gscGrantStatus"];
 
 /**
  * Onboarding step for connecting Google Search Console: link the account-level
- * OAuth grant, then bind a verified property to the user's first project â€” the
+ * OAuth grant, then bind a verified property to the user's first project — the
  * same binding the project's Integrations page does. The step lives before the
  * agent-setup screen because most users leave onboarding from that screen.
  */
@@ -202,7 +202,7 @@ function GscConnect({
               ) : (
                 <GoogleGlyph className="size-[18px]" />
               )}
-              {linking ? "Opening Googleâ€¦" : "Connect with Google"}
+              {linking ? "Opening Google…" : "Connect with Google"}
             </button>
           )}
         </div>
@@ -264,7 +264,7 @@ function Checking() {
   return (
     <div className="flex items-center gap-2 text-sm text-base-content/50">
       <span className="loading loading-spinner loading-sm" />
-      Checkingâ€¦
+      Checking…
     </div>
   );
 }

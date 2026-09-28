@@ -12,7 +12,7 @@ import { dismissGscNudge } from "@/serverFunctions/onboarding";
 /**
  * One-time re-engagement prompt nudging users who finished onboarding *before*
  * the Search Console step existed to connect GSC. Hosted-only because this is
- * a hosted onboarding re-engagement nudge. Shows once â€” server-persisted
+ * a hosted onboarding re-engagement nudge. Shows once — server-persisted
  * dismissal means it never reappears after the user connects or dismisses, on
  * any device.
  *
@@ -48,8 +48,8 @@ export function GscReEngagementModal({
     },
   });
 
-  // Legacy users â€” those who finished onboarding before it included the Search
-  // Console step â€” have no gscNudgeDismissedAt set, so they're the only ones who
+  // Legacy users — those who finished onboarding before it included the Search
+  // Console step — have no gscNudgeDismissedAt set, so they're the only ones who
   // see this. Anyone who completes current onboarding gets it stamped (they
   // already saw that step), and dismissing/connecting clears it too.
   const eligible =
@@ -85,7 +85,7 @@ export function GscReEngagementModal({
     captureClientEvent("gsc:nudge_connect_clicked");
     // Resolve the nudge up front: the user is leaving for Google's consent
     // screen, and on return they'll either have a grant (which suppresses this
-    // anyway) or have abandoned it â€” neither case should re-nag.
+    // anyway) or have abandoned it — neither case should re-nag.
     persistDismiss();
     // Land them on the project's integrations page so they can pick a property
     // right after granting access (the grant alone has no property bound yet).

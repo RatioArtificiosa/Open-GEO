@@ -1,7 +1,7 @@
 #!/bin/sh
 # Self-host container entrypoint. vite build inlines the envPrefix'd client
 # envs (see vite.config.ts) into the bundle, so the build must run at container
-# start â€” but the output stays valid until those envs or the image change.
+# start — but the output stays valid until those envs or the image change.
 # Fingerprint them and skip the build when the last start's output matches; an
 # image update lands a fresh container with no build output, so new code always
 # rebuilds.
@@ -24,7 +24,7 @@ FP_FILE="$OUT_DIR/.opengeo-build-env"
 # vite.config.ts (keep in sync) plus POSTHOG_SOURCEMAPS.
 FINGERPRINT="$(env | grep -E '^(VITE_|AUTH_MODE|BYPASS_EMAIL_VERIFICATION|POSTHOG_PUBLIC_KEY|POSTHOG_HOST|TURNSTILE_SITE_KEY|POSTHOG_SOURCEMAPS)' | sort | sha256sum | cut -d' ' -f1)"
 # A missing sha256sum would yield an empty, always-matching fingerprint and
-# silently disable rebuilds â€” fail loudly instead.
+# silently disable rebuilds — fail loudly instead.
 test -n "$FINGERPRINT"
 
 if [ -f "$FP_FILE" ] && [ "$(cat "$FP_FILE")" = "$FINGERPRINT" ]; then

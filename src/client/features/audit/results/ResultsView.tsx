@@ -81,7 +81,7 @@ export function ResultsView({
         <CrawlWarning
           headline={
             crawlStopped
-              ? "The crawl stopped early because of the siteâ€™s rate limit."
+              ? "The crawl stopped early because of the site’s rate limit."
               : `The site rate limited us on ${rateLimitedCount} ${rateLimitedCount === 1 ? "page" : "pages"}.`
           }
         >

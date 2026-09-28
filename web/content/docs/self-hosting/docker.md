@@ -39,7 +39,7 @@ Optional env values:
 - `PORT` (defaults to `3001`)
 - `ALLOWED_HOST` (single reverse-proxy hostname to allow in Vite preview)
 - `AUTH_MODE=local_noauth` (already set in compose)
-- `OPEN_GEO_IMAGE` (defaults to `ghcr.io/RatioArtificiosa/Open-GEO:latest`)
+- `OPEN_SEO_IMAGE` (defaults to `ghcr.io/RatioArtificiosa/Open-GEO:latest`)
 
 If you are putting Docker behind a reverse proxy or a temporary tunnel, remember that Docker self-hosting runs with app auth disabled. Only expose it behind your own auth-protected reverse proxy, tunnel, or private network, and add the public hostname before restarting:
 
@@ -59,10 +59,10 @@ To disable it, set `OPENGEO_TELEMETRY_DISABLED=1` (or `DO_NOT_TRACK=1`) in `.env
 
 ## Pin to a specific image tag
 
-Set `OPEN_GEO_IMAGE` in `.env` and restart:
+Set `OPEN_SEO_IMAGE` in `.env` and restart:
 
 ```bash
-OPEN_GEO_IMAGE=ghcr.io/RatioArtificiosa/Open-GEO:v1.2.3
+OPEN_SEO_IMAGE=ghcr.io/RatioArtificiosa/Open-GEO:v1.2.3
 docker compose up -d
 ```
 
@@ -72,7 +72,7 @@ If you are testing local code changes, build and run a local tag:
 
 ```bash
 docker build -f Dockerfile.selfhost -t open-geo:local .
-OPEN_GEO_IMAGE=open-geo:local docker compose up -d
+OPEN_SEO_IMAGE=open-geo:local docker compose up -d
 ```
 
 ## Common commands

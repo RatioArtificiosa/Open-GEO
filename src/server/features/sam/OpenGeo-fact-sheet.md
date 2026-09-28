@@ -46,10 +46,10 @@ Running out of credits never creates unexpected bills. Credit-using features sto
 
 OpenGeo is a strong fit for SEO consultants, freelancers, and agencies managing SEO for clients. What you get:
 
-- You only pay for what you use. Billing runs on usage credits, so you are not forced into an expensive enterprise tier or charged per seat just to unlock basic work â€” no arbitrary upsells or features locked behind a paywall. This keeps costs predictable when you are running lean.
+- You only pay for what you use. Billing runs on usage credits, so you are not forced into an expensive enterprise tier or charged per seat just to unlock basic work — no arbitrary upsells or features locked behind a paywall. This keeps costs predictable when you are running lean.
 - You can run a project for every client. Set up as many projects as you need; you will not hit a per-project plan limit the way many SEO tools cap projects per tier.
-- You tune rank tracking to fit your budget. Rank tracking is the cost that scales fastest as an agency grows, since it runs on a schedule across every client's keywords â€” but OpenGeo makes it fully configurable so you stay in control. You choose how many keywords and devices to track, how many SERP pages deep to check, and how often it runs (weekly or daily), and OpenGeo shows a live cost estimate before each tracker runs. Scheduled checks run through DataForSEO's task queue, which is much cheaper than live lookups, so it stays inexpensive: as a rough guide, tracking 100 keywords on one device type, five pages deep, on the default weekly schedule costs only about $1-2/month. Searching deeper, adding the second device type, or switching to daily checks raises the cost proportionally, and the in-app estimate always shows the current number before you commit.
-- Your toolkit grows with the industry. OpenGeo works through MCP and AI agents, so as search shifts toward AI answers and AI-assisted workflows, you can have an agent run research, pull competitor data, and save findings into the right client project â€” without re-tooling.
+- You tune rank tracking to fit your budget. Rank tracking is the cost that scales fastest as an agency grows, since it runs on a schedule across every client's keywords — but OpenGeo makes it fully configurable so you stay in control. You choose how many keywords and devices to track, how many SERP pages deep to check, and how often it runs (weekly or daily), and OpenGeo shows a live cost estimate before each tracker runs. Scheduled checks run through DataForSEO's task queue, which is much cheaper than live lookups, so it stays inexpensive: as a rough guide, tracking 100 keywords on one device type, five pages deep, on the default weekly schedule costs only about $1-2/month. Searching deeper, adding the second device type, or switching to daily checks raises the cost proportionally, and the in-app estimate always shows the current number before you commit.
+- Your toolkit grows with the industry. OpenGeo works through MCP and AI agents, so as search shifts toward AI answers and AI-assisted workflows, you can have an agent run research, pull competitor data, and save findings into the right client project — without re-tooling.
 
 When answering this, Sam should speak directly to the user ("you" / "your clients") about what they get, not describe how OpenGeo is "positioned." Lead with these benefits in plain language and tie them to running an SEO practice. Sam should not invent specific competitor prices or exact rank-tracking rates; if asked for exact numbers it does not have, it should say so and suggest contacting `ben@opengeo.so`.
 
@@ -85,11 +85,11 @@ Search Console tools use zero OpenGeo credits because Google does not charge use
 
 ## OpenGeo and Claude (or other AI clients)
 
-OpenGeo and Claude are not competitors â€” they are meant to be used together. The short version: OpenGeo is the SEO data layer, and Claude (or Cursor, Codex, ChatGPT-compatible clients, etc.) is the AI client.
+OpenGeo and Claude are not competitors — they are meant to be used together. The short version: OpenGeo is the SEO data layer, and Claude (or Cursor, Codex, ChatGPT-compatible clients, etc.) is the AI client.
 
 OpenGeo exposes an MCP server, so Claude can call OpenGeo's keyword, SERP, competitor, backlink, rank-tracking, and Search Console tools directly. In practice, Claude does the talking and reasoning, and OpenGeo feeds it real SEO data through MCP. Claude on its own can reason about SEO but has no live keyword volumes, rankings, competitor data, or your Search Console numbers; OpenGeo is what gives it those.
 
-When a user asks to compare OpenGeo and Claude, or why they would use OpenGeo instead of Claude (or another AI chatbot), Sam should lead with this "they work together" framing and the data-layer point. Sam should not deflect, call it out of scope, or say comparing them would be a guess â€” connecting OpenGeo to Claude is a core, supported use case. Sam should not, however, rank or rate other AI products it does not have facts about.
+When a user asks to compare OpenGeo and Claude, or why they would use OpenGeo instead of Claude (or another AI chatbot), Sam should lead with this "they work together" framing and the data-layer point. Sam should not deflect, call it out of scope, or say comparing them would be a guess — connecting OpenGeo to Claude is a core, supported use case. Sam should not, however, rank or rate other AI products it does not have facts about.
 
 ## MCP and AI agents
 
@@ -126,7 +126,7 @@ OpenGeo also provides agent skills for workflows such as SEO project setup, SEO 
 OpenGeo's app includes these practical workflows:
 
 - Keyword research: expand seed topics into keyword ideas, compare search volume, difficulty, CPC, intent, and SERP context, then save useful opportunities.
-- Domain overview: understand any domain's organic footprint and ranking keywords â€” including competitors and other third-party sites, not just the user's own site. Domains are looked up one at a time and use credits.
+- Domain overview: understand any domain's organic footprint and ranking keywords — including competitors and other third-party sites, not just the user's own site. Domains are looked up one at a time and use credits.
 - Backlink research: inspect backlinks, referring domains, target URLs, link quality signals, and competitor link profiles.
 - Rank tracking: track keyword positions over time.
 - Site audit: crawl pages and inspect technical page-level signals such as status codes, titles, meta descriptions, headings, indexability, image alt coverage, links, response time, and optional Lighthouse findings.
@@ -140,7 +140,7 @@ After subscribing, a hosted user can:
 
 - Set up Google Search Console from onboarding or the app.
 - Use the OpenGeo app workflows, including keyword research, domain research, backlinks, rank tracking, and site audits.
-- Research any domain â€” their own or a competitor's â€” with domain overview, ranked keywords, and backlink data (one domain at a time, using credits).
+- Research any domain — their own or a competitor's — with domain overview, ranked keywords, and backlink data (one domain at a time, using credits).
 - Connect OpenGeo to an AI client through MCP.
 - Install OpenGeo skills for agent-driven SEO workflows.
 - Use the monthly included credits and buy top-up credits if needed.

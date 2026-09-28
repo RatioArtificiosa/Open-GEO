@@ -245,13 +245,13 @@ const START_URL_PROBE_TIMEOUT_MS = 10_000;
 /**
  * Follow redirects on the audit's start URL so the audit anchors to the
  * site's real origin. Without this, auditing a domain that 301s elsewhere
- * (â€¦net -> â€¦com, apex -> www) dead-ends after one page: the redirect target
+ * (…net -> …com, apex -> www) dead-ends after one page: the redirect target
  * is a different origin, so the same-origin crawl policy can't follow it.
  *
  * Every hop re-runs the full start-URL validation (SSRF, blocked hosts), so
  * a redirect can't smuggle the audit somewhere the user couldn't have
  * pointed it directly. Probe failures (timeouts, HEAD rejected) fall back
- * to the last validated URL â€” the crawl records the real fetch result.
+ * to the last validated URL — the crawl records the real fetch result.
  */
 export async function resolveStartUrlRedirects(
   startUrl: string,

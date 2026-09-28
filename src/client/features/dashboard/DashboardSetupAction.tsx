@@ -23,10 +23,10 @@ import { markDashboardCompetitorClicked } from "@/serverFunctions/dashboard";
 import type { DashboardSetupStep } from "@/types/schemas/dashboard";
 import { parseResearchTarget } from "@/shared/researchScope";
 
-const projectPrompt = `Use OpenGeo to set up a separate project for each website below. List my existing projects first and reuse matches so you donâ€™t create duplicates. Set the country and language for each site, and ask me about anything missing.
+const projectPrompt = `Use OpenGeo to set up a separate project for each website below. List my existing projects first and reuse matches so you don’t create duplicates. Set the country and language for each site, and ask me about anything missing.
 
 Replace this list with my websites:
-- Project name â€” website â€” country â€” language`;
+- Project name — website — country — language`;
 
 export function DashboardSetupAction({
   step,
@@ -92,7 +92,7 @@ export function DashboardSetupAction({
     return (
       <div className="space-y-4">
         <p className="text-sm leading-relaxed text-base-content/65">
-          Explore a competitorâ€™s domain to discover the topics they rank for and
+          Explore a competitor’s domain to discover the topics they rank for and
           the websites linking to them.
         </p>
         <button
@@ -120,7 +120,7 @@ export function DashboardSetupAction({
     return (
       <p className="text-sm text-base-content/65">
         {org.isPending
-          ? "Checking workspace permissionsâ€¦"
+          ? "Checking workspace permissions…"
           : org.isError
             ? getStandardErrorMessage(org.error)
             : "Ask a workspace owner or admin to help with this step."}
@@ -141,8 +141,8 @@ export function DashboardSetupAction({
     return (
       <div className="space-y-4">
         <p className="text-sm leading-relaxed text-base-content/65">
-          Keep each websiteâ€™s research, rankings, and connections in its own
-          project. Use the project switcher in the sidebar â†’ New project
+          Keep each website’s research, rankings, and connections in its own
+          project. Use the project switcher in the sidebar → New project
           anytime.
         </p>
         <button
@@ -242,7 +242,7 @@ function WebsiteForm({
       toast.error(
         getStandardErrorMessage(
           error,
-          "Couldnâ€™t save your website. Try again.",
+          "Couldn’t save your website. Try again.",
         ),
       ),
   });
@@ -318,7 +318,7 @@ function WebsiteForm({
             className="btn btn-primary btn-sm"
             disabled={!canSubmit || isSubmitting || save.isPending}
           >
-            {save.isPending ? "Savingâ€¦" : "Save website"}
+            {save.isPending ? "Saving…" : "Save website"}
           </button>
         )}
       </form.Subscribe>

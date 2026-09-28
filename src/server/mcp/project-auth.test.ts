@@ -118,7 +118,7 @@ describe("withMcpProjectAuth", () => {
 });
 
 // User-scoped credentials (API keys): the org derives from the project and
-// access is the caller's membership in that org â€” never the request's
+// access is the caller's membership in that org — never the request's
 // organizationId.
 describe("withMcpProjectAuth with a user-scoped credential", () => {
   const userScopedContext = makeToolContext({ orgScope: "user" });

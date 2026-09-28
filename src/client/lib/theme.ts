@@ -40,7 +40,7 @@ function resolveThemeName(themePreference: ThemePreference): string {
   if (themePreference === "light") return LIGHT_THEME_NAME;
   if (themePreference === "dark") return DARK_THEME_NAME;
 
-  // "system" â€” resolve from OS preference
+  // "system" — resolve from OS preference
   if (
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-color-scheme: dark)").matches

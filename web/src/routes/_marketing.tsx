@@ -124,7 +124,7 @@ function CloseIcon({ size = 28 }: { size?: number }) {
 
 export const Route = createFileRoute("/_marketing")({
   // Runs at prerender/SSR time, so the count is baked into the static HTML that
-  // Cloudflare serves from the edge â€” no per-viewer request for it.
+  // Cloudflare serves from the edge — no per-viewer request for it.
   loader: async () => ({ githubStarCount: await loadGithubStarCount() }),
   // The value is fixed per build; never refetch it on client navigation.
   staleTime: Infinity,

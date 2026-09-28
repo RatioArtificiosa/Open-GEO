@@ -42,7 +42,7 @@ function BetaNotice() {
         like Claude Code or Hermes.
       </p>
       <Link to="/ai" className="link link-primary mt-1.5 inline-block text-xs">
-        Set up the MCP â†’
+        Set up the MCP →
       </Link>
     </div>
   );

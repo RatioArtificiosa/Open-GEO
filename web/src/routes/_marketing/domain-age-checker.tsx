@@ -11,7 +11,7 @@ export const Route = createFileRoute("/_marketing/domain-age-checker")({
     buildPageSeo({
       title: "Free Domain Age Checker: Registration Date and Age",
       description:
-        "Check when a domain was registered, how old it is, when it expires, and who the registrar is â€” up to 10 domains at once. No signup, no email.",
+        "Check when a domain was registered, how old it is, when it expires, and who the registrar is — up to 10 domains at once. No signup, no email.",
       path: TOOL.path,
       titleSuffix: "OpenGeo",
       imageAlt: "OpenGeo free domain age checker",
@@ -23,7 +23,7 @@ const FAQS = [
   {
     question: "Does domain age affect rankings?",
     answer:
-      "Barely, on its own. Google has said age isn't a ranking factor. What correlates with age is everything a site accumulates over years â€” links, content, brand searches â€” and those do matter. Old and empty ranks worse than new and useful.",
+      "Barely, on its own. Google has said age isn't a ranking factor. What correlates with age is everything a site accumulates over years — links, content, brand searches — and those do matter. Old and empty ranks worse than new and useful.",
   },
   {
     question: "Where does this data come from?",

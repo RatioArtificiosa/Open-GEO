@@ -27,7 +27,7 @@ function telemetryDisabled(): boolean {
 
 // Anonymous "an install failed preflight" beacon: failed check names only, a
 // throwaway distinct id, no env values. Without this, installs that never
-// finish booting are invisible â€” the regular heartbeat needs a working app.
+// finish booting are invisible — the regular heartbeat needs a working app.
 async function sendPreflightFailedBeacon(failedChecks: string[]) {
   if (telemetryDisabled()) return;
 

@@ -46,7 +46,7 @@ const errorDetailSchema = z
   })
   .passthrough();
 
-// The MCP SDK can only publish and validate a top-level object schema â€” a
+// The MCP SDK can only publish and validate a top-level object schema — a
 // discriminated union normalizes to undefined, which drops the schema from
 // tools/list and crashes output validation. So the ok/error branches share
 // one object, with the per-status required fields enforced by a refinement.
@@ -436,7 +436,7 @@ export const getSearchOpportunitiesTool = {
   config: {
     title: "Get search opportunities",
     description:
-      "Join Search Console pages ranking in positions 4â€“20 with GA4 organic landing-page outcomes, then score matched opportunities by demand, business value, and reachability. Unmatched pages remain visible and unscored. Read-only and uses no OpenGeo credits.",
+      "Join Search Console pages ranking in positions 4–20 with GA4 organic landing-page outcomes, then score matched opportunities by demand, business value, and reachability. Unmatched pages remain visible and unscored. Read-only and uses no OpenGeo credits.",
     inputSchema: opportunityInputSchema,
     outputSchema: opportunityOutputSchema,
     annotations: {

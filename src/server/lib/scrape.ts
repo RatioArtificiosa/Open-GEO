@@ -89,7 +89,7 @@ async function fetchText(url: string): Promise<string | null> {
 /**
  * Pulls page URLs from a sitemap body. Resolves relative/protocol-relative
  * <loc> entries against the origin and keeps same-origin HTML pages only. Nested
- * sitemap files (a sitemap index) are skipped rather than fetched as pages â€”
+ * sitemap files (a sitemap index) are skipped rather than fetched as pages —
  * good enough for v1; we fall back to the homepage if nothing usable is found.
  */
 function parseSitemapUrls(xml: string, origin: string): string[] {
@@ -156,7 +156,7 @@ async function scrapePage(url: string): Promise<ScrapedPage | null> {
 }
 
 /**
- * Reads a specific list of page URLs as plain text â€” used when the caller names
+ * Reads a specific list of page URLs as plain text — used when the caller names
  * exact pages (the user's own or a competitor's) rather than asking us to
  * discover a site. Each URL is independently run through the SSRF guard, so a
  * blocked or unreachable URL is skipped rather than failing the batch.
@@ -196,7 +196,7 @@ export async function discoverSiteUrls(
   try {
     rootUrl = await normalizeAndValidateStartUrl(domain);
   } catch {
-    // Blocked (private/metadata host) or unparseable domain â€” nothing to list.
+    // Blocked (private/metadata host) or unparseable domain — nothing to list.
     return { urls: [], blocked: true };
   }
   const origin = new URL(rootUrl).origin;

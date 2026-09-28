@@ -23,7 +23,7 @@ const FAQS = [
   {
     question: "What does the spam score actually measure?",
     answer:
-      "DataForSEO scores a link profile from 0 to 100 by looking at signals its index associates with low-quality sites â€” thin or duplicated content, link networks, unusual outbound link patterns. Higher means more of those signals. It is not a Google penalty score; Google publishes no such number.",
+      "DataForSEO scores a link profile from 0 to 100 by looking at signals its index associates with low-quality sites — thin or duplicated content, link networks, unusual outbound link patterns. Higher means more of those signals. It is not a Google penalty score; Google publishes no such number.",
   },
   {
     question: "Should I disavow the links you show?",

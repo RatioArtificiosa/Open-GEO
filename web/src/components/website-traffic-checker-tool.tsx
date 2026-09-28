@@ -267,7 +267,7 @@ function DomainReport({
                 <tr key={row.keyword ?? row.url ?? ""}>
                   <td className="max-w-[240px] px-4 py-3 align-top">
                     <p className="truncate font-medium text-neutral-950">
-                      {row.keyword ?? "â€”"}
+                      {row.keyword ?? "—"}
                     </p>
                     {row.url ? (
                       <p className="truncate text-xs text-[var(--color-brand-muted)]">
@@ -310,7 +310,7 @@ function DomainReport({
               {data.topPages.map((row) => (
                 <tr key={row.url ?? ""}>
                   <td className="max-w-[240px] truncate px-4 py-3 align-top text-neutral-950">
-                    {row.url ?? "â€”"}
+                    {row.url ?? "—"}
                   </td>
                   <td className="px-4 py-3 align-top tabular-nums text-neutral-700">
                     {formatCount(row.traffic)}

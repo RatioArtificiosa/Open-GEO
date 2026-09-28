@@ -2,14 +2,14 @@
 
 ## Status
 
-Proposed (June 2026) â€” v1 product spec, pending technical design.
+Proposed (June 2026) — v1 product spec, pending technical design.
 
 > **Update (June 2026):** what shipped is a chat where Sam analyzes the site
 > on demand (via `read_website` + `get_seo_metrics` tools) and writes the
-> strategy in-stream, rather than the staged synthesize â†’ persist pipeline
+> strategy in-stream, rather than the staged synthesize → persist pipeline
 > described below. Persisting the strategy (the "Project Context" store + R2
 > versioning) and the `get_project_context` MCP tool are **deferred to a later
-> PR** â€” the strategy is shown in the chat but not yet saved. Sections below
+> PR** — the strategy is shown in the chat but not yet saved. Sections below
 > describe the original plan.
 
 ## Goal
@@ -18,7 +18,7 @@ Turn signup into activation. When a new user onboards, an "agent" analyzes
 their actual website live, then proposes a tailored SEO strategy. The strategy
 is free and stands on its own; _acting on it_ (rank tracking, content briefs,
 the ongoing coach) is the paid surface. The strategy becomes the project's
-durable "Project Context" â€” readable in the app and over MCP.
+durable "Project Context" — readable in the app and over MCP.
 
 This is the top activation priority because it gives every new user a concrete,
 personalized "here's what to do" moment before they're asked to pay.
@@ -28,46 +28,46 @@ personalized "here's what to do" moment before they're asked to pay.
 A **guided pipeline narrated live**, not an LLM agent loop. The steps are
 mostly deterministic (scrape, fetch keyword data); a single LLM call at the end
 synthesizes the strategy narrative. The "agent" feeling comes from streaming the
-steps in real time ("Reading your homepageâ€¦ you look like a Notion
-alternativeâ€¦ 4 keywords ranking, 30 worth targetingâ€¦") and streaming the final
+steps in real time ("Reading your homepage… you look like a Notion
+alternative… 4 keywords ranking, 30 worth targeting…") and streaming the final
 write-up token-by-token. No Anthropic SDK / agent infra is required for v1.
 
 ## The experience
 
-**Stage 0 â€” Profile (extend existing onboarding forms).** Collect: domain,
+**Stage 0 — Profile (extend existing onboarding forms).** Collect: domain,
 experience level, and primary goal. **Website and default country are captured
 on the same step**, since the country is a property of the site/project being
-analyzed â€” keeping them together makes the relationship obvious and avoids a
+analyzed — keeping them together makes the relationship obvious and avoids a
 stray standalone country field. That step carries a short note that they can add
 more projects with different websites (and their own countries) later, so users
 don't feel they must cram every site into this first one. Keep the whole stage
-to ~4 fields â€” the onboarding UX audit flagged form friction. Country and
+to ~4 fields — the onboarding UX audit flagged form friction. Country and
 language become the project's default location (see Project defaults) and are
 reused for every DataForSEO call going forward.
 
-**Stage 1 â€” Discover (live).** Sitemap-first using existing robots.txt +
+**Stage 1 — Discover (live).** Sitemap-first using existing robots.txt +
 sitemap discovery; fall back to a shallow crawl. Produces a map of the site's
 shape from URLs/titles. Discover many URLs (cheap); scrape few.
 
-**Stage 2 â€” Read (live).** Scrape ~3â€“5 key pages (home + top product/nav pages)
-to markdown. This is the one net-new capability: page â†’ markdown via Cloudflare
+**Stage 2 — Read (live).** Scrape ~3–5 key pages (home + top product/nav pages)
+to markdown. This is the one net-new capability: page → markdown via Cloudflare
 Browser Rendering. Honest "we couldn't read your site" flagging with a manual
 "tell us what you do" fallback so the run never dead-ends.
 
-**Stage 3 â€” Signal (live).** See Stage 3 data below.
+**Stage 3 — Signal (live).** See Stage 3 data below.
 
-**Stage 4 â€” Synthesize (streaming LLM).** One LLM call over
+**Stage 4 — Synthesize (streaming LLM).** One LLM call over
 {profile + scraped markdown + keyword data} produces: a positioning statement,
-3â€“5 themes/clusters, a starter keyword table (volume/difficulty), and a
+3–5 themes/clusters, a starter keyword table (volume/difficulty), and a
 prioritized "do this next" list. Must produce a credible strategy even when the
-site has zero existing rankings â€” the cold-start case is the _default_ for the
+site has zero existing rankings — the cold-start case is the _default_ for the
 indie-founder ICP, not an edge case.
 
-**Stage 5 â€” Persist + gate.** Save as the Project Context artifact (markdown,
+**Stage 5 — Persist + gate.** Save as the Project Context artifact (markdown,
 MCP-readable). Present the full strategy free; the paywall lands on _executing_
 it.
 
-## Stage 3 data (v1 â€” kept minimal)
+## Stage 3 data (v1 — kept minimal)
 
 Stage 3 is **archetype-conditional**: detect the site type cheaply, then frame
 the goal accordingly. For v1 the archetype branches the _narrative_, not a large
@@ -85,7 +85,7 @@ site**, **local business**, **SaaS/product** (core ICP).
 **Clarifying question:** for **beginners**, skip it and use the archetype's
 default goal (fewer decisions = less drop-off). For **non-beginners**, ask one
 targeted question after detection to confirm intent (e.g. "grow existing
-rankings, or expand into new topics?") â€” agency without a survey.
+rankings, or expand into new topics?") — agency without a survey.
 
 **Deferred to v2:** `serp_competitors`, local-business tools
 (`get_local_serp_results`, `search_local_businesses`,
@@ -95,18 +95,18 @@ rankings, or expand into new topics?") â€” agency without a survey.
 
 The whole run is free (paywall is after), so cost-per-signup must be bounded:
 
-- DataForSEO: ~$0.04â€“0.08 (2 Labs live calls; metered from the real `cost`
+- DataForSEO: ~$0.04–0.08 (2 Labs live calls; metered from the real `cost`
   field in the response envelope, so we can hard-cap).
 - Browser Rendering scrape: ~negligible.
-- LLM synthesis: ~$0.05â€“0.15 (one call over a few pages of markdown).
-- **Total â‰ˆ $0.10â€“0.25 per onboarding.**
+- LLM synthesis: ~$0.05–0.15 (one call over a few pages of markdown).
+- **Total ≈ $0.10–0.25 per onboarding.**
 
 Guardrails: one run per user, results cached hard, and **email verification
 gates Stage 3** (the DataForSEO spend) to kill drive-by abuse.
 
 ## Project Context artifact (MCP-readable)
 
-The strategy is stored as a **markdown document** â€” a living "Project Context"
+The strategy is stored as a **markdown document** — a living "Project Context"
 that is the shared source of truth across the in-app agent, the web UI, and any
 MCP client.
 
@@ -121,19 +121,19 @@ MCP client.
 
 ## Project defaults (country/language)
 
-Projects don't currently store a default location â€” only `rank_tracking_configs`
+Projects don't currently store a default location — only `rank_tracking_configs`
 does (defaults 2840/US, "en"). Add `location_code` + `language_code` to
 `projects`, set from the Stage 0 country, and reuse them everywhere project work
-needs a location. A small curated country â†’ `location_code` map is enough for
+needs a location. A small curated country → `location_code` map is enough for
 v1.
 
 ## Paywall
 
 Free: the full strategy, positioning, themes, capped starter keyword list
-(~15â€“20), and the "do next" list. Gated (execution): rank-tracking the proposed
+(~15–20), and the "do next" list. Gated (execution): rank-tracking the proposed
 keywords, full keyword expansion, content briefs per theme, and the ongoing
 `seo-coach`. Every gated action is a named thing tied to a strategy item the
-user already believes in â€” stronger pull than "refine further." GSC stays behind
+user already believes in — stronger pull than "refine further." GSC stays behind
 the gate; we do **not** prompt for it during onboarding (connecting then hitting
 a paywall is exactly the bait-and-switch the UX audit warned against).
 
@@ -141,17 +141,17 @@ a paywall is exactly the bait-and-switch the UX audit warned against).
 
 Update the `seo-coach` skill (and `onboarding-checklist`) so the coach and the
 onboarding agent are one continuous experience: the coach reads Project Context
-via MCP, picks up where onboarding left off ("here's your strategy â€” let's work
+via MCP, picks up where onboarding left off ("here's your strategy — let's work
 the backlog"), and can answer both SEO questions and OpenGeo product questions.
 The onboarding agent sets the backlog; the coach executes it.
 
 ## Open questions
 
-- Country â†’ `location_code` source: hand-curate a short list for v1, or reuse an
+- Country → `location_code` source: hand-curate a short list for v1, or reuse an
   existing DataForSEO locations dataset?
 - Re-run policy: confirmed one strategy per project, regenerate in place; new
   domain = new project (a soft upgrade nudge).
-- Synthesis model choice (cost vs quality) â€” decide at technical design.
+- Synthesis model choice (cost vs quality) — decide at technical design.
 
 ## Out of scope for v1
 

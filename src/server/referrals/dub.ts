@@ -10,11 +10,11 @@ import { buildDubSaleRequest } from "./dub-sale";
 //     the marketing site persists it as a `dub_id` cookie on `.opengeo.so`.
 //  2. On signup we send a Dub lead and pin `referred-user:<userId>` in KV.
 //     The lead creates a pseudonymous Dub customer record (random name +
-//     our user id) â€” GDPR erasure deletes the KV pins here and the Dub-side
+//     our user id) — GDPR erasure deletes the KV pins here and the Dub-side
 //     record via the erasure runbook.
 //  3. The pin is copied to `referred-org:<orgId>` (= the Autumn customer id)
 //     on every session, so billing events need no member lookup.
-//  4. Paid Autumn invoices for referred orgs are sent as Dub sales â€” from the
+//  4. Paid Autumn invoices for referred orgs are sent as Dub sales — from the
 //     billing webhook for promptness, and from a daily cron sweep because
 //     Autumn's `billing.updated` isn't documented to fire for renewals or
 //     one-time top-up purchases.
@@ -116,7 +116,7 @@ export async function captureDubReferralSignup(
 /** Copies a user's referral pin onto the organization they FOUNDED, keyed by
  *  org id (= Autumn customer id) so billing events resolve it directly.
  *  Founded, not merely owned or joined: commission is only for net-new users
- *  creating their own workspace â€” an invitee (even one later promoted to
+ *  creating their own workspace — an invitee (even one later promoted to
  *  owner) must never attribute an existing org's revenue to their referrer.
  *  Called on every session (only touches the DB when a user pin exists);
  *  must never fail session creation. */

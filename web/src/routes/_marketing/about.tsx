@@ -37,7 +37,7 @@ function AboutPage() {
             className="h-auto w-full rounded-2xl"
           />
           <figcaption className="mt-3 text-sm text-[var(--color-brand-muted)]">
-            Ben Â· Founder, OpenGeo
+            Ben · Founder, OpenGeo
           </figcaption>
         </figure>
       </header>

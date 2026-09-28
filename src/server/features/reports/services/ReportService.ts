@@ -15,7 +15,7 @@ import {
 
 // Reports: the HTML documents agents write for a project. Every caller (server
 // function, MCP tool, SAM) comes through here, so the caps and the refusal copy
-// exist once. Authorization is NOT done here â€” the caller has already
+// exist once. Authorization is NOT done here — the caller has already
 // authorized `projectId` (ensureUserMiddleware for server functions,
 // withMcpProjectAuth for MCP tools) and every query is scoped to it.
 
@@ -49,7 +49,7 @@ type SaveReportParams = {
 
 /**
  * Create-or-update in one call. Everything is validated before anything is
- * written, so a rejected save leaves the stored report untouched â€” there is no
+ * written, so a rejected save leaves the stored report untouched — there is no
  * version history, and a half-written overwrite is unrecoverable.
  */
 export async function saveReport(params: SaveReportParams): Promise<{
@@ -117,7 +117,7 @@ export async function saveReport(params: SaveReportParams): Promise<{
 
   if (!existing) {
     // Plain read-then-write: concurrent saves can both pass at 99, so a project
-    // may briefly hold a few more than the cap. That is accepted â€” this is a
+    // may briefly hold a few more than the cap. That is accepted — this is a
     // storage guardrail, not an invariant, and the next save refuses.
     const total = await ReportRepository.countReports(projectId);
     if (total >= REPORT_MAX_PER_PROJECT) {
@@ -235,7 +235,7 @@ export async function deleteReport(
 type ShareParams = {
   projectId: string;
   reportId: string;
-  /** From the authenticated context â€” the telemetry identity, nothing else. */
+  /** From the authenticated context — the telemetry identity, nothing else. */
   userId: string;
   organizationId: string;
 };
@@ -300,7 +300,7 @@ async function unshareReport(params: ShareParams): Promise<ReportMetadata> {
   return { ...report, shareToken: null, sharedAt: null };
 }
 
-// Shared by the reads and the delete, where `reportId` is a required argument â€”
+// Shared by the reads and the delete, where `reportId` is a required argument —
 // so no "omit reportId" hint here; that one belongs to save_report, which has
 // its own message above.
 function notFound(reportId: string) {

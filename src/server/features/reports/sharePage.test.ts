@@ -55,7 +55,7 @@ describe("renderSharePage", () => {
       `<iframe src="/s/${TOKEN}/raw" sandbox="${REPORT_IFRAME_SANDBOX}"`,
     );
     expect(html).toContain(
-      "<title>badseo.dev &lt;SEO&gt; audit Â· OpenGeo</title>",
+      "<title>badseo.dev &lt;SEO&gt; audit · OpenGeo</title>",
     );
     expect(html).toContain(
       '<meta property="og:description" content="Fix the &quot;titles&quot; first."/>',
@@ -69,10 +69,10 @@ describe("renderSharePage", () => {
     expect($('meta[property="og:image"]').attr("content")).toBe(imageUrl);
     expect($('meta[name="twitter:image"]').attr("content")).toBe(imageUrl);
     expect($('meta[property="og:image:alt"]').attr("content")).toBe(
-      `${SHARED_REPORT.title} Â· OpenGeo`,
+      `${SHARED_REPORT.title} · OpenGeo`,
     );
     expect($('meta[name="twitter:image:alt"]').attr("content")).toBe(
-      `${SHARED_REPORT.title} Â· OpenGeo`,
+      `${SHARED_REPORT.title} · OpenGeo`,
     );
     // No app bundle: the reader has never signed in and needs none of it.
     expect(html).not.toContain("/assets/");

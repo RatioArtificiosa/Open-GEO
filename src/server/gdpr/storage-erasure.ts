@@ -257,7 +257,7 @@ export async function handleGdprStorageErasure(
   // The body is buffered before authentication, so bound it first. workerd
   // hands the handler at most content-length bytes (the connection is killed
   // at the declared length), while a body with no content-length streams
-  // unbounded â€” so the header is required, not advisory.
+  // unbounded — so the header is required, not advisory.
   if (!request.headers.has("content-length")) {
     return new Response("Content-Length required", { status: 411 });
   }

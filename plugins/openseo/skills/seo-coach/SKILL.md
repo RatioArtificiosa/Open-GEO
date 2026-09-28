@@ -40,10 +40,10 @@ When the user wants to go deeper, hand off to a skill instead of doing the full 
 
 The project-context tools are free and shared with the app and other agents.
 
-1. Call `get_project_context` first (resolve the project with `list_projects` if needed) and ground the coaching in it â€” the business, goal, positioning, competitors, and key pages tell you what the user actually needs next.
+1. Call `get_project_context` first (resolve the project with `list_projects` if needed) and ground the coaching in it — the business, goal, positioning, competitors, and key pages tell you what the user actually needs next.
 2. This skill requires no section. Read whatever is there, and let the `missingSections` list shape the recommendation: empty context usually means the next step is `seo-project-setup`. Never front-load the full interview.
 3. Before spending credits, check the research log. If the same research ran within the last 30 days, reuse that result and say so instead of re-buying it.
-4. On finish, write back what is durable â€” anything the user tells you about the business, goal, or positioning, via `update_project_context` â€” and append a research log entry when a session spends credits: `{ appendResearchLog: { summary: "<what>: <inputs>. Verdict: <conclusion>" } }`.
+4. On finish, write back what is durable — anything the user tells you about the business, goal, or positioning, via `update_project_context` — and append a research log entry when a session spends credits: `{ appendResearchLog: { summary: "<what>: <inputs>. Verdict: <conclusion>" } }`.
 
 ## First response
 
@@ -99,7 +99,7 @@ Want to go deeper?
 Explain the difference between data sources:
 
 - OpenGeo MCP tools provide SEO data such as keyword research, exact ranked keywords, search volume, SERPs, SERP competitors, local business and Maps data, domain overviews, backlinks, saved keywords, projects, and rank trackers.
-- Google Search Console (when connected on the project's Integrations page) is the user's own first-party data â€” real clicks, impressions, CTR, and position. Read it live with `get_search_console_performance` instead of asking for CSV exports. It's free (no credits) and the best starting point for "what already ranks" and near-ranking opportunities.
+- Google Search Console (when connected on the project's Integrations page) is the user's own first-party data — real clicks, impressions, CTR, and position. Read it live with `get_search_console_performance` instead of asking for CSV exports. It's free (no credits) and the best starting point for "what already ranks" and near-ranking opportunities.
 - Web search can find current market context, recent pages, reviews, docs, social profiles, and contact paths outside OpenGeo.
 - Browser/page scraping can extract page copy, headings, author names, contact links, schema, and content structure.
 - Project context (`get_project_context` / `update_project_context`) is the project's shared memory: business, goal, positioning, writing preferences, competitors, key pages, and a research log. It is free, every skill reads it, and the user can edit it on the project's Context page (in the sidebar under AI).
@@ -144,13 +144,13 @@ When the user asks for execution:
 
 Offer 2-4 options based on context, each tied to the skill that delivers it:
 
-- "Set up project context first." â†’ `seo-project-setup`
-- "Audit the site and find the one thing to do first." â†’ `seo-audit`
-- "Research keywords from your seed topics." â†’ `keyword-research`
-- "Cluster your GSC queries into page targets." â†’ `keyword-clustering`
-- "Map the competitive landscape before choosing pages." â†’ `competitive-landscape`
-- "Study one competitor." â†’ `competitor-analysis`
-- "Find link prospects for your best linkable asset." â†’ `link-prospecting`
+- "Set up project context first." → `seo-project-setup`
+- "Audit the site and find the one thing to do first." → `seo-audit`
+- "Research keywords from your seed topics." → `keyword-research`
+- "Cluster your GSC queries into page targets." → `keyword-clustering`
+- "Map the competitive landscape before choosing pages." → `competitive-landscape`
+- "Study one competitor." → `competitor-analysis`
+- "Find link prospects for your best linkable asset." → `link-prospecting`
 
 ## Guardrails
 

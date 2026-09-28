@@ -1,13 +1,13 @@
 ---
 name: seo-project-setup
-description: Populate a project's shared OpenGeo context â€” site scope, goals, positioning, competitors, key pages, and preferences â€” plus MCP checks and Search Console intake.
+description: Populate a project's shared OpenGeo context — site scope, goals, positioning, competitors, key pages, and preferences — plus MCP checks and Search Console intake.
 ---
 
 # OpenGeo SEO Project Setup
 
 ## Goal
 
-Interview the user once about one website or SEO project, and store the answers in that project's shared context in OpenGeo with `update_project_context`. That context is read by every other skill, by SAM in the app, and by the user on the project's Context page (in the sidebar under AI) â€” so it survives new sessions, new machines, and new agents. This is a context setup workflow, not a full audit.
+Interview the user once about one website or SEO project, and store the answers in that project's shared context in OpenGeo with `update_project_context`. That context is read by every other skill, by SAM in the app, and by the user on the project's Context page (in the sidebar under AI) — so it survives new sessions, new machines, and new agents. This is a context setup workflow, not a full audit.
 
 ## Tone
 
@@ -15,7 +15,7 @@ Be friendly, practical, and structured. Ask questions in small batches. Explain 
 
 ## Where the answers go
 
-Two project-context MCP tools do all the writing. Both are free â€” they spend no credits.
+Two project-context MCP tools do all the writing. Both are free — they spend no credits.
 
 - `get_project_context(projectId)`: everything already known about the project, plus a `missingSections` list.
 - `update_project_context(projectId, updates)`: a list of patch ops. The ones this skill uses:
@@ -25,7 +25,7 @@ Two project-context MCP tools do all the writing. Both are free â€” they sp
   - `{ customSection: "<slug>", title?, content }` for anything that does not fit a typed section
   - `{ appendResearchLog: { summary } }` when this session spends credits
 
-Write in batches as the interview progresses â€” do not hold every answer until the end. Sections are prose (~4,000 characters each), so a few tight paragraphs, not a transcript.
+Write in batches as the interview progresses — do not hold every answer until the end. Sections are prose (~4,000 characters each), so a few tight paragraphs, not a transcript.
 
 ## Checklist
 
@@ -44,7 +44,7 @@ Do not run research tools just to test connectivity; `whoami` and `list_projects
 
 ### 2. Read what is already there
 
-Call `get_project_context`. Show the user a short summary of what OpenGeo already knows and what is missing. Confirm or correct existing entries rather than re-asking questions that are already answered â€” this skill is often re-run after another skill filled in part of the context.
+Call `get_project_context`. Show the user a short summary of what OpenGeo already knows and what is missing. Confirm or correct existing entries rather than re-asking questions that are already answered — this skill is often re-run after another skill filled in part of the context.
 
 ### 3. Collect website scope
 
@@ -92,11 +92,11 @@ Probe for:
 
 If the user has not done this yet, offer to help research positioning using the company website, competitor pages, reviews, forums, and web search.
 
-Write to `positioning`: audience, the problem, the differentiator, and any claims the user wants defended. Ask about voice, banned words or phrases, and topics to avoid, and write those to `writing_preferences` â€” content-drafting workflows read that section.
+Write to `positioning`: audience, the problem, the differentiator, and any claims the user wants defended. Ask about voice, banned words or phrases, and topics to avoid, and write those to `writing_preferences` — content-drafting workflows read that section.
 
 ### 6. Save competitors
 
-Turn the competitors and substitutes from step 5 into `addCompetitors` entries: one row per domain, with a short `notes` line on why they matter ("direct competitor, owns the comparison pages"). If the user is unsure who competes in search, `find_serp_competitors` on a handful of seed keywords will name them â€” confirm the list with the user before saving, and log the spend.
+Turn the competitors and substitutes from step 5 into `addCompetitors` entries: one row per domain, with a short `notes` line on why they matter ("direct competitor, owns the comparison pages"). If the user is unsure who competes in search, `find_serp_competitors` on a handful of seed keywords will name them — confirm the list with the user before saving, and log the spend.
 
 Competitors saved here are reused by `competitive-landscape`, `competitor-analysis`, and `link-prospecting`.
 
@@ -112,13 +112,13 @@ Ask for or discover:
 - Backlink or PR assets
 - Linkable assets such as studies, templates, tools, datasets, calculators, or original opinions
 
-Save the pages that actually matter with `addKeyPages` â€” money pages, topic hubs, and the linkable assets. This is a curated shortlist, not a site inventory: 10 to 30 URLs is normal. Give each one a `role` and, where known, the `topic` it targets.
+Save the pages that actually matter with `addKeyPages` — money pages, topic hubs, and the linkable assets. This is a curated shortlist, not a site inventory: 10 to 30 URLs is normal. Give each one a `role` and, where known, the `topic` it targets.
 
 ### 8. Connect Google Search Console
 
 GSC is the richest first-party signal: existing impressions, near-ranking terms, cannibalization, and pages that already have search demand.
 
-**Preferred (hosted): connect it natively.** On the project's Integrations page, connect Google Search Console and pull live data with `get_search_console_performance`. Once connected, the agent reads it directly in `keyword-research` and `keyword-clustering` â€” no manual files to maintain.
+**Preferred (hosted): connect it natively.** On the project's Integrations page, connect Google Search Console and pull live data with `get_search_console_performance`. Once connected, the agent reads it directly in `keyword-research` and `keyword-clustering` — no manual files to maintain.
 
 **Fallback (self-hosted, or if the user prefers files):** ask the user to export CSVs from Search Console into a local working folder (see step 9).
 
@@ -151,7 +151,7 @@ seo-workspace/
   reports/
 ```
 
-Do not create folders unless the user asks, and do not duplicate goals, positioning, or competitors into a local file â€” that is what the project context is for.
+Do not create folders unless the user asks, and do not duplicate goals, positioning, or competitors into a local file — that is what the project context is for.
 
 ### 10. Recommend first workflow
 

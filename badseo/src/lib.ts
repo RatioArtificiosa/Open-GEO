@@ -1,10 +1,10 @@
 // Rendering primitives for badseo.dev.
 //
 // Everything the shared chrome emits (nav, footer, and the "what this page
-// tests" panel) is deliberately SEO-NEUTRAL: no <h1>â€“<h6> and no
+// tests" panel) is deliberately SEO-NEUTRAL: no <h1>–<h6> and no
 // <img>. That way each fixture's headings and images are fully under the
 // fixture's own control, and the audit measures exactly the defect we injected
-// â€” not accidental noise from the layout.
+// — not accidental noise from the layout.
 import { AUDIT_ISSUE_TYPES } from "../../src/shared/audit-issues";
 import type { Fixture, IssueId } from "./fixtures/types";
 import { PLAUSIBLE_INIT_SCRIPT, PLAUSIBLE_SCRIPT_SRC } from "./plausible";
@@ -164,7 +164,7 @@ ${doc.bodyHtml}
   return renderDocument({ ...doc, bodyHtml: withChrome(inner) });
 }
 
-/** Chrome-wrapped page with NO test panel â€” for the home and catalog pages. */
+/** Chrome-wrapped page with NO test panel — for the home and catalog pages. */
 export function renderShell(opts: DocumentOptions): string {
   const inner = `<main class="main">
 ${opts.bodyHtml}
@@ -175,7 +175,7 @@ ${opts.bodyHtml}
 interface HtmlResponseOptions {
   status?: number;
   headers?: Record<string, string>;
-  /** Artificial delay before responding â€” tests slow-response. */
+  /** Artificial delay before responding — tests slow-response. */
   delayMs?: number;
 }
 

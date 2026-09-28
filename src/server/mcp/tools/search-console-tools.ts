@@ -44,12 +44,12 @@ const GSC_PERF_COLUMNS: McpTableColumn<GscPerfRow>[] = [
     header: "CTR",
     value: (row) => row.ctr,
     format: (value) =>
-      typeof value === "number" ? `${(value * 100).toFixed(1)}%` : "â€”",
+      typeof value === "number" ? `${(value * 100).toFixed(1)}%` : "—",
   },
   {
     header: "position",
     value: (row) => row.position,
-    format: (value) => (typeof value === "number" ? value.toFixed(1) : "â€”"),
+    format: (value) => (typeof value === "number" ? value.toFixed(1) : "—"),
   },
 ];
 
@@ -250,7 +250,7 @@ export const getSearchConsolePerformanceTool = {
   config: {
     title: "Get Google Search Console performance",
     description:
-      "Query the connected Search Console property's Search Analytics: clicks, impressions, CTR, and average position by query/page/country/device/date. First-party data â€” use it for what already ranks, near-ranking queries, and pages with real demand. Google sorts by clicks and can't filter by position, so minPosition/maxPosition/minImpressions are applied server-side over the top 1000 rows of the window â€” use them instead of fetching everything. ctr is a 0-1 fraction; position is a 1-based average and is omitted from rows when type is 'discover' or 'googleNews' (Google does not report it there â€” treat it as unavailable, not a failure); dates are Pacific Time; the last ~3 days may be incomplete. Read-only; uses no credits.",
+      "Query the connected Search Console property's Search Analytics: clicks, impressions, CTR, and average position by query/page/country/device/date. First-party data — use it for what already ranks, near-ranking queries, and pages with real demand. Google sorts by clicks and can't filter by position, so minPosition/maxPosition/minImpressions are applied server-side over the top 1000 rows of the window — use them instead of fetching everything. ctr is a 0-1 fraction; position is a 1-based average and is omitted from rows when type is 'discover' or 'googleNews' (Google does not report it there — treat it as unavailable, not a failure); dates are Pacific Time; the last ~3 days may be incomplete. Read-only; uses no credits.",
     inputSchema: perfInputSchema,
     outputSchema: z.looseObject({
       ok: z.boolean(),
@@ -358,11 +358,11 @@ export const getSearchConsolePerformanceTool = {
           : startRow + fetched.length;
 
       const filterText = metricFilter
-        ? ` Â· filtered ${fetched.length} rows â†’ ${kept.length}`
+        ? ` · filtered ${fetched.length} rows → ${kept.length}`
         : "";
       const header =
-        `${result.siteUrl} Â· ${dimensions.join("+")} Â· ${result.request.startDate}â†’${result.request.endDate} Â· ` +
-        `${rows.length} row${rows.length === 1 ? "" : "s"}${filterText}${hasMore ? " (more available â€” paginate with startRow)" : ""}`;
+        `${result.siteUrl} · ${dimensions.join("+")} · ${result.request.startDate}→${result.request.endDate} · ` +
+        `${rows.length} row${rows.length === 1 ? "" : "s"}${filterText}${hasMore ? " (more available — paginate with startRow)" : ""}`;
       const text =
         rows.length > 0
           ? `${header}\n${formatMcpTable(rows, GSC_PERF_COLUMNS)}`
@@ -409,7 +409,7 @@ const inspectInputSchema = {
     .min(1)
     .max(10)
     .describe(
-      "1â€“10 absolute URLs to inspect. Each must belong to the connected property.",
+      "1–10 absolute URLs to inspect. Each must belong to the connected property.",
     ),
   languageCode: z
     .string()
@@ -473,17 +473,17 @@ export const inspectUrlsTool = {
       });
 
       const summaryLines = results.slice(0, TEXT_SUMMARY_ROWS).map((r) => {
-        if (r.error) return `  ${r.url} â€” error: ${r.error}`;
+        if (r.error) return `  ${r.url} — error: ${r.error}`;
         const index = r.result?.indexStatusResult;
         const verdict = index?.verdict ?? "UNKNOWN";
-        const coverage = index?.coverageState ?? "â€”";
+        const coverage = index?.coverageState ?? "—";
         const canonical = index?.googleCanonical
           ? `, google-canonical ${index.googleCanonical}`
           : "";
-        return `  ${r.url} â€” ${verdict}: ${coverage}${canonical}`;
+        return `  ${r.url} — ${verdict}: ${coverage}${canonical}`;
       });
       const text =
-        `${siteUrl} Â· inspected ${results.length} URL${results.length === 1 ? "" : "s"}\n` +
+        `${siteUrl} · inspected ${results.length} URL${results.length === 1 ? "" : "s"}\n` +
         summaryLines.join("\n");
 
       return mcpResponse({

@@ -13,7 +13,7 @@ import {
 
 // Reports read path for the app. The `projectId` field in each validator is
 // what triggers project authorization (ADR 0001); the service never authorizes.
-// The stored `html` is deliberately unreachable from here â€” the /r/<id> render
+// The stored `html` is deliberately unreachable from here — the /r/<id> render
 // route is its only reader, so no server function can pull documents into the
 // app worker's heap.
 
@@ -97,7 +97,7 @@ export const getReport = createServerFn({ method: "POST" })
   });
 
 /**
- * Mints (or returns) the report's public link. The token alone comes back â€”
+ * Mints (or returns) the report's public link. The token alone comes back —
  * the app builds `<origin>/s/<token>` client-side, so the same server works on
  * app.opengeo.so and a self-hosted hostname without knowing either.
  */

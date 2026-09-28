@@ -29,7 +29,7 @@ import { Toaster } from "sonner";
 import { queryClient } from "@/client/tanstack-db";
 import { getActiveOrganizationId } from "@/lib/auth-session";
 
-// Capture Google link error params before the router starts â€” a route loader
+// Capture Google link error params before the router starts — a route loader
 // redirect would otherwise replace the URL and lose them. See googleLinkError.ts.
 captureGoogleLinkError();
 
@@ -144,7 +144,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               customer cache (autumn-js bundles a private react-query, so it
               never shares the app QueryClient), and every extra provider mount
               pays its own ~1s getOrCreateCustomer round trip. It only provides
-              context â€” nothing fetches until a useCustomer consumer mounts. */}
+              context — nothing fetches until a useCustomer consumer mounts. */}
           <AutumnProvider>
             <QueryClientProvider client={queryClient}>
               <>

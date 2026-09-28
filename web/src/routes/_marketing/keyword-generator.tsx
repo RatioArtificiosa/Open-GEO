@@ -30,19 +30,19 @@ const HIGHLIGHTS = [
   {
     title: "Difficulty estimates",
     description:
-      "Use the available 0â€“100 difficulty scores as an initial check, then review the search results before choosing a keyword.",
+      "Use the available 0–100 difficulty scores as an initial check, then review the search results before choosing a keyword.",
   },
 ];
 const FAQS = [
   {
     question: "Does this use AI to invent keywords?",
     answer:
-      "No. Suggestions come from DataForSEOâ€™s Google keyword database, with available volume and difficulty metrics. Some topics or countries may return few or no ideas.",
+      "No. Suggestions come from DataForSEO’s Google keyword database, with available volume and difficulty metrics. Some topics or countries may return few or no ideas.",
   },
   {
     question: "How should I choose a starting topic?",
     answer:
-      "Use a short phrase that describes your product, service, or audienceâ€™s problem. If the results are too broad, try a more specific phrase; if there are no results, try a broader one.",
+      "Use a short phrase that describes your product, service, or audience’s problem. If the results are too broad, try a more specific phrase; if there are no results, try a broader one.",
   },
   {
     question: "What do missing metrics mean?",
@@ -52,7 +52,7 @@ const FAQS = [
   {
     question: "How current are the results?",
     answer:
-      "The tool uses DataForSEOâ€™s keyword database, which is updated periodically. Results may be cached for up to 24 hours; they are not a real-time count of searches.",
+      "The tool uses DataForSEO’s keyword database, which is updated periodically. Results may be cached for up to 24 hours; they are not a real-time count of searches.",
   },
   {
     question: "Is this free?",

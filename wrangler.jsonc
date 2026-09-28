@@ -13,15 +13,15 @@
     },
   },
   // Smart Placement relocates only the `fetch` handler (cron + Workflow runs
-  // stay at the edge) toward external subrequests â€” Postgres via Hyperdrive,
-  // SEO APIs â€” not D1/KV/R2 bindings, so it's a DB no-op on the D1 default.
+  // stay at the edge) toward external subrequests — Postgres via Hyperdrive,
+  // SEO APIs — not D1/KV/R2 bindings, so it's a DB no-op on the D1 default.
   // Must live here: a dashboard-only toggle is wiped by `wrangler deploy`.
   "placement": {
     "mode": "smart",
   },
   "workflows": [
     // The site-audit engine lives in the open-geo-audit aux worker
-    // (wrangler.audit.jsonc) â€” its memory spikes (multi-MB Lighthouse
+    // (wrangler.audit.jsonc) — its memory spikes (multi-MB Lighthouse
     // payloads, in-flight HTML) OOMed this worker's near-limit baseline
     // heap. This is a cross-script binding for starting audits and reading
     // instance status.
@@ -51,7 +51,7 @@
     ],
   },
   // The site-audit engine lives in the open-geo-audit aux worker
-  // (wrangler.audit.jsonc), including the scratchpad DO â€” the DO cannot be
+  // (wrangler.audit.jsonc), including the scratchpad DO — the DO cannot be
   // bound cross-script here (the Cloudflare API rejects deleting the class
   // below while any binding still references its name). Cancel + GDPR
   // erasure go through this service binding's AuditEngine entrypoint.
@@ -75,9 +75,9 @@
       "new_sqlite_classes": ["AuditScratchpad"],
     },
     // AuditScratchpad moved to the open-geo-audit worker (no binding may
-    // still reference the class name in the same upload â€” see the services
+    // still reference the class name in the same upload — see the services
     // comment above). Deleting it here is safe: scratchpad state is
-    // disposable by design (destroyed at finalize, 7-day cleanup alarm) â€”
+    // disposable by design (destroyed at finalize, 7-day cleanup alarm) —
     // in-flight audits at the cutover fail once and the stale-audit
     // reconciler reaps them.
     {
@@ -86,7 +86,7 @@
     },
     // The onboarding strategy chat was removed: the namespace had had zero
     // invocations for months. Deleting the class destroys every instance's
-    // stored conversation, which is the intent â€” nothing else reads it.
+    // stored conversation, which is the intent — nothing else reads it.
     {
       "tag": "v5",
       "deleted_classes": ["OnboardingChatAgent"],
@@ -98,7 +98,7 @@
     "crons": ["*/5 * * * *", "17 3 * * *"],
   },
   // This config serves local dev and Docker self-host only. All Cloudflare
-  // deployments â€” previews, prod, self-host â€” go through Alchemy
+  // deployments — previews, prod, self-host — go through Alchemy
   // (alchemy.run.ts), which provisions real resources per stage and never
   // reads these ids.
   //
@@ -125,7 +125,7 @@
     },
   ],
   // Postgres scale path (opt-in; D1 is the default). Hyperdrive is the ONLY way
-  // the app connects to Postgres â€” there is no direct-connection fallback. For
+  // the app connects to Postgres — there is no direct-connection fallback. For
   // local dev, `localConnectionString` is the throwaway Docker Postgres from
   // docs/LOCAL_POSTGRES.md, and nothing connects to it unless
   // DATABASE_PROVIDER=postgres is set in .env.local.

@@ -115,8 +115,8 @@ pnpm run db:migrate:local
 
 ## Postgres backend (optional)
 
-D1 (SQLite) is the default. To run against Postgres locally instead â€” the opt-in
-backend for installs that outgrow D1 â€” see
+D1 (SQLite) is the default. To run against Postgres locally instead — the opt-in
+backend for installs that outgrow D1 — see
 [`LOCAL_POSTGRES.md`](./LOCAL_POSTGRES.md).
 
 ## Auth Modes

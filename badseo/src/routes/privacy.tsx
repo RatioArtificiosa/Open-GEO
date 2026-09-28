@@ -42,7 +42,7 @@ function PrivacyPage() {
           and device categories, and country-level location.
         </p>
         <p>
-          Plausible is provided by Plausible Analytics OÃœ. Learn more in the{" "}
+          Plausible is provided by Plausible Analytics OÜ. Learn more in the{" "}
           <a href="https://plausible.io/data-policy">
             Plausible Analytics data policy
           </a>

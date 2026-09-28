@@ -228,7 +228,7 @@ type GscInspectUrlsResult = {
   results: GscUrlInspection[];
 };
 
-/** Inspect 1â€“N URLs against a project's connected property. Resolves the
+/** Inspect 1–N URLs against a project's connected property. Resolves the
  *  connection once, then inspects each URL; per-URL failures are captured
  *  inline so one bad URL doesn't fail the batch. Token/grant failures
  *  propagate so the caller can prompt a reconnect. */

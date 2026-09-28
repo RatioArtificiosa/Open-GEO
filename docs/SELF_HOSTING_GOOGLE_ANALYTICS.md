@@ -25,12 +25,12 @@ read-only reports added in later GA4 milestones.
 
 ## 2) Configure the OAuth consent screen
 
-Under **APIs & Services â†’ OAuth consent screen**, configure the app. While the
+Under **APIs & Services → OAuth consent screen**, configure the app. While the
 app is in Testing, add every Google account that will connect as a test user.
 
 ## 3) Register the callback URL
 
-Open **APIs & Services â†’ Credentials**, edit the Web application OAuth client,
+Open **APIs & Services → Credentials**, edit the Web application OAuth client,
 and add an authorized redirect URI matching the deployment origin plus
 `/api/ga4/oauth/callback`.
 
@@ -60,7 +60,7 @@ openssl rand -base64 32
 
 ## 5) Connect a property
 
-Open a project dashboard or **Project settings â†’ Analytics**, click **Connect
+Open a project dashboard or **Project settings → Analytics**, click **Connect
 with Google**, approve read-only Analytics access, and choose a GA4 property.
 
 OpenGeo stores the OAuth tokens encrypted in Better Auth's account table. The
@@ -69,11 +69,11 @@ account. Disconnecting GA4 does not disconnect Search Console.
 
 ## Troubleshooting
 
-**`redirect_uri_mismatch`** â€” make sure the registered URI exactly matches the
+**`redirect_uri_mismatch`** — make sure the registered URI exactly matches the
 scheme, host, port, and `/api/ga4/oauth/callback` path used by the deployment.
 
-**No properties appear** â€” confirm that the Analytics Admin API is enabled and
+**No properties appear** — confirm that the Analytics Admin API is enabled and
 the connected Google account has access to the property.
 
-**Connection expired** â€” reconnect the Google account. OAuth apps left in
+**Connection expired** — reconnect the Google account. OAuth apps left in
 Google's Testing status can receive short-lived refresh grants.

@@ -83,7 +83,7 @@ type McpToolDefinition<Shape extends ZodRawShape> = {
 // Flatten an MCP CallToolResult into a plain value for the model. The text
 // block renders the same rows the structured data carries (see
 // tool-text-output.test.ts), so when both exist only the head of the text
-// survives â€” the title line and any caveat, not a second copy of every row.
+// survives — the title line and any caveat, not a second copy of every row.
 // A tool result is re-sent on every step of its turn and persisted in the
 // transcript, so the duplicate would cost twice everywhere.
 const SUMMARY_HEAD_CHARS = 300;
@@ -106,7 +106,7 @@ export function toModelOutput(result: CallToolResult): {
   if (!dataHasRows) return data ? { summary: text, data } : { summary: text };
   const summary =
     text.length > SUMMARY_HEAD_CHARS
-      ? `${text.slice(0, SUMMARY_HEAD_CHARS)}â€¦ (full rows in data)`
+      ? `${text.slice(0, SUMMARY_HEAD_CHARS)}… (full rows in data)`
       : text;
   return { summary, data };
 }
@@ -143,7 +143,7 @@ function adaptMcpTool<Shape extends ZodRawShape>(
       try {
         // Tool calls run inside Think's inference loop, outside any ambient
         // request scope, so each execution scopes its own Postgres client
-        // (no-op in D1 mode) â€” same rule as the DO's other DB-touching seams.
+        // (no-op in D1 mode) — same rule as the DO's other DB-touching seams.
         return capToolOutput(
           toModelOutput(await withPgClient(() => handler(fullArgs, context))),
         );
@@ -158,7 +158,7 @@ function adaptMcpTool<Shape extends ZodRawShape>(
   });
 }
 
-// Audits run for minutes, and a chat model cannot sleep â€” given an instant
+// Audits run for minutes, and a chat model cannot sleep — given an instant
 // status tool it spin-polls, and every call plus its result is persisted into
 // the session history. SAM's get_audit_status therefore waits server-side:
 // while the audit is running, it re-reads every few seconds and returns as
@@ -252,7 +252,7 @@ function scrapeTools(projectDomain: string | null): ToolSet {
         if (!target) {
           return {
             error:
-              "This project has no website set â€” ask the user for their site first.",
+              "This project has no website set — ask the user for their site first.",
           };
         }
         const result = await discoverSiteUrls(target, SAM_MAX_MAPPED_URLS);
@@ -262,7 +262,7 @@ function scrapeTools(projectDomain: string | null): ToolSet {
       },
     }),
     read_pages: tool({
-      description: `Read up to ${SAM_MAX_SCRAPE_PAGES} web pages as plain text â€” the project's own pages or anyone else's (competitors, references). Pass specific \`urls\` (usually picked from map_links); omit to read a representative sample of the project's own site. Uses no credits.`,
+      description: `Read up to ${SAM_MAX_SCRAPE_PAGES} web pages as plain text — the project's own pages or anyone else's (competitors, references). Pass specific \`urls\` (usually picked from map_links); omit to read a representative sample of the project's own site. Uses no credits.`,
       inputSchema: z.object({
         urls: z
           .array(z.string().url())
@@ -282,7 +282,7 @@ function scrapeTools(projectDomain: string | null): ToolSet {
         if (!site) {
           return {
             error:
-              "This project has no website set â€” ask the user for their site, or pass explicit urls.",
+              "This project has no website set — ask the user for their site, or pass explicit urls.",
           };
         }
         if (site.blocked) {
@@ -307,7 +307,7 @@ function scrapeTools(projectDomain: string | null): ToolSet {
  * spend is metered inside the shared client, so tool calls draw down the org's
  * credits automatically.
  *
- * When the MCP server gains a tool, add it here too â€” this list drifted for six
+ * When the MCP server gains a tool, add it here too — this list drifted for six
  * weeks once (audit + GA4 + rank-tracker management were MCP-only) before
  * anyone noticed.
  */
@@ -347,7 +347,7 @@ export function buildSamMcpTools(
   };
 
   // Note: no `list_projects`. SAM is bound to the session's project, so
-  // discovering other projects isn't part of its job â€” every project-scoped tool
+  // discovering other projects isn't part of its job — every project-scoped tool
   // below has `projectId` injected server-side by adaptMcpTool.
   return {
     // On-demand product reference (kept out of the system prompt: inlining it
@@ -392,7 +392,7 @@ export function buildSamMcpTools(
     get_keyword_metrics: adaptTool(getKeywordMetricsTool),
     get_search_console_performance: adaptTool(getSearchConsolePerformanceTool),
     inspect_urls: adaptTool(inspectUrlsTool),
-    // Unconditional like the MCP server's registrations â€” the GA4 launch gate
+    // Unconditional like the MCP server's registrations — the GA4 launch gate
     // was removed in #505.
     get_google_analytics_organic_landing_pages: adaptObjectTool(
       getGoogleAnalyticsOrganicLandingPagesTool,

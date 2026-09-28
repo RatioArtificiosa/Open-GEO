@@ -23,7 +23,7 @@ Accepted. Shipped in PR #616 on top of reports (`specs/0012-dynamic-reports.md`)
 
 **States.** Unknown, unshared or deleted: one "not shared" page with a 404 status, so tokens cannot be probed. Archived project: 404 with the archived message; restoring the project brings the link back.
 
-**One gate.** The mint, the public page and the raw endpoint ask the same question â€” is this a hosted deployment â€” so they cannot disagree. A self-hosted deployment is behind Cloudflare Access or has no auth at all, and neither can serve a link to a reader who is not signed in, so there sharing is refused with an ordinary validation error and every share path answers as if the link never existed.
+**One gate.** The mint, the public page and the raw endpoint ask the same question — is this a hosted deployment — so they cannot disagree. A self-hosted deployment is behind Cloudflare Access or has no auth at all, and neither can serve a link to a reader who is not signed in, so there sharing is refused with an ordinary validation error and every share path answers as if the link never existed.
 
 **Sandbox facts**, checked in the three major engines: meta refresh, `javascript:` and `data:` navigations, form submission and a `<meta>` policy that adds scripts are all refused, and the origin is opaque. A clicked link only replaces the frame's content; links that open a new tab do so with the opener severed.
 

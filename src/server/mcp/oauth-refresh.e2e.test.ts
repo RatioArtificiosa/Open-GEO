@@ -6,10 +6,10 @@ import type { createOpenSeoOAuthProvider } from "./oauth-provider";
 // End-to-end OAuth lifecycle against the REAL @cloudflare/workers-oauth-provider
 // (only the Workers runtime shims and app session resolution are mocked),
 // shaped after how Codex actually behaves: DCR with no token_endpoint_auth_method,
-// PKCE S256, form-encoded token requests, and refresh with client_id only â€”
+// PKCE S256, form-encoded token requests, and refresh with client_id only —
 // no client secret, no scope parameter. Refresh breakage has bitten real
-// clients before (PR #420); these tests pin the full register â†’ authorize â†’
-// consent â†’ token â†’ use â†’ refresh â†’ rotate chain.
+// clients before (PR #420); these tests pin the full register → authorize →
+// consent → token → use → refresh → rotate chain.
 
 const BASE = "https://app.opengeo.so";
 const MCP_RESOURCE = `${BASE}/mcp`;
@@ -262,7 +262,7 @@ async function exchangeCode(
   return tokenResponseSchema.parse(await response.json());
 }
 
-// Codex-shaped refresh: client_id only â€” no secret, no scope, no resource.
+// Codex-shaped refresh: client_id only — no secret, no scope, no resource.
 function refresh(clientId: string, refreshToken: string) {
   return tokenRequest({
     grant_type: "refresh_token",
@@ -367,13 +367,13 @@ describe("Codex-style OAuth token refresh (real workers-oauth-provider)", () => 
     expect(mismatched.status).toBeLessThan(500);
   });
 
-  it("rejects an RFC 3986-equivalent resource variant (upstream #282 â€” flips when fixed)", async () => {
+  it("rejects an RFC 3986-equivalent resource variant (upstream #282 — flips when fixed)", async () => {
     // workers-oauth-provider compares resources with strict string equality,
     // so a trailing-slash variant of the canonical resource fails refresh with
     // invalid_target (cloudflare/workers-oauth-provider#282, open). Codex
     // omits the param entirely and never hits this; Cloudflare's MCP Server
     // Portal normalizes URLs this way and does. When upstream ships equivalence
-    // matching, this test fails â€” flip the assertion to 200 and drop the note.
+    // matching, this test fails — flip the assertion to 200 and drop the note.
     const { client, tokens } = await setupSession();
 
     const slashVariant = await tokenRequest({
@@ -405,7 +405,7 @@ describe("Codex-style OAuth token refresh (real workers-oauth-provider)", () => 
 
   it("returns a structured error, never a 500, for a refresh at the end of the grant's life", async () => {
     // workers-oauth-provider < 0.8.1 crashed (uncaught 500) refreshing a grant
-    // in its final minute because KV rejects sub-60s TTLs â€” a client that
+    // in its final minute because KV rejects sub-60s TTLs — a client that
     // retries a 500 and gives up looks exactly like "refresh is broken".
     const { client, tokens } = await setupSession();
 
@@ -435,7 +435,7 @@ describe("Codex-style OAuth token refresh (real workers-oauth-provider)", () => 
     const codeVerifier = randomBytes(32).toString("base64url");
     const code = await authorizeAndGetCode(client.client_id, codeVerifier);
 
-    // Confidential clients must authenticate even at the code exchange â€” and
+    // Confidential clients must authenticate even at the code exchange — and
     // since 0.9.0 the registered method is enforced: client_secret_basic means
     // the Authorization header, not a client_secret form field.
     const basicAuth = Buffer.from(

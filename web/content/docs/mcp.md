@@ -21,7 +21,7 @@ No account yet? Try the [free SEO tools](/tools).
 
 ## Claude Code
 
-The [OpenGeo plugin](/docs/claude-code-plugin) is the preferred way to connect Claude Code â€” one install adds MCP and the public SEO skills together. Use the steps below only if you want MCP on its own.
+The [OpenGeo plugin](/docs/claude-code-plugin) is the preferred way to connect Claude Code — one install adds MCP and the public SEO skills together. Use the steps below only if you want MCP on its own.
 
 Use user scope to make OpenGeo available across projects. Use local scope for the current repository.
 
@@ -60,7 +60,7 @@ Claude Desktop custom connectors are available on Free, Pro, Max, Team, and Ente
 
 ## Codex CLI
 
-The [OpenGeo plugin](/docs/codex-plugin) is the preferred way to connect Codex CLI â€” one install adds MCP and the public SEO skills together. Use the steps below only if you want MCP on its own.
+The [OpenGeo plugin](/docs/codex-plugin) is the preferred way to connect Codex CLI — one install adds MCP and the public SEO skills together. Use the steps below only if you want MCP on its own.
 
 Run this in your terminal:
 

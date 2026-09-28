@@ -12,10 +12,10 @@ type Props = {
  * Shared Markdown renderer with explicit per-element Tailwind classes.
  *
  * OpenGeo doesn't ship `@tailwindcss/typography`, so `prose` classes are
- * no-ops â€” every block element is styled here instead. Tables use daisyUI's
+ * no-ops — every block element is styled here instead. Tables use daisyUI's
  * `table table-sm` so model- and strategy-generated tables stay readable.
  *
- * Anchor URLs are sanitized to http(s) only â€” LLMs can be coaxed into
+ * Anchor URLs are sanitized to http(s) only — LLMs can be coaxed into
  * emitting `javascript:` payloads.
  */
 export function Markdown({ children, className }: Props) {
@@ -56,7 +56,7 @@ function isHttpUrl(value: string | undefined): value is string {
   try {
     const url = new URL(value);
     if (url.protocol !== "http:" && url.protocol !== "https:") return false;
-    // Mirror server-side `safeHttpUrl` â€” a `user:pass@host` URL shows one
+    // Mirror server-side `safeHttpUrl` — a `user:pass@host` URL shows one
     // hostname in link text while auth hits another.
     if (url.username || url.password) return false;
     return true;

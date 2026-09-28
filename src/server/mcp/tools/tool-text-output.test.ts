@@ -21,7 +21,7 @@ import type * as backlinksTargetModule from "@/server/lib/dataforseoBacklinksTar
 // Verifies that each tool renders its actual row data into the text content
 // block (not just a count), across the tools whose data comes from OpenGeo
 // services rather than the DataForSEO client. Guards against a column wired to
-// the wrong field, which would render a table of only "â€”".
+// the wrong field, which would render a table of only "—".
 
 const mocks = vi.hoisted(() => ({
   getProjectForOrganization: vi.fn(),
@@ -146,7 +146,7 @@ describe("MCP tool text output (service-backed tools)", () => {
     expect(out).toContain("keyword | volume | KD | CPC | competition | intent");
     expect(out).toContain("seo tools | 2400 | 18 | 3.25 | 0.40 | commercial");
     // Second row proves it isn't truncated and nulls render as em dashes.
-    expect(out).toContain("free seo tools | 880 | â€” | â€” | â€” | informational");
+    expect(out).toContain("free seo tools | 880 | — | — | — | informational");
   });
 
   it("get_domain_keyword_suggestions renders keyword rows", async () => {
@@ -274,7 +274,7 @@ describe("MCP tool text output (service-backed tools)", () => {
     expect(out).toContain(
       "keyword | desktop | prev (desktop) | mobile | prev (mobile)",
     );
-    expect(out).toContain("seo tools | 3 | 5 | 7 | â€”");
+    expect(out).toContain("seo tools | 3 | 5 | 7 | —");
   });
 
   it("get_rank_tracker surfaces the latest run failure", async () => {
@@ -304,7 +304,7 @@ describe("MCP tool text output (service-backed tools)", () => {
     );
 
     expect(textContent(result)).toContain(
-      "Latest run: failed â€” Provider request timed out",
+      "Latest run: failed — Provider request timed out",
     );
     expect(result.structuredContent).toMatchObject({
       results: {

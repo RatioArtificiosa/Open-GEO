@@ -62,7 +62,7 @@ const TESTIMONIALS: Testimonial[] = [
   },
 ];
 
-// â”€â”€â”€ Icons (inline SVG only, per project convention) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Icons (inline SVG only, per project convention) ─────────────────
 
 type IconProps = { size?: number; className?: string };
 
@@ -159,7 +159,7 @@ function IconDiscord({ size = 18, className }: IconProps) {
   );
 }
 
-// â”€â”€â”€ Shared bits â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Shared bits ─────────────────────────────────────────────────────
 
 function Container({
   children,
@@ -193,7 +193,7 @@ function ArrowCta({
   );
 }
 
-// â”€â”€â”€ Hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Hero ────────────────────────────────────────────────────────────
 
 function Hero() {
   return (
@@ -233,7 +233,7 @@ function Hero() {
   );
 }
 
-// â”€â”€â”€ Testimonial (true-black inverse strip) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Testimonial (true-black inverse strip) ──────────────────────────
 
 function Testimonial() {
   return (
@@ -293,7 +293,7 @@ function Testimonial() {
   );
 }
 
-// â”€â”€â”€ Product â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Product ─────────────────────────────────────────────────────────
 
 const FEATURE_CARDS = [
   {
@@ -423,7 +423,7 @@ function ProductSection() {
   );
 }
 
-// â”€â”€â”€ MCP: the page's one Fin Orange moment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── MCP: the page's one Fin Orange moment ───────────────────────────
 
 type McpClient = {
   name: string;
@@ -488,15 +488,15 @@ function McpSection() {
                 <span className="itc-terminal-dot" />
                 <span className="itc-terminal-dot" />
               </span>
-              <span className="itc-terminal-label">claude Â· opengeo mcp</span>
+              <span className="itc-terminal-label">claude · opengeo mcp</span>
             </div>
             <pre>
               <code>
-                <span className="t-orange">â€º</span> find and cluster keywords
+                <span className="t-orange">›</span> find and cluster keywords
                 for <span className="t-bright">opengeo.so</span>
                 {"\n\n"}
                 <span className="t-dim">
-                  âº opengeo.keyword_research(seed: &quot;open source seo&quot;)
+                  ⏺ opengeo.keyword_research(seed: &quot;open source seo&quot;)
                 </span>
                 {"\n"}
                 {"  "}keyword{"                      "}volume{"     "}kd{"\n"}
@@ -515,13 +515,13 @@ function McpSection() {
                 {"        "}
                 <span className="t-dim">4</span>
                 {"\n\n"}
-                <span className="t-orange">âœ“</span>
+                <span className="t-orange">✓</span>
                 <span className="t-dim">
                   {" "}
                   Saved 3 keywords to your workspace.
                 </span>
                 {"\n"}
-                <span className="t-orange">â†³</span>
+                <span className="t-orange">↳</span>
                 <span className="t-dim"> View data in app: </span>
                 <span className="t-bright">app.opengeo.so/keywords</span>
               </code>
@@ -813,7 +813,7 @@ function GeminiIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-// â”€â”€â”€ Open source â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Open source ─────────────────────────────────────────────────────
 
 function OpenSourceSection() {
   return (
@@ -855,7 +855,7 @@ function OpenSourceSection() {
   );
 }
 
-// â”€â”€â”€ Footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Footer ──────────────────────────────────────────────────────────
 
 function Footer() {
   return (
@@ -898,14 +898,14 @@ function Footer() {
           className="itc-caption itc-subtle"
           style={{ margin: 0, padding: "40px 0 32px" }}
         >
-          Â© 2026 Every App, Inc.
+          © 2026 Every App, Inc.
         </p>
       </Container>
     </footer>
   );
 }
 
-// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Page ────────────────────────────────────────────────────────────
 
 export function LandingPage() {
   return (

@@ -1,20 +1,20 @@
-# Onboarding agent â€” implementation plan (chat + seed function)
+# Onboarding agent — implementation plan (chat + seed function)
 
 ## Status
 
-Accepted (June 2026) â€” technical plan for `specs/0005-onboarding-agent.md`.
+Accepted (June 2026) — technical plan for `specs/0005-onboarding-agent.md`.
 
 Supersedes an earlier draft that proposed Cloudflare Project Think + Durable
 Objects + a Workflow. We dropped all of that (see "Why not Think / Workflows").
 
 > **Update (June 2026):** the shipped implementation diverged from the plan
-> below. The deterministic seed + synthesis pipeline â€” and its `claimRun`
-> run-status guard and `skipBalanceAssert` bypass â€” was replaced by an on-demand
+> below. The deterministic seed + synthesis pipeline — and its `claimRun`
+> run-status guard and `skipBalanceAssert` bypass — was replaced by an on-demand
 > chat: Sam calls two tools (`read_website`, `get_seo_metrics`) and writes the
 > strategy itself in-stream (see `src/routes/api/onboarding/chat.ts`). Strategy
 > **persistence** (the `project_context_versions` store + R2 versioning) and the
 > `get_project_context` **MCP tool** are deferred to a later PR. Onboarding
-> spend â€” DataForSEO **and** LLM tokens â€” draws down the org's onboarding-plan
+> spend — DataForSEO **and** LLM tokens — draws down the org's onboarding-plan
 > trial credits via the normal balance gate. The sections below describe the
 > original plan, not what shipped.
 
@@ -22,9 +22,9 @@ Objects + a Workflow. We dropped all of that (see "Why not Think / Workflows").
 
 Onboarding has two simple pieces, no agent framework:
 
-1. **A seed function** (plain async): discover sitemap â†’ scrape 3â€“5 pages to
-   markdown (Browser Rendering) â†’ 2 paid DataForSEO calls â†’ one OpenRouter
-   synthesis call â†’ save the result as the project's first **Project Context**
+1. **A seed function** (plain async): discover sitemap → scrape 3–5 pages to
+   markdown (Browser Rendering) → 2 paid DataForSEO calls → one OpenRouter
+   synthesis call → save the result as the project's first **Project Context**
    version. Runs once when onboarding kicks off.
 2. **A normal streaming chat** (Vercel AI SDK `streamText` over OpenRouter):
    the user asks questions / refines; an `update_project_context` tool writes a
@@ -38,14 +38,14 @@ via `get_project_context`.
 
 - **No durable execution needed.** The paid DataForSEO services are _cache-first_
   (`getCached` runs before `createDataforseoClient`/metering), so a crash-and-retry
-  of the same domain re-hits the 12h R2 cache â†’ no double-spend. That removed the
+  of the same domain re-hits the 12h R2 cache → no double-spend. That removed the
   only reason for fibers/Workflows.
 - **No agent host needed.** The capabilities we want (stream answers, a future
   docs tool, save/update the artifact) are all plain `streamText({ tools })`.
   Think's distinctive value (durable DO sessions, scheduled turns, sub-agents)
   isn't used by any of them.
-- **The `agents` package stays** â€” it's used by the MCP handler
-  (`agents/mcp` â†’ `createMcpHandler` in `src/server/mcp/transport.ts`), not as an
+- **The `agents` package stays** — it's used by the MCP handler
+  (`agents/mcp` → `createMcpHandler` in `src/server/mcp/transport.ts`), not as an
   agent runtime. No version bump.
 - **Graduate later** only when a capability genuinely needs durable sessions,
   `schedule` (weekly rank tracking), or sub-agents (per-competitor). The seed
@@ -53,16 +53,16 @@ via `get_project_context`.
 
 ## Data model
 
-**`projects`** â€” add `location_code` (int, default 2840), `language_code` (text,
+**`projects`** — add `location_code` (int, default 2840), `language_code` (text,
 default `'en'`), `onboarding_run_status` (text nullable:
 `running|complete|failed`), `onboarding_run_at` (text nullable).
 
 **`project_context_versions`** (new, append-only log):
-`id` pk Â· `project_id` FK Â· `r2_key` Â· `author` (`onboarding|chat|user`) Â·
-`note` nullable Â· `reverted_from_id` nullable Â· `created_at`. Current version =
+`id` pk · `project_id` FK · `r2_key` · `author` (`onboarding|chat|user`) ·
+`note` nullable · `reverted_from_id` nullable · `created_at`. Current version =
 latest row per project. Index on `(project_id, created_at)`.
 
-**R2** â€” immutable markdown blob per version at
+**R2** — immutable markdown blob per version at
 `project-context/{projectId}/{versionId}.md`. **Write R2 first, then the D1
 row** (a failure leaves a harmless orphan blob, never a row pointing at nothing).
 A revert inserts a new row reusing the target's `r2_key` (no new blob).
@@ -71,20 +71,20 @@ A revert inserts a new row reusing the target's `r2_key` (no new blob).
 
 `runOnboardingSeed({ projectId, organizationId, userId, userEmail, domain })`:
 
-1. **Admission marker** â€” atomic `UPDATE projects SET onboarding_run_status =
+1. **Admission marker** — atomic `UPDATE projects SET onboarding_run_status =
 'running' WHERE id = ? AND onboarding_run_status IS NULL`; proceed only if
    one row changed (else a run is already in flight). This is the at-most-once
    guard.
-2. **Discover** â€” `fetch()` robots.txt + sitemap.xml; shallow fallback.
-3. **Read** â€” scrape 3â€“5 key pages to markdown via the `BROWSER` binding,
-   sequentially. Failure â†’ flag it, never throw the whole run.
-4. **Signal** â€” `DomainService.getOverview` (always) + keyword research seeded
+2. **Discover** — `fetch()` robots.txt + sitemap.xml; shallow fallback.
+3. **Read** — scrape 3–5 key pages to markdown via the `BROWSER` binding,
+   sequentially. Failure → flag it, never throw the whole run.
+4. **Signal** — `DomainService.getOverview` (always) + keyword research seeded
    from scraped themes, both with `creditFeature: 'onboarding'`;
    `getSuggestedKeywords` only if the overview shows real rankings.
-5. **Synthesize** â€” one OpenRouter `generateText`/`streamText` over
-   {profile + markdown + signal} â†’ strategy markdown.
-6. **Persist** â€” write version `v1` (author `onboarding`); set
-   `onboarding_run_status = 'complete'`. On any throw â†’ `'failed'` (re-runnable;
+5. **Synthesize** — one OpenRouter `generateText`/`streamText` over
+   {profile + markdown + signal} → strategy markdown.
+6. **Persist** — write version `v1` (author `onboarding`); set
+   `onboarding_run_status = 'complete'`. On any throw → `'failed'` (re-runnable;
    retry is cache-backed and cheap).
 
 **Metering** is unchanged: paid calls go through the existing
@@ -119,8 +119,8 @@ above the chat; the upgrade CTA is a UI state shown once `v1` exists.
 
 ## MCP
 
-`get_project_context(projectId)` â€” read-only tool (`readOnlyHint: true`) using
-`withMcpProjectAuth`; resolves the latest version â†’ R2 get â†’ returns markdown.
+`get_project_context(projectId)` — read-only tool (`readOnlyHint: true`) using
+`withMcpProjectAuth`; resolves the latest version → R2 get → returns markdown.
 `list_project_context_versions` is a fast-follow.
 
 ## Local testing
@@ -135,18 +135,18 @@ Real providers, no fixture system:
 
 ## Build order (stacked PRs)
 
-1. **Foundation** â€” schema + migration (`projects` cols, `project_context_versions`);
+1. **Foundation** — schema + migration (`projects` cols, `project_context_versions`);
    `emailVerified` on context; `'onboarding'` CreditFeature + label +
-   `skipBalanceAssert` flag; countryâ†’`location_code` map. No behavior.
-2. **Stage 0 form** â€” domain + country on one step â†’ `projects`.
-3. **Project Context store** â€” R2 blob helper + versions repository +
+   `skipBalanceAssert` flag; country→`location_code` map. No behavior.
+2. **Stage 0 form** — domain + country on one step → `projects`.
+3. **Project Context store** — R2 blob helper + versions repository +
    `get_project_context` MCP tool.
-4. **Scrape + seed + synthesis** â€” `BROWSER` binding, scrape-to-markdown, the
-   seed function, OpenRouter dep, the "generating â†’ strategy" UI.
-5. **Chat** â€” `/api/onboarding/chat` + `update_project_context` tool +
+4. **Scrape + seed + synthesis** — `BROWSER` binding, scrape-to-markdown, the
+   seed function, OpenRouter dep, the "generating → strategy" UI.
+5. **Chat** — `/api/onboarding/chat` + `update_project_context` tool +
    `useChat` UI + revert.
 
-(There is no fixture-provider PR â€” we test against real providers.)
+(There is no fixture-provider PR — we test against real providers.)
 
 ## Out of scope (v1)
 

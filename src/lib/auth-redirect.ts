@@ -76,7 +76,7 @@ export function getCurrentAuthRedirectFromHref(href: string) {
 /**
  * Routes served as a raw document by a server handler, with no client
  * component. They are still matchable in the generated client route tree, where
- * a route with no component renders an empty shell â€” so an SPA navigation to
+ * a route with no component renders an empty shell — so an SPA navigation to
  * one lands the user on a blank page. Navigate to these with a document load.
  */
 export function isDocumentRoute(redirectTo: string) {

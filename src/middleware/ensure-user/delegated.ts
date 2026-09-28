@@ -11,7 +11,7 @@ const LOCAL_ADMIN_USER_ID = "local-admin";
 const LOCAL_ADMIN_EMAIL = "admin@localhost";
 
 // Externally-authenticated users (Cloudflare Access, local_noauth) are stored
-// in better-auth's `user` table just like hosted users â€” only the way we
+// in better-auth's `user` table just like hosted users — only the way we
 // authenticate them differs (per-request, no better-auth session). Keeping a
 // single user table means the OAuth `account` grant and every app table that
 // references `user.id` resolve the same way in all auth modes.

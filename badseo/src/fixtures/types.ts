@@ -1,6 +1,6 @@
 // The issue-id union comes straight from the OpenGeo audit engine so that
 // every fixture's `expectedIssues` is type-checked against the real registry.
-// Type-only import â€” erased at build time, never bundled into the Worker.
+// Type-only import — erased at build time, never bundled into the Worker.
 import type { AuditIssueType } from "../../../src/shared/audit-issues";
 
 export type IssueId = AuditIssueType;

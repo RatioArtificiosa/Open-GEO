@@ -131,7 +131,7 @@ function fetch(
   ctx: ExecutionContext,
 ): Promise<Response> {
   // Scope a per-request Postgres client (no-op in D1 mode). The client isn't
-  // closed here â€” the Workersâ†”Hyperdrive socket is reclaimed at invocation end.
+  // closed here — the Workers↔Hyperdrive socket is reclaimed at invocation end.
   return withPgClient(() => Promise.resolve(handleFetch(request, env, ctx)));
 }
 

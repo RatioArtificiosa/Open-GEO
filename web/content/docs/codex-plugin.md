@@ -15,7 +15,7 @@ codex plugin add opengeo@opengeo
 codex mcp login opengeo
 ```
 
-`codex mcp login` opens a browser to approve the OpenGeo connection. If it reports that `opengeo` isn't found, restart Codex first â€” bundled MCP servers only register after a restart, not immediately after install â€” then run `codex mcp login opengeo` again.
+`codex mcp login` opens a browser to approve the OpenGeo connection. If it reports that `opengeo` isn't found, restart Codex first — bundled MCP servers only register after a restart, not immediately after install — then run `codex mcp login opengeo` again.
 
 Codex connects OpenGeo MCP at `https://app.opengeo.so/mcp` and enables ten skills:
 
@@ -59,7 +59,7 @@ codex mcp logout opengeo
 codex mcp login opengeo
 ```
 
-If a `codex plugin` command reports "unrecognized subcommand," run `codex plugin --help` to see the subcommands your installed version actually supports â€” they've changed across versions (for example, `add`/`remove`, not `install`/`uninstall`).
+If a `codex plugin` command reports "unrecognized subcommand," run `codex plugin --help` to see the subcommands your installed version actually supports — they've changed across versions (for example, `add`/`remove`, not `install`/`uninstall`).
 
 ## Other clients
 

@@ -21,19 +21,19 @@ It's **optional**: OpenGeo runs fine without it, just without Search Console dat
 
 ## 2) Configure the OAuth consent screen
 
-Under **APIs & Services â†’ OAuth consent screen**:
+Under **APIs & Services → OAuth consent screen**:
 
 - Pick **External** (unless everyone using it is in your Google Workspace org).
 - Fill in the app name, support email, and developer contact email.
 - While the app is in **Testing**, add the Google accounts that will connect as
-  **test users** â€” otherwise Google blocks the sign-in with `access_denied`.
+  **test users** — otherwise Google blocks the sign-in with `access_denied`.
 
 For personal or internal use you don't need to submit for verification; testing
 mode is enough.
 
 ## 3) Create an OAuth client ID
 
-Under **APIs & Services â†’ Credentials â†’ Create credentials â†’ OAuth client ID**:
+Under **APIs & Services → Credentials → Create credentials → OAuth client ID**:
 
 1. Application type: **Web application**.
 2. Add an **Authorized redirect URI** that exactly matches your deployment's
@@ -58,7 +58,7 @@ Set these three values, then restart OpenGeo:
 | `GOOGLE_CLIENT_SECRET` | Client secret from step 3.                                              |
 | `BETTER_AUTH_SECRET`   | A random string of **at least 32 characters** (encrypts stored tokens). |
 
-`BETTER_AUTH_SECRET` is not needed for normal self-hosting â€” only for Search
+`BETTER_AUTH_SECRET` is not needed for normal self-hosting — only for Search
 Console, because the stored OAuth tokens are encrypted at rest with it. Generate
 one with:
 
@@ -90,17 +90,17 @@ project.
 - OpenGeo uses your Google client to run the OAuth flow and stores the resulting
   grant in its database, with the access and refresh tokens **encrypted at rest**
   (keyed by `BETTER_AUTH_SECRET`).
-- Access tokens are minted and refreshed on demand â€” you only authorize once.
+- Access tokens are minted and refreshed on demand — you only authorize once.
 - Search Console data comes from your own Google account, so OpenGeo never meters credits for it.
 
 ## Troubleshooting
 
-**`redirect_uri_mismatch` from Google** â€” the redirect URI in your OAuth client
+**`redirect_uri_mismatch` from Google** — the redirect URI in your OAuth client
 must exactly equal `<your-origin>/api/gsc/oauth/callback`. Re-check scheme
 (`http` vs `https`), host, port, and that there's no trailing slash.
 
 **"Google OAuth client not configured" / "not configured for Search Console yet"**
-(in the app or via the MCP tools) â€” one of `GOOGLE_CLIENT_ID`,
+(in the app or via the MCP tools) — one of `GOOGLE_CLIENT_ID`,
 `GOOGLE_CLIENT_SECRET`, or `BETTER_AUTH_SECRET` is missing, or the secret is
 shorter than 32 characters. Set all three and restart. On Docker, recreate the
 container so Compose reapplies `.env`:
@@ -109,10 +109,10 @@ container so Compose reapplies `.env`:
 docker compose up -d --force-recreate open-geo
 ```
 
-**`access_denied` during sign-in** â€” the Google account isn't listed as a test
+**`access_denied` during sign-in** — the Google account isn't listed as a test
 user on the OAuth consent screen (while the app is in Testing mode). Add it under
-**OAuth consent screen â†’ Test users**.
+**OAuth consent screen → Test users**.
 
-**Connected, but no properties to pick** â€” the Google account you authorized
+**Connected, but no properties to pick** — the Google account you authorized
 doesn't have a verified property in Search Console. Verify the site in
 [Search Console](https://search.google.com/search-console) first, then reconnect.

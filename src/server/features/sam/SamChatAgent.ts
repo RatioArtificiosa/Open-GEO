@@ -57,7 +57,7 @@ const PUBLIC_ORIGIN_KEY = "sam-public-origin";
 // Batching threshold for metering, not a charge: the user pays the turn's
 // actual OpenRouter cost (times the usual markup) whatever this is set to.
 // Spend accumulates step by step and is sent to Autumn once the unbilled
-// total reaches this much, with the remainder flushed when the turn ends â€”
+// total reaches this much, with the remainder flushed when the turn ends —
 // so a $0.50 turn is ~10 Autumn calls rather than one per step, and a turn
 // the isolate kills mid-way has at most this much unbilled. Each call rounds
 // up to a whole credit (a tenth of a cent).
@@ -66,14 +66,14 @@ const SAM_BILLING_CHUNK_USD = 0.05;
 // Long tool-heavy turns are what outgrow the Durable Object memory limit; the
 // model's 1M-token window never gets a say. Compact between turns past this
 // estimated token count, and mid-turn once a step's input passes 90% of the
-// proactive ceiling â€” both far below the window, because the constraint is DO
+// proactive ceiling — both far below the window, because the constraint is DO
 // memory, not the provider.
 //
 // The between-turn threshold is compared against the Session's built-in
 // estimate (~4 chars/token over the full stored transcript). That runs high
 // relative to what the model receives, because Think clips tool outputs
 // older than the last four messages to 500 chars on every call, so it fires
-// early â€” the safe side. Don't pass a tokenCounter built on the model's
+// early — the safe side. Don't pass a tokenCounter built on the model's
 // reported usage: the Session also calls the counter per single message when
 // choosing what to protect, and a whole-prompt number collapses the protected
 // tail to two messages. A real per-message counter means a tokenizer in the
@@ -82,13 +82,13 @@ const SAM_COMPACT_AFTER_TOKENS = 120_000;
 const SAM_MAX_INPUT_TOKENS = 160_000;
 
 const INTERRUPTED_TURN_NOTICE =
-  "That reply was cut off before it finished â€” the work got too big to complete in one go. Everything above is saved. Ask again for a narrower slice (fewer keywords, competitors, or pages), or tell me where to pick up.";
+  "That reply was cut off before it finished — the work got too big to complete in one go. Everything above is saved. Ask again for a narrower slice (fewer keywords, competitors, or pages), or tell me where to pick up.";
 
 // Derive a short session title from the first user message.
 function deriveTitle(text: string): string {
   const trimmed = text.replace(/\s+/g, " ").trim();
   if (!trimmed) return "New chat";
-  return trimmed.length > 60 ? `${trimmed.slice(0, 57)}â€¦` : trimmed;
+  return trimmed.length > 60 ? `${trimmed.slice(0, 57)}…` : trimmed;
 }
 
 function firstUserText(messages: UIMessage[]): string {
@@ -114,14 +114,14 @@ type SamContext = {
  * session (Think hosts one conversation per instance); the DO instance name IS
  * the session id, set by the client (`useAgent({ name: sessionId })`) and
  * authorized in the Worker (`onBeforeConnect`) before any connection reaches
- * here â€” so the DO trusts that its caller may act on `this.name` and derives
+ * here — so the DO trusts that its caller may act on `this.name` and derives
  * project/user from the sam_sessions row (and the org from the project).
  *
  * Think owns the agentic loop (streaming, persistence, compaction-ready
  * history, context blocks); this subclass contributes the model, the MCP
  * toolset, the billing gate/metering, and project-scoped memory: the
  * "project_context" block renders the project's shared memory, which every
- * session in the project â€” and the MCP server and settings UI â€” reads and
+ * session in the project — and the MCP server and settings UI — reads and
  * writes through ProjectContextService.
  */
 export class SamChatAgent extends Think {
@@ -132,7 +132,7 @@ export class SamChatAgent extends Think {
   override workspaceBash = false;
 
   // Session row + project, resolved once per DO lifetime (the binding is
-  // immutable). Null until a turn/provider needs it â€” and left null when the
+  // immutable). Null until a turn/provider needs it — and left null when the
   // registry row is gone, which beforeTurn turns into a polite refusal.
   private samContext: SamContext | null = null;
 
@@ -140,7 +140,7 @@ export class SamChatAgent extends Think {
   // this turn), onStepFinish accumulates OpenRouter cost and meters it in
   // chunks as the turn runs, onChatResponse/onChatError flush the remainder.
   // Chunked per step rather than once per turn so a turn the Durable Object
-  // memory limit kills mid-way still bills what it spent â€” the Sep 2026
+  // memory limit kills mid-way still bills what it spent — the Sep 2026
   // recovery loop burned ~$160/day of OpenRouter spend that never reached
   // onChatResponse. Deductions run off the inference loop, serialized so they
   // land in order; waitUntil keeps the final flush alive in the background.
@@ -160,8 +160,8 @@ export class SamChatAgent extends Think {
   // Mid-turn context guard, using the compaction configured in
   // configureSession (see SAM_MAX_INPUT_TOKENS). The reactive backstop is
   // deliberately off: it re-runs the whole turn from compacted history, which
-  // would re-issue every tool call â€” a second site audit, a second DataForSEO
-  // charge for the same research â€” on a classifier that is a regex over the
+  // would re-issue every tool call — a second site audit, a second DataForSEO
+  // charge for the same research — on a classifier that is a regex over the
   // provider's error text. A turn that still overflows ends as an error the
   // user can retry.
   override contextOverflow = {
@@ -221,7 +221,7 @@ export class SamChatAgent extends Think {
       })
       .withContext(PROJECT_CONTEXT_BLOCK, {
         description:
-          "This project's shared memory â€” sections, competitors, key pages and research log, the same records the user sees in the app. Change it with update_project_context.",
+          "This project's shared memory — sections, competitors, key pages and research log, the same records the user sees in the app. Change it with update_project_context.",
         provider: { get: () => this.renderProjectContext() },
       })
       .onCompaction(
@@ -303,7 +303,7 @@ export class SamChatAgent extends Think {
   // back through Think's normal pipeline (rendered and persisted like any
   // assistant message) without calling a provider, so a refusal is free even
   // when users script them. The old version made a real 200-token call, which
-  // MiniMax M3 could spend entirely on reasoning tokens â€” leaving the user a
+  // MiniMax M3 could spend entirely on reasoning tokens — leaving the user a
   // truncated chain-of-thought and no reply (issue #161).
   private refusalTurn(text: string): TurnConfig {
     return { model: staticAssistantModel(text) };
@@ -328,7 +328,7 @@ export class SamChatAgent extends Think {
       // (including free), and LLM tokens plus DataForSEO tool calls all draw
       // down the org's credit balance. Self-hosted brings its own provider
       // keys and has no Autumn balance, so it's ungated. Depletion is
-      // confirmed against a second Autumn read path before refusing â€” a
+      // confirmed against a second Autumn read path before refusing — a
       // stale check reading here once locked a paying customer out of chat.
       const { organizationId } = ctx.project;
       const hosted = await isHostedServerAuthMode();
@@ -351,7 +351,7 @@ export class SamChatAgent extends Think {
       const baseUrl =
         (await this.ctx.storage.get<string>(PUBLIC_ORIGIN_KEY)) ??
         "https://app.opengeo.so";
-      // Delegated/self-host orgs have no member rows â€” implicit owner. In
+      // Delegated/self-host orgs have no member rows — implicit owner. In
       // hosted mode a missing member row means the user was removed from the
       // workspace; fail closed instead of letting the open socket keep
       // owner-level tools (WebSockets authorize at connect time only, so this
@@ -386,7 +386,7 @@ export class SamChatAgent extends Think {
         // is generous; cost is bounded by per-step metering and the model
         // stopping on its own. The per-step token budget is shared by
         // max-effort reasoning and the visible reply, so it stays well above
-        // measured reasoning use (~3k tokens â€” a tight cap lets reasoning eat
+        // measured reasoning use (~3k tokens — a tight cap lets reasoning eat
         // the reply, issue #161) but below the 32k that, with 48 steps, let a
         // single turn outgrow the Durable Object memory limit.
         maxSteps: 40,
@@ -476,10 +476,10 @@ export class SamChatAgent extends Think {
       }
     });
 
-    // Re-render the blocks so context written during this turn â€” or by another
-    // session, the settings UI, or an MCP client â€” is in the prompt by the next
+    // Re-render the blocks so context written during this turn — or by another
+    // session, the settings UI, or an MCP client — is in the prompt by the next
     // turn. One withPgClient scope covers both providers (their own defensive
-    // scopes reuse it). Best-effort â€” never fail the response.
+    // scopes reuse it). Best-effort — never fail the response.
     if (result.status === "completed") {
       await withPgClient(() => this.session.refreshSystemPrompt()).catch(
         (error: unknown) => {
@@ -490,7 +490,7 @@ export class SamChatAgent extends Think {
   }
 
   // The return value becomes the stored chat-terminal body that reconnecting
-  // clients replay â€” returning nothing would make it the string "undefined".
+  // clients replay — returning nothing would make it the string "undefined".
   onChatError(error: unknown, ctx?: ChatErrorContext): unknown {
     console.error("[sam] chat turn error", ctx?.stage, error);
     // A stopped or failed turn still consumed what it consumed.
@@ -513,13 +513,13 @@ export class SamChatAgent extends Think {
   // the partial reply. When the reset was a memory-limit kill (a long,
   // tool-heavy turn under GPT-5.6 Luna at max reasoning), every re-run dies at
   // the same point, and the bookkeeping that bounds the retry budget dies with
-  // it â€” one incident was observed at attempt 44 of a max of 10. Each attempt
+  // it — one incident was observed at attempt 44 of a max of 10. Each attempt
   // is a full OpenRouter call that never reaches onChatResponse, so none of it
   // is metered: in early Sep 2026 these loops were ~95% of the key's spend.
   // Keep the durable bookkeeping (partial reply persisted) but never re-run
   // inference automatically; the user resends instead. Skipped recoveries
   // get no framework banner (that only fires when a retry budget is
-  // exhausted), so schedule our own notice â€” delivered from inside this hook
+  // exhausted), so schedule our own notice — delivered from inside this hook
   // it would land before the partial reply in the transcript.
   override async onChatRecovery(
     ctx: ChatRecoveryContext,
@@ -588,7 +588,7 @@ export class SamChatAgent extends Think {
       // is still working, e.g. after the stream stalled client-side). Abort
       // the turn and wait for it to settle BEFORE deleting, or its still-
       // running loop keeps streaming chunks and persists a fresh assistant
-      // message right after the delete â€” an orphaned reply to nothing.
+      // message right after the delete — an orphaned reply to nothing.
       this.cancelAllChats();
       await this.waitUntilStable({ timeout: 5000 });
       const index = this.messages.findIndex(
@@ -600,7 +600,7 @@ export class SamChatAgent extends Think {
       const ids = this.messages.slice(index).map((message) => message.id);
       await this.session.deleteMessages(ids);
       // Drop the stored how-the-last-turn-ended record too. It exists so a
-      // reconnecting client can learn the last turn errored â€” but that turn
+      // reconnecting client can learn the last turn errored — but that turn
       // was just undone, and leaving it makes every future connection replay
       // a "Something went wrong" for a message that no longer exists.
       await clearChatTerminal(this.ctx.storage);

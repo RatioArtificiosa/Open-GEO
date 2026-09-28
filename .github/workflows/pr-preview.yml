@@ -3,13 +3,13 @@ name: PR Preview
 # Alchemy preview stage per private-repo PR: deploy on open/update, destroy on
 # close (stage pr-<n>). Full model in docs/PREVIEW_DEPLOYMENTS.md.
 #
-# Public-mirror (RatioArtificiosa/Open-GEO) PRs NEVER deploy from CI â€” fork code must
+# Public-mirror (RatioArtificiosa/Open-GEO) PRs NEVER deploy from CI — fork code must
 # not run with deploy secrets. Preview those locally from a worktree instead
 # (docs/PREVIEW_DEPLOYMENTS.md, "Public-mirror PRs"). The repository gate
 # below keeps the synced copy of this file inert on the mirror.
 #
 # Required repo secrets: CLOUDFLARE_API_TOKEN (Workers Scripts/KV/D1/R2/
-# Workflows write + Secrets Store read + Account Settings read â€” the last two
+# Workflows write + Secrets Store read + Account Settings read — the last two
 # are how alchemy fetches its state-store token via an edge-preview worker),
 # CLOUDFLARE_ACCOUNT_ID, ENV_PREVIEW (.env.preview contents).
 
@@ -28,7 +28,7 @@ on:
 
 # A newer push supersedes any in-flight deploy for the same PR (alchemy's
 # per-resource state reconciles cleanly on the next run); a close-triggered
-# destroy never cancels â€” it queues behind whatever is running.
+# destroy never cancels — it queues behind whatever is running.
 concurrency:
   group: pr-preview-${{ github.event.pull_request.number }}
   cancel-in-progress: ${{ github.event.action != 'closed' }}
@@ -88,7 +88,7 @@ jobs:
       # Same command as a local preview deploy: vite build, alchemy deploy.
       # State lives in the account's Cloudflare state store; CI resolves its
       # auth token from the Secrets Store each run. The Access gate protecting
-      # previews is one-time local setup (pnpm preview:access) â€” the verify
+      # previews is one-time local setup (pnpm preview:access) — the verify
       # step below fails the job if it's ever missing.
       - name: Deploy preview stage
         if: github.event.action != 'closed'
@@ -96,10 +96,10 @@ jobs:
 
       # Fail the job (and skip the URL comment) if the deployed preview
       # answers without a Cloudflare Access login redirect. A definitive app
-      # response (2xxâ€“4xx except 404, no Access redirect) fails immediately;
+      # response (2xx–4xx except 404, no Access redirect) fails immediately;
       # retries are only for propagation-era errors, including workers.dev 404s.
       # (Cloudflare version preview URLs sit outside this wildcard, but alchemy
-      # uploads versions with no preview provisioned, so none are served â€” see
+      # uploads versions with no preview provisioned, so none are served — see
       # docs/PREVIEW_DEPLOYMENTS.md.)
       - name: Verify Access protection
         if: github.event.action != 'closed'
@@ -113,7 +113,7 @@ jobs:
                 exit 0 ;;
             esac
             if [ -n "$code" ] && [ "$code" -ge 200 ] && [ "$code" -lt 500 ] && [ "$code" != 404 ]; then
-              echo "::error::$PREVIEW_URL responded (HTTP $code) WITHOUT a Cloudflare Access challenge â€” the preview is public; destroy the stage (pnpm destroy:preview --stage $STAGE --yes)"
+              echo "::error::$PREVIEW_URL responded (HTTP $code) WITHOUT a Cloudflare Access challenge — the preview is public; destroy the stage (pnpm destroy:preview --stage $STAGE --yes)"
               exit 1
             fi
             echo "attempt $attempt: not up yet (${response:-no response})"

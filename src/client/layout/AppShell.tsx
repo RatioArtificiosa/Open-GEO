@@ -33,7 +33,7 @@ export function AuthenticatedAppLayout({
   // On non-project pages (e.g. /settings) there's no projectId in the URL, so
   // derive one for the nav/switcher: prefer the last-visited project, else the
   // most recent. The whole app tree is client-only (see root ClientOnly), so we
-  // can read localStorage synchronously during the first render â€” this lets the
+  // can read localStorage synchronously during the first render — this lets the
   // sidebar show the full project nav on the very first paint instead of briefly
   // flashing only the always-visible Connect group while projects load.
   const projectsQuery = useQuery({

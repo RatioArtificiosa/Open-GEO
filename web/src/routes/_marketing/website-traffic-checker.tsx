@@ -39,7 +39,7 @@ const FAQS = [
   {
     question: "Where does the data come from?",
     answer:
-      "DataForSEO's Labs index â€” the same source behind OpenGeo's domain overview. Results are cached for 24 hours per domain and country.",
+      "DataForSEO's Labs index — the same source behind OpenGeo's domain overview. Results are cached for 24 hours per domain and country.",
   },
 ];
 

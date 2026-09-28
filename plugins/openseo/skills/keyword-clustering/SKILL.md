@@ -21,10 +21,10 @@ If keywords are not provided, use `list_saved_keywords` for saved sets, `researc
 
 The project-context tools are free and shared with the app and other agents.
 
-1. Call `get_project_context` first and ground the mapping in it â€” the saved key pages are the existing pages clusters should map to, and the business and goal decide which clusters are worth targeting.
+1. Call `get_project_context` first and ground the mapping in it — the saved key pages are the existing pages clusters should map to, and the business and goal decide which clusters are worth targeting.
 2. This skill needs key pages. If none are saved, run a minimal inline setup: ask the user for the pages that matter, or propose a shortlist from the site, an audit, or Search Console and confirm it, write it back with `update_project_context` (`addKeyPages`), then continue the clustering. Never front-load the full interview; suggest `seo-project-setup` at the end for the rest.
 3. Before spending credits, check the research log. If the same research ran within the last 30 days, reuse that result and say so instead of re-buying it.
-4. On finish, write back what is durable with `update_project_context` â€” new or corrected `addKeyPages` entries with the topic each page now targets â€” and append a research log entry: `{ appendResearchLog: { summary: "Keyword clustering: <keyword set>. Verdict: <conclusion>" } }`.
+4. On finish, write back what is durable with `update_project_context` — new or corrected `addKeyPages` entries with the topic each page now targets — and append a research log entry: `{ appendResearchLog: { summary: "Keyword clustering: <keyword set>. Verdict: <conclusion>" } }`.
 
 ## Deliver as a report
 
@@ -56,7 +56,7 @@ Deliver through the `seo-report` skill, saving with `skill: "keyword-clustering"
    - Existing URL, if supplied and appropriate
    - New page recommendation, if no existing page fits
    - Do-not-target / later bucket, if weak or off-strategy
-6. Identify cannibalization risk when multiple pages would target the same intent. When Search Console is connected, confirm it from real data with `get_search_console_performance` (`dimensions: ["query","page"]`) â€” the same query sending impressions to multiple URLs.
+6. Identify cannibalization risk when multiple pages would target the same intent. When Search Console is connected, confirm it from real data with `get_search_console_performance` (`dimensions: ["query","page"]`) — the same query sending impressions to multiple URLs.
 7. Ask before applying cluster tags with `save_keywords`.
 
 ## Output format
@@ -67,12 +67,12 @@ If a report template applies (see `seo-report`), its sections and tone replace t
 
 Sections in this order:
 
-1. **The map** â€” one or two opening sentences: how many clusters, how many pages to create, how many to update, and any cannibalization found.
-2. **Clusters** â€” a table of cluster, primary keyword, intent, target page, and priority. Keep secondary keywords in the per-cluster briefs, not in this table.
-3. **Page briefs** â€” one finding per cluster: the page type and the searcher's problem, then the page to create or update. List required sections and internal links underneath.
-4. **Cannibalization** â€” a table of the query, the competing URLs, and which one to keep, only when there is real evidence for it.
-5. **What to do next** â€” an ordered list, including the tag suggestions and the explicit ask before applying them.
-6. **How this report was made** â€” opens with the skill link line from `seo-report`, pointing at `https://opengeo.so/docs/skills/keyword-clustering` ("OpenGeo Keyword Clustering skill"), then where the keywords came from, and a note labelling target pages as proposed when no URL data was supplied.
+1. **The map** — one or two opening sentences: how many clusters, how many pages to create, how many to update, and any cannibalization found.
+2. **Clusters** — a table of cluster, primary keyword, intent, target page, and priority. Keep secondary keywords in the per-cluster briefs, not in this table.
+3. **Page briefs** — one finding per cluster: the page type and the searcher's problem, then the page to create or update. List required sections and internal links underneath.
+4. **Cannibalization** — a table of the query, the competing URLs, and which one to keep, only when there is real evidence for it.
+5. **What to do next** — an ordered list, including the tag suggestions and the explicit ask before applying them.
+6. **How this report was made** — opens with the skill link line from `seo-report`, pointing at `https://opengeo.so/docs/skills/keyword-clustering` ("OpenGeo Keyword Clustering skill"), then where the keywords came from, and a note labelling target pages as proposed when no URL data was supplied.
 
 ## Guardrails
 

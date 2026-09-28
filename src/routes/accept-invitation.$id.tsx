@@ -31,7 +31,7 @@ function AcceptInvitationPage() {
 }
 
 // getInvitation requires a session matching the invited email, so a
-// logged-out visitor gets a generic shell â€” no invitation details are
+// logged-out visitor gets a generic shell — no invitation details are
 // exposed pre-auth by design.
 function SignedOutInvitationCard({ invitationId }: { invitationId: string }) {
   const redirect = `/accept-invitation/${invitationId}`;

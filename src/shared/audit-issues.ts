@@ -20,7 +20,7 @@ export const AUDIT_ISSUE_TYPES = {
     severity: "critical",
     title: "Crawler was blocked",
     explanation:
-      "The site returned a bot challenge or access denial (e.g. a Cloudflare challenge or a 403) instead of the page. We report this honestly rather than pretending the page is broken â€” but it means this page could not be audited, and other crawlers like search engines may face similar friction.",
+      "The site returned a bot challenge or access denial (e.g. a Cloudflare challenge or a 403) instead of the page. We report this honestly rather than pretending the page is broken — but it means this page could not be audited, and other crawlers like search engines may face similar friction.",
     howToFix:
       'If you own this site, allowlist the "OpenGeo-Audit" user agent in your WAF/bot-protection settings (on Cloudflare: a WAF custom rule that skips bot protection when the user agent contains "OpenGeo-Audit"; on some free tiers you may need to relax bot protection). Then re-run the audit.',
   },
@@ -52,7 +52,7 @@ export const AUDIT_ISSUE_TYPES = {
     severity: "critical",
     title: "Broken internal link",
     explanation:
-      "This page links to an internal URL that returns an error status (4xx/5xx). Broken links waste crawl budget, leak link equity, and frustrate users â€” they are among the most common and most damaging technical SEO issues.",
+      "This page links to an internal URL that returns an error status (4xx/5xx). Broken links waste crawl budget, leak link equity, and frustrate users — they are among the most common and most damaging technical SEO issues.",
     howToFix:
       "Update the link to point at the correct live URL, or remove it. If the target was moved, prefer linking directly to the new URL rather than relying on a redirect.",
   },
@@ -62,7 +62,7 @@ export const AUDIT_ISSUE_TYPES = {
     explanation:
       "The page has no <title>. The title is the strongest on-page relevance signal and the headline shown in search results; without it search engines generate one themselves, usually badly.",
     howToFix:
-      "Add a unique, descriptive <title> of roughly 50â€“60 characters that includes the page's primary topic.",
+      "Add a unique, descriptive <title> of roughly 50–60 characters that includes the page's primary topic.",
   },
   "broken-page": {
     severity: "warning",
@@ -86,7 +86,7 @@ export const AUDIT_ISSUE_TYPES = {
     explanation:
       "Multiple pages share the same meta description, so search results show identical snippets and users cannot tell the pages apart.",
     howToFix:
-      "Write a unique meta description per page, or remove the duplicated one entirely â€” search engines will generate a snippet from page content, which beats a wrong duplicate.",
+      "Write a unique meta description per page, or remove the duplicated one entirely — search engines will generate a snippet from page content, which beats a wrong duplicate.",
   },
   "duplicate-content": {
     severity: "warning",
@@ -102,7 +102,7 @@ export const AUDIT_ISSUE_TYPES = {
     explanation:
       "The page has no meta description. Search engines will assemble a snippet from page text, which is often less compelling and hurts click-through rate.",
     howToFix:
-      "Add a meta description of roughly 70â€“160 characters that summarizes the page and gives a reason to click.",
+      "Add a meta description of roughly 70–160 characters that summarizes the page and gives a reason to click.",
   },
   "missing-h1": {
     severity: "warning",
@@ -164,7 +164,7 @@ export const AUDIT_ISSUE_TYPES = {
     severity: "warning",
     title: "Orphan page",
     explanation:
-      "No crawled page links to this URL â€” it was only discoverable via the sitemap. Pages without internal links receive little crawl attention and no internal link equity, and users can't find them by browsing.",
+      "No crawled page links to this URL — it was only discoverable via the sitemap. Pages without internal links receive little crawl attention and no internal link equity, and users can't find them by browsing.",
     howToFix:
       "Link to this page from relevant pages (navigation, related content, hub pages), or remove it from the sitemap if it shouldn't be indexed.",
   },
@@ -172,7 +172,7 @@ export const AUDIT_ISSUE_TYPES = {
     severity: "warning",
     title: "Page has no outgoing links",
     explanation:
-      "The page contains no links at all â€” a dead end. Link equity that flows into it stops there, crawlers have nowhere to go next, and users have to reach for the back button.",
+      "The page contains no links at all — a dead end. Link equity that flows into it stops there, crawlers have nowhere to go next, and users have to reach for the back button.",
     howToFix:
       "Add links to related pages, the parent category, or the homepage. If the page's navigation is rendered by JavaScript, make sure it also exists in the server-rendered HTML.",
   },
@@ -182,7 +182,7 @@ export const AUDIT_ISSUE_TYPES = {
     explanation:
       "The title exceeds ~60 characters, so search results will truncate it and the ending may be cut off mid-phrase.",
     howToFix:
-      "Shorten the title to roughly 50â€“60 characters, front-loading the most important words.",
+      "Shorten the title to roughly 50–60 characters, front-loading the most important words.",
   },
   "title-too-short": {
     severity: "info",
@@ -190,7 +190,7 @@ export const AUDIT_ISSUE_TYPES = {
     explanation:
       "The title is under ~10 characters, which is usually too generic to describe the page or attract clicks.",
     howToFix:
-      "Expand the title into a descriptive phrase (roughly 30â€“60 characters) that states what the page offers.",
+      "Expand the title into a descriptive phrase (roughly 30–60 characters) that states what the page offers.",
   },
   "meta-description-too-long": {
     severity: "info",
@@ -198,7 +198,7 @@ export const AUDIT_ISSUE_TYPES = {
     explanation:
       "The meta description exceeds ~160 characters, so search engines will truncate the snippet.",
     howToFix:
-      "Trim the description to roughly 70â€“160 characters while keeping the core message and call to action.",
+      "Trim the description to roughly 70–160 characters while keeping the core message and call to action.",
   },
   "meta-description-too-short": {
     severity: "info",
@@ -206,7 +206,7 @@ export const AUDIT_ISSUE_TYPES = {
     explanation:
       "The meta description is under ~70 characters. Short descriptions waste the snippet space search results give you, and search engines often ignore them in favor of text pulled from the page.",
     howToFix:
-      "Expand the description to roughly 70â€“160 characters that summarize the page and give a reason to click.",
+      "Expand the description to roughly 70–160 characters that summarize the page and give a reason to click.",
   },
   "heading-order-skip": {
     severity: "info",
@@ -214,7 +214,7 @@ export const AUDIT_ISSUE_TYPES = {
     explanation:
       "The heading hierarchy skips levels (e.g. an H4 directly after an H2). This weakens document structure for accessibility tools and content parsing.",
     howToFix:
-      "Adjust heading levels so they descend one step at a time (H1 â†’ H2 â†’ H3) without skipping.",
+      "Adjust heading levels so they descend one step at a time (H1 → H2 → H3) without skipping.",
   },
   "slow-response": {
     severity: "info",
@@ -228,7 +228,7 @@ export const AUDIT_ISSUE_TYPES = {
     severity: "info",
     title: "Page is noindex",
     explanation:
-      "The page asks search engines not to index it (via robots meta tag or X-Robots-Tag header). That's often intentional â€” this is a heads-up, not an error.",
+      "The page asks search engines not to index it (via robots meta tag or X-Robots-Tag header). That's often intentional — this is a heads-up, not an error.",
     howToFix:
       "If this page should rank, remove the noindex directive. If it's intentional (admin, thank-you, filter pages), no action is needed.",
   },
@@ -236,7 +236,7 @@ export const AUDIT_ISSUE_TYPES = {
     severity: "info",
     title: "Canonicalized to another URL",
     explanation:
-      "The page declares a different URL as its canonical, telling search engines to index that URL instead. Fine when intentional (parameter pages, syndication) â€” a problem if this page was meant to rank.",
+      "The page declares a different URL as its canonical, telling search engines to index that URL instead. Fine when intentional (parameter pages, syndication) — a problem if this page was meant to rank.",
     howToFix:
       "If this page should rank on its own, set its canonical to itself. Otherwise no action is needed.",
   },

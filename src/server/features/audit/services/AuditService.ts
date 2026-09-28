@@ -34,7 +34,7 @@ async function resolveAuditLimitTier(
 ): Promise<AuditLimitTier> {
   if (!(await isHostedServerAuthMode())) return "self_hosted";
   // An org minted outside a billing path (better-auth hooks, MCP auth) has no
-  // Autumn customer yet, and `check` 404s instead of reporting no access â€” a
+  // Autumn customer yet, and `check` 404s instead of reporting no access — a
   // brand-new MCP user's first audit failed with a raw billing error.
   await getOrCreateOrganizationCustomer(customer);
   const [hasManagedAccess, hasPaidPlan] = await Promise.all([
@@ -71,7 +71,7 @@ async function startAudit(input: {
   const auditId = crypto.randomUUID();
   const config: AuditConfig = { maxPages, lighthouseStrategy };
   // Anchor the audit to the site's real origin: a start domain that 301s
-  // elsewhere (â€¦net -> â€¦com, apex -> www) would otherwise dead-end after
+  // elsewhere (…net -> …com, apex -> www) would otherwise dead-end after
   // one page at the same-origin crawl boundary.
   const startUrl = await resolveStartUrlRedirects(
     await normalizeAndValidateStartUrl(input.startUrl),
@@ -94,7 +94,7 @@ async function startAudit(input: {
     // pass the free tier's running-audits gate. Post-insert, each request sees
     // at least its own row, so racers can't all slip under the limit; the
     // losers roll back via the catch below. Racers at the boundary may all
-    // abort â€” the user just retries. Usage counts per ORGANIZATION, not per
+    // abort — the user just retries. Usage counts per ORGANIZATION, not per
     // user: the free ceiling is the org's, so N members don't multiply it.
     const usage = await AuditRepository.getAuditUsageForOrganization(
       input.billingCustomer.organizationId,
@@ -241,7 +241,7 @@ async function remove(auditId: string, projectId: string) {
 
     // A row can be "running" with no live workflow instance if a start failed
     // between the row insert and workflow creation and its rollback delete
-    // also failed. Nothing to terminate then â€” deleting the row is the fix.
+    // also failed. Nothing to terminate then — deleting the row is the fix.
     const instance = await env.SITE_AUDIT_WORKFLOW.get(
       audit.workflowInstanceId,
     ).catch(() => null);
@@ -250,7 +250,7 @@ async function remove(auditId: string, projectId: string) {
     } catch (error) {
       // terminate() throws when the instance already reached a terminal state
       // (it completed or errored in the moment before the user hit stop). That
-      // race shouldn't block deletion â€” re-check the live status and only fail
+      // race shouldn't block deletion — re-check the live status and only fail
       // if the workflow is genuinely still running.
       const status = await instance?.status().catch(() => null);
       const stillRunning =

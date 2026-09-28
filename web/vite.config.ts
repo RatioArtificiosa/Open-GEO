@@ -15,7 +15,7 @@ import mdx from "fumadocs-mdx/vite";
 /**
  * The deploy scripts set VITE_REQUIRE_TURNSTILE=1. Without a site key in the
  * bundle the free tools send no Turnstile token, so a worker with
- * TURNSTILE_SECRET_KEY set rejects every request with 403 â€” invisible until a
+ * TURNSTILE_SECRET_KEY set rejects every request with 403 — invisible until a
  * visitor reports it. Fail the build instead.
  *
  * This has to be a build hook: a throw at module scope is swallowed by the

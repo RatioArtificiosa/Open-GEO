@@ -21,10 +21,10 @@ Find realistic pages, sites, and authors that might reference the user's page, p
 
 The project-context tools are free and shared with the app and other agents.
 
-1. Call `get_project_context` first and ground the outreach in it â€” positioning supplies the claim that makes a link worth giving, and the saved competitors are the backlink profiles to mine.
+1. Call `get_project_context` first and ground the outreach in it — positioning supplies the claim that makes a link worth giving, and the saved competitors are the backlink profiles to mine.
 2. This skill needs `positioning` and competitors. If either is empty, run a minimal inline setup: ask the user why someone would cite them and who they compete with, or infer from the site and `find_serp_competitors` and confirm, write it back with `update_project_context`, then continue the prospecting. Never front-load the full interview; suggest `seo-project-setup` at the end for the rest.
 3. Before spending credits, check the research log. If the same research ran within the last 30 days, reuse that result and say so instead of re-buying it.
-4. On finish, write back what is durable â€” the linkable asset via `addKeyPages`, any competitor whose backlink profile proved useful via `addCompetitors` â€” and append a research log entry: `{ appendResearchLog: { summary: "Link prospecting: <asset/target page>. Verdict: <conclusion>" } }`.
+4. On finish, write back what is durable — the linkable asset via `addKeyPages`, any competitor whose backlink profile proved useful via `addCompetitors` — and append a research log entry: `{ appendResearchLog: { summary: "Link prospecting: <asset/target page>. Verdict: <conclusion>" } }`.
 
 ## Deliver as a report
 
@@ -100,13 +100,13 @@ If a report template applies (see `seo-report`), its sections and tone replace t
 
 Sections in this order:
 
-1. **The angle** â€” one or two opening sentences naming the best outreach angle and the prospect type to work first.
-2. **Prospects** â€” a table of prospect URL, site, source, suggested angle, contact path, and priority. Keep it under about eight columns; drop the ones that add nothing for this run.
-3. **Why these** â€” one finding per prospect worth explaining: the evidence that they link to things like this, then the exact ask.
-4. **Outreach drafts** â€” the message text for each of two or three reusable angles: resource or list inclusion, an article update, and a comparison mention.
-5. **Limitations** â€” notes: contact paths not found, prospects that are direct competitors or likely paid placements, and which source found each contact detail.
-6. **What to do next** â€” an ordered list: who to send to first, and in what order.
-7. **How this report was made** â€” opens with the skill link line from `seo-report`, pointing at `https://opengeo.so/docs/skills/link-prospecting` ("OpenGeo Link Prospecting skill"), then which tools returned prospects and which came from the web or the browser.
+1. **The angle** — one or two opening sentences naming the best outreach angle and the prospect type to work first.
+2. **Prospects** — a table of prospect URL, site, source, suggested angle, contact path, and priority. Keep it under about eight columns; drop the ones that add nothing for this run.
+3. **Why these** — one finding per prospect worth explaining: the evidence that they link to things like this, then the exact ask.
+4. **Outreach drafts** — the message text for each of two or three reusable angles: resource or list inclusion, an article update, and a comparison mention.
+5. **Limitations** — notes: contact paths not found, prospects that are direct competitors or likely paid placements, and which source found each contact detail.
+6. **What to do next** — an ordered list: who to send to first, and in what order.
+7. **How this report was made** — opens with the skill link line from `seo-report`, pointing at `https://opengeo.so/docs/skills/link-prospecting` ("OpenGeo Link Prospecting skill"), then which tools returned prospects and which came from the web or the browser.
 
 ## Guardrails
 

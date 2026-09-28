@@ -5,7 +5,7 @@ description: "Add OpenGeo skill files to your AI agent after connecting OpenGeo 
 
 OpenGeo Agent Skills are separate files from OpenGeo MCP.
 
-On Claude Code, skip the steps below and use the [OpenGeo plugin](/docs/claude-code-plugin) instead â€” it installs MCP and every skill in one step. On Codex CLI, use the [OpenGeo plugin](/docs/codex-plugin) the same way.
+On Claude Code, skip the steps below and use the [OpenGeo plugin](/docs/claude-code-plugin) instead — it installs MCP and every skill in one step. On Codex CLI, use the [OpenGeo plugin](/docs/codex-plugin) the same way.
 
 First, [set up OpenGeo MCP](/docs/mcp). MCP gives your agent access to OpenGeo data.
 

@@ -2,9 +2,9 @@ import type { LanguageModelV3 } from "@openrouter/ai-sdk-provider";
 import { subscribe } from "agents/observability";
 import { z } from "zod";
 
-// The chat agent's most common failure modes â€” a provider stream dying
+// The chat agent's most common failure modes — a provider stream dying
 // mid-turn ("chat:request:failed", stage "stream") and a DO restart whose
-// recovery gives up ("chat:recovery:exhausted") â€” never reach an onChatError
+// recovery gives up ("chat:recovery:exhausted") — never reach an onChatError
 // hook; their only signal is the agents:chat diagnostics channel, which is
 // silent without a subscriber. This module-level subscription puts them in
 // the Workers logs for every chat DO in the isolate. The user-visible residue
@@ -48,8 +48,8 @@ const NO_USAGE = {
 const FINISH_STOP = { unified: "stop", raw: undefined } as const;
 
 // A model that ignores its prompt and streams `text` back verbatim. Lets a
-// Think agent answer a gated turn through the normal turn pipeline â€” streamed,
-// persisted and rendered like any other assistant message â€” without ever
+// Think agent answer a gated turn through the normal turn pipeline — streamed,
+// persisted and rendered like any other assistant message — without ever
 // calling a provider: no request, no tokens, and no reasoning channel that
 // could leak a chain-of-thought instead of the reply.
 export function staticAssistantModel(text: string): LanguageModelV3 {

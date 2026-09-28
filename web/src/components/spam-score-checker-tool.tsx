@@ -119,7 +119,7 @@ export function SpamScoreCheckerTool() {
                       </td>
                       <td className="max-w-[320px] px-4 py-3 align-top">
                         <p className="truncate font-medium text-neutral-950">
-                          {row.domainFrom ?? "â€”"}
+                          {row.domainFrom ?? "—"}
                         </p>
                         {row.urlFrom ? (
                           <span className="block truncate text-xs text-[var(--color-brand-muted)]">
@@ -128,7 +128,7 @@ export function SpamScoreCheckerTool() {
                         ) : null}
                       </td>
                       <td className="max-w-[200px] truncate px-4 py-3 align-top text-neutral-700">
-                        {row.anchor ?? "â€”"}
+                        {row.anchor ?? "—"}
                       </td>
                       <td className="px-4 py-3 align-top text-neutral-700">
                         {row.dofollow ? "Follow" : "Nofollow"}

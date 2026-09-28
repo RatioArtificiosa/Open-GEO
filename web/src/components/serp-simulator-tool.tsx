@@ -69,10 +69,10 @@ export function SerpSimulatorTool() {
               className={`mt-1.5 text-xs ${overDesktop ? "text-amber-800" : "text-[var(--color-brand-muted)]"}`}
             >
               {title.length} characters &middot;{" "}
-              {titleWidth === null ? "Measuring widthâ€¦" : `${titleWidth}px`}
+              {titleWidth === null ? "Measuring width…" : `${titleWidth}px`}
               {overDesktop
-                ? " Â· Exceeds the 600px desktop preview"
-                : " Â· Desktop guide: 600px"}
+                ? " · Exceeds the 600px desktop preview"
+                : " · Desktop guide: 600px"}
             </p>
           </div>
 
@@ -177,7 +177,7 @@ export function SerpSimulatorTool() {
               <p className="truncate text-xs text-neutral-700">
                 {host}
                 {desktop && segments.length > 0
-                  ? ` â€º ${segments.join(" â€º ")}`
+                  ? ` › ${segments.join(" › ")}`
                   : ""}
               </p>
               <p
@@ -189,7 +189,7 @@ export function SerpSimulatorTool() {
                 className={`mt-1 text-[14px] leading-[22px] text-neutral-600 [overflow-wrap:anywhere] ${desktop ? "line-clamp-2" : "line-clamp-3"}`}
               >
                 {showDate ? (
-                  <span className="text-neutral-500">{today} â€” </span>
+                  <span className="text-neutral-500">{today} — </span>
                 ) : null}
                 {description}
               </p>

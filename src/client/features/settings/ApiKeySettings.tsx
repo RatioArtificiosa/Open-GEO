@@ -139,7 +139,7 @@ export function ApiKeySettings() {
                     className="font-mono text-xs text-base-content/70"
                     data-ph-mask
                   >
-                    {key.start || "oseo_"}â€¦
+                    {key.start || "oseo_"}…
                   </td>
                   <td className="text-xs text-base-content/70">
                     {key.createdAt.toLocaleDateString()}
@@ -257,7 +257,7 @@ export function ApiKeySettings() {
                     className="btn btn-primary btn-sm"
                     disabled={createMutation.isPending || !name.trim()}
                   >
-                    {createMutation.isPending ? "Creatingâ€¦" : "Create"}
+                    {createMutation.isPending ? "Creating…" : "Create"}
                   </button>
                 </div>
               </form>

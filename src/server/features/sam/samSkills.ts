@@ -20,11 +20,11 @@ const skillFiles = import.meta.glob<string>("/.agents/skills/*/SKILL.md", {
 // The skill bodies are written for external MCP clients (Claude Code); this
 // note reframes the surface so SAM skips the steps that don't apply in-app.
 const SAM_SURFACE_NOTE = `> Surface note: you are SAM, running inside the OpenGeo app. You are already
-> authenticated and scoped to the user's current project â€” skip any "verify the
+> authenticated and scoped to the user's current project — skip any "verify the
 > MCP connection", "choose a project", or skill-install steps. You have no
 > local filesystem: skip local-folder and file steps.
 >
-> Your project context is already in your system prompt â€” read it there; there
+> Your project context is already in your system prompt — read it there; there
 > is no get_project_context tool here. Write durable facts about the business
 > back with update_project_context. You have no report tools: skip any step
 > that says to deliver through the seo-report skill or to save a report, and
@@ -62,7 +62,7 @@ function parseSkill(path: string, raw: string): SamSkill | null {
 }
 
 // Content hash so Think's registry refreshes the catalog when a deploy ships
-// changed skills (djb2 â€” stability matters here, not collision resistance).
+// changed skills (djb2 — stability matters here, not collision resistance).
 function fingerprint(skills: SamSkill[]): string {
   let hash = 5381;
   for (const ch of skills.map((s) => `${s.name}\n${s.body}`).join("\n")) {

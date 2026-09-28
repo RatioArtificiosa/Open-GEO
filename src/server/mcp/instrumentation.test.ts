@@ -22,7 +22,7 @@ vi.mock("@/server/lib/posthog", () => ({
   captureServerEvent: mocks.captureServerEvent,
 }));
 
-// The real module pulls in @/db (cloudflare:workers env) â€” mock it out and
+// The real module pulls in @/db (cloudflare:workers env) — mock it out and
 // assert the milestone hook at this boundary instead.
 vi.mock("@/server/features/activation/mcpActivation", () => ({
   recordExternalMcpToolCall: mocks.recordExternalMcpToolCall,

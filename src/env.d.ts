@@ -11,7 +11,7 @@ declare namespace Cloudflare {
 
     // Durable Object holding per-audit crawl scratch state (frontier, link
     // edges, page mirror). Bound ONLY in the open-geo-audit aux worker;
-    // untyped here â€” getAuditScratchpad narrows the stub.
+    // untyped here — getAuditScratchpad narrows the stub.
     AUDIT_SCRATCHPAD: DurableObjectNamespace;
 
     // Service binding to the audit worker's AuditEngine entrypoint (cancel +
@@ -47,7 +47,7 @@ declare namespace Cloudflare {
     // HMAC secret for the operator-only GDPR storage-erasure endpoint.
     GDPR_ERASURE_SECRET?: string;
 
-    // Cloudflare Turnstile â€” signup captcha (hosted only). Secret verifies
+    // Cloudflare Turnstile — signup captcha (hosted only). Secret verifies
     // tokens server-side; site key is public and inlined into the client build.
     TURNSTILE_SECRET_KEY?: string;
     TURNSTILE_SITE_KEY?: string;

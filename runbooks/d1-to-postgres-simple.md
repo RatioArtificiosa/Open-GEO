@@ -1,22 +1,22 @@
-# D1 â†’ Postgres migration â€” simple runbook
+# D1 → Postgres migration — simple runbook
 
 _Last updated: 2026-06-29._
 
 The happy path for moving a hosted instance from D1 to Postgres. For the full
-detail â€” what the script converts, the low-downtime delta sync, cutover and
-rollback â€” see
+detail — what the script converts, the low-downtime delta sync, cutover and
+rollback — see
 [d1-to-postgres-detailed.md](./d1-to-postgres-detailed.md).
 
-> **Scope:** this runbook is for the OpenGeo production deployment â€”
+> **Scope:** this runbook is for the OpenGeo production deployment —
 > `pnpm deploy:postgres` is hardwired to alchemy stage `hosted-prod`, its domains, and
 > `.env.production`. The alchemy self-host path (non-`prod` stages) has no
 > Hyperdrive wiring, so Postgres is not currently available to self-hosters.
 
 > Switching `DATABASE_PROVIDER` to `postgres` changes where the app reads and
-> writes â€” it does **not** move existing data. This copies the data. D1 is never
+> writes — it does **not** move existing data. This copies the data. D1 is never
 > written to, so rollback is just flipping the provider back to `d1`.
 
-## 1. Credentials â†’ `.env.local`
+## 1. Credentials → `.env.local`
 
 The migration script auto-loads `.env.local` (no inline env vars needed):
 
@@ -50,12 +50,12 @@ pnpm exec tsx scripts/migrate-d1-to-postgres.ts
 ```
 
 Confirm it ends with **"All row counts match."** (Re-runnable; it aborts if the
-target already has data â€” pass `--allow-nonempty` to override.)
+target already has data — pass `--allow-nonempty` to override.)
 
 ## 5. Catch-up sync (recommended)
 
 Right before cutover, run the script again with `--update` to copy anything
-written or changed since the bulk copy (new signups, fresh rank checks, etc.) â€”
+written or changed since the bulk copy (new signups, fresh rank checks, etc.) —
 cheap insurance that nothing was missed:
 
 ```sh
@@ -63,21 +63,21 @@ pnpm exec tsx scripts/migrate-d1-to-postgres.ts --update
 ```
 
 Confirm **"All row counts match."** (A small mismatch from rows _deleted_ in D1
-during the window is expected â€” see the detailed runbook.)
+during the window is expected — see the detailed runbook.)
 
 ## 6. Cut over
 
 Point the deployment at Postgres (`DATABASE_PROVIDER=postgres` plus a Hyperdrive
-binding â€” the app only connects to Postgres through Hyperdrive) and deploy, then
+binding — the app only connects to Postgres through Hyperdrive) and deploy, then
 smoke-test (load a project, save a keyword, check billing):
 
 ```sh
 pnpm deploy:postgres
 ```
 
-> **Optional â€” freeze writes** for a perfectly consistent snapshot: pause the
+> **Optional — freeze writes** for a perfectly consistent snapshot: pause the
 > rank-check cron / put the app in a read-only window from the dry run through
-> cutover. Not required â€” the catch-up sync in step 5 covers writes made during a
+> cutover. Not required — the catch-up sync in step 5 covers writes made during a
 > live copy.
 
 ## Rollback

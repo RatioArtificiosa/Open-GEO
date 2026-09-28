@@ -43,7 +43,7 @@ function auditPath(projectId: string, auditId: string) {
   return `/p/${projectId}/audit?auditId=${auditId}`;
 }
 
-// â”€â”€â”€ run_site_audit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── run_site_audit ──────────────────────────────────────────────────────────
 
 const runInputSchema = {
   projectId: projectIdSchema,
@@ -59,7 +59,7 @@ const runInputSchema = {
     .boolean()
     .optional()
     .describe(
-      "Run Lighthouse on a sample of up to 10 representative pages (default false â€” it adds several minutes of wall-clock time). Pass true only when the user wants performance/Core Web Vitals detail.",
+      "Run Lighthouse on a sample of up to 10 representative pages (default false — it adds several minutes of wall-clock time). Pass true only when the user wants performance/Core Web Vitals detail.",
     ),
 } as const;
 
@@ -70,7 +70,7 @@ export const runSiteAuditTool = {
   config: {
     title: "Run site audit",
     description:
-      "Start a site audit: crawls the site (robots.txt-aware, same-origin), checks every page for SEO issues (broken links, duplicate/missing titles and descriptions, redirect chains, orphan pages, canonical problems, thin content, and more), and optionally runs Lighthouse on a sample of pages. Runs in the background â€” poll get_audit_status, then read get_audit_issues. If the site rate limits the crawler it slows down and retries; pages it still cannot read are honestly flagged as blocked or rate-limited rather than misreported.",
+      "Start a site audit: crawls the site (robots.txt-aware, same-origin), checks every page for SEO issues (broken links, duplicate/missing titles and descriptions, redirect chains, orphan pages, canonical problems, thin content, and more), and optionally runs Lighthouse on a sample of pages. Runs in the background — poll get_audit_status, then read get_audit_issues. If the site rate limits the crawler it slows down and retries; pages it still cannot read are honestly flagged as blocked or rate-limited rather than misreported.",
     inputSchema: runInputSchema,
     outputSchema: z
       .object({
@@ -108,7 +108,7 @@ export const runSiteAuditTool = {
       // no audit started, so there is no auditId to report.
       const refusalText =
         error instanceof AppError && error.code === "AUDIT_CAPACITY_REACHED"
-          ? "Audit capacity reached for this account â€” delete old audits in the dashboard to free capacity, then try again."
+          ? "Audit capacity reached for this account — delete old audits in the dashboard to free capacity, then try again."
           : error instanceof AppError && error.code === "AUDIT_ALREADY_RUNNING"
             ? "This account is at its limit of concurrently running audits. Poll get_audit_status until one finishes, then try again."
             : null;
@@ -149,7 +149,7 @@ export const runSiteAuditTool = {
   }),
 };
 
-// â”€â”€â”€ get_audit_status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── get_audit_status ────────────────────────────────────────────────────────
 
 const statusInputSchema = {
   projectId: projectIdSchema,
@@ -163,7 +163,7 @@ export const getAuditStatusTool = {
   config: {
     title: "Get site audit status",
     description:
-      "Check the progress of a site audit (phase, pages crawled, Lighthouse progress). Free â€” reads OpenGeo state and may reconcile a dead workflow by marking its audit failed. Omit auditId for the most recent audit.",
+      "Check the progress of a site audit (phase, pages crawled, Lighthouse progress). Free — reads OpenGeo state and may reconcile a dead workflow by marking its audit failed. Omit auditId for the most recent audit.",
     inputSchema: statusInputSchema,
     outputSchema: z
       .object({
@@ -187,16 +187,16 @@ export const getAuditStatusTool = {
       status.lighthouseTotal > 0
         ? `, lighthouse ${status.lighthouseCompleted + status.lighthouseFailed}/${status.lighthouseTotal}`
         : "";
-    // Failed audits keep partial results â€” point agents at them instead of
+    // Failed audits keep partial results — point agents at them instead of
     // letting a mid-crawl death read as "no data".
     const nextStep =
       status.status === "completed"
         ? " Call get_audit_issues for the issue report."
         : status.status === "failed" && status.pagesCrawled > 0
-          ? ` The audit stopped early but kept results for the ${status.pagesCrawled} pages it crawled â€” call get_audit_issues for the partial issue report.`
+          ? ` The audit stopped early but kept results for the ${status.pagesCrawled} pages it crawled — call get_audit_issues for the partial issue report.`
           : "";
     return mcpResponse({
-      text: `Audit ${status.id} (${status.startUrl}): ${status.status} â€” phase ${status.currentPhase}, ${status.pagesCrawled}/${status.pagesTotal} pages${lighthouseNote}.${nextStep}`,
+      text: `Audit ${status.id} (${status.startUrl}): ${status.status} — phase ${status.currentPhase}, ${status.pagesCrawled}/${status.pagesTotal} pages${lighthouseNote}.${nextStep}`,
       meta: buildProjectMeta(
         context,
         args.projectId,
@@ -207,7 +207,7 @@ export const getAuditStatusTool = {
   }),
 };
 
-// â”€â”€â”€ get_audit_issues â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── get_audit_issues ────────────────────────────────────────────────────────
 
 const issuesInputSchema = {
   projectId: projectIdSchema,
@@ -238,7 +238,7 @@ export const getAuditIssuesTool = {
   config: {
     title: "Get site audit issues",
     description:
-      "Read the prioritized issue report from a completed site audit. Every issue carries a how_to_fix with concrete remediation steps an agent can act on. Free â€” reads OpenGeo state. Omit auditId for the most recent audit.",
+      "Read the prioritized issue report from a completed site audit. Every issue carries a how_to_fix with concrete remediation steps an agent can act on. Free — reads OpenGeo state. Omit auditId for the most recent audit.",
     inputSchema: issuesInputSchema,
     outputSchema: z
       .object({
@@ -305,7 +305,7 @@ export const getAuditIssuesTool = {
       rows.length === 0
         ? args.severity || args.issueType
           ? `No issues found for audit ${audit.id} matching the given filters.`
-          : `No issues recorded for audit ${audit.id}. Note: audits run before issue checks existed have no issue data â€” re-run the audit with run_site_audit to get a real report.`
+          : `No issues recorded for audit ${audit.id}. Note: audits run before issue checks existed have no issue data — re-run the audit with run_site_audit to get a real report.`
         : [
             `Audit ${audit.id} (${audit.startUrl}): ${rows.length} issues${rows.length > limit ? ` (showing ${limit})` : ""}.`,
             "By type:",
@@ -328,7 +328,7 @@ export const getAuditIssuesTool = {
   }),
 };
 
-// â”€â”€â”€ get_audit_pages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── get_audit_pages ─────────────────────────────────────────────────────────
 
 const pagesInputSchema = {
   projectId: projectIdSchema,
@@ -364,7 +364,7 @@ export const getAuditPagesTool = {
   config: {
     title: "Get site audit pages",
     description:
-      "List crawled pages from a site audit with per-page SEO data (status, title, description, word count, indexability, crawl depth, link counts). Free â€” reads OpenGeo state. Omit auditId for the most recent audit.",
+      "List crawled pages from a site audit with per-page SEO data (status, title, description, word count, indexability, crawl depth, link counts). Free — reads OpenGeo state. Omit auditId for the most recent audit.",
     inputSchema: pagesInputSchema,
     outputSchema: z
       .object({

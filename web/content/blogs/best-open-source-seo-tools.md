@@ -1,6 +1,6 @@
 ---
 title: "The Best Open Source SEO Tools in 2026"
-description: "Open source SEO tools in 2026: OpenGeo, SerpBear, SEONaut, LibreCrawl, and SEOMachine â€” what each one does, what it costs to run, and how to self-host."
+description: "Open source SEO tools in 2026: OpenGeo, SerpBear, SEONaut, LibreCrawl, and SEOMachine — what each one does, what it costs to run, and how to self-host."
 author: "OpenGeo Team"
 date: "2026-06-05"
 ---
@@ -57,11 +57,11 @@ These have fewer stars, or fill a narrower niche, than the main tools above. We 
 
 - [openserp](https://github.com/karust/openserp) (745, active): a Go API and CLI that scrapes normalized SERP results from Google, Yandex, Baidu, Bing, DuckDuckGo, and Ecosia, self-hostable via Docker.
 - [RustySEO](https://github.com/mascanho/RustySEO) (276, active): a cross-platform desktop SEO/GEO toolkit with a Rust crawling core, plus Google Analytics, Search Console, and PageSpeed integrations. It looked promising, but the Mac build would not run on our machine.
-- [Greenflare](https://github.com/beb7/gflare-tk) (195, unmaintained): a lightweight Python technical-SEO crawler for Linux, Mac, and Windows. It is no longer maintained â€” last release 2021 â€” and its download site is down.
+- [Greenflare](https://github.com/beb7/gflare-tk) (195, unmaintained): a lightweight Python technical-SEO crawler for Linux, Mac, and Windows. It is no longer maintained — last release 2021 — and its download site is down.
 - [contentswift](https://github.com/hilmanski/contentswift) (159, unmaintained): a self-hostable content research tool that analyzes top-ranking SERP results to guide on-page optimization. The demo video is strong, but the repo has been dormant since 2023 and has no declared license.
-- [SEO Panel](https://github.com/seopanel/Seo-Panel) (146, active): an older PHP control panel, around since 2010, for managing SEO across multiple sites â€” rank tracking, audits, sitemaps, backlink monitoring, and multi-user accounts.
+- [SEO Panel](https://github.com/seopanel/Seo-Panel) (146, active): an older PHP control panel, around since 2010, for managing SEO across multiple sites — rank tracking, audits, sitemaps, backlink monitoring, and multi-user accounts.
 - [elmo](https://github.com/elmohq/elmo) (124, active): an AI-visibility (AEO/GEO) tracker that monitors how ChatGPT, Claude, Gemini, and Perplexity mention a brand and cite its content, self-hostable via Docker Compose.
-- [FreeCrawl-SEO-Tool](https://github.com/kemalai/FreeCrawl-SEO-Tool) (46, active): a free desktop SEO crawler aimed at large technical audits â€” 1M+ URLs, 150+ checks, JS rendering â€” that runs locally with no telemetry. Very new.
+- [FreeCrawl-SEO-Tool](https://github.com/kemalai/FreeCrawl-SEO-Tool) (46, active): a free desktop SEO crawler aimed at large technical audits — 1M+ URLs, 150+ checks, JS rendering — that runs locally with no telemetry. Very new.
 - [seo-tools-api](https://github.com/oguzhan18/seo-tools-api) (46, unmaintained): a NestJS REST API bundling meta-tag analysis, sitemap generation, SEO scoring, and rank and backlink checks. No declared license.
 - [google-search-console-export-all](https://github.com/swalker-888/google-search-console-export-all) (8, unmaintained): a single-file Node.js script that bulk-exports all your Search Console data to CSV, bypassing the UI's row limits. No declared license.
 

@@ -54,7 +54,7 @@ pnpm gdpr:erase-user --email person@example.com
 ```
 
 Confirm the identity and inventory, and that the dry run prints
-`autumnEnvironment: "live"` â€” a sandbox Autumn key would silently skip the
+`autumnEnvironment: "live"` — a sandbox Autumn key would silently skip the
 production Stripe deletion. Then execute with the exact normalized email and
 database host printed by the dry run:
 

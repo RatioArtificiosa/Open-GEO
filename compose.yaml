@@ -1,9 +1,9 @@
 services:
   open-geo:
-    image: ${OPEN_GEO_IMAGE:-ghcr.io/RatioArtificiosa/Open-GEO:latest}
+    image: ${OPEN_SEO_IMAGE:-ghcr.io/RatioArtificiosa/Open-GEO:latest}
     restart: unless-stopped
     # Forward EVERY .env value into the container. The explicit `environment:`
-    # list below still wins for the values it names â€” without this, any .env
+    # list below still wins for the values it names — without this, any .env
     # value not listed there (e.g. OPENROUTER_API_KEY) silently never reached
     # the app. Compose errors if .env is missing; the quickstart's
     # `cp .env.example .env` creates it.
@@ -34,6 +34,6 @@ services:
     ports:
       - "127.0.0.1:${PORT:-3001}:${PORT:-3001}"
     volumes:
-      - open_geo_data:/app/.wrangler
+      - open_seo_data:/app/.wrangler
 volumes:
-  open_geo_data:
+  open_seo_data:

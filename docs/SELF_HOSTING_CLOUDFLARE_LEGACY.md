@@ -1,6 +1,6 @@
 # Cloudflare Self-Hosting: Legacy Deployments
 
-Maintenance for installs created with the retired **Deploy to Cloudflare button** or the **manual Wrangler flow**. These deployments keep working â€” nothing changes for you. New deployments should use the [current guide](./SELF_HOSTING_CLOUDFLARE.md).
+Maintenance for installs created with the retired **Deploy to Cloudflare button** or the **manual Wrangler flow**. These deployments keep working — nothing changes for you. New deployments should use the [current guide](./SELF_HOSTING_CLOUDFLARE.md).
 
 ## Updating (Deploy-button repos)
 
@@ -33,7 +33,7 @@ pnpm install
 pnpm run deploy
 ```
 
-`pnpm run deploy` also deploys a second worker, `open-geo-audit`, which runs site audits. Copy your `DB`, `KV`, and `R2` bindings from `wrangler.jsonc` into `wrangler.audit.jsonc` (it needs no `OAUTH_KV`) â€” the deploy fails on ids that don't exist in your account. Then set its DataForSEO key once, or every Lighthouse check in an audit fails:
+`pnpm run deploy` also deploys a second worker, `open-geo-audit`, which runs site audits. Copy your `DB`, `KV`, and `R2` bindings from `wrangler.jsonc` into `wrangler.audit.jsonc` (it needs no `OAUTH_KV`) — the deploy fails on ids that don't exist in your account. Then set its DataForSEO key once, or every Lighthouse check in an audit fails:
 
 ```bash
 pnpm exec wrangler secret put DATAFORSEO_API_KEY --name open-geo-audit
@@ -70,8 +70,8 @@ Replace `open-geo` with your bucket name if you changed it.
 
 `https://<your-worker-hostname>/api/health` reports runtime configuration checks and database status. For server errors, open the Worker `Logs` or run `pnpm exec wrangler tail`.
 
-**Migrating to the current flow** is not supported yet â€” the new deploy provisions fresh resources, so your data would not move. Keep using this page.
+**Migrating to the current flow** is not supported yet — the new deploy provisions fresh resources, so your data would not move. Keep using this page.
 
 ## Everything else
 
-MCP setup and telemetry work the same as current deployments â€” see [Operations](./SELF_HOSTING_CLOUDFLARE_OPERATIONS.md).
+MCP setup and telemetry work the same as current deployments — see [Operations](./SELF_HOSTING_CLOUDFLARE_OPERATIONS.md).

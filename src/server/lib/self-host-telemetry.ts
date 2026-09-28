@@ -31,7 +31,7 @@ const DAILY_HEARTBEAT_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ONBOARDING_WINDOW_MS = 2 * 60 * 60 * 1000;
 const ONBOARDING_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 // In-memory DB-check throttle. During onboarding this must divide the
-// 5-minute heartbeat interval cleanly â€” a coarser value (e.g. 4 minutes)
+// 5-minute heartbeat interval cleanly — a coarser value (e.g. 4 minutes)
 // aliases against it and stretches the effective cadence to 8+ minutes.
 // An unknown age (fresh isolate) checks immediately to populate the cache.
 const ONBOARDING_CHECK_INTERVAL_MS = 60 * 1000;
@@ -78,7 +78,7 @@ type HeartbeatProperties = HeartbeatCounts & {
   minutesSinceInstall?: number;
   mcpToolCalls: number;
   // Unhealthy setup checks as "check:status" pairs (e.g. "dataforseo:error").
-  // Enumerable values only â€” never free-text detail.
+  // Enumerable values only — never free-text detail.
   setupIssues: string[];
   $process_person_profile: false;
 };
@@ -195,7 +195,7 @@ async function claimHeartbeat(now: Date): Promise<ClaimedHeartbeat | null> {
 // No session-based activity counts: self-host auth is delegated per request
 // (Cloudflare Access / local_noauth) and never creates better-auth session
 // rows, so those queries would always report zero. Install-level activity
-// falls out of heartbeat cadence instead â€” a heartbeat means an active day.
+// falls out of heartbeat cadence instead — a heartbeat means an active day.
 async function collectCounts(): Promise<HeartbeatCounts> {
   const [
     [userRow],

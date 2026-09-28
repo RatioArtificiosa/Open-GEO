@@ -7,7 +7,7 @@ export const Route = createFileRoute("/_marketing/tools")({
     buildPageSeo({
       title: "Free SEO Tools",
       description:
-        "Find competitor keywords, generate keyword ideas, and check backlinks, traffic, spam score, and domain age with OpenGeoâ€™s free SEO tools. No signup.",
+        "Find competitor keywords, generate keyword ideas, and check backlinks, traffic, spam score, and domain age with OpenGeo’s free SEO tools. No signup.",
       path: "/tools",
       titleSuffix: "OpenGeo",
       imageAlt: "OpenGeo free SEO tools",

@@ -208,7 +208,7 @@ html[data-theme="opengeo"]
   @apply border-error/70 bg-error/40 text-base-content/90;
 }
 
-/* Tag chip colors â€” muted background + readable text in both themes.
+/* Tag chip colors — muted background + readable text in both themes.
    Text uses darker shades on light theme for contrast, lighter on dark. */
 .tag-chip-slate {
   background-color: color-mix(in oklab, #64748b 14%, transparent);
@@ -276,7 +276,7 @@ html[data-theme="opengeo-dark"] .tag-chip-fuchsia {
   color: #f5d0fe;
 }
 
-/* Keyword difficulty score badges â€” muted/transparent style to match tag chips */
+/* Keyword difficulty score badges — muted/transparent style to match tag chips */
 .score-badge {
   @apply ring-1 ring-inset;
 }

@@ -51,7 +51,7 @@ Plugin skills are namespaced by the plugin name:
 
 ## Claude Desktop
 
-Claude Desktop doesn't support this plugin format â€” plugins are a Claude Code feature. For Claude Desktop, [add OpenGeo as an MCP connector](/docs/mcp#claude-desktop) instead.
+Claude Desktop doesn't support this plugin format — plugins are a Claude Code feature. For Claude Desktop, [add OpenGeo as an MCP connector](/docs/mcp#claude-desktop) instead.
 
 ## Update
 
@@ -75,13 +75,13 @@ For other installation methods, see [Agent setup and skill updates](/docs/agent-
 
 ## Troubleshooting
 
-To check what's actually installed, run `/plugin list` rather than bare `/plugin` â€” `/plugin` alone opens an interactive panel that doesn't show plain text.
+To check what's actually installed, run `/plugin list` rather than bare `/plugin` — `/plugin` alone opens an interactive panel that doesn't show plain text.
 
-If `/reload-plugins` reports `0 skills`, that's normal, not a failure â€” its summary only counts a plugin's `commands/` directory, not `skills/`. Confirm the skills loaded by running one directly, for example `/opengeo:seo-audit`.
+If `/reload-plugins` reports `0 skills`, that's normal, not a failure — its summary only counts a plugin's `commands/` directory, not `skills/`. Confirm the skills loaded by running one directly, for example `/opengeo:seo-audit`.
 
 If `/plugin uninstall opengeo@opengeo` reports "not installed in this project," you likely installed to a different scope than the one being checked (User, Project, or Local). Run `/plugin list` to see the actual scope, or sidestep the picker entirely with the shell form: `claude plugin uninstall opengeo@opengeo --scope user`.
 
-If plugin skills don't appear, clear the plugin cache with `rm -rf ~/.claude/plugins/cache` â€” this clears every installed plugin's cache, not just OpenGeo's, so reinstall anything else you have after â€” then restart Claude Code and reinstall the plugin.
+If plugin skills don't appear, clear the plugin cache with `rm -rf ~/.claude/plugins/cache` — this clears every installed plugin's cache, not just OpenGeo's, so reinstall anything else you have after — then restart Claude Code and reinstall the plugin.
 
 If the OpenGeo connection doesn't show as authenticated, run `/mcp`, select OpenGeo, and complete the login.
 

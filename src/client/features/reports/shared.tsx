@@ -24,13 +24,13 @@ export const reportQueryKey = (projectId: string, reportId: string) =>
   ["report", projectId, reportId] as const;
 
 /**
- * "Ben Â· Claude Code". The person is the half that means something (it comes
+ * "Ben · Claude Code". The person is the half that means something (it comes
  * from the session); the client half is a self-reported hint, so it stands
  * alone when the user cannot be resolved.
  */
 export function formatCreatedBy(report: ReportListItem): string {
   return report.createdByName
-    ? `${report.createdByName} Â· ${report.createdBy}`
+    ? `${report.createdByName} · ${report.createdBy}`
     : report.createdBy;
 }
 
@@ -130,7 +130,7 @@ export function ShareReportModal({
       });
     },
   });
-  // The toggle follows the click while the mutation is in flight â€” a round
+  // The toggle follows the click while the mutation is in flight — a round
   // trip that leaves the switch sitting in its old position reads as broken.
   const shared = Boolean(report.shareToken);
   const url = report.shareToken

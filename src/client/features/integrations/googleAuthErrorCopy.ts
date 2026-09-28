@@ -38,7 +38,7 @@ export function googleAuthErrorCopy(
       return {
         title: `${what} didn't finish`,
         description:
-          "Something went wrong while talking to Google. Please try again â€” if it keeps failing, contact support.",
+          "Something went wrong while talking to Google. Please try again — if it keeps failing, contact support.",
       };
   }
 }

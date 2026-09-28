@@ -10,8 +10,8 @@ Related guides:
 ## Prerequisites
 
 - **Node 22.6 or newer** and **pnpm** (`corepack enable` sets it up).
-- **A Cloudflare account with R2 enabled.** Activating R2 requires a payment method on file, even within its free tier â€” if you have never used R2, open `R2` in the Cloudflare dashboard once.
-- **A DataForSEO account** â€” see [`DATAFORSEO_API_KEY.md`](./DATAFORSEO_API_KEY.md).
+- **A Cloudflare account with R2 enabled.** Activating R2 requires a payment method on file, even within its free tier — if you have never used R2, open `R2` in the Cloudflare dashboard once.
+- **A DataForSEO account** — see [`DATAFORSEO_API_KEY.md`](./DATAFORSEO_API_KEY.md).
 
 ## 1) Clone your OpenGeo repo
 
@@ -40,7 +40,7 @@ pnpm alchemy login                # answer yes to "Customize OAuth scopes?" and 
 pnpm alchemy cloudflare bootstrap # deploys alchemy's state-store Worker to your account
 ```
 
-Already logged in from before without the `access:write` scope? Run `pnpm alchemy login --configure` â€” a plain repeat login doesn't re-ask about scopes.
+Already logged in from before without the `access:write` scope? Run `pnpm alchemy login --configure` — a plain repeat login doesn't re-ask about scopes.
 
 ## 3) Create `.env.selfhost`
 
@@ -58,7 +58,7 @@ pnpm deploy:selfhost --yes
 
 This provisions the D1 database, KV namespaces, and R2 bucket, applies the database migrations, deploys the Workers, and creates the Cloudflare Access application protecting it (allowing exactly `ACCESS_ALLOWED_EMAILS`). If the account has no Zero Trust team yet, one is created for you, named after your workers.dev subdomain.
 
-To manage the Access application yourself instead, set `TEAM_DOMAIN` (`https://your-team.cloudflareaccess.com`) and `POLICY_AUD` (the application's audience tag) in `.env.selfhost` â€” the deploy then provisions no Access resources.
+To manage the Access application yourself instead, set `TEAM_DOMAIN` (`https://your-team.cloudflareaccess.com`) and `POLICY_AUD` (the application's audience tag) in `.env.selfhost` — the deploy then provisions no Access resources.
 
 ## 5) Validate setup
 
@@ -80,7 +80,7 @@ pnpm deploy:selfhost --yes
 
 Add the teammate to `ACCESS_ALLOWED_EMAILS` in `.env.selfhost` and redeploy. Dashboard edits to that Access policy are overwritten on the next deploy. (If you manage the Access application yourself, edit its Allow policy in Zero Trust instead.)
 
-Everyone allowed through Cloudflare Access works in one shared workspace and sees the same projects. Deployments upgraded from older versions (which gave each user a separate workspace) show a one-time dashboard banner â€” clicking it migrates all previous per-user work into the shared workspace.
+Everyone allowed through Cloudflare Access works in one shared workspace and sees the same projects. Deployments upgraded from older versions (which gave each user a separate workspace) show a one-time dashboard banner — clicking it migrates all previous per-user work into the shared workspace.
 
 ## Troubleshooting
 

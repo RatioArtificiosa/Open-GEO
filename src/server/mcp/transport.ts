@@ -97,7 +97,7 @@ async function handleLegacyJsonRequest(request: Request, props: McpProps) {
   // per-request server plus a keepalive for the response lifetime. JSON mode
   // buffers the response and lets the finally below tear everything down
   // before the request completes. JSON mode silently drops server-to-client
-  // requests (sampling/elicitation) and would hang the buffered response â€”
+  // requests (sampling/elicitation) and would hang the buffered response —
   // no OpenGeo tool issues them.
   const server = createOpenSeoMcpServer(props);
   const transport = new WebStandardStreamableHTTPServerTransport({
@@ -118,7 +118,7 @@ async function handleLegacyJsonRequest(request: Request, props: McpProps) {
 
 // Hosted applies exact-origin validation before passing the corresponding
 // hostname allowlist to the SDK as defense in depth. Self-hosted leaves the
-// option unset so the handler's localhost-class default applies â€” an allowlist
+// option unset so the handler's localhost-class default applies — an allowlist
 // derived from the request's own Host would accept a DNS-rebinding page
 // trivially. Non-browser MCP clients send no Origin and are unaffected either
 // way.
@@ -209,7 +209,7 @@ export async function handleAuthenticatedOpenSeoMcpRequest(
 
   // The handler would fall back to the provider-populated ctx.props on its
   // own; passing authContext explicitly hands it the schema-validated copy
-  // (with the per-request role stamped in â€” roles are never baked into
+  // (with the per-request role stamped in — roles are never baked into
   // tokens) and keeps this path symmetrical with self-hosted, which has no
   // ctx.props. orgScope is stamped here rather than read from the token so
   // grants minted before it existed are user-scoped too: project-scoped tools

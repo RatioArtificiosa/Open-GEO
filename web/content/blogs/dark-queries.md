@@ -39,7 +39,7 @@ When a prospect asks ChatGPT for "an affordable keyword tool for a freelance SEO
 
 > Sometimes my clients get a lead from ChatGPT, but I'm not able to see that data yet, to see what worked for them. I just want to condense that data.
 >
-> â€” Sonia Urquilla, SEO by Sonia
+> — Sonia Urquilla, SEO by Sonia
 
 So we're living with two layers of dark data now: the queries Search Console withholds, and the AI-driven visits that never announce themselves at all. You can't fully close either gap. But you can shrink the first one dramatically, and the discipline that does it is the same one you'll need for the second: stop treating any single tool as the source of truth, and start triangulating.
 

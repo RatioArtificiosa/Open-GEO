@@ -17,7 +17,7 @@ import {
 // This gates the stable stage hostname (`open-geo-<stage>.<sub>`). Cloudflare
 // version preview URLs (`<version>-open-geo-<stage>.<sub>`) sit outside this
 // wildcard, but alchemy uploads each version with no preview provisioned
-// (`has_preview: false`), so none are served â€” see docs/PREVIEW_DEPLOYMENTS.md.
+// (`has_preview: false`), so none are served — see docs/PREVIEW_DEPLOYMENTS.md.
 export default Alchemy.Stack(
   "open-geo-preview-access",
   {

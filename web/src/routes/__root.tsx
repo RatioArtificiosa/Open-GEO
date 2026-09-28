@@ -59,7 +59,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <head>
         <HeadContent />
         {/* Dub referral attribution: partner links land here with ?dub_id=
-            (and ?via=). Load Dub's script only for those visits â€” it persists
+            (and ?via=). Load Dub's script only for those visits — it persists
             the click id as a `dub_id` cookie on `.opengeo.so` so the app at
             app.opengeo.so can attribute the signup. Injected during the
             initial HTML parse (not idle-deferred like Plausible below) so the

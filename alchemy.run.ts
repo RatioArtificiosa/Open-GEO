@@ -16,12 +16,12 @@ import {
   workerName,
 } from "./alchemy.access.ts";
 
-// Preview hostnames are `open-geo-<stage>.<WORKERS_SUBDOMAIN>` â€” the naming
+// Preview hostnames are `open-geo-<stage>.<WORKERS_SUBDOMAIN>` — the naming
 // lives in alchemy.access.ts, shared with the Access wildcard the security
 // boundary depends on. The shell copy in .github/workflows/pr-preview.yml
 // must be kept in sync by hand.
 
-// Alchemy v2 stack for SaaS deployments â€” previews, prod, and Cloudflare
+// Alchemy v2 stack for SaaS deployments — previews, prod, and Cloudflare
 // self-hosting. Stage semantics, security model, and credentials are
 // documented once in docs/PREVIEW_DEPLOYMENTS.md.
 //
@@ -34,10 +34,10 @@ import {
 //
 // Local dev and Docker self-host do NOT use this stack (wrangler.jsonc +
 // @cloudflare/vite-plugin). This stack deploys the PREBUILT `vite build`
-// output â€” Alchemy never runs Vite.
+// output — Alchemy never runs Vite.
 
-// The worker's runtime contract â€” compatibility date/flags, crons,
-// observability, placement, DO/workflow classes â€” has one source of truth:
+// The worker's runtime contract — compatibility date/flags, crons,
+// observability, placement, DO/workflow classes — has one source of truth:
 // wrangler.jsonc (what local dev and Docker self-host already run). Only
 // stage-dependent values (names, domains, env) live in this file.
 // unstable_readConfig ships types too loose to lint; validate what we consume.
@@ -122,7 +122,7 @@ const makeResources = (stage: string) => {
 
 /**
  * Prod-only: the existing Hyperdrive config pooling connections to the
- * production Postgres. Origin credentials come from the env file â€” Cloudflare
+ * production Postgres. Origin credentials come from the env file — Cloudflare
  * never returns them, so alchemy must know them to manage the config.
  */
 const makeHyperdrive = () =>
@@ -159,17 +159,17 @@ const optionalSecret = (name: string) =>
   Config.redacted(name).pipe(Config.withDefault(Redacted.make("")));
 
 const accessScopeHint =
-  " (if this is a permissions error, re-run `pnpm alchemy login --configure`, answer yes to â€œCustomize OAuth scopes?â€, and select access:write alongside the defaults)";
+  " (if this is a permissions error, re-run `pnpm alchemy login --configure`, answer yes to “Customize OAuth scopes?”, and select access:write alongside the defaults)";
 
 /**
  * Self-host auth (AUTH_MODE=cloudflare_access): derive the Access values
  * instead of making the user copy them out of the dashboard. TEAM_DOMAIN is
- * the account's Zero Trust team domain (one API read; the team is created â€”
- * named after the workers.dev subdomain â€” if the account has none);
+ * the account's Zero Trust team domain (one API read; the team is created —
+ * named after the workers.dev subdomain — if the account has none);
  * POLICY_AUD is the audience tag of an alchemy-provisioned Access
  * application whose allow-policy comes from ACCESS_ALLOWED_EMAILS. Explicit
  * env values always win, so a hand-managed Access application keeps
- * working â€” set both TEAM_DOMAIN and POLICY_AUD and nothing here provisions.
+ * working — set both TEAM_DOMAIN and POLICY_AUD and nothing here provisions.
  */
 const resolveSelfHostAccess = (
   stage: string,
@@ -218,7 +218,7 @@ const resolveSelfHostAccess = (
         teamDomain = `https://${organization.authDomain}`;
       } else {
         // Fresh account with no Zero Trust team: create one, named after the
-        // workers.dev subdomain â€” both are globally unique account handles.
+        // workers.dev subdomain — both are globally unique account handles.
         const teamName = subdomain.replace(/\.workers\.dev$/, "");
         yield* ZeroTrust.createOrganizationForAccount({
           accountId,
@@ -228,13 +228,13 @@ const resolveSelfHostAccess = (
           Effect.catch((error) =>
             Effect.die(
               new Error(
-                `Could not create the Zero Trust team "${teamName}": ${String(error)}${accessScopeHint}. You can also create one by hand â€” open https://one.dash.cloudflare.com once to pick a team name (free plan is fine), then redeploy.`,
+                `Could not create the Zero Trust team "${teamName}": ${String(error)}${accessScopeHint}. You can also create one by hand — open https://one.dash.cloudflare.com once to pick a team name (free plan is fine), then redeploy.`,
               ),
             ),
           ),
         );
         yield* Console.log(
-          `Created the Zero Trust team "${teamName}" (${teamName}.cloudflareaccess.com) â€” its login page is where Cloudflare Access sends users to sign in.`,
+          `Created the Zero Trust team "${teamName}" (${teamName}.cloudflareaccess.com) — its login page is where Cloudflare Access sends users to sign in.`,
         );
         teamDomain = `https://${teamName}.cloudflareaccess.com`;
       }
@@ -242,7 +242,7 @@ const resolveSelfHostAccess = (
 
     if (!policyAud) {
       const allowedEmails = yield* requireAllowedEmails(
-        "Set ACCESS_ALLOWED_EMAILS to the comma-separated emails allowed through Cloudflare Access â€” or set TEAM_DOMAIN and POLICY_AUD to manage the Access application yourself.",
+        "Set ACCESS_ALLOWED_EMAILS to the comma-separated emails allowed through Cloudflare Access — or set TEAM_DOMAIN and POLICY_AUD to manage the Access application yourself.",
       );
       const application = yield* emailAccessGate({
         policyId: "SelfHostAllowUsers",
@@ -259,9 +259,9 @@ const resolveSelfHostAccess = (
   });
 
 // Secrets/vars resolve from the env file passed to `alchemy deploy`
-// (`Config.redacted` â†’ Cloudflare `secret_text`, `Config.string` â†’ plaintext
+// (`Config.redacted` → Cloudflare `secret_text`, `Config.string` → plaintext
 // var). NOTE: the alchemy CLI loads `--env-file` into the Config environment,
-// NOT into process.env â€” a process.env read here silently yields "".
+// NOT into process.env — a process.env read here silently yields "".
 const dataEnv = {
   // AUTH_MODE, DATABASE_PROVIDER, BETTER_AUTH_URL, TEAM_DOMAIN, and
   // POLICY_AUD are stage-dependent and set in the stack body below.
@@ -291,7 +291,7 @@ const dataEnv = {
   TURNSTILE_SECRET_KEY: optionalSecret("TURNSTILE_SECRET_KEY"),
   TURNSTILE_SITE_KEY: optionalVar("TURNSTILE_SITE_KEY"),
   // Alchemy reconciles worker vars on every deploy, so the telemetry opt-out
-  // must live in the env file â€” a dashboard-set var would be wiped.
+  // must live in the env file — a dashboard-set var would be wiped.
   OPENGEO_TELEMETRY_DISABLED: optionalVar("OPENGEO_TELEMETRY_DISABLED"),
 };
 
@@ -317,7 +317,7 @@ export default Alchemy.Stack(
     const workersSubdomain = yield* readWorkersSubdomain({ required: false });
 
     // Auth needs an absolute BETTER_AUTH_URL. Prod sets it explicitly;
-    // previews always derive it from the deterministic worker name â€” a wrong
+    // previews always derive it from the deterministic worker name — a wrong
     // WORKERS_SUBDOMAIN surfaces in CI's post-deploy Access verify step.
     let authUrl: string;
     if (prod) {
@@ -343,11 +343,11 @@ export default Alchemy.Stack(
     } else if (authMode === "hosted") {
       return yield* Effect.die(
         new Error(
-          "Hosted previews derive BETTER_AUTH_URL from WORKERS_SUBDOMAIN â€” set it to the account's full workers.dev subdomain (shown under Workers & Pages).",
+          "Hosted previews derive BETTER_AUTH_URL from WORKERS_SUBDOMAIN — set it to the account's full workers.dev subdomain (shown under Workers & Pages).",
         ),
       );
     } else {
-      // local_noauth / cloudflare_access never read BETTER_AUTH_URL â€”
+      // local_noauth / cloudflare_access never read BETTER_AUTH_URL —
       // src/lib/auth.ts uses a placeholder baseURL off the hosted path.
       authUrl = "";
     }
@@ -358,12 +358,12 @@ export default Alchemy.Stack(
       workersSubdomain,
     );
 
-    // Created once and bound into BOTH workers â€” they share the same
+    // Created once and bound into BOTH workers — they share the same
     // D1/KV/R2 (and prod Hyperdrive). OAUTH_KV stays app-worker-only.
     const resources = makeResources(stage);
     const prodHyperdrive = prod ? makeHyperdrive() : undefined;
 
-    // Aux worker: the site-audit engine (src/audit-worker.ts) â€” the
+    // Aux worker: the site-audit engine (src/audit-worker.ts) — the
     // SiteAuditWorkflow orchestrator and the per-audit AuditScratchpad DO.
     // Its memory spikes (multi-MB Lighthouse payloads, in-flight HTML
     // batches) OOMed the app worker's near-limit baseline heap. Deployed
@@ -371,14 +371,14 @@ export default Alchemy.Stack(
     // always have a target. Takes no direct traffic (url off).
     const auditWorker = yield* Cloudflare.Worker("open-geo-audit", {
       name: `${workerName(stage)}-audit`,
-      main: "./dist/open_geo_audit/index.js",
+      main: "./dist/open_seo_audit/index.js",
       bundle: false,
       url: false,
       compatibility: {
         date: wrangler.compatibility_date,
         flags: wrangler.compatibility_flags,
       },
-      // Audit workflow steps parse and persist batches of HTML â€” the same
+      // Audit workflow steps parse and persist batches of HTML — the same
       // CPU allowance the app worker used to carry for them. Configurable
       // CPU limits are a paid-plan feature; self-host deploys
       // (cloudflare_access) may run on the free plan, which rejects them.
@@ -395,7 +395,7 @@ export default Alchemy.Stack(
         R2: resources.R2,
         // Deliberately NOT ...dataEnv: this worker crawls and parses
         // attacker-influenced HTML, so it gets only the secrets its code
-        // path reads â€” DataForSEO (Lighthouse), Autumn (metering), PostHog
+        // path reads — DataForSEO (Lighthouse), Autumn (metering), PostHog
         // (capture). No auth/OAuth/Loops/Turnstile secrets.
         DATAFORSEO_API_KEY: dataEnv.DATAFORSEO_API_KEY,
         AUTUMN_SECRET_KEY: dataEnv.AUTUMN_SECRET_KEY,
@@ -438,10 +438,10 @@ export default Alchemy.Stack(
         flags: wrangler.compatibility_flags,
       },
       // Site audits moved to the open-geo-audit worker, but RankCheckWorkflow
-      // still parses SERP batches here â€” keep the CPU allowance until that
+      // still parses SERP batches here — keep the CPU allowance until that
       // workflow's per-tick CPU is measured or it moves too. Configurable CPU
       // limits are a paid-plan feature, and self-host deploys
-      // (cloudflare_access) may run on the free plan â€” which rejects them â€”
+      // (cloudflare_access) may run on the free plan — which rejects them —
       // so those get the plan default instead.
       ...(authMode === "cloudflare_access"
         ? {}
@@ -452,7 +452,7 @@ export default Alchemy.Stack(
       },
       placement:
         wrangler.placement?.mode === "smart" ? { mode: "smart" } : undefined,
-      // Scheduled rank checks â€” src/server.ts `scheduled` handler.
+      // Scheduled rank checks — src/server.ts `scheduled` handler.
       crons: wrangler.triggers.crons,
       env: {
         ...resources,
@@ -473,7 +473,7 @@ export default Alchemy.Stack(
 
         // Per-user throttle for /mcp API-key auth (see
         // src/server/mcp/api-key-auth.ts). Only this stack declares the
-        // binding â€” the wrangler.jsonc surfaces (local dev, Docker
+        // binding — the wrangler.jsonc surfaces (local dev, Docker
         // self-host) skip limiting when it's absent.
         MCP_RATE_LIMIT: Cloudflare.RateLimit("MCP_RATE_LIMIT", {
           namespaceId: 1001,
@@ -517,8 +517,8 @@ export default Alchemy.Stack(
       },
     }).pipe(
       // Prod adopts the live worker serving app.opengeo.so; never delete it
-      // on destroy. (Workflow registrations aren't individually retainable â€”
-      // they're created inside the worker provider â€” but re-registering them
+      // on destroy. (Workflow registrations aren't individually retainable —
+      // they're created inside the worker provider — but re-registering them
       // is a lossless upsert, unlike deleting the data-bearing resources.)
       Alchemy.RemovalPolicy.retain(prod),
     );

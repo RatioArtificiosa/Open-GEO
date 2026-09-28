@@ -13,11 +13,11 @@ import { sharePath } from "@/shared/report-share";
 // of /r/<reportId>: same stored HTML, same REPORT_CSP sandbox, but authorized
 // by the unguessable token instead of a session.
 //
-// A raw-Response route, so no React and no auth guard runs â€” and no
+// A raw-Response route, so no React and no auth guard runs — and no
 // `component`, on purpose: a component would pull this file (and
 // `cloudflare:workers` with it) into the client bundle.
 
-// One body for every dead end â€” unknown token, revoked link, archived project,
+// One body for every dead end — unknown token, revoked link, archived project,
 // kill switch off. A revoked link must not confirm that it once worked.
 const NOT_SHARED_BODY = "This report isn't shared.";
 

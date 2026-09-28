@@ -22,10 +22,10 @@ Use this for a named competitor. For identifying the market leaders first, use `
 
 The project-context tools are free and shared with the app and other agents.
 
-1. Call `get_project_context` first and ground the analysis in it â€” the saved competitors say whether this domain is already known and what was concluded about it before.
+1. Call `get_project_context` first and ground the analysis in it — the saved competitors say whether this domain is already known and what was concluded about it before.
 2. This skill needs competitors. If none are saved, run a minimal inline setup: save the competitor being analyzed, and ask the user (or infer from `find_serp_competitors` and confirm) whether there are others, write them back with `update_project_context` (`addCompetitors`), then continue the analysis. Never front-load the full interview; suggest `seo-project-setup` at the end for the rest.
 3. Before spending credits, check the research log. If the same research ran within the last 30 days, reuse that result and say so instead of re-buying it.
-4. On finish, write back what is durable with `update_project_context` â€” an `addCompetitors` upsert for this domain with a short note on its strengths and where it is vulnerable â€” and append a research log entry: `{ appendResearchLog: { summary: "Competitor analysis: <domain>. Verdict: <conclusion>" } }`.
+4. On finish, write back what is durable with `update_project_context` — an `addCompetitors` upsert for this domain with a short note on its strengths and where it is vulnerable — and append a research log entry: `{ appendResearchLog: { summary: "Competitor analysis: <domain>. Verdict: <conclusion>" } }`.
 
 ## Deliver as a report
 
@@ -45,7 +45,7 @@ Deliver through the `seo-report` skill, saving with `skill: "competitor-analysis
 ## Workflow
 
 1. Call `get_domain_overview` for the competitor, passing provided location/language when supported.
-2. If comparing to the user, call `get_domain_overview` for the user's domain too â€” and if Search Console is connected, `get_search_console_performance` for the user's real baseline.
+2. If comparing to the user, call `get_domain_overview` for the user's domain too — and if Search Console is connected, `get_search_console_performance` for the user's real baseline.
 3. Call `get_ranked_keywords` for the competitor. Use filters like `maxRank`, `minSearchVolume`, `excludeBrandTerms`, and `resultTypes` to keep rows relevant.
 4. If comparing to the user, call `get_ranked_keywords` for the user's domain/page too, or use `get_serp_results` for the shared terms when a lighter check is enough.
 5. For local SEO, use `search_local_businesses` and `get_local_serp_results` around the relevant business location(s) before drawing local-pack conclusions. Add `get_google_business_questions` only when Q&A evidence matters.
@@ -73,13 +73,13 @@ If a report template applies (see `seo-report`), its sections and tone replace t
 
 Sections in this order:
 
-1. **Snapshot** â€” one or two opening sentences, then a table of the competitor's organic footprint (traffic estimate, keyword count, referring domains). Add the user's domain as a second row when comparing.
-2. **The biggest lesson** â€” one finding.
-3. **Where they are vulnerable** â€” one finding per opening, ordered by how winnable it is.
-4. **Keyword themes** â€” a table of theme, example keywords, volume, and whether the user competes there. A bar chart when a few themes dominate the footprint.
-5. **Content patterns and authority** â€” prose, with a note for anything inferred from keyword rows rather than seen on a page.
-6. **What to do next** â€” an ordered list, shortest useful.
-7. **How this report was made** â€” opens with the skill link line from `seo-report`, pointing at `https://opengeo.so/docs/skills/competitor-analysis` ("OpenGeo Competitor Analysis skill"), then which tools reported what, and what you checked yourself.
+1. **Snapshot** — one or two opening sentences, then a table of the competitor's organic footprint (traffic estimate, keyword count, referring domains). Add the user's domain as a second row when comparing.
+2. **The biggest lesson** — one finding.
+3. **Where they are vulnerable** — one finding per opening, ordered by how winnable it is.
+4. **Keyword themes** — a table of theme, example keywords, volume, and whether the user competes there. A bar chart when a few themes dominate the footprint.
+5. **Content patterns and authority** — prose, with a note for anything inferred from keyword rows rather than seen on a page.
+6. **What to do next** — an ordered list, shortest useful.
+7. **How this report was made** — opens with the skill link line from `seo-report`, pointing at `https://opengeo.so/docs/skills/competitor-analysis` ("OpenGeo Competitor Analysis skill"), then which tools reported what, and what you checked yourself.
 
 ## Guardrails
 

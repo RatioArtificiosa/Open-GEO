@@ -1,10 +1,10 @@
-// The contract shared by the two email-gated Cloudflare Access boundaries â€”
+// The contract shared by the two email-gated Cloudflare Access boundaries —
 // the persistent preview wildcard (alchemy.preview-access.run.ts) and the
 // per-stage self-host gate (alchemy.run.ts). Worker naming, the
 // WORKERS_SUBDOMAIN shape, the allowed-emails parsing, and the
 // policy/application shape define who gets through which hostnames; keep them
 // in one place so the two gates cannot drift. The one copy that can't import
-// this module is the shell in .github/workflows/pr-preview.yml â€” its
+// this module is the shell in .github/workflows/pr-preview.yml — its
 // `open-geo-<stage>` naming stays comment-synced (and is backstopped by the
 // workflow's Access verify step).
 

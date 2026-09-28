@@ -8,8 +8,8 @@ Host OpenGeo on Cloudflare for internet-facing self-hosting across multiple devi
 ## Prerequisites
 
 - **Node 22.6 or newer** and **pnpm** (`corepack enable` sets it up).
-- **A Cloudflare account with R2 enabled.** Activating R2 requires a payment method on file, even within its free tier â€” if you have never used R2, open `R2` in the Cloudflare dashboard once.
-- **A DataForSEO account** â€” see [DataForSEO API key setup](/docs/self-hosting#dataforseo-api-key-setup).
+- **A Cloudflare account with R2 enabled.** Activating R2 requires a payment method on file, even within its free tier — if you have never used R2, open `R2` in the Cloudflare dashboard once.
+- **A DataForSEO account** — see [DataForSEO API key setup](/docs/self-hosting#dataforseo-api-key-setup).
 
 ## 1) Clone your OpenGeo repo
 
@@ -38,7 +38,7 @@ pnpm alchemy login                # answer yes to "Customize OAuth scopes?" and 
 pnpm alchemy cloudflare bootstrap # deploys alchemy's state-store Worker to your account
 ```
 
-Already logged in from before without the `access:write` scope? Run `pnpm alchemy login --configure` â€” a plain repeat login doesn't re-ask about scopes.
+Already logged in from before without the `access:write` scope? Run `pnpm alchemy login --configure` — a plain repeat login doesn't re-ask about scopes.
 
 ## 3) Create `.env.selfhost`
 

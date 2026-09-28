@@ -36,10 +36,10 @@ When the producing skill specifies a recommendation format, use that format inst
 
 ## Title and summary
 
-- `title`: names the report type or specific subject and the full report date, under 120 characters. Use "Competitive Landscape â€” Sep 17, 2026" or "Keyword Research â€” Sep 17, 2026". Use the actual report date in `MMM D, YYYY` format, including the day and four-digit year; put the data coverage period in the report body. Never a generic "SEO Report" or "Analysis".
-- Omit the website from the title when the report is about the project's website. Compare hostnames, ignoring the protocol, `www.`, and trailing slash. If the subject is a different website, include its bare hostname, for example "Competitor Analysis: example.com â€” Sep 17, 2026". Also include the subject hostname when the project has no website set. Never put `https://` or a full URL in the title.
+- `title`: names the report type or specific subject and the full report date, under 120 characters. Use "Competitive Landscape — Sep 17, 2026" or "Keyword Research — Sep 17, 2026". Use the actual report date in `MMM D, YYYY` format, including the day and four-digit year; put the data coverage period in the report body. Never a generic "SEO Report" or "Analysis".
+- Omit the website from the title when the report is about the project's website. Compare hostnames, ignoring the protocol, `www.`, and trailing slash. If the subject is a different website, include its bare hostname, for example "Competitor Analysis: example.com — Sep 17, 2026". Also include the subject hostname when the project has no website set. Never put `https://` or a full URL in the title.
 - Use the same title in `save_report`, the HTML `<title>`, and the visible `<h1>` so the report list, share preview, and report agree.
-- `summary`: markdown under 2,500 characters, in this order â€” the verdict, the leading recommendation and expected benefit (or why no material action is established), then the key evidence. This is what `list_reports` returns and what you or another agent read instead of the HTML, so write it for a reader who will never open the page.
+- `summary`: markdown under 2,500 characters, in this order — the verdict, the leading recommendation and expected benefit (or why no material action is established), then the key evidence. This is what `list_reports` returns and what you or another agent read instead of the HTML, so write it for a reader who will never open the page.
 
 ## The closing section: how this report was made
 
@@ -170,7 +170,7 @@ footer{max-width:660px;margin:64px 0 0;padding:26px 0 0;border-top:1px solid var
 
 <header>
   <h1>REPORT TITLE</h1>
-  <p class="byline">Prepared for NAME Â· MONTH D, YYYY</p>
+  <p class="byline">Prepared for NAME · MONTH D, YYYY</p>
 </header>
 
 <div class="body">
@@ -234,16 +234,16 @@ footer{max-width:660px;margin:64px 0 0;padding:26px 0 0;border-top:1px solid var
 
 ## The primitives
 
-- **Header** â€” `h1` (the report title) and `.byline` (who it is for and the date): "Prepared for badseo.dev Â· September 3, 2026".
-- **`.rail` contents** â€” the table of contents, sticky to the right of the text on a wide screen, dropped on a phone and in print. Every `h2` has an id, and the contents list links to each one with a plain `href="#id"` â€” in-page anchors are the one kind of link that must **not** use `target="_blank"`. Ids are the kebab-case of the heading text.
-- **`h2` / `h3`** â€” `h2` opens a section, `h3` names one finding. Do not skip levels.
-- **Finding** â€” use the producing skill's recommendation structure when specified; otherwise `h3`, then a `.finding` list with Problem, Change, and Expected effect, each one or two sentences. Keep the expected benefit visible beside the proposed work, including when it is uncertain or limited. Descriptive findings can use only the relevant bullets.
-- **`.note`** â€” one left-ruled callout for a caveat, a confidence limit, or something you could not verify. Two or three in a report, never a row of them.
-- **`.tw` table** â€” every numeric column gets `class="n"` on both the `th` and the `td` so the digits line up. Keep tables to five columns or fewer, put the long-text column last, and keep cell text short; a wide table scrolls on a phone and clips in print.
-- **`figure` + `.bars`** â€” one small bar chart where a comparison reads faster than a sentence. One row per item: `.label`, a `.track` holding a `.bar` whose inline width is the value as a percentage of the largest, and `.value`. Inline SVG is fine for anything that is not a bar chart; give it a `viewBox` and real `<text>` labels.
-- **`hr` then a closing `h2`** â€” the "What to do next" list, ordered, shortest useful.
-- **How this report was made** â€” the last `h2`: the skill link line, then Tools and Verified bullets. See the section above.
-- **`footer`** â€” one line: the sign-off and the data date. Method detail belongs in the closing section, not here.
+- **Header** — `h1` (the report title) and `.byline` (who it is for and the date): "Prepared for badseo.dev · September 3, 2026".
+- **`.rail` contents** — the table of contents, sticky to the right of the text on a wide screen, dropped on a phone and in print. Every `h2` has an id, and the contents list links to each one with a plain `href="#id"` — in-page anchors are the one kind of link that must **not** use `target="_blank"`. Ids are the kebab-case of the heading text.
+- **`h2` / `h3`** — `h2` opens a section, `h3` names one finding. Do not skip levels.
+- **Finding** — use the producing skill's recommendation structure when specified; otherwise `h3`, then a `.finding` list with Problem, Change, and Expected effect, each one or two sentences. Keep the expected benefit visible beside the proposed work, including when it is uncertain or limited. Descriptive findings can use only the relevant bullets.
+- **`.note`** — one left-ruled callout for a caveat, a confidence limit, or something you could not verify. Two or three in a report, never a row of them.
+- **`.tw` table** — every numeric column gets `class="n"` on both the `th` and the `td` so the digits line up. Keep tables to five columns or fewer, put the long-text column last, and keep cell text short; a wide table scrolls on a phone and clips in print.
+- **`figure` + `.bars`** — one small bar chart where a comparison reads faster than a sentence. One row per item: `.label`, a `.track` holding a `.bar` whose inline width is the value as a percentage of the largest, and `.value`. Inline SVG is fine for anything that is not a bar chart; give it a `viewBox` and real `<text>` labels.
+- **`hr` then a closing `h2`** — the "What to do next" list, ordered, shortest useful.
+- **How this report was made** — the last `h2`: the skill link line, then Tools and Verified bullets. See the section above.
+- **`footer`** — one line: the sign-off and the data date. Method detail belongs in the closing section, not here.
 
 ## Guardrails
 

@@ -25,7 +25,7 @@ const MAX_DESCRIPTION_CHARS = 200;
 
 /**
  * The link preview's description: the summary's first non-empty line, capped.
- * The summary is markdown, and no attempt is made to render it â€” a stray `##`
+ * The summary is markdown, and no attempt is made to render it — a stray `##`
  * in a preview is a smaller problem than a stripper that eats a leading minus
  * sign off a number.
  */
@@ -36,7 +36,7 @@ function shareDescription(summary: string): string {
     .find((raw) => raw.length > 0);
   if (!line) return "";
   return line.length > MAX_DESCRIPTION_CHARS
-    ? `${line.slice(0, MAX_DESCRIPTION_CHARS - 1).trimEnd()}â€¦`
+    ? `${line.slice(0, MAX_DESCRIPTION_CHARS - 1).trimEnd()}…`
     : line;
 }
 
@@ -111,7 +111,7 @@ function Document({
           content="width=device-width, initial-scale=1, viewport-fit=cover"
         />
         <meta name="robots" content="noindex, nofollow" />
-        <title>{`${title} Â· OpenGeo`}</title>
+        <title>{`${title} · OpenGeo`}</title>
         {head}
         <link rel="icon" href="/favicon.ico" />
         <style dangerouslySetInnerHTML={{ __html: STYLES }} />
@@ -133,7 +133,7 @@ function htmlResponse(page: React.ReactElement, status: number): Response {
   });
 }
 
-/** The two dead ends â€” a link that was never shared or was revoked, and an archived project. */
+/** The two dead ends — a link that was never shared or was revoked, and an archived project. */
 function unavailable(heading: string, detail: string): Response {
   // Every dead end answers 404, so a crawler, a monitor or a browser's history
   // sees a page that is not there rather than a 200 with an apology. The
@@ -208,11 +208,11 @@ export async function renderSharePage(
           <meta property="og:image" content={imageUrl} />
           <meta property="og:image:width" content="1200" />
           <meta property="og:image:height" content="630" />
-          <meta property="og:image:alt" content={`${report.title} Â· OpenGeo`} />
+          <meta property="og:image:alt" content={`${report.title} · OpenGeo`} />
           <meta name="twitter:image" content={imageUrl} />
           <meta
             name="twitter:image:alt"
-            content={`${report.title} Â· OpenGeo`}
+            content={`${report.title} · OpenGeo`}
           />
           <meta name="twitter:card" content="summary_large_image" />
         </>
@@ -222,7 +222,7 @@ export async function renderSharePage(
         <div className="title">
           <h1>{report.title}</h1>
           <p className="meta">
-            Made with OpenGeo Â· Updated {formatRelativeTime(report.updatedAt)}
+            Made with OpenGeo · Updated {formatRelativeTime(report.updatedAt)}
           </p>
         </div>
         <div className="actions">

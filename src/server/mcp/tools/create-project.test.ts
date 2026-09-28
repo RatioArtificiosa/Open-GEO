@@ -123,7 +123,7 @@ describe("create_project MCP tool", () => {
 });
 
 // User-scoped credentials (API keys): the target organization must be
-// unambiguous â€” a single membership resolves implicitly, multiple require an
+// unambiguous — a single membership resolves implicitly, multiple require an
 // explicit, membership-checked organizationId confirmed with the user.
 describe("create_project with a user-scoped credential", () => {
   const userScopedContext = makeToolContext({ orgScope: "user" });

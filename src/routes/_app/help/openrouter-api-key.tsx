@@ -17,7 +17,7 @@ function OpenrouterApiKeyHelpPage() {
             </h1>
             <p className="text-sm text-base-content/70">
               OpenGeo needs the <code>OPENROUTER_API_KEY</code> secret before AI
-              features like SAM, the in-app SEO agent, can run. It is optional â€”
+              features like SAM, the in-app SEO agent, can run. It is optional —
               everything else in OpenGeo works without it.
             </p>
           </div>

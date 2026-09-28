@@ -210,7 +210,7 @@ describe("rank tracking management MCP tools", () => {
     );
 
     expect(textContent(result)).toContain(
-      "8 keywords Ã— 2 devices = 16 SERP checks",
+      "8 keywords × 2 devices = 16 SERP checks",
     );
     expect(textContent(result)).toContain(
       "additional separately billed live fallback",

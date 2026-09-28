@@ -5,7 +5,7 @@
  * functions the production Worker uses) against a running badseo.dev, then
  * checks that every fixture triggers exactly the audit issues it declares.
  *
- * It reimplements only the crawl *frontier* loop â€” deliberately, so it can
+ * It reimplements only the crawl *frontier* loop — deliberately, so it can
  * crawl localhost (the production frontier's SSRF policy blocks private hosts).
  * Every actual detection call below is imported straight from ../src.
  *
@@ -247,7 +247,7 @@ const INFO_ISSUES = new Set<IssueId>(
 );
 
 async function main() {
-  console.log(c.bold(`\nðŸ§ª badseo.dev audit harness â†’ ${BASE}\n`));
+  console.log(c.bold(`\n🧪 badseo.dev audit harness → ${BASE}\n`));
 
   await warmup();
   const origin = new URL(BASE).origin;
@@ -358,7 +358,7 @@ async function main() {
 
   // Explicit regression guard for the trailing-slash redirect cycle
   // (RatioArtificiosa/Open-GEO#61): the canonical page must resolve to a 200 with no
-  // redirect loop and no error. Fix-agnostic on purpose â€” the 200 lands on the
+  // redirect loop and no error. Fix-agnostic on purpose — the 200 lands on the
   // slash form under the root-cause fix (slashes preserved) or on the non-slash
   // form under older slash-stripping code that inline-follows. A crawler that
   // still strips and doesn't follow would 508 or record a self-redirect loop.
@@ -378,7 +378,7 @@ async function main() {
     const ok = has200 && !looped && !errored;
     if (!ok) failures++;
     rows.push({
-      name: "Trailing-slash cycle â†’ 200, no loop",
+      name: "Trailing-slash cycle → 200, no loop",
       url: base,
       ok,
       detail: ok
@@ -394,7 +394,7 @@ async function main() {
   // ---- report ----
   const pad = Math.max(...rows.map((r) => r.name.length));
   for (const r of rows) {
-    const icon = r.ok ? c.green("âœ“") : c.red("âœ—");
+    const icon = r.ok ? c.green("✓") : c.red("✗");
     console.log(`${icon} ${r.name.padEnd(pad)}  ${r.detail}`);
   }
 
@@ -415,7 +415,7 @@ async function main() {
       `\nissue-type coverage: ${allTypes.length - uncovered.length}/${allTypes.length}` +
         (uncovered.length
           ? `  (missing: ${uncovered.join(", ")})`
-          : "  âœ“ all covered"),
+          : "  ✓ all covered"),
     ),
   );
 

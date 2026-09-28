@@ -29,7 +29,7 @@ const EAGER_DENYLIST: Array<{ pattern: RegExp; expected: string }> = [
       /node_modules\/(workers-ai-provider|@ai-sdk\/(openai|anthropic))\//,
     expected:
       "aliased to workers-ai-provider-stub.ts (@cloudflare/think's default " +
-      "provider path is dead code â€” our agents construct OpenRouter models)",
+      "provider path is dead code — our agents construct OpenRouter models)",
   },
   {
     pattern: /node_modules\/just-bash\//,
@@ -37,8 +37,8 @@ const EAGER_DENYLIST: Array<{ pattern: RegExp; expected: string }> = [
       "aliased to just-bash-stub.ts (Think's workspace bash tool is disabled)",
   },
   {
-    // The barrel (index.*) is allowed â€” the load hook rewrites its content to
-    // re-export English only â€” as is en.* itself. Every other locale module
+    // The barrel (index.*) is allowed — the load hook rewrites its content to
+    // re-export English only — as is en.* itself. Every other locale module
     // must stay out; if the load-hook swap ever regresses, the real barrel
     // pulls the individual locale files back in and they match here.
     pattern: /node_modules\/zod\/v4\/locales\/(?!en\.|index\.)/,
@@ -67,7 +67,7 @@ const EAGER_DENYLIST: Array<{ pattern: RegExp; expected: string }> = [
  *    reliable seam).
  * 3. A `generateBundle` assertion that walks the static-import closure of the
  *    worker entry chunk and fails the build if any EAGER_DENYLIST module is
- *    reachable â€” turning "we verified the chunk by grepping a sourcemap once"
+ *    reachable — turning "we verified the chunk by grepping a sourcemap once"
  *    into a permanent regression test.
  */
 export function leanWorkerBundle(): Plugin {
@@ -95,7 +95,7 @@ export function leanWorkerBundle(): Plugin {
       // (`export * as locales from "../locales/index.js"`, every language,
       // ~208 kB) into the eager bundle. Zod's default English error map
       // imports `../locales/en.js` directly and bypasses the barrel, so only
-      // `z.locales.<lang>` consumers need it â€” and we never localize zod
+      // `z.locales.<lang>` consumers need it — and we never localize zod
       // errors. Serve an en-only barrel in its place so `z.locales.en` keeps
       // working and the other ~40 languages tree-shake away. (`./en.js`
       // resolves relative to the real barrel path, so no stub file needed.)
@@ -109,9 +109,9 @@ export function leanWorkerBundle(): Plugin {
     generateBundle(_options, bundle) {
       // Only the worker builds matter for isolate memory; the client bundle
       // never contains these packages (and the zod swap applies everywhere).
-      // "ssr" is the main worker; "open_geo_audit" is the site-audit aux
+      // "ssr" is the main worker; "open_seo_audit" is the site-audit aux
       // worker, which must stay lean for the same reason it exists.
-      if (!["ssr", "open_geo_audit"].includes(this.environment.name)) {
+      if (!["ssr", "open_seo_audit"].includes(this.environment.name)) {
         return;
       }
 
@@ -122,7 +122,7 @@ export function leanWorkerBundle(): Plugin {
       };
 
       // Static-import closure from the entry chunks: everything here is
-      // evaluated at isolate startup. Dynamic imports are excluded â€” landing
+      // evaluated at isolate startup. Dynamic imports are excluded — landing
       // there is the point of the lazy boundaries.
       const eager = new Set<string>();
       const queue = Object.values(bundle)

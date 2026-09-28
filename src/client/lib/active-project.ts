@@ -1,6 +1,6 @@
 // Remembers the last project the user was looking at so the app can return them
 // there on the next visit. Browser-local only (per-device); the server never
-// trusts it â€” landing and the route guard always re-validate the id against the
+// trusts it — landing and the route guard always re-validate the id against the
 // org's project list.
 const LAST_PROJECT_KEY = "opengeo:lastProjectId";
 

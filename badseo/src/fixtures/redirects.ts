@@ -11,7 +11,7 @@ const CAT = "Redirects";
  */
 export const TRAILING_SLASH_CANONICAL = "/redirect/trailing-slash";
 
-// 22 â€” redirect chain: /chain-1 -> /chain-2 -> / (homepage) ----------------
+// 22 — redirect chain: /chain-1 -> /chain-2 -> / (homepage) ----------------
 // Two hops before content is a chain. The crawler records each hop as its own
 // row and flags the head of the chain.
 const redirectChain: Fixture = {
@@ -41,7 +41,7 @@ const redirectChainMid: Fixture = {
   handler: () => redirect("/", 301),
 };
 
-// 23 â€” redirect loop: a URL that redirects to itself ----------------------
+// 23 — redirect loop: a URL that redirects to itself ----------------------
 const redirectLoop: Fixture = {
   path: "/redirect/loop",
   category: CAT,
@@ -56,12 +56,12 @@ const redirectLoop: Fixture = {
   handler: () => redirect("/redirect/loop", 302),
 };
 
-// 24 â€” trailing-slash canonical (redirect-cycle trap) ---------------------
+// 24 — trailing-slash canonical (redirect-cycle trap) ---------------------
 // The canonical URL ends in a slash (/redirect/trailing-slash/ = 200); the
 // non-slash form 301-redirects to it, exactly like WordPress and most CMSes.
 // A crawler that normalizes away trailing slashes turns /redirect/trailing-slash/
 // back into /redirect/trailing-slash, follows the 301 to the slash form, strips
-// it again, and loops â€” the 508 "Loop Detected" class of bug from
+// it again, and loops — the 508 "Loop Detected" class of bug from
 // https://github.com/RatioArtificiosa/Open-GEO/pull/61. The audit must crawl the
 // canonical page once as a 200 and NOT report a redirect loop, so this fixture
 // expects zero issues. If it ever comes back with redirect-loop (or an error),
@@ -71,7 +71,7 @@ const trailingSlashCanonical: Fixture = {
   category: CAT,
   name: "Trailing-slash canonical (redirect-cycle trap)",
   summary:
-    "The canonical URL ends in a slash; the non-slash form 301-redirects to it, like WordPress. This page is correct â€” it's a trap for crawlers that strip trailing slashes.",
+    "The canonical URL ends in a slash; the non-slash form 301-redirects to it, like WordPress. This page is correct — it's a trap for crawlers that strip trailing slashes.",
   lesson:
     "A crawler that normalizes /foo/ to /foo will follow the 301 back to /foo/, strip it again, and loop forever (508 Loop Detected). The audit must crawl the canonical page once as a 200 and not report a false redirect loop.",
   expectedIssues: [],

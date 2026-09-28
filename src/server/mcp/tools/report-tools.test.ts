@@ -185,14 +185,14 @@ describe("list_reports", () => {
       offset: 0,
     });
     const rows = result.structuredContent.reports;
-    expect(rows[0].summary).toBe(`${"x".repeat(300)}â€¦`);
+    expect(rows[0].summary).toBe(`${"x".repeat(300)}…`);
     expect(result.structuredContent).toMatchObject({
       totalCount: 1,
       rowCount: 1,
       remaining: REPORT_MAX_PER_PROJECT - 1,
     });
     const text = textContent(result);
-    expect(text).toContain(`${"x".repeat(300)}â€¦`);
+    expect(text).toContain(`${"x".repeat(300)}…`);
     expect(text).not.toContain("x".repeat(301));
     expect(text).toContain("1 reports.");
   });

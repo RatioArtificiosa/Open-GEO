@@ -41,7 +41,7 @@ const inputSchema = {
     .min(1)
     .optional()
     .describe(
-      "Organization id to create the project in. Required when the user belongs to more than one organization â€” omitting it returns the list; confirm the choice with the user before retrying.",
+      "Organization id to create the project in. Required when the user belongs to more than one organization — omitting it returns the list; confirm the choice with the user before retrying.",
     ),
 } as const;
 
@@ -50,7 +50,7 @@ type Args = z.infer<z.ZodObject<typeof inputSchema>>;
 // Which organization gets the project. Pinned credentials (self-host, SAM)
 // are bound to one org. User-scoped credentials (hosted OAuth tokens and API
 // keys) span organizations, so an ambiguous target is an error listing the
-// options â€” the agent must confirm the choice with the user rather than
+// options — the agent must confirm the choice with the user rather than
 // guessing.
 async function resolveTargetOrganization(
   auth: Omit<ToolContext["auth"], "baseUrl">,
@@ -60,7 +60,7 @@ async function resolveTargetOrganization(
     if (organizationId && organizationId !== auth.organizationId) {
       throw new AppError(
         "FORBIDDEN",
-        "This connection is bound to a single organization â€” omit organizationId.",
+        "This connection is bound to a single organization — omit organizationId.",
       );
     }
     return { organizationId: auth.organizationId, role: auth.role };
@@ -103,7 +103,7 @@ export const createProjectTool = {
   config: {
     title: "Create project",
     description:
-      "Create a new project in the user's organization. Uses no credits â€” does not call DataForSEO. Provide a name, and optionally a domain and default market (locationCode/languageCode; a languageCode requires a locationCode). Returns the created {id, name, domain, locationCode, languageCode, url}; pass the returned `id` as `projectId` to other OpenGeo tools. Call list_projects first to avoid creating a duplicate.",
+      "Create a new project in the user's organization. Uses no credits — does not call DataForSEO. Provide a name, and optionally a domain and default market (locationCode/languageCode; a languageCode requires a locationCode). Returns the created {id, name, domain, locationCode, languageCode, url}; pass the returned `id` as `projectId` to other OpenGeo tools. Call list_projects first to avoid creating a duplicate.",
     inputSchema,
     outputSchema: z.looseObject({
       project: z
@@ -130,7 +130,7 @@ export const createProjectTool = {
     // Same as withMcpProjectAuth: instrumentation reads context.auth after
     // the handler, so telemetry credits the target org.
     context.auth = { ...context.auth, ...target };
-    // Same gate as the createProject server function â€” MCP and the dashboard
+    // Same gate as the createProject server function — MCP and the dashboard
     // must agree on who can create projects. The role is the caller's role
     // in the TARGET organization, not the request-level one.
     requireOrgPermission(target, { project: ["create"] });
@@ -138,7 +138,7 @@ export const createProjectTool = {
     // requires a locationCode) and domain normalization match the dashboard.
     // A rejection is bad caller input, not a fault: VALIDATION_ERROR keeps it
     // out of error reporting while still naming the bad field. organizationId
-    // is stripped here â€” it was consumed above.
+    // is stripped here — it was consumed above.
     const parsedInput = createProjectSchema.safeParse(args);
     if (!parsedInput.success) {
       throw new AppError(

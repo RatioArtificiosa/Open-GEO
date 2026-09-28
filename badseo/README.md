@@ -42,15 +42,15 @@ the same Vite and Cloudflare setup as the repository's `web/` app.
 TanStack React routes render the healthy homepage and privacy policy.
 A TanStack catch-all server route keeps the deliberate fixtures as raw
 responses with byte-level control over status codes, redirects, headers
-(`X-Robots-Tag`, `Link: â€¦; rel=canonical`), timing, and the malformed `<head>`
+(`X-Robots-Tag`, `Link: …; rel=canonical`), timing, and the malformed `<head>`
 states the audit needs to observe.
 
-- `src/routes/` â€” TanStack pages plus raw server routes for fixtures,
+- `src/routes/` — TanStack pages plus raw server routes for fixtures,
   `robots.txt`, and `sitemap.xml`.
-- `src/server/badseo.ts` â€” fixture dispatch and crawler-discovery responses.
-- `src/lib.ts` â€” raw fixture HTML rendering. Its shared chrome is deliberately
-  **SEO-neutral**: it emits no `<h1>`â€“`<h6>` and no `<img>`.
-- `src/fixtures/*.ts` â€” the fixtures, one file per category.
+- `src/server/badseo.ts` — fixture dispatch and crawler-discovery responses.
+- `src/lib.ts` — raw fixture HTML rendering. Its shared chrome is deliberately
+  **SEO-neutral**: it emits no `<h1>`–`<h6>` and no `<img>`.
+- `src/fixtures/*.ts` — the fixtures, one file per category.
 
 ## Analytics
 
@@ -86,7 +86,7 @@ pnpm exec prettier --write "badseo/**/*.{ts,tsx,json,jsonc,md}"
 
 The harness drives the **real** OpenGeo crawl + issue-detection functions
 (imported straight from `../src`) against a running badseo.dev, then asserts every
-fixture triggers exactly the issues it declares â€” and that the homepage,
+fixture triggers exactly the issues it declares — and that the homepage,
 privacy policy, and support pages come back clean.
 
 ```bash
@@ -95,11 +95,11 @@ pnpm --dir badseo run audit http://localhost:8787
 ```
 
 It prints a per-page pass/fail matrix and an issue-type coverage line, and exits
-non-zero on any mismatch â€” so it works as a CI gate for the audit engine.
+non-zero on any mismatch — so it works as a CI gate for the audit engine.
 
 ## Add a fixture
 
-Contributions are welcome â€” a new fixture _is_ a new regression test. Each is a
+Contributions are welcome — a new fixture _is_ a new regression test. Each is a
 small object:
 
 ```ts
@@ -114,9 +114,9 @@ const myFixture: Fixture = {
     htmlResponse(
       renderPage({
         fixture: myFixture,
-        title: "â€¦",
-        metaDescription: "â€¦",
-        bodyHtml: "â€¦",
+        title: "…",
+        metaDescription: "…",
+        bodyHtml: "…",
       }),
     ),
 };
@@ -143,7 +143,7 @@ the project before Wrangler deploys it:
 
 ```bash
 npm run build                          # Vite build + typecheck
-npm run deploy                         # build + wrangler deploy â†’ badseo.dev
+npm run deploy                         # build + wrangler deploy → badseo.dev
 ```
 
 The custom-domain routes for `badseo.dev` and `www.badseo.dev` live in

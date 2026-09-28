@@ -28,7 +28,7 @@ Deliver through the `seo-report` skill, saving with `skill: "seo-audit"`. If tha
 - `get_ranked_keywords`: which queries send which pages traffic. Start with one domain-level call with `resultTypes: ["organic"]`; use `scope: "exact_url"` for the specific pages you compare. A page missing from a limited domain sample is not proof it has no rankings. Ranking rows carry their own `last_updated_time`; keyword metric dates are not ranking dates.
 - `get_serp_results`: the live check behind every ranking claim in the report. The returned `rank` counts every result block, so count organic (unpaid) listings yourself and report the spot with its page, ten spots per page: "#10 (page 1)", "#11 (page 2)". Request depth 20; a page not seen is "not in the first 20 results". Record the exact query, country, language, date, how many organic listings came back, and the matching URL; those details go in the evidence appendix, not the tables. A failed lookup is unknown, not "not in the first 20 results".
 - `get_search_console_performance`: when connected, first-party clicks and impressions separate low visibility from low click-through. Missing access is a coverage gap, not a blocker.
-- `get_keyword_metrics` and `research_keywords`: demand for the queries a candidate page targets. One focused metrics batch usually suffices; one research call with 1â€“3 seeds when a demand gap could change the decision.
+- `get_keyword_metrics` and `research_keywords`: demand for the queries a candidate page targets. One focused metrics batch usually suffices; one research call with 1–3 seeds when a demand gap could change the decision.
 - Web reading (fetch, scrape, or search): the site's own pages, sitemap, the leading results for a query, and competitor pages.
 
 Research until another lookup is unlikely to change which opportunities lead. Respect an explicit user budget and say which comparison it prevented.
@@ -99,7 +99,7 @@ Use the title conventions in `seo-report`. Sections, in order:
 3. **What else we checked**: one table: Opportunity | What we found | Decision. One row per shortlist row that did not become a recommendation, starting with the runner-up and its sentence from step 4, plus one row grouping maintenance. Keep cells to a line.
 4. **How this report was made**: the fixed skill link line from `seo-report` (URL `https://opengeo.so/docs/skills/seo-audit`, text "OpenGeo SEO Audit skill"), a two-line coverage and limits note, then a `<details><summary>Evidence and methodology</summary>` block, closed by default, holding the crawl sample, page families read, the full live-check table (query, volume, position, organic listings returned, time), calculations, and sources. Keep it self-contained; local file paths are not evidence.
 
-Writing rules: short bullets, one idea each, usually 8â€“20 words. No Problem / Change / Expected effect paragraphs and no repeated summaries. There is no word target; if the main body outgrows about two screens, move supporting detail into the disclosure instead of deleting it. If the research establishes no worthwhile action, say what is working and what the audit could not establish rather than filling the format.
+Writing rules: short bullets, one idea each, usually 8–20 words. No Problem / Change / Expected effect paragraphs and no repeated summaries. There is no word target; if the main body outgrows about two screens, move supporting detail into the disclosure instead of deleting it. If the research establishes no worthwhile action, say what is working and what the audit could not establish rather than filling the format.
 
 Skeleton for one recommendation and the checked table (keep the `seo-report` CSS unchanged; every `h2` needs an id and a contents-rail entry):
 
@@ -108,25 +108,68 @@ Skeleton for one recommendation and the checked table (keep the `seo-report` CSS
 <h3>Make the Northwind comparison answer a switching decision</h3>
 <p><strong>Do this</strong></p>
 <ul>
-  <li>Replace the shared table on <a href="URL" target="_blank" rel="noopener">/northwind-alternative</a> with Northwind-specific tradeoffs.</li>
-  <li>Add a sourced migration section: policies, evidence, audit continuity.</li>
+  <li>
+    Replace the shared table on
+    <a href="URL" target="_blank" rel="noopener">/northwind-alternative</a> with
+    Northwind-specific tradeoffs.
+  </li>
+  <li>
+    Add a sourced migration section: policies, evidence, audit continuity.
+  </li>
 </ul>
 <p><strong>Why</strong></p>
 <ul>
   <li>Same comparison text as two siblings; only the vendor name changes.</li>
   <li>Searchers are already evaluating a switch, the closest fit to a demo.</li>
-  <li>Position-one scenario: about 40â€“60 total US visits a month. Hypothetical, not a forecast.</li>
+  <li>
+    Position-one scenario: about 40–60 total US visits a month. Hypothetical,
+    not a forecast.
+  </li>
 </ul>
-<div class="tw"><table>
-  <thead><tr><th>Query</th><th class="n">Est. US searches/mo</th><th>Acme position, US, Sep 18, 2026</th></tr></thead>
-  <tbody><tr><td>northwind alternative</td><td class="n">50</td><td>#9 (page 1)</td></tr></tbody>
-</table></div>
+<div class="tw">
+  <table>
+    <thead>
+      <tr>
+        <th>Query</th>
+        <th class="n">Est. US searches/mo</th>
+        <th>Acme position, US, Sep 18, 2026</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>northwind alternative</td>
+        <td class="n">50</td>
+        <td>#9 (page 1)</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
 
 <h2 id="what-else-we-checked">What else we checked</h2>
-<div class="tw"><table>
-  <thead><tr><th>Opportunity</th><th>What we found</th><th>Decision</th></tr></thead>
-  <tbody><tr><td>Software buying guide</td><td>390 est. US searches/mo; not in the first 20 results; page explains criteria, compares no vendors</td><td>Runner-up. Larger demand, but a weaker diagnosis and a full rewrite; test the comparison page first.</td></tr></tbody>
-</table></div>
+<div class="tw">
+  <table>
+    <thead>
+      <tr>
+        <th>Opportunity</th>
+        <th>What we found</th>
+        <th>Decision</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Software buying guide</td>
+        <td>
+          390 est. US searches/mo; not in the first 20 results; page explains
+          criteria, compares no vendors
+        </td>
+        <td>
+          Runner-up. Larger demand, but a weaker diagnosis and a full rewrite;
+          test the comparison page first.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
 ```
 
 ## Guardrails

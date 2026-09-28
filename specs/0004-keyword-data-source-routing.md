@@ -12,18 +12,18 @@ Iceland (location 2352) cannot run keyword research at all.
 
 Three data sources were on the table:
 
-- **DataForSEO Labs** â€” our existing source. Per-row pricing ($0.01/task +
+- **DataForSEO Labs** — our existing source. Per-row pricing ($0.01/task +
   $0.0001/row), and the only source for keyword difficulty, search intent,
   and SERP-feature context. Its `include_clickstream_data` flag doubles the
-  request cost; its only effect is refined volume numbers â€” the standard
+  request cost; its only effect is refined volume numbers — the standard
   `keyword_info.search_volume` is the same Google-Ads-derived volume every
   mainstream tool shows.
-- **DataForSEO Keywords Data (Google Ads endpoints)** â€” same vendor, flat
+- **DataForSEO Keywords Data (Google Ads endpoints)** — same vendor, flat
   $0.075 per live request (up to 1,000 keywords for `search_volume`, up to
   20 seeds for `keywords_for_keywords`), 217 countries including Iceland. No
   difficulty, intent, or SERP data; volumes are bucketed and aggregate close
   variants.
-- **Direct Google Ads API** â€” free, but not usable in a SaaS: Google's
+- **Direct Google Ads API** — free, but not usable in a SaaS: Google's
   Targeting-data policy forbids collecting Keyword Planner data "for any
   purposes other than creating or managing Google Ads campaigns," and
   exposing it to users requires the full Required Minimum Functionality (a
@@ -43,10 +43,10 @@ There is no user-facing provider choice.
 
    | Feature                                             | Labs country                   | Google-Ads-only country (e.g. Iceland)                                                          |
    | --------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------- |
-   | Keyword research (UI + `research_keywords`)         | Labs relatedâ†’suggestionsâ†’ideas | `keywords_for_keywords` (single source)                                                         |
+   | Keyword research (UI + `research_keywords`)         | Labs related→suggestions→ideas | `keywords_for_keywords` (single source)                                                         |
    | `get_keyword_metrics`, rank-tracking metric refresh | Labs keyword_overview          | `search_volume`                                                                                 |
    | SERP analysis, `get_serp_results`, rank tracking    | SERP API                       | SERP API (supports all countries)                                                               |
-   | Domain overview, ranked keywords, SERP competitors  | Labs                           | **Unavailable** â€” pickers filtered to Labs countries; MCP tools return a clear validation error |
+   | Domain overview, ranked keywords, SERP competitors  | Labs                           | **Unavailable** — pickers filtered to Labs countries; MCP tools return a clear validation error |
 
 3. **Google-Ads-sourced rows carry no keyword difficulty or intent**
    (`keywordDifficulty: null`, `intent: "unknown"`). The research page and
@@ -57,28 +57,28 @@ There is no user-facing provider choice.
    (URL param `cs`, carried per keyword tab, hidden for Google-Ads-only
    countries) or via `includeClickstreamData` on the `research_keywords` and
    `get_keyword_metrics` MCP tools. The label and tool descriptions must
-   state the 2Ã— credit cost. The flag is part of the research cache key.
+   state the 2× credit cost. The flag is part of the research cache key.
 5. **Language codes for Google-Ads-only countries must exist in both the
-   Google Ads and SERP language lists** â€” the country picker is shared with
+   Google Ads and SERP language lists** — the country picker is shared with
    rank tracking, which uses the SERP API. China is excluded: its Ads
    language code (`zh_CN`) conflicts with the SERP format (`zh-CN`), and
    Google search does not meaningfully operate there.
 6. **Billing is unchanged.** `keywords_data/*` task costs flow through the
-   same envelope â†’ markup â†’ Autumn pipeline as Labs calls and map to the
+   same envelope → markup → Autumn pipeline as Labs calls and map to the
    `keyword_research` credit feature (rank tracking overrides to
    `rank_tracking`).
 
 ## Rationale
 
 Cost at our actual defaults (research default = 150 rows/seed; credits =
-USD Ã— 1.28 markup Ã— 1000):
+USD × 1.28 markup × 1000):
 
 | Call               | Labs (with clickstream) | Labs (default) | Google Ads     |
 | ------------------ | ----------------------- | -------------- | -------------- |
-| research, 150 rows | $0.050 â†’ 64 cr          | $0.025 â†’ 32 cr | $0.075 â†’ 96 cr |
-| research, 500 rows | $0.120 â†’ 154 cr         | $0.060 â†’ 77 cr | $0.075 â†’ 96 cr |
-| metrics, 100 kw    | $0.020 â†’ 26 cr          | same           | $0.075 â†’ 96 cr |
-| metrics, 700 kw    | $0.080 â†’ 103 cr         | same           | $0.075 â†’ 96 cr |
+| research, 150 rows | $0.050 → 64 cr          | $0.025 → 32 cr | $0.075 → 96 cr |
+| research, 500 rows | $0.120 → 154 cr         | $0.060 → 77 cr | $0.075 → 96 cr |
+| metrics, 100 kw    | $0.020 → 26 cr          | same           | $0.075 → 96 cr |
+| metrics, 700 kw    | $0.080 → 103 cr         | same           | $0.075 → 96 cr |
 
 - A wholesale switch to Google Ads data would raise the cost of typical
   calls and lose difficulty/intent; replicating difficulty alone via
@@ -86,9 +86,9 @@ USD Ã— 1.28 markup Ã— 1000):
   better data where it exists and adds coverage where it doesn't.
 - Always-on clickstream silently doubled the #1 spend feature for a marginal
   volume refinement. Off-by-default halves default research cost
-  (~64 â†’ ~32 credits per seed); the opt-in keeps the refinement available to
+  (~64 → ~32 credits per seed); the opt-in keeps the refinement available to
   users who want it, priced visibly.
-- The direct Google Ads API is rejected on policy, not effort â€” revisit only
+- The direct Google Ads API is rejected on policy, not effort — revisit only
   if OpenGeo ships campaign management.
 
 ## Consequences
@@ -104,7 +104,7 @@ USD Ã— 1.28 markup Ã— 1000):
 - `keywords_for_keywords` has no limit parameter (up to 20k suggestions per
   flat-fee request); results are sorted by volume server-side and truncated
   to the requested limit.
-- The research cache version was bumped (2â†’3) so pre-change
+- The research cache version was bumped (2→3) so pre-change
   clickstream-priced volumes never mix with standard ones.
 - Reverting the clickstream default is a one-line change per fetcher in
   `src/server/lib/dataforseo/labs.ts`; the opt-in plumbing stays either way.

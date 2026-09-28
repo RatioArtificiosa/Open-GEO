@@ -242,7 +242,7 @@ function BillingPage() {
           )}
         </div>
 
-        {/* Buy credits card â€” paid plan only, owner-only */}
+        {/* Buy credits card — paid plan only, owner-only */}
         {!isFreePlan && canManageBilling ? (
           <div className="rounded-lg border border-base-300 bg-base-100 p-4 space-y-3">
             <div>
@@ -269,7 +269,7 @@ function BillingPage() {
               </div>
               {topUpAmount.trim() !== "" && !isValidTopUp ? (
                 <p className="mt-1 text-xs text-error">
-                  Enter between $10â€“$99.
+                  Enter between $10–$99.
                 </p>
               ) : null}
             </div>

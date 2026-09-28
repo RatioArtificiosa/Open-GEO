@@ -33,7 +33,7 @@ const faqs = [
   {
     question: "How does OpenGeo help with link building?",
     answer:
-      "The backlinks tool shows which of your pages attract links and from where, which is the starting point above. It shows the same for any competitor, so you can list the domains that link to them and not to you. Use the appâ€™s Top Pages table to compare referring-domain counts by page; the MCP provides backlink summaries and individual backlink rows. The link-prospecting skill packages the competitor workflow.",
+      "The backlinks tool shows which of your pages attract links and from where, which is the starting point above. It shows the same for any competitor, so you can list the domains that link to them and not to you. Use the app’s Top Pages table to compare referring-domain counts by page; the MCP provides backlink summaries and individual backlink rows. The link-prospecting skill packages the competitor workflow.",
   },
 ];
 

@@ -56,7 +56,7 @@ export function ReportsList({
                     that produced it: what a reader needs to tell two reports
                     on the same site apart. */}
                 <td className="text-base-content/70">
-                  {report.templateName ?? report.skill ?? "â€”"}
+                  {report.templateName ?? report.skill ?? "—"}
                 </td>
                 <td className="whitespace-nowrap text-base-content/70">
                   {formatRelativeTime(report.updatedAt)}

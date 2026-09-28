@@ -323,7 +323,7 @@ export async function fetchDataforseoResult(
     throw new Error(`DataForSEO HTTP ${response.status} on ${path}`);
   }
   const task = taskEnvelopeSchema.parse(await response.json()).tasks?.[0];
-  // "No Search Results" is a successful empty result, not a failure â€” an
+  // "No Search Results" is a successful empty result, not a failure — an
   // obscure keyword or an unknown domain lands here. Match on the message, not
   // the 40501 code alone: that code also covers validation rejections like
   // "Invalid Field: 'target'.", which are real charged failures we must

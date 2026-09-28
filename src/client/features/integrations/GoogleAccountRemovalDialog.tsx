@@ -78,12 +78,12 @@ export function GoogleAccountRemovalDialog({
         </h3>
         <p className="break-all text-sm font-medium">{label}</p>
         <p className="text-sm text-base-content/70">
-          This removes the accountâ€™s {name} connection from OpenGeo. You can
+          This removes the account’s {name} connection from OpenGeo. You can
           reconnect it anytime.
         </p>
         {impact.isPending ? (
           <p role="status" className="text-sm text-base-content/60">
-            Checking connected projectsâ€¦
+            Checking connected projects…
           </p>
         ) : impact.isError ? (
           <div role="alert" className="text-sm">
@@ -128,7 +128,7 @@ export function GoogleAccountRemovalDialog({
             }
             onClick={() => removal.mutate()}
           >
-            {removal.isPending ? "Removingâ€¦" : "Remove account"}
+            {removal.isPending ? "Removing…" : "Remove account"}
           </button>
         </div>
       </div>

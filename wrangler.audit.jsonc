@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // Auxiliary worker: the site-audit engine (src/audit-worker.ts) â€” the
+  // Auxiliary worker: the site-audit engine (src/audit-worker.ts) — the
   // SiteAuditWorkflow orchestrator plus the per-audit AuditScratchpad DO.
   // Must live at the repo root: wrangler resolves .env.local / .dev.vars
   // relative to this file's directory, so a nested config would never see
@@ -47,7 +47,7 @@
   // This config serves local dev and Docker self-host only; Alchemy
   // deployments provision the audit worker from alchemy.run.ts and never read
   // these ids. Mirror any DB/KV/R2 resource-id edits you make in
-  // wrangler.jsonc into this file too â€” both workers share the same D1/KV/R2
+  // wrangler.jsonc into this file too — both workers share the same D1/KV/R2
   // (no OAUTH_KV here; only the app worker runs OAuth), and miniflare derives
   // local storage filenames from these ids.
   "kv_namespaces": [
@@ -64,7 +64,7 @@
       "migrations_dir": "drizzle",
     },
   ],
-  // Postgres scale path â€” same rules as wrangler.jsonc: only local Postgres
+  // Postgres scale path — same rules as wrangler.jsonc: only local Postgres
   // dev reads this block. Uncomment together with the block in wrangler.jsonc
   // per docs/LOCAL_POSTGRES.md.
   // "hyperdrive": [

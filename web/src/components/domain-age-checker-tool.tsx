@@ -19,9 +19,9 @@ type AgeRow = {
 };
 
 function formatDate(value: string | null): string {
-  if (!value) return "â€”";
+  if (!value) return "—";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "â€”";
+  if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
@@ -30,7 +30,7 @@ function formatDate(value: string | null): string {
 }
 
 function formatAge(row: AgeRow): string {
-  if (row.ageYears === null || row.ageMonths === null) return "â€”";
+  if (row.ageYears === null || row.ageMonths === null) return "—";
   const years = row.ageYears === 1 ? "1 year" : `${row.ageYears} years`;
   const months = row.ageMonths === 1 ? "1 month" : `${row.ageMonths} months`;
   return row.ageYears === 0 ? months : `${years}, ${months}`;
@@ -128,7 +128,7 @@ export function DomainAgeCheckerTool() {
                           {formatDate(row.expires)}
                         </td>
                         <td className="max-w-[200px] truncate px-4 py-3 align-top text-neutral-700">
-                          {row.registrar ?? "â€”"}
+                          {row.registrar ?? "—"}
                         </td>
                       </>
                     )}
@@ -140,7 +140,7 @@ export function DomainAgeCheckerTool() {
 
           <UpsellCard tool={TOOL} cta="See ranking keywords">
             Age alone says very little. What matters is whether the domain has
-            earned links and rankings in those years â€” OpenGeo shows both.
+            earned links and rankings in those years — OpenGeo shows both.
           </UpsellCard>
         </div>
       ) : null}

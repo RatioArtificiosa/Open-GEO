@@ -21,7 +21,7 @@ const REQUEST_TIMEOUT_MS = 60_000;
 // open-geo-audit worker, and the raw Lighthouse payload (1-10MB, held several
 // times over while parsing) is the operation that OOMed the main worker;
 // concurrent checks bursting onto one isolate could do the same here. The
-// DataForSEO fetches themselves stay concurrent â€” parsing (well under a
+// DataForSEO fetches themselves stay concurrent — parsing (well under a
 // second each) is cheap against a 30-60s fetch, and workerd streams un-read
 // response bodies, so queued siblings don't buffer.
 let parseChain: Promise<unknown> = Promise.resolve();
@@ -38,7 +38,7 @@ export async function fetchLighthouseResult(input: {
   // Billed, non-idempotent POST: a 5xx does not prove the provider skipped
   // the charge, so never replay it. The response is taken un-consumed (unlike
   // dataforseoPost) so the multi-MB body read happens inside the parse lock,
-  // and the timeout is cleared once headers arrive â€” an armed signal would
+  // and the timeout is cleared once headers arrive — an armed signal would
   // otherwise cover a body read queued behind the lock past 60s and abort an
   // already-billed call unmetered.
   const controller = new AbortController();

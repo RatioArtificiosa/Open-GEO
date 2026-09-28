@@ -124,7 +124,7 @@ async function createActiveHostedOrganization(
 // or BYPASS_EMAIL_VERIFICATION creating the session inside the signup
 // transaction before user.create.after hooks flush), so later logins repair
 // the org pin. No-ops without a user pin, and only ever pins an org the user
-// founded â€” an invitee's membership never counts.
+// founded — an invitee's membership never counts.
 async function repairDubReferralPin(userId: string) {
   await markDubReferredOrganization(userId);
 }
@@ -168,7 +168,7 @@ export async function resolveExistingActiveHostedOrganization(
 
 // Sign-in (session-create hook) variant: same resolution, except a user with
 // no memberships and a pending invitation gets NO auto-minted personal
-// organization â€” someone who signs up from an invite link should end up in
+// organization — someone who signs up from an invite link should end up in
 // exactly the inviter's org, not that plus an empty personal one. Returns
 // null in that window (the session carries no active org until they accept).
 // Abandoning the invite flow self-heals: the next app request goes through
