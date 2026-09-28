@@ -2,7 +2,7 @@
   "name": "opengeo",
   "displayName": "OpenGeo",
   "version": "1.0.0",
-  "description": "Without good data, your agent gives generic advice. Keyword research, competitor research, backlinks, and site audits. All for $10/month.",
+  "description": "Know whether AI recommends your brand. OpenGeo shows you what ChatGPT, Gemini, Perplexity and Google AI actually say about you — and what to change. Plus classic SEO: keyword research, competitors, backlinks, site audits.",
   "author": {
     "name": "OpenGeo",
     "url": "https://opengeo.so"
@@ -11,6 +11,10 @@
   "repository": "https://github.com/RatioArtificiosa/Open-GEO",
   "license": "MIT",
   "keywords": [
+    "geo",
+    "generative-engine-optimization",
+    "ai-visibility",
+    "ai-search",
     "seo",
     "keyword-research",
     "serp",

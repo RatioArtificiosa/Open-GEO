@@ -1,0 +1,43 @@
+# Coolify / Dokploy — deploy straight from this repository
+#
+# Coolify:  New Resource -> Deploy from GitHub -> pick this repo
+#           Build Pack: Dockerfile   Dockerfile: Dockerfile.selfhost
+#           Health check path: /
+# Dokploy:  Create Application -> Git -> this repo
+#           Build Type: Dockerfile  Context: .
+#           Health check path: /
+#
+# Required environment variables (see .env.example for the full contract):
+#   DATAFORSEO_API_KEY   base64 login:password from app.dataforseo.com/api-access
+#   AUTH_MODE            local_noauth for a quick trial, hosted for real use
+# Optional but recommended in production:
+#   BETTER_AUTH_SECRET   at least 32 random characters (required for GSC + hosted auth)
+#   DEMO_MODE            set true to explore with seeded data before adding a key
+#
+# Persistence: mount a volume at /app/data so the SQLite database survives
+# redeploys. Without it you lose local data on every push.
+
+services:
+  opengeo:
+    build:
+      context: .
+      dockerfile: Dockerfile.selfhost
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - AUTH_MODE=${AUTH_MODE:-local_noauth}
+      - DEMO_MODE=${DEMO_MODE:-false}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+    volumes:
+      - opengeo-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  opengeo-data:

@@ -108,68 +108,25 @@ Skeleton for one recommendation and the checked table (keep the `seo-report` CSS
 <h3>Make the Northwind comparison answer a switching decision</h3>
 <p><strong>Do this</strong></p>
 <ul>
-  <li>
-    Replace the shared table on
-    <a href="URL" target="_blank" rel="noopener">/northwind-alternative</a> with
-    Northwind-specific tradeoffs.
-  </li>
-  <li>
-    Add a sourced migration section: policies, evidence, audit continuity.
-  </li>
+  <li>Replace the shared table on <a href="URL" target="_blank" rel="noopener">/northwind-alternative</a> with Northwind-specific tradeoffs.</li>
+  <li>Add a sourced migration section: policies, evidence, audit continuity.</li>
 </ul>
 <p><strong>Why</strong></p>
 <ul>
   <li>Same comparison text as two siblings; only the vendor name changes.</li>
   <li>Searchers are already evaluating a switch, the closest fit to a demo.</li>
-  <li>
-    Position-one scenario: about 40–60 total US visits a month. Hypothetical,
-    not a forecast.
-  </li>
+  <li>Position-one scenario: about 40–60 total US visits a month. Hypothetical, not a forecast.</li>
 </ul>
-<div class="tw">
-  <table>
-    <thead>
-      <tr>
-        <th>Query</th>
-        <th class="n">Est. US searches/mo</th>
-        <th>Acme position, US, Sep 18, 2026</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>northwind alternative</td>
-        <td class="n">50</td>
-        <td>#9 (page 1)</td>
-      </tr>
-    </tbody>
-  </table>
-</div>
+<div class="tw"><table>
+  <thead><tr><th>Query</th><th class="n">Est. US searches/mo</th><th>Acme position, US, Sep 18, 2026</th></tr></thead>
+  <tbody><tr><td>northwind alternative</td><td class="n">50</td><td>#9 (page 1)</td></tr></tbody>
+</table></div>
 
 <h2 id="what-else-we-checked">What else we checked</h2>
-<div class="tw">
-  <table>
-    <thead>
-      <tr>
-        <th>Opportunity</th>
-        <th>What we found</th>
-        <th>Decision</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>Software buying guide</td>
-        <td>
-          390 est. US searches/mo; not in the first 20 results; page explains
-          criteria, compares no vendors
-        </td>
-        <td>
-          Runner-up. Larger demand, but a weaker diagnosis and a full rewrite;
-          test the comparison page first.
-        </td>
-      </tr>
-    </tbody>
-  </table>
-</div>
+<div class="tw"><table>
+  <thead><tr><th>Opportunity</th><th>What we found</th><th>Decision</th></tr></thead>
+  <tbody><tr><td>Software buying guide</td><td>390 est. US searches/mo; not in the first 20 results; page explains criteria, compares no vendors</td><td>Runner-up. Larger demand, but a weaker diagnosis and a full rewrite; test the comparison page first.</td></tr></tbody>
+</table></div>
 ```
 
 ## Guardrails
