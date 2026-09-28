@@ -55,6 +55,8 @@ import {
   fetchLlmResponse,
   fetchLlmTopPages,
 } from "@/server/lib/dataforseo/ai";
+import { fetchAiKeywordVolume } from "@/server/lib/dataforseo/ai-keywords";
+import type { AiKeywordVolumeInput } from "@/server/lib/dataforseo/ai-keywords";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import { AppError } from "@/server/lib/errors";
 
@@ -143,6 +145,10 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       topPages: meter(customer, fetchLlmTopPages),
       crossAggregatedMetrics: meter(customer, fetchLlmCrossAggregatedMetrics),
       llmResponse: meter(customer, fetchLlmResponse),
+      // AI demand for a topic: the "high AI demand, low Google demand" signal.
+      keywordVolume: meter(customer, (input: AiKeywordVolumeInput) =>
+        fetchAiKeywordVolume(input),
+      ),
     },
   } as const;
 }
