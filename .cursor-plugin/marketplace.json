@@ -1,0 +1,17 @@
+{
+  "name": "opengeo",
+  "owner": {
+    "name": "Every App, Inc",
+    "email": "support@opengeo.so"
+  },
+  "metadata": {
+    "description": "OpenGeo's official Cursor plugin marketplace."
+  },
+  "plugins": [
+    {
+      "name": "opengeo",
+      "source": "plugins/opengeo",
+      "description": "SEO made simple. Research keywords and competitors, audit sites, track rankings, and use Search Console data from your agent."
+    }
+  ]
+}

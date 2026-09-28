@@ -1,0 +1,59 @@
+---
+title: "OpenGeo Agent Skills"
+description: "Add OpenGeo Agent Skills to Claude Code, Codex, or another AI agent so it can run repeatable SEO workflows with live OpenGeo data."
+---
+
+OpenGeo Agent Skills let you hand repeatable SEO workflows to your AI agent.
+
+Run a slash command when you need keyword research, clustering, competitor analysis, link prospecting, or project setup. The skill gives your agent the workflow instructions.
+
+You stay in charge of strategy. Your agent uses OpenGeo data and the skill instructions to research the answer, then saves the result as a report in your project.
+
+No account yet? Try the [free SEO tools](/tools).
+
+## Set up OpenGeo Agent Skills
+
+On Claude Code, the [OpenGeo plugin](/docs/claude-code-plugin) installs MCP and every skill below in one step. On Codex CLI, the [OpenGeo plugin](/docs/codex-plugin) does the same. Use the manual steps here for other agents, or if you want to pick individual skills.
+
+1. [Set up OpenGeo MCP](/docs/mcp).
+2. [Set up OpenGeo Agent Skills](/docs/skills/setup).
+
+MCP connects your agent to OpenGeo data. Skills tell your agent which SEO workflow to run.
+
+## Start here
+
+- [SEO Project Setup](/docs/skills/seo-project-setup): save your goals, positioning, competitors, and key pages to your project context, so every other skill reuses them.
+- [SEO Coach](/docs/skills/seo-coach): choose the next workflow when you are new to SEO or unsure what to run first.
+
+## Audit workflows
+
+- [SEO Audit](/docs/skills/seo-audit): audit a site and understand its important problems, worthwhile improvements, and likely effects on traffic and the business.
+
+## Research workflows
+
+- [Keyword Research](/docs/skills/keyword-research): find keywords worth targeting and explain why they fit.
+- [Keyword Clustering](/docs/skills/keyword-clustering): turn keyword lists into page groups, content priorities, and cannibalization checks.
+- [Competitive Landscape](/docs/skills/competitive-landscape): map who is winning across a market and where your openings are.
+- [Competitor Analysis](/docs/skills/competitor-analysis): analyze one competitor and turn the research into strategic takeaways.
+- [Local SEO](/docs/skills/local-seo): audit a Google Business Profile, compare it to local competitors, and map Maps visibility around a location.
+
+## Promotion workflows
+
+- [Link Prospecting](/docs/skills/link-prospecting): find qualified outreach prospects and the angle that makes each one relevant.
+
+## How the results reach you
+
+- [SEO Report](/docs/skills/seo-report): the shared report-writing skill every workflow above delivers through. Your agent writes one self-contained HTML page and saves it to your project's Reports page, where anyone can read or print it.
+
+## Learn more about skills
+
+OpenGeo uses the same `SKILL.md` pattern supported by modern AI agents. To learn how skills work in your agent, read:
+
+- [Claude Code skills documentation](https://docs.claude.com/en/docs/claude-code/skills)
+- [OpenAI Skills documentation](https://help.openai.com/en/articles/20001066-skills-in-chatgpt)
+
+## Read the actual skills
+
+These pages explain what each skill is for. The source instructions live in GitHub:
+
+- [OpenGeo Agent Skills on GitHub](https://github.com/RatioArtificiosa/Open-GEO/tree/main/.agents/skills)

@@ -1,0 +1,149 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "open-geo",
+  "main": "src/server.ts",
+  "compatibility_date": "2025-09-02",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "observability": {
+    "enabled": true,
+    // Spans are billed as observability events (free tier 200k/day); add a
+    // traces head_sampling_rate below 1 if span volume becomes a cost concern.
+    "traces": {
+      "enabled": true,
+    },
+  },
+  // Smart Placement relocates only the `fetch` handler (cron + Workflow runs
+  // stay at the edge) toward external subrequests â€” Postgres via Hyperdrive,
+  // SEO APIs â€” not D1/KV/R2 bindings, so it's a DB no-op on the D1 default.
+  // Must live here: a dashboard-only toggle is wiped by `wrangler deploy`.
+  "placement": {
+    "mode": "smart",
+  },
+  "workflows": [
+    // The site-audit engine lives in the open-geo-audit aux worker
+    // (wrangler.audit.jsonc) â€” its memory spikes (multi-MB Lighthouse
+    // payloads, in-flight HTML) OOMed this worker's near-limit baseline
+    // heap. This is a cross-script binding for starting audits and reading
+    // instance status.
+    {
+      "name": "site-audit-workflow",
+      "binding": "SITE_AUDIT_WORKFLOW",
+      "class_name": "SiteAuditWorkflow",
+      "script_name": "open-geo-audit",
+    },
+    {
+      "name": "rank-check-workflow",
+      "binding": "RANK_CHECK_WORKFLOW",
+      "class_name": "RankCheckWorkflow",
+    },
+  ],
+  // Durable Object backing the SAM in-app agent (Agents SDK AIChatAgent). One
+  // instance per chat session; messages persist in the DO's SQLite.
+  // SQLite-backed classes must be declared in `migrations` below for the
+  // wrangler/workerd surfaces (local dev, Docker self-host); Alchemy deploys
+  // derive SQLite backing on their own.
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SAM_CHAT",
+        "class_name": "SamChatAgent",
+      },
+    ],
+  },
+  // The site-audit engine lives in the open-geo-audit aux worker
+  // (wrangler.audit.jsonc), including the scratchpad DO â€” the DO cannot be
+  // bound cross-script here (the Cloudflare API rejects deleting the class
+  // below while any binding still references its name). Cancel + GDPR
+  // erasure go through this service binding's AuditEngine entrypoint.
+  "services": [
+    {
+      "binding": "AUDIT_ENGINE",
+      "service": "open-geo-audit",
+    },
+  ],
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["OnboardingChatAgent"],
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["SamChatAgent"],
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": ["AuditScratchpad"],
+    },
+    // AuditScratchpad moved to the open-geo-audit worker (no binding may
+    // still reference the class name in the same upload â€” see the services
+    // comment above). Deleting it here is safe: scratchpad state is
+    // disposable by design (destroyed at finalize, 7-day cleanup alarm) â€”
+    // in-flight audits at the cutover fail once and the stale-audit
+    // reconciler reaps them.
+    {
+      "tag": "v4",
+      "deleted_classes": ["AuditScratchpad"],
+    },
+    // The onboarding strategy chat was removed: the namespace had had zero
+    // invocations for months. Deleting the class destroys every instance's
+    // stored conversation, which is the intent â€” nothing else reads it.
+    {
+      "tag": "v5",
+      "deleted_classes": ["OnboardingChatAgent"],
+    },
+  ],
+  "triggers": {
+    // Every 5 min: rank checks + stale-audit reconcile. Daily: OAuth KV GC.
+    // Dispatched on controller.cron in src/server.ts `scheduled`.
+    "crons": ["*/5 * * * *", "17 3 * * *"],
+  },
+  // This config serves local dev and Docker self-host only. All Cloudflare
+  // deployments â€” previews, prod, self-host â€” go through Alchemy
+  // (alchemy.run.ts), which provisions real resources per stage and never
+  // reads these ids.
+  //
+  // The ids below are NOT dead config: miniflare derives its on-disk storage
+  // filenames (.wrangler/state, a persistent volume in Docker self-hosts)
+  // from an HMAC of `id`/`database_id`. Changing them orphans every existing
+  // local and self-hosted database. Leave them as-is.
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "4abd52f3f2c549ac83cc2cb4ceec8620",
+    },
+    {
+      "binding": "OAUTH_KV",
+      "id": "bd1759494309474a9b423b029967b0db",
+    },
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "open-geo",
+      "database_id": "37bee90a-e1aa-404f-b01e-b0d1d479bda1",
+      "migrations_dir": "drizzle",
+    },
+  ],
+  // Postgres scale path (opt-in; D1 is the default). Hyperdrive is the ONLY way
+  // the app connects to Postgres â€” there is no direct-connection fallback. For
+  // local dev, `localConnectionString` is the throwaway Docker Postgres from
+  // docs/LOCAL_POSTGRES.md, and nothing connects to it unless
+  // DATABASE_PROVIDER=postgres is set in .env.local.
+  //
+  // Kept commented out: the id lives in OpenGeo's account, and only local
+  // Postgres dev reads this block (Alchemy deploys and the Docker image never
+  // do). Uncomment when running local Postgres dev per docs/LOCAL_POSTGRES.md.
+  // "hyperdrive": [
+  //   {
+  //     "binding": "HYPERDRIVE",
+  //     "id": "9d64ccfb559f44449ce52a143912f898",
+  //     "localConnectionString": "postgres://opengeo:opengeo@localhost:5433/opengeo",
+  //   },
+  // ],
+  "r2_buckets": [
+    {
+      "bucket_name": "open-geo",
+      "binding": "R2",
+    },
+  ],
+}

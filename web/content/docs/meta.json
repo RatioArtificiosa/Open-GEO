@@ -1,0 +1,10 @@
+{
+  "pages": [
+    "agent-setup",
+    "mcp",
+    "claude-code-plugin",
+    "codex-plugin",
+    "skills",
+    "self-hosting"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "opengeo",
+  "owner": {
+    "name": "OpenGeo",
+    "url": "https://opengeo.so"
+  },
+  "description": "OpenGeo's official Claude Code plugin marketplace.",
+  "plugins": [
+    {
+      "name": "opengeo",
+      "source": "./plugins/opengeo",
+      "description": "Without good data, your agent gives generic advice. Keyword research, competitor research, backlinks, and site audits. All for $10/month.",
+      "category": "SEO"
+    }
+  ]
+}

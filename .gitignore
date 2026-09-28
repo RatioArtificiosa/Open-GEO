@@ -1,0 +1,59 @@
+.codex/
+node_modules
+package-lock.json
+yarn.lock
+.dev.vars
+dist/
+dist-sourcemaps/
+.wrangler
+/tmp
+
+.output/
+.tanstack/
+.DS_Store
+.cache
+.env
+.env.
+.env.*
+!.env.example
+!.env.preview.example
+!.env.production.example
+!.env.selfhost.example
+.vercel
+.output
+.nitro
+/build/
+/api/
+/server/build
+/public/build# Sentry Config File
+.env.sentry-build-plugin
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+.tanstack
+.logs/
+**/.pnpm-store/
+
+# Localflare generated files
+.localflare/
+
+# Local Claude config (skills are shared)
+.claude/*
+!.claude/skills/
+
+# Alchemy local state + bundle artifacts (SaaS deploys)
+.alchemy/
+
+# â”€â”€ OpenGeo: never commit secrets or local scratch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.local
+scratchpad/
+brag-output/
+.DS_Store
+Thumbs.db
+*.pem
+*.key

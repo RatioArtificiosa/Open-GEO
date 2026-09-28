@@ -1,0 +1,19 @@
+**/build
+**/public
+pnpm-lock.yaml
+# no parser for dotenv files; explicit `prettier <file>` aborts without this
+.env*
+routeTree.gen.ts
+.opencode/package.json
+
+# vendored skills are hash-pinned in skills-lock.json; don't reformat them
+.agents/skills/
+# real copies synced from .agents/skills/ via `pnpm sync-plugin-skills` â€” must
+# stay byte-identical to the canonical source, not reformatted
+plugins/opengeo/skills/
+dist/
+drizzle/
+drizzle-pg/
+planning/
+worker-configuration.d.ts
+web/

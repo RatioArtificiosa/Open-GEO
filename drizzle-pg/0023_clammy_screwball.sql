@@ -1,0 +1,1 @@
+ALTER TABLE "rank_tracking_keywords" ADD COLUMN "match_case" boolean DEFAULT false NOT NULL;

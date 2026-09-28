@@ -1,0 +1,507 @@
+/* eslint-disable max-lines */
+import { z } from "zod";
+import { buildProjectMeta } from "@/server/mcp/context";
+import { mcpResponse } from "@/server/mcp/formatters";
+import { optionalMetaOutputSchema } from "@/server/mcp/output-schemas";
+import { withMcpProjectAuth } from "@/server/mcp/project-auth";
+import { formatMcpTable, type McpTableColumn } from "@/server/mcp/table";
+import { projectIdSchema } from "@/server/mcp/schemas";
+import { buildDashboardUrl } from "@/server/mcp/urls";
+import { hasSelfHostedGoogleOAuthConfig } from "@/server/features/google/oauth-config";
+import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
+import { GscService } from "@/server/features/gsc/services/GscService";
+import {
+  GSC_DATE_RANGES,
+  GSC_DEFAULT_ROW_LIMIT,
+  GSC_DIMENSIONS,
+  GSC_FILTER_OPERATORS,
+  GSC_MAX_ROW_LIMIT,
+  GSC_SEARCH_TYPES,
+  type GscPerformanceInput,
+} from "@/server/features/gsc/searchAnalytics";
+import {
+  GscApiError,
+  GscNotConnectedError,
+  GscTokenError,
+} from "@/server/lib/gscErrors";
+import { GSC_SELF_HOSTED_SETUP_DOCS_URL } from "@/shared/gsc";
+
+const TEXT_SUMMARY_ROWS = 15;
+
+type GscPerfRow = {
+  keys?: string[];
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position?: number;
+};
+
+const GSC_PERF_COLUMNS: McpTableColumn<GscPerfRow>[] = [
+  { header: "key", value: (row) => row.keys?.join(" / ") ?? "(total)" },
+  { header: "clicks", value: (row) => row.clicks },
+  { header: "impressions", value: (row) => row.impressions },
+  {
+    header: "CTR",
+    value: (row) => row.ctr,
+    format: (value) =>
+      typeof value === "number" ? `${(value * 100).toFixed(1)}%` : "â€”",
+  },
+  {
+    header: "position",
+    value: (row) => row.position,
+    format: (value) => (typeof value === "number" ? value.toFixed(1) : "â€”"),
+  },
+];
+
+type ProjectAuthContext = {
+  auth: { organizationId: string };
+  baseUrl: string;
+};
+
+function connectGscUrl(baseUrl: string, projectId: string): string {
+  // GSC Insights hosts the connection card AND the data the user came for,
+  // so land them there rather than in settings.
+  return buildDashboardUrl(baseUrl, `/p/${projectId}/search-performance`);
+}
+
+/** Self-hosted GSC requires the operator to provide a Google OAuth client and
+ *  BETTER_AUTH_SECRET. Hosted mode always has both; self-hosted tools return this
+ *  setup nudge before attempting a token lookup when either is missing. */
+async function missingSelfHostedGoogleClientResponse(
+  context: ProjectAuthContext,
+  projectId: string,
+) {
+  const [hosted, configured] = await Promise.all([
+    isHostedServerAuthMode(),
+    hasSelfHostedGoogleOAuthConfig(),
+  ]);
+  if (hosted || configured) return null;
+
+  return mcpResponse({
+    text: `This self-hosted OpenGeo deployment is not configured for Search Console yet. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and BETTER_AUTH_SECRET, then reconnect Search Console from the project's settings page. Setup docs: ${GSC_SELF_HOSTED_SETUP_DOCS_URL}`,
+    meta: buildProjectMeta(context, projectId),
+    structuredContent: {
+      ok: false,
+      connected: false,
+      reason: "gsc_oauth_not_configured",
+      setupDocsUrl: GSC_SELF_HOSTED_SETUP_DOCS_URL,
+    },
+  });
+}
+
+function invalidRequest(
+  meta: ReturnType<typeof buildProjectMeta>,
+  message: string,
+) {
+  return mcpResponse({
+    text: message,
+    meta,
+    structuredContent: { ok: false, reason: "invalid_request" },
+  });
+}
+
+function describeGscError(error: unknown): string {
+  if (error instanceof GscNotConnectedError) {
+    return "Search Console is not connected for this project.";
+  }
+  if (error instanceof GscTokenError) {
+    return "The Search Console connection has expired or was revoked. Reconnect it to continue.";
+  }
+  if (error instanceof GscApiError) {
+    return error.message;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+// ---------------------------------------------------------------------------
+// get_search_console_performance
+// ---------------------------------------------------------------------------
+
+type MetricFilter = {
+  minPosition?: number;
+  maxPosition?: number;
+  minImpressions?: number;
+};
+
+function pickMetricFilter(args: MetricFilter): MetricFilter | null {
+  const { minPosition, maxPosition, minImpressions } = args;
+  if (
+    minPosition === undefined &&
+    maxPosition === undefined &&
+    minImpressions === undefined
+  ) {
+    return null;
+  }
+  return { minPosition, maxPosition, minImpressions };
+}
+
+// Rows without a position (discover/googleNews) never match a position bound.
+function matchesMetricFilter(row: GscPerfRow, filter: MetricFilter): boolean {
+  if (
+    filter.minImpressions !== undefined &&
+    row.impressions < filter.minImpressions
+  ) {
+    return false;
+  }
+  if (filter.minPosition !== undefined) {
+    if (row.position === undefined || row.position < filter.minPosition)
+      return false;
+  }
+  if (filter.maxPosition !== undefined) {
+    if (row.position === undefined || row.position > filter.maxPosition)
+      return false;
+  }
+  return true;
+}
+
+// Google returns full-precision floats (0.041237113402061855); four decimals of
+// CTR and one of position is all anyone reads and trims ~40 bytes per row.
+function roundMetrics<T extends GscPerfRow>(row: T): T {
+  return {
+    ...row,
+    ctr: Math.round(row.ctr * 10_000) / 10_000,
+    ...(row.position === undefined
+      ? {}
+      : { position: Math.round(row.position * 10) / 10 }),
+  };
+}
+
+const filterSchema = z.object({
+  dimension: z.enum(GSC_DIMENSIONS),
+  operator: z.enum(GSC_FILTER_OPERATORS).default("equals"),
+  expression: z.string().min(1),
+});
+
+const perfInputSchema = {
+  projectId: projectIdSchema,
+  dimensions: z
+    .array(z.enum(GSC_DIMENSIONS))
+    .min(1)
+    .max(4)
+    .optional()
+    .describe(
+      "Group rows by these dimensions. Default ['query']. Use ['page'] for top pages, ['query','page'] to map queries to pages / spot cannibalization, ['date'] for a time series.",
+    ),
+  dateRange: z
+    .enum(GSC_DATE_RANGES)
+    .optional()
+    .describe(
+      "Convenience window (default last_28_days). End is set ~3 days back for GSC data lag. Ignored if startDate+endDate are given. Max lookback is 16 months.",
+    ),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Explicit start (YYYY-MM-DD, Pacific Time). Use with endDate."),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Explicit end (YYYY-MM-DD, Pacific Time). Use with startDate."),
+  filters: z
+    .array(filterSchema)
+    .max(5)
+    .optional()
+    .describe(
+      "AND-combined filters. To get the queries for one page: [{dimension:'page',operator:'equals',expression:'https://example.com/post'}] with dimensions ['query'].",
+    ),
+  rowLimit: z
+    .number()
+    .int()
+    .min(1)
+    .max(GSC_MAX_ROW_LIMIT)
+    .optional()
+    .describe(
+      `Rows per call (default ${GSC_DEFAULT_ROW_LIMIT}, max ${GSC_MAX_ROW_LIMIT}). GSC sorts by clicks desc; paginate with startRow when hasMore is true.`,
+    ),
+  startRow: z.number().int().min(0).optional().describe("Pagination offset."),
+  minPosition: z
+    .number()
+    .min(1)
+    .optional()
+    .describe(
+      "Keep rows with average position >= this. For 'striking distance' queries use minPosition 5, maxPosition 20, minImpressions 50.",
+    ),
+  maxPosition: z
+    .number()
+    .min(1)
+    .optional()
+    .describe("Keep rows with average position <= this."),
+  minImpressions: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe("Keep rows with at least this many impressions."),
+  type: z
+    .enum(GSC_SEARCH_TYPES)
+    .optional()
+    .describe("Search type (default web)."),
+  dataState: z
+    .enum(["all", "final"])
+    .optional()
+    .describe("'all' (default) includes fresh/incomplete recent data."),
+} as const;
+
+type PerfArgs = z.infer<z.ZodObject<typeof perfInputSchema>>;
+
+export const getSearchConsolePerformanceTool = {
+  name: "get_search_console_performance",
+  config: {
+    title: "Get Google Search Console performance",
+    description:
+      "Query the connected Search Console property's Search Analytics: clicks, impressions, CTR, and average position by query/page/country/device/date. First-party data â€” use it for what already ranks, near-ranking queries, and pages with real demand. Google sorts by clicks and can't filter by position, so minPosition/maxPosition/minImpressions are applied server-side over the top 1000 rows of the window â€” use them instead of fetching everything. ctr is a 0-1 fraction; position is a 1-based average and is omitted from rows when type is 'discover' or 'googleNews' (Google does not report it there â€” treat it as unavailable, not a failure); dates are Pacific Time; the last ~3 days may be incomplete. Read-only; uses no credits.",
+    inputSchema: perfInputSchema,
+    outputSchema: z.looseObject({
+      ok: z.boolean(),
+      reason: z.string().optional(),
+      connectUrl: z.string().optional(),
+      setupDocsUrl: z.string().optional(),
+      siteUrl: z.string().optional(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+      dimensions: z.array(z.string()).optional(),
+      rowCount: z.number().optional(),
+      rows: z
+        .array(
+          z
+            .object({
+              keys: z.array(z.string()).optional(),
+              clicks: z.number(),
+              impressions: z.number(),
+              ctr: z.number(),
+              // Google omits position for the discover and googleNews search
+              // types even though the other metrics are present. The table
+              // already renders a missing position as an em dash.
+              position: z.number().optional(),
+            })
+            .passthrough(),
+        )
+        .optional(),
+      hasMore: z.boolean().optional(),
+      nextStartRow: z.number().optional(),
+      ...optionalMetaOutputSchema,
+    }),
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+  },
+  handler: withMcpProjectAuth(async (args: PerfArgs, context) => {
+    const blocked = await missingSelfHostedGoogleClientResponse(
+      context,
+      args.projectId,
+    );
+    if (blocked) return blocked;
+
+    const connectUrl = connectGscUrl(context.baseUrl, args.projectId);
+    const meta = buildProjectMeta(
+      context,
+      args.projectId,
+      `/p/${args.projectId}/settings/integrations`,
+    );
+
+    // GSC rejects searchAppearance combined with any other dimension.
+    if (
+      args.dimensions &&
+      args.dimensions.includes("searchAppearance") &&
+      args.dimensions.length > 1
+    ) {
+      return invalidRequest(
+        meta,
+        "searchAppearance must be the only dimension when used.",
+      );
+    }
+    // A half-specified explicit range would silently fall back to a default window.
+    if (Boolean(args.startDate) !== Boolean(args.endDate)) {
+      return invalidRequest(
+        meta,
+        "Provide both startDate and endDate, or neither (use dateRange instead).",
+      );
+    }
+
+    try {
+      const requestedLimit = args.rowLimit ?? GSC_DEFAULT_ROW_LIMIT;
+      const metricFilter = pickMetricFilter(args);
+      // Google can't filter by position or impressions, so with a metric filter
+      // we fetch the full window and filter here; fetched == returned otherwise.
+      const fetchLimit = metricFilter ? GSC_MAX_ROW_LIMIT : requestedLimit;
+      const result = await GscService.getPerformance({
+        projectId: args.projectId,
+        dimensions: args.dimensions,
+        dateRange: args.dateRange,
+        startDate: args.startDate,
+        endDate: args.endDate,
+        filters: args.filters,
+        rowLimit: fetchLimit,
+        startRow: args.startRow,
+        type: args.type,
+        dataState: args.dataState,
+      } satisfies GscPerformanceInput);
+      const dimensions = result.request.dimensions ?? ["query"];
+      const startRow = result.request.startRow ?? 0;
+      const fetched = result.rows;
+      const kept = metricFilter
+        ? fetched.filter((row) => matchesMetricFilter(row, metricFilter))
+        : fetched;
+      const rows = kept.slice(0, requestedLimit).map(roundMetrics);
+      // Pagination stays in Google's row space: the next page starts right after
+      // the last row we returned (which may be well past rows.length when a
+      // metric filter dropped rows before it).
+      const lastReturned = kept[rows.length - 1];
+      const truncated = kept.length > rows.length;
+      const hasMore = truncated || fetched.length >= fetchLimit;
+      const nextStartRow =
+        truncated && lastReturned
+          ? startRow + fetched.indexOf(lastReturned) + 1
+          : startRow + fetched.length;
+
+      const filterText = metricFilter
+        ? ` Â· filtered ${fetched.length} rows â†’ ${kept.length}`
+        : "";
+      const header =
+        `${result.siteUrl} Â· ${dimensions.join("+")} Â· ${result.request.startDate}â†’${result.request.endDate} Â· ` +
+        `${rows.length} row${rows.length === 1 ? "" : "s"}${filterText}${hasMore ? " (more available â€” paginate with startRow)" : ""}`;
+      const text =
+        rows.length > 0
+          ? `${header}\n${formatMcpTable(rows, GSC_PERF_COLUMNS)}`
+          : `${header}\nNo rows for this query/date range.`;
+
+      return mcpResponse({
+        text,
+        meta,
+        structuredContent: {
+          ok: true,
+          siteUrl: result.siteUrl,
+          startDate: result.request.startDate,
+          endDate: result.request.endDate,
+          dimensions,
+          rowCount: rows.length,
+          rows,
+          hasMore,
+          nextStartRow: hasMore ? nextStartRow : undefined,
+        },
+      });
+    } catch (error) {
+      const isNotConnected = error instanceof GscNotConnectedError;
+      return mcpResponse({
+        text: `${describeGscError(error)}${isNotConnected ? ` Connect it here: ${connectUrl}` : ` (reconnect at ${connectUrl})`}`,
+        meta,
+        structuredContent: {
+          ok: false,
+          reason: isNotConnected ? "not_connected" : "api_error",
+          connectUrl,
+        },
+      });
+    }
+  }),
+};
+
+// ---------------------------------------------------------------------------
+// inspect_urls
+// ---------------------------------------------------------------------------
+
+const inspectInputSchema = {
+  projectId: projectIdSchema,
+  urls: z
+    .array(z.string().url())
+    .min(1)
+    .max(10)
+    .describe(
+      "1â€“10 absolute URLs to inspect. Each must belong to the connected property.",
+    ),
+  languageCode: z
+    .string()
+    .optional()
+    .describe("BCP-47 language for the inspection result (e.g. 'en-US')."),
+} as const;
+
+type InspectArgs = z.infer<z.ZodObject<typeof inspectInputSchema>>;
+
+export const inspectUrlsTool = {
+  name: "inspect_urls",
+  config: {
+    title: "Inspect URLs in Google Search Console",
+    description:
+      "Run Google Search Console's URL Inspection on up to 10 URLs of the connected property: index/coverage state, last crawl time, Google-selected vs declared canonical, and mobile/rich-results verdicts. Use it to answer 'is this page indexed? why not?'. Per-URL failures are reported inline. Read-only; uses no credits.",
+    inputSchema: inspectInputSchema,
+    outputSchema: z.looseObject({
+      ok: z.boolean(),
+      reason: z.string().optional(),
+      connectUrl: z.string().optional(),
+      setupDocsUrl: z.string().optional(),
+      siteUrl: z.string().optional(),
+      results: z
+        .array(
+          z
+            .object({
+              url: z.string(),
+              result: z.unknown().nullable().optional(),
+              error: z.string().optional(),
+            })
+            .passthrough(),
+        )
+        .optional(),
+      ...optionalMetaOutputSchema,
+    }),
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+  },
+  handler: withMcpProjectAuth(async (args: InspectArgs, context) => {
+    const blocked = await missingSelfHostedGoogleClientResponse(
+      context,
+      args.projectId,
+    );
+    if (blocked) return blocked;
+
+    const connectUrl = connectGscUrl(context.baseUrl, args.projectId);
+    const meta = buildProjectMeta(
+      context,
+      args.projectId,
+      `/p/${args.projectId}/settings/integrations`,
+    );
+
+    try {
+      const { siteUrl, results } = await GscService.inspectUrls({
+        projectId: args.projectId,
+        urls: args.urls,
+        languageCode: args.languageCode,
+      });
+
+      const summaryLines = results.slice(0, TEXT_SUMMARY_ROWS).map((r) => {
+        if (r.error) return `  ${r.url} â€” error: ${r.error}`;
+        const index = r.result?.indexStatusResult;
+        const verdict = index?.verdict ?? "UNKNOWN";
+        const coverage = index?.coverageState ?? "â€”";
+        const canonical = index?.googleCanonical
+          ? `, google-canonical ${index.googleCanonical}`
+          : "";
+        return `  ${r.url} â€” ${verdict}: ${coverage}${canonical}`;
+      });
+      const text =
+        `${siteUrl} Â· inspected ${results.length} URL${results.length === 1 ? "" : "s"}\n` +
+        summaryLines.join("\n");
+
+      return mcpResponse({
+        text,
+        meta,
+        structuredContent: { ok: true, siteUrl, results },
+      });
+    } catch (error) {
+      const isNotConnected = error instanceof GscNotConnectedError;
+      return mcpResponse({
+        text: `${describeGscError(error)}${isNotConnected ? ` Connect it here: ${connectUrl}` : ` (reconnect at ${connectUrl})`}`,
+        meta,
+        structuredContent: {
+          ok: false,
+          reason: isNotConnected ? "not_connected" : "api_error",
+          connectUrl,
+        },
+      });
+    }
+  }),
+};
