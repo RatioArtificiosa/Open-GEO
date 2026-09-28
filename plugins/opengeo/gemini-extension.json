@@ -1,0 +1,20 @@
+{
+  "name": "opengeo",
+  "version": "1.0.0",
+  "description": "Know whether AI recommends your brand — and what to change about it.",
+  "mcpServers": {
+    "opengeo": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://app.opengeo.so/mcp"]
+    }
+  },
+  "contextFileName": "AGENTS.md",
+  "settings": [
+    {
+      "name": "opengeo-mcp-url",
+      "description": "Base URL of the OpenGeo MCP server.",
+      "envVar": "OPENGEO_MCP_URL",
+      "defaultValue": "https://app.opengeo.so/mcp"
+    }
+  ]
+}

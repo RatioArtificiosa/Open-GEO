@@ -1,7 +1,7 @@
 {
   "name": "opengeo",
   "version": "1.0.0",
-  "description": "Without good data, your agent gives generic advice. Keyword research, competitor research, backlinks, and site audits. All for $10/month.",
+  "description": "Know whether AI recommends your brand. OpenGeo shows you what ChatGPT, Gemini, Perplexity and Google AI actually say about you — and what to change. Plus classic SEO: keyword research, competitors, backlinks, site audits.",
   "author": {
     "name": "OpenGeo",
     "url": "https://opengeo.so"
@@ -10,6 +10,10 @@
   "repository": "https://github.com/RatioArtificiosa/Open-GEO",
   "license": "MIT",
   "keywords": [
+    "geo",
+    "generative-engine-optimization",
+    "ai-visibility",
+    "ai-search",
     "seo",
     "keyword-research",
     "serp",
@@ -27,8 +31,8 @@
   },
   "interface": {
     "displayName": "OpenGeo",
-    "shortDescription": "Without good data, your agent gives generic advice. Keyword research, competitor research, backlinks, and site audits. All for $10/month.",
-    "longDescription": "Without good data, your agent gives generic advice. Keyword research, competitor research, backlinks, and site audits. All for $10/month.",
+    "shortDescription": "Know whether AI recommends your brand — and what to change about it.",
+    "longDescription": "OpenGeo is a GEO and SEO platform. Ask it what ChatGPT, Gemini, Perplexity and Google AI actually say about your brand, whether you are cited or merely retrieved, which competitors are winning AI answers, and which pages to fix first. It also does classic SEO: keyword research, competitor research, backlinks, site audits, rank tracking, and Search Console data.",
     "developerName": "OpenGeo",
     "category": "Productivity",
     "capabilities": ["Interactive"],
@@ -36,9 +40,11 @@
     "privacyPolicyURL": "https://opengeo.so/privacy",
     "termsOfServiceURL": "https://opengeo.so/terms-and-conditions",
     "defaultPrompt": [
+      "Does AI recommend my brand? Show my mentions and citations in ChatGPT and Google AI.",
+      "Which of my pages are cited in AI answers, and which are retrieved but never cited?",
+      "Who is winning AI answers in my category, and what should I build to catch them?",
       "Research keywords for my site and shortlist the best opportunities.",
-      "Audit my site and give me a one-page report with a single next action.",
-      "Track my rankings for these keywords and summarize what changed."
+      "Audit my site and give me a one-page report with a single next action."
     ]
   }
 }

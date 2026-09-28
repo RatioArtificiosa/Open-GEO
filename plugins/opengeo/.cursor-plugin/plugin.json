@@ -1,18 +1,22 @@
 {
   "name": "opengeo",
   "version": "1.0.0",
-  "description": "SEO made simple. Research keywords and competitors, audit sites, track rankings, and use Search Console data from your agent.",
+  "description": "Know whether AI recommends your brand. OpenGeo shows you what ChatGPT, Gemini, Perplexity and Google AI actually say about you — and what to change. Plus classic SEO: keyword research, competitors, backlinks, site audits.",
   "author": {
-    "name": "Every App, Inc",
-    "email": "support@opengeo.so"
+    "name": "OpenGeo",
+    "url": "https://opengeo.so"
   },
   "homepage": "https://opengeo.so",
   "repository": "https://github.com/RatioArtificiosa/Open-GEO",
   "license": "MIT",
   "keywords": [
+    "geo",
+    "generative-engine-optimization",
+    "ai-visibility",
+    "ai-search",
     "seo",
     "keyword-research",
-    "competitor-research",
+    "serp",
     "site-audit",
     "backlinks",
     "search-console",

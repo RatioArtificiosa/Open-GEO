@@ -12,6 +12,11 @@ const sourceDir = join(repoRoot, ".agents/skills");
 const targetDir = join(repoRoot, "plugins/opengeo/skills");
 
 const skills = [
+  // GEO — the differentiators. Keep first; they are the reason to install this.
+  "opengeo",
+  "geo-audit",
+  "what-to-build",
+  // Classic SEO parity with upstream OpenSEO.
   "competitive-landscape",
   "competitor-analysis",
   "keyword-clustering",
