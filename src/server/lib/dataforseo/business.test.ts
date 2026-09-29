@@ -42,6 +42,23 @@ describe("Google business_data fetchers", () => {
     vi.restoreAllMocks();
   });
 
+  it("posts to the documented business_listings search path", async () => {
+    // The endpoint-path gate found this file had no assertion on the
+    // destination for the listings search: every test checked the body, so a
+    // transposed path would have passed all of them and failed on a billed
+    // request.
+    const fetchMock = stubDataforseo(
+      okTask(["v3", "business_data", "business_listings", "search"], []),
+    );
+    await fetchBusinessListingsSearch({
+      locationCoordinate: "33.1,-84.9,5",
+      limit: 20,
+    });
+    expect(requestOf(fetchMock).url).toBe(
+      "https://api.dataforseo.com/v3/business_data/business_listings/search/live",
+    );
+  });
+
   it("sends a coordinate for my_business_info and returns the single item", async () => {
     const fetchMock = stubDataforseo(
       okTask(

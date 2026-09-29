@@ -7,6 +7,7 @@ vi.mock("@/server/lib/runtime-env", () => ({
 }));
 
 import { fetchAiModeAnswer } from "@/server/lib/dataforseo/ai-mode";
+import { requestUrl } from "./test-support";
 
 /**
  * Shaped from the real vendor example response (2026-02-24), including the
@@ -95,6 +96,18 @@ const QUERY = {
 };
 
 describe("fetchAiModeAnswer", () => {
+  it("posts to the live/advanced AI Mode endpoint", async () => {
+    // Found by the endpoint-path gate: this file asserted the parsed body and
+    // the billed cost, but never the URL it spent money talking to. `live` and
+    // `live/advanced` are different prices for different data, so a transposed
+    // path here is a silent billing defect.
+    fetchMock.mockImplementation(async () => Response.json(envelope()));
+    await fetchAiModeAnswer(QUERY);
+    expect(requestUrl(fetchMock)).toContain(
+      "/v3/serp/google/ai_mode/live/advanced",
+    );
+  });
+
   it("returns the answer text and its references", async () => {
     fetchMock.mockImplementation(async () => Response.json(envelope()));
     const { data, billing } = await fetchAiModeAnswer(QUERY);

@@ -11,6 +11,7 @@ import {
   fetchRankCheckTaskResult,
   postRankCheckTasks,
 } from "@/server/lib/dataforseo/serp";
+import { requestUrl } from "./test-support";
 
 function parseDataforseoRequestBody(init: RequestInit | undefined): unknown {
   const body = init?.body;
@@ -21,6 +22,40 @@ function parseDataforseoRequestBody(init: RequestInit | undefined): unknown {
 }
 
 describe("live SERP", () => {
+  it("posts to the organic live/advanced endpoint", async () => {
+    // Found by the endpoint-path gate: this file's only assertion was on a
+    // no-results task, and the URL appeared nowhere. `live` and `live/advanced`
+    // are different products at different prices — `advanced` carries the
+    // device, location and depth parameters this client sends — so pointing at
+    // the wrong one is a silent billing defect.
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        status_code: 20000,
+        tasks: [
+          {
+            status_code: 40102,
+            status_message: "No Search Results.",
+            path: ["v3", "serp", "google", "organic", "live", "advanced"],
+            cost: 0.002,
+            result_count: 0,
+            result: [],
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchLiveSerp({
+      keyword: "obscure query",
+      locationCode: 2840,
+      languageCode: "en",
+    });
+
+    expect(requestUrl(fetchMock)).toContain(
+      "/v3/serp/google/organic/live/advanced",
+    );
+  });
+
   // 40102 is the documented "No Search Results." code (40501 is "Invalid
   // Field."). isNoResultsTask matches on the status message, not the code, so
   // this stays correct whichever code DataForSEO attaches to the message.

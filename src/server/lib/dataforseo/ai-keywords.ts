@@ -27,7 +27,21 @@ const classifyAiSearchError = createDataforseoBillingClassifier({
     "The connected DataForSEO account has a billing or balance issue",
 });
 
-const PATH = "/v3/ai_optimization/ai_keyword_data/keywords/search_volume/live";
+/**
+ * The live endpoint.
+ *
+ * **The path is `keywords_search_volume`, with an underscore — not
+ * `keywords/search_volume`.** It was the latter here until this was checked
+ * against the live documentation, and it had never worked: DataForSEO bills a
+ * task that fails, so a wrong path is a silent 40501 on a paid request rather
+ * than a visible error at boot. The response's own `path` array confirms it:
+ * `["v3","ai_optimization","ai_keyword_data","keywords_search_volume","live"]`.
+ *
+ * A test now pins the full URL, not just the request body. The 14 tests that
+ * already existed checked the body and the parsing and passed the whole time
+ * the client was pointed at a URL that does not exist.
+ */
+const PATH = "/v3/ai_optimization/ai_keyword_data/keywords_search_volume/live";
 
 /** Documented limits. Exceeding them is a billed rejection, so we clamp first. */
 const MAX_KEYWORDS = 1000;

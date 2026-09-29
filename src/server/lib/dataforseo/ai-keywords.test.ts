@@ -11,6 +11,7 @@ import {
   normaliseAiKeyword,
   validateAiKeywordBatch,
 } from "@/server/lib/dataforseo/ai-keywords";
+import { requestUrl } from "./test-support";
 
 function envelope(items: unknown[]) {
   return {
@@ -81,6 +82,28 @@ describe("AI keyword normalisation", () => {
 });
 
 describe("fetchAiKeywordVolume", () => {
+  it("posts to keywords_search_volume with an underscore, not a slash", async () => {
+    // The one test that would have caught the wrong path the client shipped
+    // with. Every other test in this file checked the request *body*; none
+    // checked the *destination*, so a URL that does not exist passed 14/14.
+    // Verified against the live documentation, which reads
+    // `/v3/ai_optimization/ai_keyword_data/keywords_search_volume/live`, and
+    // corroborated by the response's own `path` array in the documented example.
+    fetchMock.mockImplementation(async () => Response.json(envelope([])));
+    await fetchAiKeywordVolume({
+      keywords: ["geo"],
+      locationCode: 2840,
+      languageCode: "en",
+    });
+    const url = requestUrl(fetchMock);
+    expect(url).toContain(
+      "/v3/ai_optimization/ai_keyword_data/keywords_search_volume/live",
+    );
+    // Named explicitly, because the plausible-looking wrong form is the whole
+    // point: `keywords/search_volume` reads naturally and 404s on a billed call.
+    expect(url).not.toContain("ai_keyword_data/keywords/search_volume");
+  });
+
   it("requires both a location and a language", async () => {
     await expect(
       fetchAiKeywordVolume({ keywords: ["geo"], languageCode: "en" }),
