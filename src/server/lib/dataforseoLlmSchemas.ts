@@ -300,6 +300,20 @@ const responseAnnotationSchema = z
     type: z.string().nullable().optional(),
     title: z.string().nullable().optional(),
     url: z.string().nullable().optional(),
+    /**
+     * The character span of this citation inside the section's `text`.
+     *
+     * These are the **primary** way to position a citation, and they were absent
+     * here until CL-205 — the schema modeled `type`/`title`/`url` and silently
+     * dropped the two fields that make "cited at position 3 of 9" answerable.
+     * Nullable rather than required because the vendor's own documentation says
+     * an annotation "may return empty", and a missing offset is a state the
+     * citation parser handles rather than one that should fail the whole parse.
+     */
+    start_index: z.number().int().nonnegative().nullable().optional(),
+    end_index: z.number().int().nonnegative().nullable().optional(),
+    /** The raw citation marker as it appears in the text. */
+    text: z.string().nullable().optional(),
   })
   .passthrough();
 
