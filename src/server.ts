@@ -8,6 +8,7 @@ import { ProjectRepository } from "@/server/features/projects/repositories/Proje
 import { SamSessionRepository } from "@/server/features/sam/SamSessionRepository";
 import { runScheduledRankChecks } from "@/server/features/rank-tracking/services/scheduledRankChecks";
 import { runDueGeoPatrols } from "@/server/features/geo/services/scheduledGeoPatrol";
+import { runScheduledGeoRetention } from "@/server/features/geo/services/scheduledGeoRetention";
 import { reconcileStaleAudits } from "@/server/features/audit/services/auditReconciler";
 import { getOrCreateOrganizationCustomer } from "@/server/billing/subscription";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
@@ -238,6 +239,15 @@ export default {
       await withPgClient(() => runDueGeoPatrols());
     } catch (err) {
       console.error("[cron] GEO patrol failed:", err);
+    }
+
+    // Retention follows the patrol on the same tick: the sweep only deletes what
+    // is already past the window, so running it right after tonight's patrol is
+    // the natural order — collect, then age out.
+    try {
+      await withPgClient(() => runScheduledGeoRetention(env));
+    } catch (err) {
+      console.error("[cron] GEO retention failed:", err);
     }
 
     // Scope a per-request Postgres client for the cron run (no-op in D1 mode).

@@ -20,9 +20,15 @@ import {
 
 const DEFAULT_RETENTION_DAYS = 180;
 
-/** Resolve the retention window, defaulting to half a year. */
-function retentionDays(env: Record<string, unknown>): number {
-  const raw = env.GEO_ANSWER_RETENTION_DAYS;
+/**
+ * Resolve the retention window, defaulting to half a year.
+ *
+ * `env` is typed `object` because the Cloudflare `Env` binding has no index
+ * signature, and the read is narrowed explicitly below — a plain
+ * `env.GEO_ANSWER_RETENTION_DAYS` would not compile against that type.
+ */
+function retentionDays(env: object): number {
+  const raw: unknown = Reflect.get(env, "GEO_ANSWER_RETENTION_DAYS");
   const parsed = typeof raw === "string" ? Number.parseInt(raw, 10) : NaN;
   return Number.isFinite(parsed) && parsed > 0
     ? parsed
@@ -30,7 +36,7 @@ function retentionDays(env: Record<string, unknown>): number {
 }
 
 /** The ISO cutoff before which answers are eligible for deletion. */
-function cutoffFor(env: Record<string, unknown>, now = new Date()): string {
+function cutoffFor(env: object, now = new Date()): string {
   const ms = retentionDays(env) * 24 * 60 * 60 * 1000;
   return new Date(now.getTime() - ms).toISOString();
 }

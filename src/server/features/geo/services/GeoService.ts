@@ -383,7 +383,7 @@ function normaliseKeyword(keyword: string): string {
  */
 async function purgeExpiredAnswers(
   projectId: string,
-  env: Record<string, unknown>,
+  env: object,
   now?: Date,
 ): Promise<{ answersDeleted: number; cutoff: string }> {
   const cutoff = GeoRetentionRepository.cutoffFor(env, now);

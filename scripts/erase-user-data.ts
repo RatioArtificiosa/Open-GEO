@@ -259,6 +259,23 @@ async function buildInventory(db: Db, user: UserRow) {
     projectIds.length === 0
       ? 0
       : db.$count(table, inArray(table.projectId, projectIds));
+
+  // Rows that hang off `geo_answers` (citations, retrievals, fan-out queries)
+  // have no project_id of their own, so they are counted through their parent.
+  const countThroughAnswers = async (
+    table: PgTable & { answerId: PgColumn },
+  ) =>
+    projectIds.length === 0
+      ? 0
+      : await db
+          .select({ value: count() })
+          .from(table)
+          .innerJoin(
+            schema.geoAnswers,
+            eq(schema.geoAnswers.id, table.answerId),
+          )
+          .where(inArray(schema.geoAnswers.projectId, projectIds))
+          .then((rows) => rows[0]?.value ?? 0);
   const databaseCounts = {
     sessions: await db.$count(
       schema.session,
@@ -321,6 +338,84 @@ async function buildInventory(db: Db, user: UserRow) {
       schema.apikey,
       eq(schema.apikey.referenceId, user.id),
     ),
+    // GEO tables. Every one of these cascades from `organization -> projects`,
+    // so the erasure transaction already removes them; they are counted here so
+    // the operator can SEE the AI-visibility archive being destroyed before
+    // committing to the delete. An erasure that silently eats someone's
+    // monitoring history is worse than one that warns about it.
+    //
+    // The seven join-only tables (citations, retrievals, fan-out queries,
+    // snapshot links, citation domains, prompts, AI Mode citations) have no
+    // project_id of their own, so they are counted through their parent.
+    geo: {
+      targets: await projectCount(schema.geoTargets),
+      prompt_sets: await projectCount(schema.geoPromptSets),
+      prompts:
+        projectIds.length === 0
+          ? 0
+          : await db
+              .select({ value: count() })
+              .from(schema.geoPrompts)
+              .innerJoin(
+                schema.geoPromptSets,
+                eq(schema.geoPromptSets.id, schema.geoPrompts.promptSetId),
+              )
+              .where(inArray(schema.geoPromptSets.projectId, projectIds))
+              .then((rows) => rows[0]?.value ?? 0),
+      snapshots: await projectCount(schema.geoSnapshots),
+      answers: await projectCount(schema.geoAnswers),
+      answer_citations: await countThroughAnswers(schema.geoAnswerCitations),
+      answer_retrievals: await countThroughAnswers(schema.geoAnswerRetrievals),
+      fanout_queries: await countThroughAnswers(schema.geoFanoutQueries),
+      snapshot_answer_links:
+        projectIds.length === 0
+          ? 0
+          : await db
+              .select({ value: count() })
+              .from(schema.geoSnapshotAnswers)
+              .innerJoin(
+                schema.geoSnapshots,
+                eq(
+                  schema.geoSnapshots.id,
+                  schema.geoSnapshotAnswers.snapshotId,
+                ),
+              )
+              .where(inArray(schema.geoSnapshots.projectId, projectIds))
+              .then((rows) => rows[0]?.value ?? 0),
+      target_metrics: await projectCount(schema.geoTargetMetrics),
+      citation_domains:
+        projectIds.length === 0
+          ? 0
+          : await db
+              .select({ value: count() })
+              .from(schema.geoCitationDomains)
+              .innerJoin(
+                schema.geoSnapshots,
+                eq(
+                  schema.geoSnapshots.id,
+                  schema.geoCitationDomains.snapshotId,
+                ),
+              )
+              .where(inArray(schema.geoSnapshots.projectId, projectIds))
+              .then((rows) => rows[0]?.value ?? 0),
+      ai_keyword_metrics: await projectCount(schema.aiKeywordMetrics),
+      ai_mode_snapshots: await projectCount(schema.aiModeSnapshots),
+      ai_mode_citations:
+        projectIds.length === 0
+          ? 0
+          : await db
+              .select({ value: count() })
+              .from(schema.aiModeSnapshotCitations)
+              .innerJoin(
+                schema.aiModeSnapshots,
+                eq(
+                  schema.aiModeSnapshots.id,
+                  schema.aiModeSnapshotCitations.snapshotId,
+                ),
+              )
+              .where(inArray(schema.aiModeSnapshots.projectId, projectIds))
+              .then((rows) => rows[0]?.value ?? 0),
+    },
   };
 
   return {
