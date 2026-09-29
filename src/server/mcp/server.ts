@@ -46,6 +46,7 @@ import {
   getGeoCitationGapTool,
   getGeoRunsTool,
 } from "@/server/mcp/tools/geo-diagnostic-tools";
+import { computeShareOfVoiceTool } from "@/server/mcp/tools/compute-share-of-voice";
 import {
   getProjectContextTool,
   updateProjectContextTool,
@@ -205,6 +206,9 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getGeoCitationGapTool);
   register(getGeoAnswerHistoryTool);
   register(getGeoRunsTool);
+  // The `geo-audit` skill instructs agents to call this by name; without it the
+  // audit the skill describes cannot start.
+  register(computeShareOfVoiceTool);
   register(searchSerpLocationsTool);
   register(createRankTrackerTool);
   register(getRankTrackerTool);

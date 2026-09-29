@@ -17,7 +17,7 @@ visibility data.** A plausible made-up number is worse than no answer.
 
 ### 1. Establish the baseline — per platform, never merged
 
-Call `geo_get_visibility(target, platform)` **once for each platform** and report them as two
+Call `get_geo_visibility(target, platform)` **once for each platform** and report them as two
 separate numbers.
 
 > ⚠️ **Never sum, average, or chart `ai_search_volume` across platforms.** Google's figure is real
@@ -25,12 +25,12 @@ separate numbers.
 > keyword. A combined total is a wrong number that looks authoritative — that is the single easiest
 > way to lose an expert client's trust. If asked why, point to the methodology page.
 
-For competitors: `geo_share_of_voice([brand, ...competitors], platform)`, per platform.
+For competitors: `compute_share_of_voice([brand, ...competitors], platform)`, per platform.
 
 ### 2. Find the gap — start here, it's the highest-value output
 
 ```
-geo_inclusion_citation_gap(target)
+get_geo_citation_gap(target)
 ```
 
 Returns queries where the model **retrieved** a page but **did not cite it**. Almost no tool

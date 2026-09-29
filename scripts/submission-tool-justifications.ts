@@ -27,6 +27,17 @@ export type ToolJustifications = {
 
 /** The tools that existed in the server and were missing from the file. */
 export const MISSING_TOOL_JUSTIFICATIONS: Record<string, ToolJustifications> = {
+  // --- Share of voice. The `geo-audit` skill instructs agents to call this by
+  // name, and before it existed the audit could not start at all.
+  compute_share_of_voice: {
+    read_only_justification:
+      "Compares a brand against up to nine competitors in AI answers and returns a share-of-voice leaderboard over mentions. Returns no search-volume figure, because Google's volume and ChatGPT's modelled demand are different units that must not be added.",
+    open_world_justification:
+      "Uses a private SEO research provider and cannot publish or modify publicly visible internet state.",
+    destructive_justification:
+      "May use metered research credits when dry_run is explicitly false, but does not delete, overwrite, revoke access, send, or publish anything.",
+  },
+
   // --- GEO / AI visibility. The headline feature, invisible to a reviewer
   // until these were declared. Every one reads the customer's own archive, so
   // they are genuinely read-only: no credits, no vendor call, no write.

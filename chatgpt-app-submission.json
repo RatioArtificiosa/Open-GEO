@@ -751,6 +751,18 @@
         "open_world_justification": "Operates only on private OpenGeo state or private provider data and cannot change publicly visible internet state.",
         "destructive_justification": "Permanently removes the stored audit record together with its crawled pages and issues."
       }
+    },
+    "compute_share_of_voice": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Compares a brand against up to nine competitors in AI answers and returns a share-of-voice leaderboard over mentions. Returns no search-volume figure, because Google's volume and ChatGPT's modelled demand are different units that must not be added.",
+        "open_world_justification": "Uses a private SEO research provider and cannot publish or modify publicly visible internet state.",
+        "destructive_justification": "May use metered research credits when dry_run is explicitly false, but does not delete, overwrite, revoke access, send, or publish anything."
+      }
     }
   },
   "test_cases": [

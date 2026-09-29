@@ -66,6 +66,7 @@ async function requireProjectAccess(
   };
 }
 
+/** What a project-scoped handler receives as its second argument. */
 type McpProjectAuthContext = Awaited<ReturnType<typeof requireProjectAccess>>;
 
 export function withMcpProjectAuth<TArgs extends ProjectScopedArgs, TResult>(
