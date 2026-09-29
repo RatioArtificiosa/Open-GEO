@@ -1,6 +1,7 @@
 import { AlertTriangle, RefreshCw, SearchCheck } from "lucide-react";
 import { GeoVisibilityPanel } from "./GeoVisibilityPanel";
 import { GeoTargetForm } from "./GeoTargetForm";
+import { MentionsTrendPanel } from "./MentionsTrendPanel";
 import { useGeoPageData } from "./useGeoPageData";
 
 /**
@@ -129,6 +130,27 @@ export function GeoPage({ projectId }: { projectId: string }) {
                   retrieved, which is a different statement.
                 </p>
               )}
+            </section>
+
+            <section aria-label="Mentions over time" className="space-y-3">
+              <div>
+                <h2 className="text-base font-semibold">Mentions over time</h2>
+                <p className="text-sm text-base-content/70">
+                  One series per platform, never combined — the two compute
+                  demand differently, so a single total would be a number that
+                  means nothing. A month with no figure is drawn as a gap, not
+                  as a zero.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                {data.mentionSeries.map((entry) => (
+                  <MentionsTrendPanel
+                    key={entry.platform}
+                    platform={entry.platform}
+                    months={entry.months}
+                  />
+                ))}
+              </div>
             </section>
 
             <section className="rounded-xl border border-base-300 bg-base-100 p-4">

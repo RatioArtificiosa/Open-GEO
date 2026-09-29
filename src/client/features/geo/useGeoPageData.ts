@@ -1,7 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import {
   getGeoCitationGap,
   getGeoEtvSeries,
+  getGeoMentionHistory,
   getGeoVisibility,
   listGeoRuns,
   listGeoTargets,
@@ -25,6 +26,16 @@ import {
  */
 
 const GEO_QUERY_STALE_TIME_MS = 5 * 60 * 1000;
+
+/**
+ * The platforms the `llm_mentions` family actually serves.
+ *
+ * Gemini and Perplexity have their own endpoints (`llm_responses`,
+ * `llm_scraper`) with different shapes and different costs, so a mentions series
+ * does not exist for them. They are listed in the product's vocabulary but not
+ * here, and a request for one is reported rather than sent.
+ */
+const TRACKED_PLATFORMS = ["chat_gpt", "google_ai_overview"] as const;
 
 function geoErrorMessage(error: unknown, fallback: string): string | null {
   if (!error) return null;
@@ -93,6 +104,26 @@ export function useGeoPageData(projectId: string) {
     queryFn: () => getGeoEtvSeries({ data: { domain: domain ?? "" } }),
   });
 
+  /**
+   * The monthly mentions series, **per platform**.
+   *
+   * One query per platform rather than one for both, and the results are
+   * returned as separate entries. Google AI Overviews and ChatGPT compute demand
+   * differently — we measured 12,621,380 against 63,850 for one keyword — so a
+   * combined series would be one number that means nothing. The market is not a
+   * parameter here: the server reads it from the target, because that is the
+   * market every capture was measured in.
+   */
+  const mentionSeries = useQueries({
+    queries: TRACKED_PLATFORMS.map((platform) => ({
+      queryKey: ["geoMentionHistory", projectId, domain, platform],
+      enabled: ready,
+      staleTime: GEO_QUERY_STALE_TIME_MS,
+      queryFn: () =>
+        getGeoMentionHistory({ data: { domain: domain ?? "", platform } }),
+    })),
+  });
+
   // `listRuns` is newest-first, so the head is the most recent patrol.
   const lastRunAt = runs.data?.[0]?.startedAt ?? null;
   const freshness = ageLabel(lastRunAt);
@@ -153,5 +184,22 @@ export function useGeoPageData(projectId: string) {
      */
     etvPoints: etvSeries.data?.points ?? [],
     etvFormulaVersions: etvSeries.data?.formulaVersions ?? [],
+
+    /**
+     * One entry per platform, each with its own months. A platform whose query
+     * failed still gets an entry with empty months, so the panel renders an
+     * honest "no figure yet" rather than disappearing and leaving the reader to
+     * wonder whether it was ever measured.
+     */
+    mentionSeries: TRACKED_PLATFORMS.map((platform, index) => ({
+      platform,
+      months: mentionSeries[index]?.data?.months ?? [],
+      market: mentionSeries[index]?.data?.market ?? null,
+      isLoading: mentionSeries[index]?.isLoading ?? false,
+      errorMessage: geoErrorMessage(
+        mentionSeries[index]?.error,
+        `Could not load the ${platform} mentions history.`,
+      ),
+    })),
   };
 }

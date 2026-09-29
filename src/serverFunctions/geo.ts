@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { GeoService } from "@/server/features/geo/services/GeoService";
+import { GEO_PLATFORMS } from "@/types/schemas/geo";
 import { requireProjectContext } from "@/serverFunctions/middleware";
 import {
   createGeoPromptSetSchema,
@@ -142,6 +143,30 @@ export const getGeoAiKeywordHistory = createServerFn({ method: "POST" })
   .validator(getGeoAiKeywordHistorySchema)
   .handler(async ({ data, context }) =>
     GeoService.getAiKeywordHistory(context.projectId, data.keyword),
+  );
+
+/**
+ * The stored monthly mentions series, per platform.
+ *
+ * The market is **not** a parameter: it is read from the target, because that is
+ * the market every capture was measured in. Accepting a market here would be an
+ * invitation to ask for a series that does not exist and get a plausible-looking
+ * answer from a different one.
+ */
+export const getGeoMentionHistory = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(
+    z.object({
+      domain: z.string().min(1).max(2048),
+      platform: z.enum(GEO_PLATFORMS),
+      limit: z.number().int().min(1).max(60).optional(),
+    }),
+  )
+  .handler(async ({ data, context }) =>
+    GeoService.getMentionHistory({
+      ...data,
+      projectId: context.projectId,
+    }),
   );
 
 // --- ETV series ------------------------------------------------------------

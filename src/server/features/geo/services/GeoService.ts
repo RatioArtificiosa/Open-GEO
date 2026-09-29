@@ -23,7 +23,10 @@ import {
   type GeoPlatform,
 } from "@/server/features/geo/repositories/GeoSetupRepository";
 import { GeoRunRepository } from "@/server/features/geo/repositories/GeoRunRepository";
-import { DomainMetricsRepository } from "@/server/features/domain/repositories/DomainMetricsRepository";
+import {
+  getEtvSeries,
+  getMentionHistory,
+} from "@/server/features/geo/services/geoSeriesReads";
 import { GeoRetentionRepository } from "@/server/features/geo/repositories/GeoRetentionRepository";
 
 /** Normalise a brand to a bare lowercase host, so "HTTPS://WWW.Acme.com/x" and
@@ -372,55 +375,6 @@ async function getAiKeywordHistory(projectId: string, keyword: string) {
   );
 }
 
-/**
- * The stored ETV series for a target, oldest first, with each point carrying
- * the formula version that produced it.
- *
- * The endpoint is part of the identity, so a series is never mixed across Labs
- * endpoints: `ranked_keywords` and `domain_rank_overview` compute ETV over
- * different populations and comparing them means nothing.
- */
-async function getEtvSeries(input: {
-  projectId: string;
-  domain: string;
-  endpoint?: "domain_rank_overview" | "ranked_keywords" | "relevant_pages";
-  limit?: number;
-}) {
-  const target = await GeoSetupRepository.getTargetByDomain(
-    input.projectId,
-    normaliseDomain(input.domain),
-  );
-  if (!target) {
-    throw new AppError(
-      "NOT_FOUND",
-      `${input.domain} is not a monitored target in this project, so it has no stored traffic series.`,
-    );
-  }
-
-  const endpoint = input.endpoint ?? "domain_rank_overview";
-  const rows = await DomainMetricsRepository.listSeries({
-    projectId: input.projectId,
-    domain: target.domain,
-    locationCode: target.locationCode,
-    endpoint,
-    limit: input.limit ?? 200,
-  });
-
-  return {
-    domain: target.domain,
-    endpoint,
-    points: rows.map((row) => ({
-      // ISO date, because the chart's x-axis is days.
-      date: row.capturedAt.slice(0, 10),
-      etv: row.organicEtv ?? null,
-      formulaVersion: row.etvFormulaVersion,
-    })),
-    // The models present, so the UI can explain the series without
-    // re-deriving it from the points.
-    formulaVersions: DomainMetricsRepository.listFormulaVersions(rows),
-  };
-}
-
 function normaliseKeyword(keyword: string): string {
   return keyword.trim().toLowerCase();
 }
@@ -462,5 +416,6 @@ export const GeoService = {
   getShareOfVoice,
   getAiKeywordHistory,
   getEtvSeries,
+  getMentionHistory,
   purgeExpiredAnswers,
 } as const;
