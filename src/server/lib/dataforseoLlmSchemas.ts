@@ -138,6 +138,149 @@ export type LlmCrossAggregatedItem = z.infer<
 >;
 
 // ---------------------------------------------------------------------------
+// LLM Mentions — aggregation and time-series shapes
+//
+// These four endpoints were documented AFTER the code that first read this
+// family, and two of their documented defaults are self-contradictory. Each
+// note below is a claim the docs make, verified 2026-09-28, and each one is
+// enforced in `dataforseo/ai.ts` rather than left to the caller.
+// ---------------------------------------------------------------------------
+
+/**
+ * One `aggregated_metrics` dimension bucket: `[{ key, mentions, ai_search_volume }]`.
+ *
+ * `key` is typed `number | string` on purpose. The reference tables document it
+ * as an integer, but the example JSON in `top_mentioned_domains` and
+ * `top_mentioned_pages` serialises the *same* field as the string `"2840"`,
+ * while `target_metrics` emits the number `2840`. Typing it as either one is a
+ * lie that becomes a runtime bug on whichever endpoint we did not test.
+ */
+const dimensionBucketSchema = z
+  .object({
+    key: z.union([z.string(), z.number()]),
+    mentions: z.number().nullable().optional(),
+    ai_search_volume: z.number().nullable().optional(),
+  })
+  .passthrough();
+
+/**
+ * The dimensional breakdown for one target.
+ *
+ * Every array is nullable because DataForSEO omits or nulls the ones that do
+ * not apply. Three of them — `search_results_domain`, `brand_entities_title`,
+ * `brand_entities_category` — are **chat_gpt only** and come back empty or
+ * absent for google, so a consumer must not read them as "zero mentions".
+ */
+const aggregatedDimensionsSchema = z
+  .object({
+    location: z.array(dimensionBucketSchema).nullable().optional(),
+    language: z.array(dimensionBucketSchema).nullable().optional(),
+    platform: z.array(dimensionBucketSchema).nullable().optional(),
+    sources_domain: z.array(dimensionBucketSchema).nullable().optional(),
+    search_results_domain: z.array(dimensionBucketSchema).nullable().optional(),
+    brand_entities_title: z.array(dimensionBucketSchema).nullable().optional(),
+    brand_entities_category: z
+      .array(dimensionBucketSchema)
+      .nullable()
+      .optional(),
+    total: llmAggregatedTotalSchema.nullable().optional(),
+  })
+  .passthrough();
+
+/**
+ * `target_metrics` result element.
+ *
+ * `total_count`, `offset` and `items_count` are documented as always 0 and
+ * `items` as always empty on this endpoint — all the data is in
+ * `aggregated_metrics`. Modelled anyway so a future vendor change surfaces as
+ * new data rather than as a parse failure.
+ */
+export const llmTargetMetricsSchema = z
+  .object({
+    total_count: z.number().nullable().optional(),
+    offset: z.number().nullable().optional(),
+    items_count: z.number().nullable().optional(),
+    aggregated_metrics: aggregatedDimensionsSchema.nullable().optional(),
+    items: z.array(z.unknown()).nullable().optional(),
+  })
+  .passthrough();
+
+export type LlmTargetMetrics = z.infer<typeof llmTargetMetricsSchema>;
+
+/**
+ * One month of the `historical` series.
+ *
+ * Monthly only — the endpoint has no `group_range`, so a daily reading is not
+ * available from it. `year`/`month` rather than a date string, because the
+ * vendor sends two integers and coercing them into a Date would invent a
+ * timezone.
+ */
+export const llmHistoricalItemSchema = z
+  .object({
+    year: z.number().int(),
+    month: z.number().int().min(1).max(12),
+    metrics: z
+      .object({
+        mentions: z.number().nullable().optional(),
+        ai_search_volume: z.number().nullable().optional(),
+      })
+      .passthrough()
+      .nullable()
+      .optional(),
+  })
+  .passthrough();
+
+export type LlmHistoricalItem = z.infer<typeof llmHistoricalItemSchema>;
+
+/**
+ * One bucket of `timeseries_new_lost`.
+ *
+ * The four counters are separate on purpose: new *mentions* and new *AI search
+ * volume* move independently, and collapsing them into one "change" number
+ * would hide which one actually moved.
+ */
+export const llmNewLostItemSchema = z
+  .object({
+    date: z.string(),
+    new_mentions: z.number().nullable().optional(),
+    lost_mentions: z.number().nullable().optional(),
+    new_ai_search_volume: z.number().nullable().optional(),
+    lost_ai_search_volume: z.number().nullable().optional(),
+  })
+  .passthrough();
+
+export type LlmNewLostItem = z.infer<typeof llmNewLostItemSchema>;
+
+/**
+ * A `top_mentioned_domains` or `top_mentioned_pages` item.
+ *
+ * The two endpoints differ only in the key field's name (`domain` vs `page`),
+ * so one schema covers both and the caller picks which field it asked for. The
+ * page URLs arrive with tracking query strings attached
+ * (`?utm_source=chatgpt.com`), which is why `page` is stored raw and normalised
+ * at the point of display rather than on the way in.
+ */
+export const llmTopMentionedItemSchema = z
+  .object({
+    domain: z.string().nullable().optional(),
+    page: z.string().nullable().optional(),
+    location: z.array(dimensionBucketSchema).nullable().optional(),
+    language: z.array(dimensionBucketSchema).nullable().optional(),
+    platform: z.array(dimensionBucketSchema).nullable().optional(),
+    sources_domain: z.array(dimensionBucketSchema).nullable().optional(),
+    search_results_domain: z.array(dimensionBucketSchema).nullable().optional(),
+    brand_entities_title: z.array(dimensionBucketSchema).nullable().optional(),
+    brand_entities_category: z
+      .array(dimensionBucketSchema)
+      .nullable()
+      .optional(),
+    total: llmAggregatedTotalSchema.nullable().optional(),
+  })
+  .passthrough();
+
+export type LlmTopMentionedItem = z.infer<typeof llmTopMentionedItemSchema>;
+
+// ---------------------------------------------------------------------------
 // LLM Responses — shared between ChatGPT/Claude/Gemini/Perplexity
 // All four model endpoints return the same envelope shape.
 // ---------------------------------------------------------------------------
