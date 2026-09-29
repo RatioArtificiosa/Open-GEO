@@ -2,7 +2,7 @@ import { AlertTriangle, RefreshCw, SearchCheck } from "lucide-react";
 import { GeoVisibilityPanel } from "./GeoVisibilityPanel";
 import { GeoTargetForm } from "./GeoTargetForm";
 import { MentionsTrendPanel } from "./MentionsTrendPanel";
-import { NewLostPanel, TopCitedPanel } from "./LivePanels";
+import { NewLostPanel, TopCitedPanel, MetricFootnote } from "./LivePanels";
 import { useGeoPageData } from "./useGeoPageData";
 
 /**
@@ -93,8 +93,11 @@ export function GeoPage({ projectId }: { projectId: string }) {
               aria-label="Citation gap"
               className="rounded-xl border border-base-300 bg-base-100 p-4"
             >
-              <h2 className="text-base font-semibold">
+              <h2 className="inline-flex items-center gap-1.5 text-base font-semibold">
                 Retrieved but never cited
+                {/* The advice for this panel is the opposite of the advice for a
+                    low count, so the footnote says which one it is. */}
+                <MetricFootnote id="retrieved_but_uncited" />
               </h2>
               {data.gap.available ? (
                 <>

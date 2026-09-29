@@ -7,6 +7,7 @@ import {
   formatPlatformLabel,
   PLATFORM_DOT_CLASS,
 } from "@/client/features/ai-search/platformLabels";
+import { footnoteFor, labelFor } from "@/client/features/geo/metric-copy";
 import type { BrandLookupResult } from "@/types/schemas/ai-search";
 import { RESEARCH_SCOPE_LABELS } from "@/shared/researchScope";
 
@@ -130,17 +131,24 @@ function StatsCard({ result }: { result: BrandLookupResult }) {
   return (
     <section className="rounded-xl border border-base-300 bg-base-100">
       <div className="flex h-full flex-col divide-y divide-base-200">
+        {/*
+          Labels and footnotes come from the shared registry rather than being
+          written here. A hand-written tooltip next to a number drifts away from
+          it — this file carried one promising "monthly search demand" above a
+          figure that was two incompatible units added together (CL-135). The
+          registry makes the copy and the metric the same edit.
+        */}
         <StatBlock
-          label="Mentions"
-          tooltip="Estimated count of AI answers where the searched brand or domain appeared in the answer text or cited sources."
+          label={labelFor("mentions")}
+          tooltip={footnoteFor("mentions")}
           value={result.totalMentions}
           perPlatform={result.perPlatform}
           metric="mentions"
           isDomainLevel={result.aggregatesAreDomainLevel}
         />
         <StatBlock
-          label="ChatGPT demand"
-          tooltip="Estimated monthly conversational demand for prompts where the searched brand or domain appears in ChatGPT answers. This is one platform only: Google's AI Overview demand is measured differently, so the two are shown side by side below rather than added together."
+          label={labelFor("chatgpt_demand")}
+          tooltip={footnoteFor("chatgpt_demand")}
           value={result.totalAiSearchVolume}
           perPlatform={result.perPlatform}
           metric="aiSearchVolume"

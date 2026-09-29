@@ -12,6 +12,7 @@ import {
   describeMentionsTrend,
   type MentionMonth,
 } from "./mentions-trend";
+import { MetricFootnote } from "./LivePanels";
 
 /**
  * The mentions trend panel, per platform.
@@ -71,7 +72,10 @@ export function MentionsTrendPanel({
   if (trend.isEmpty) {
     return (
       <section className="rounded-xl border border-base-300 bg-base-100 p-4">
-        <h3 className="text-base font-semibold">{labelFor(platform)}</h3>
+        <h3 className="inline-flex items-center gap-1.5 text-base font-semibold">
+          {labelFor(platform)}
+          <MetricFootnote id="mentions" />
+        </h3>
         <p className="text-base-content/60 text-sm">
           No months with a recorded figure yet. The first patrol fills the
           series from the vendor&apos;s own history, so this fills shortly after
@@ -84,7 +88,12 @@ export function MentionsTrendPanel({
   return (
     <section className="rounded-xl border border-base-300 bg-base-100 p-4">
       <header className="mb-2 flex items-baseline justify-between gap-3">
-        <h3 className="text-base font-semibold">{labelFor(platform)}</h3>
+        <h3 className="inline-flex items-center gap-1.5 text-base font-semibold">
+          {labelFor(platform)}
+          {/* Comparable across platforms, but still a count of answers rather
+              than traffic — which costs one icon to say. */}
+          <MetricFootnote id="mentions" />
+        </h3>
         {trend.change !== null ? (
           <span
             className="text-sm font-medium"

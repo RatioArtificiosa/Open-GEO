@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { EtvBoundaryChart, type EtvChartPoint } from "./EtvBoundaryChart";
 import { ETV_CUTOVER_DATE } from "@/shared/etv-versioning";
+import { MetricFootnote } from "./LivePanels";
 
 /**
  * The GEO visibility panel.
@@ -54,7 +55,12 @@ export function GeoVisibilityPanel({
   return (
     <section aria-label="Estimated organic traffic over time">
       <header className="mb-3">
-        <h2 className="text-base font-semibold">Estimated organic traffic</h2>
+        <h2 className="inline-flex items-center gap-1.5 text-base font-semibold">
+          Estimated organic traffic
+          {/* A model estimate, not analytics. The footnote also names the date
+              the model changed, which is the thing a reader will look up. */}
+          <MetricFootnote id="etv" />
+        </h2>
         <p className="text-base-content/60 text-sm">
           A model estimate, not a measurement. Every value is labelled with the
           formula that produced it, because{" "}

@@ -1,8 +1,29 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Info } from "lucide-react";
 import type {
   NewLostSeries,
   TopCitedPage,
 } from "@/server/features/geo/services/geoLiveReads";
+import { footnoteFor, type MetricId } from "./metric-copy";
+
+/**
+ * A footnote for one metric.
+ *
+ * Every number on this page carries one, and the copy comes from the shared
+ * registry rather than being written here — see `metric-copy.ts` for why that
+ * matters. `MetricId` rather than `string`, so a renamed metric is a compile
+ * error rather than a card that quietly lost its explanation.
+ */
+export function MetricFootnote({ id }: { id: MetricId }) {
+  return (
+    <span
+      className="tooltip inline-flex align-text-bottom"
+      data-tip={footnoteFor(id)}
+    >
+      <Info className="text-base-content/40 size-3" />
+      <span className="sr-only">{footnoteFor(id)}</span>
+    </span>
+  );
+}
 
 /**
  * The two live panels: new/lost mentions, and the pages models cite most.
