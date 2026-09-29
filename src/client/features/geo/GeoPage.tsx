@@ -1,5 +1,6 @@
 import { AlertTriangle, RefreshCw, SearchCheck } from "lucide-react";
 import { GeoVisibilityPanel } from "./GeoVisibilityPanel";
+import { GeoTargetForm } from "./GeoTargetForm";
 import { useGeoPageData } from "./useGeoPageData";
 
 /**
@@ -26,6 +27,10 @@ export function GeoPage({ projectId }: { projectId: string }) {
             {data.freshness ? <> Last patrol {data.freshness}.</> : null}
           </p>
         </header>
+
+        <section className="rounded-xl border border-base-300 bg-base-100 p-4">
+          <GeoTargetForm projectId={projectId} onChanged={data.refetch} />
+        </section>
 
         {data.isLoading ? <GeoLoadingState /> : null}
         {!data.isLoading && data.errorMessage ? (
