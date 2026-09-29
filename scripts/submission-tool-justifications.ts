@@ -1,0 +1,136 @@
+/**
+ * Tool justifications for the app submission.
+ *
+ * Kept in code so the file cannot drift from the server. The 15 tools added by
+ * this generator were missing from `chatgpt-app-submission.json` entirely —
+ * including all five GEO tools — so a reviewer saw an SEO product and none of
+ * the AI-visibility work.
+ *
+ * Every entry owes **all three** justifications, unconditionally. The schema
+ * requires it on every tool, not only on the open-world or destructive ones: a
+ * read-only tool still needs a `destructive_justification` saying why it is
+ * safe. The text is also not decoration — justifications do not override
+ * annotations, so if a tool advertises `readOnlyHint: false` the justification
+ * has to be true of the behaviour, not aspirational.
+ */
+
+const PRIVATE_STATE =
+  "Operates only on private OpenGeo state or private provider data and cannot change publicly visible internet state.";
+const NOTHING_DESTRUCTIVE =
+  "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions.";
+
+export type ToolJustifications = {
+  read_only_justification: string;
+  open_world_justification: string;
+  destructive_justification: string;
+};
+
+/** The tools that existed in the server and were missing from the file. */
+export const MISSING_TOOL_JUSTIFICATIONS: Record<string, ToolJustifications> = {
+  // --- GEO / AI visibility. The headline feature, invisible to a reviewer
+  // until these were declared. Every one reads the customer's own archive, so
+  // they are genuinely read-only: no credits, no vendor call, no write.
+  list_geo_targets: {
+    read_only_justification:
+      "Only retrieves the AI brands already being monitored in the authenticated OpenGeo project.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification: NOTHING_DESTRUCTIVE,
+  },
+  get_geo_visibility: {
+    read_only_justification:
+      "Only reads the archived AI answers already stored for this project. Returns one figure per platform and never a combined total, because the platforms compute demand differently.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification: NOTHING_DESTRUCTIVE,
+  },
+  get_geo_citation_gap: {
+    read_only_justification:
+      "Only reads stored answers to find pages a model retrieved and did not cite. Available for ChatGPT only; for Google AI Overviews the response explains that the vendor does not report retrievals rather than returning a confident empty list.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification: NOTHING_DESTRUCTIVE,
+  },
+  get_geo_answer_history: {
+    read_only_justification:
+      "Only retrieves previously archived answers to one prompt, newest first, so a change between two runs can be compared.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification: NOTHING_DESTRUCTIVE,
+  },
+  get_geo_runs: {
+    read_only_justification:
+      "Only lists the monitoring runs that built the project's archive, newest first, and when the last one ran.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification: NOTHING_DESTRUCTIVE,
+  },
+
+  // --- Saved keywords. Removing a keyword deletes a stored record, so this is
+  // destructive, and it says which project it affects.
+  remove_saved_keywords: {
+    read_only_justification:
+      "Removes selected keyword IDs from the saved list in the user's own project.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification:
+      "Deletes the selected saved-keyword records and their tag associations in the user's project. Reversible only by re-running keyword research.",
+  },
+
+  // --- Reports and templates. Save creates or overwrites; delete destroys.
+  save_report: {
+    read_only_justification:
+      "Creates or updates a private report record in the user's project and does not share or publish it.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification:
+      "Overwrites the stored report content and title when saving with an existing report ID. Nothing is published or sent.",
+  },
+  list_reports: {
+    read_only_justification:
+      "Only retrieves the reports already stored in the user's project.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification: NOTHING_DESTRUCTIVE,
+  },
+  get_report: {
+    read_only_justification:
+      "Only retrieves one stored report and its sections by ID.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification: NOTHING_DESTRUCTIVE,
+  },
+  delete_report: {
+    read_only_justification:
+      "Deletes the report with the supplied ID from the user's own project.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification:
+      "Permanently removes the stored report and its sections, including any share token that would otherwise keep a public link alive.",
+  },
+  list_report_templates: {
+    read_only_justification:
+      "Only retrieves the report templates already stored in the user's project.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification: NOTHING_DESTRUCTIVE,
+  },
+  save_report_template: {
+    read_only_justification:
+      "Creates or updates a private report template in the user's project.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification:
+      "Overwrites the stored template's name, description and section layout when saving with an existing template ID.",
+  },
+  delete_report_template: {
+    read_only_justification:
+      "Deletes the report template with the supplied ID from the user's own project.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification:
+      "Permanently removes the stored template. Reports already generated from it are not affected.",
+  },
+
+  // --- Site audits. Delete removes a stored audit and its pages and issues.
+  list_site_audits: {
+    read_only_justification:
+      "Only retrieves the site audits already started in the user's project.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification: NOTHING_DESTRUCTIVE,
+  },
+  delete_site_audit: {
+    read_only_justification:
+      "Deletes the site audit with the supplied ID from the user's own project.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification:
+      "Permanently removes the stored audit record together with its crawled pages and issues.",
+  },
+};

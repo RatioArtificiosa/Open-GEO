@@ -38,6 +38,7 @@
     "release:notes": "node scripts/release-notes.mjs",
     "release:publish": "node scripts/publish-release.mjs",
     "sync-plugin-skills": "node scripts/sync-plugin-skills.mjs",
+    "submission:generate": "tsx scripts/generate-app-submission.ts && prettier --write chatgpt-app-submission.json",
     "test": "vitest run",
     "detect:slop": "impeccable detect src/",
     "test:watch": "vitest",
