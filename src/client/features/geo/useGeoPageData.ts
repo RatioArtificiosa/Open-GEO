@@ -1,9 +1,11 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { computeVisibilityScore } from "@/client/features/geo/visibility-score";
+import { computeCitationAuthority } from "@/client/features/geo/citation-authority";
 import { buildMentionsTrend, type MentionMonth } from "./mentions-trend";
 import {
   getGeoCitationGap,
+  getGeoCitationProfile,
   getGeoEtvSeries,
   getGeoMentionHistory,
   getGeoNewLost,
@@ -224,32 +226,75 @@ export function useGeoPageData(projectId: string) {
   }));
 
   /**
+   * The citation profile, per platform, from the archive.
+   *
+   * This is what makes the score's citation component real: `geo_citation_domains`
+   * already holds per-domain mention counts, and the score turns their *spread*
+   * into a number. It is computed client-side from the rows, so no extra request
+   * is made when the score renders.
+   */
+  const citationProfile = useQuery({
+    queryKey: ["geoCitationProfile", projectId, domain],
+    enabled: ready,
+    staleTime: GEO_QUERY_STALE_TIME_MS,
+    queryFn: () => getGeoCitationProfile({ data: { domain: domain ?? "" } }),
+  });
+
+  /**
+   * Citation authority per platform, from the stored rows.
+   *
+   * Computed here rather than on the server because it is pure arithmetic over
+   * data we already fetched — and keeping it client-side means the score renders
+   * without waiting on a second round trip.
+   */
+  const authorityByPlatform = useMemo(
+    () =>
+      (citationProfile.data ?? []).map((entry) => ({
+        platform: entry.platform,
+        authority: computeCitationAuthority(
+          entry.domains.map((row) => ({
+            domain: row.domain,
+            mentions: row.mentions,
+          })),
+        ),
+      })),
+    [citationProfile.data],
+  );
+
+  /**
    * The visibility score, per platform.
    *
-   * **Assembled from the archive, not from a vendor call** — every input is
-   * something the patrol already stored, so the score costs nothing to show. The
-   * components that cannot be derived from stored levels (share of voice needs a
-   * tracked competitor set; mention coverage needs a category median) arrive as
-   * `null` and the score says so rather than guessing.
+   * **Assembled from the archive, not a vendor call** — every input is something
+   * the patrol already stored, so the score costs nothing to show. The components
+   * that cannot be derived from stored levels (share of voice needs a tracked
+   * competitor set; mention coverage needs a category median) arrive as `null` and
+   * the score says so rather than guessing.
    */
   const scores = useMemo(
     () =>
-      platformSeries.map((entry) =>
-        computeVisibilityScore({
+      platformSeries.map((entry) => {
+        const authority = authorityByPlatform.find(
+          (candidate) => candidate.platform === entry.platform,
+        )?.authority;
+        return computeVisibilityScore({
           platform: entry.platform,
-          // Mention coverage and citation authority have no honest source in the
-          // archive today — the first needs a category median we do not have,
-          // the second needs domain-quality data we do not store. They arrive as
-          // null, the score reports the gap, and the reader is told which part
-          // of the number is standing on nothing.
+          // Mention coverage has no honest source in the archive today: it needs
+          // a category median we do not collect. It arrives null and the score
+          // reports the gap.
           mentionCoverage: null,
           shareOfVoice: null,
-          citationAuthority: null,
+          // Citation authority IS derivable — `geo_citation_domains` already
+          // holds per-domain counts. See `citation-authority.ts` for what it
+          // does and, just as importantly, what it does not claim to measure.
+          citationAuthority: authority?.value ?? null,
           momentum: buildMomentumFrom(entry.months),
-          evidence: { momentum: describeMomentum(entry.months) },
-        }),
-      ),
-    [platformSeries],
+          evidence: {
+            momentum: describeMomentum(entry.months),
+            ...(authority ? { citationAuthority: authority.summary } : {}),
+          },
+        });
+      }),
+    [platformSeries, authorityByPlatform],
   );
 
   // `listRuns` is newest-first, so the head is the most recent patrol.

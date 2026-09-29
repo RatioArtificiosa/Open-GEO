@@ -227,6 +227,27 @@ export const getGeoTopCited = createServerFn({ method: "POST" })
     return getTopCitedPages({ ...data, projectId: context.projectId });
   });
 
+/**
+ * The stored citation profile — which domains cite this brand, and how often.
+ *
+ * Archive read, so it costs nothing. It is the input to the visibility score's
+ * citation component, and to the panel that names the domains in plain sight.
+ */
+export const getGeoCitationProfile = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(
+    z.object({
+      domain: z.string().min(1).max(2048),
+      limit: z.number().int().min(1).max(200).optional(),
+    }),
+  )
+  .handler(async ({ data, context }) =>
+    GeoService.getCitationProfile({
+      ...data,
+      projectId: context.projectId,
+    }),
+  );
+
 // --- ETV series ------------------------------------------------------------
 
 const etvSeriesSchema = z.object({

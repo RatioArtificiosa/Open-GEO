@@ -375,6 +375,64 @@ async function getAiKeywordHistory(projectId: string, keyword: string) {
   );
 }
 
+/**
+ * The citation profile for a target's most recent run, per platform.
+ *
+ * `geo_citation_domains` is keyed on (snapshot, platform) and the page has no
+ * snapshot id, so the service resolves the latest run and then asks which
+ * platforms it covered — `geo_target_metrics` is what records that, and
+ * re-deriving it from the answers would be a second source of truth.
+ *
+ * The `limit` bounds the entropy calculation without pretending the bound is
+ * the truth: a brand cited by 400 domains and counted on the top 50 will read as
+ * more concentrated than it is, which is why the client's summary names the
+ * count it used.
+ */
+async function getCitationProfile(input: {
+  projectId: string;
+  domain: string;
+  limit?: number;
+}) {
+  const target = await GeoSetupRepository.getTargetByDomain(
+    input.projectId,
+    normaliseDomain(input.domain),
+  );
+  if (!target) {
+    throw new AppError(
+      "NOT_FOUND",
+      `${input.domain} is not a monitored target in this project, so it has no citation profile.`,
+    );
+  }
+
+  const [latest] = await GeoRunRepository.listSnapshots(input.projectId, 1);
+  if (!latest) return [];
+
+  const metrics = await GeoRunRepository.listTargetMetrics(
+    input.projectId,
+    latest.id,
+  );
+  const platforms = [
+    ...new Set(
+      metrics
+        .map((row) => row.platform)
+        .filter((platform): platform is GeoPlatform => Boolean(platform)),
+    ),
+  ];
+
+  return Promise.all(
+    platforms.map(async (platform) => ({
+      platform,
+      snapshotId: latest.id,
+      domains: await GeoRunRepository.listCitationDomains(
+        input.projectId,
+        latest.id,
+        platform,
+        input.limit ?? 50,
+      ),
+    })),
+  );
+}
+
 function normaliseKeyword(keyword: string): string {
   return keyword.trim().toLowerCase();
 }
@@ -417,5 +475,6 @@ export const GeoService = {
   getAiKeywordHistory,
   getEtvSeries,
   getMentionHistory,
+  getCitationProfile,
   purgeExpiredAnswers,
 } as const;
