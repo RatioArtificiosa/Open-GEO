@@ -94,8 +94,18 @@ const groupElementSchema = z
   })
   .passthrough();
 
+/**
+ * The `total` block on an aggregated item: `{ mentions, ai_search_volume }`.
+ *
+ * Both fields are declared explicitly rather than left to `.passthrough()`,
+ * because a passthrough field infers as `{}` and every consumer then has to cast
+ * its way back to a number — which is how a `mentions` field quietly becomes
+ * `unknown` three layers from the wire.
+ */
 export const llmAggregatedTotalSchema = z
   .object({
+    mentions: z.number().nullable().optional(),
+    ai_search_volume: z.number().nullable().optional(),
     platform: z.array(groupElementSchema).nullable().optional(),
   })
   .passthrough();

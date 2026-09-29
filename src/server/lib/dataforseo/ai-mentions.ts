@@ -229,7 +229,7 @@ const TOP_MENTIONED_ENDPOINTS = {
 } as const;
 
 /** Which citation ranking to fetch. */
-type TopMentionedKind = keyof typeof TOP_MENTIONED_ENDPOINTS;
+export type TopMentionedKind = keyof typeof TOP_MENTIONED_ENDPOINTS;
 
 /**
  * `top_mentioned_domains` / `top_mentioned_pages` — what the models cite.

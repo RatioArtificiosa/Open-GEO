@@ -2,6 +2,7 @@ import { AlertTriangle, RefreshCw, SearchCheck } from "lucide-react";
 import { GeoVisibilityPanel } from "./GeoVisibilityPanel";
 import { GeoTargetForm } from "./GeoTargetForm";
 import { MentionsTrendPanel } from "./MentionsTrendPanel";
+import { NewLostPanel, TopCitedPanel } from "./LivePanels";
 import { useGeoPageData } from "./useGeoPageData";
 
 /**
@@ -151,6 +152,50 @@ export function GeoPage({ projectId }: { projectId: string }) {
                   />
                 ))}
               </div>
+            </section>
+
+            <section aria-label="Live vendor queries" className="space-y-3">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold">
+                    New, lost, and what they cite
+                  </h2>
+                  <p className="text-sm text-base-content/70">
+                    Everything above reads your archive. These two query the
+                    vendor live, because neither can be reconstructed from
+                    stored levels: 10 &rarr; 12 does not say which prompt
+                    appeared, and the citation ranking is the vendor&rsquo;s
+                    view of the whole corpus rather than ours.
+                  </p>
+                </div>
+                {!data.live.wantLive ? (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={data.live.request}
+                  >
+                    Run live query
+                  </button>
+                ) : null}
+              </div>
+              {data.live.wantLive ? (
+                <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                  <NewLostPanel
+                    platformLabel="ChatGPT"
+                    series={data.live.newLost}
+                    isLoading={data.live.newLostLoading}
+                    errorMessage={data.live.newLostError}
+                    isLocked={data.live.isLocked}
+                  />
+                  <TopCitedPanel
+                    platformLabel="ChatGPT"
+                    pages={data.live.topCited}
+                    isLoading={data.live.topCitedLoading}
+                    errorMessage={data.live.topCitedError}
+                    isLocked={data.live.isLocked}
+                  />
+                </div>
+              ) : null}
             </section>
 
             <section className="rounded-xl border border-base-300 bg-base-100 p-4">

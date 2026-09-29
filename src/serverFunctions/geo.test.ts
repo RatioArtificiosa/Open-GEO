@@ -61,6 +61,20 @@ vi.mock("@/server/features/geo/services/GeoService", () => ({
   GeoService: geoServiceMock,
 }));
 
+// The two metered reads live in their own module, so the surface test needs a
+// mock for it as well — without one, importing `@/serverFunctions/geo` would
+// pull the real DataForSEO client in and the "exports the full surface" test
+// would fail on something unrelated to the export list.
+vi.mock("@/server/features/geo/services/geoLiveReads", () => ({
+  getNewLostSeries: vi.fn(),
+  getTopCitedPages: vi.fn(),
+}));
+
+// The paid-plan gate for the metered reads reaches `@/server/billing`, which
+// imports `cloudflare:workers` — a Workers-only module vitest cannot resolve.
+// Same reason every other tool test mocks it.
+vi.mock("cloudflare:workers", () => ({ env: {} }));
+
 function isServerFn(value: unknown): value is ServerFn {
   if (typeof value !== "object" || value === null) return false;
   return Reflect.get(value, "__isServerFn") === true;
@@ -90,6 +104,8 @@ const EXPECTED = [
   "getGeoCitationGap",
   "getGeoEtvSeries",
   "getGeoMentionHistory",
+  "getGeoNewLost",
+  "getGeoTopCited",
   "getGeoRun",
   "getGeoShareOfVoice",
   "getGeoVisibility",

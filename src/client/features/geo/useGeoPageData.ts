@@ -1,8 +1,11 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   getGeoCitationGap,
   getGeoEtvSeries,
   getGeoMentionHistory,
+  getGeoNewLost,
+  getGeoTopCited,
   getGeoVisibility,
   listGeoRuns,
   listGeoTargets,
@@ -124,6 +127,46 @@ export function useGeoPageData(projectId: string) {
     })),
   });
 
+  /**
+   * Which platform the metered panels are showing.
+   *
+   * Only the two the `llm_mentions` family serves, and never a default that
+   * could quietly become a blended answer. Gemini and Perplexity are absent by
+   * design — they have their own endpoints, so a selector showing them would be
+   * offering a panel that cannot return anything.
+   */
+  const livePlatform = ready ? (TRACKED_PLATFORMS[0] ?? null) : null;
+
+  /**
+   * The two **metered** panels.
+   *
+   * They are not fetched until the reader asks, because each open spends a
+   * vendor call. A page that fetched them on load would spend money every time
+   * someone looked at it — which is why they sit behind a button rather than
+   * appearing with the rest.
+   */
+  const [wantLive, setWantLive] = useState(false);
+
+  const newLost = useQuery({
+    queryKey: ["geoNewLost", projectId, domain, livePlatform],
+    enabled: ready && wantLive && livePlatform !== null,
+    staleTime: GEO_QUERY_STALE_TIME_MS,
+    queryFn: () =>
+      getGeoNewLost({
+        data: { domain: domain ?? "", platform: livePlatform ?? "chat_gpt" },
+      }),
+  });
+
+  const topCited = useQuery({
+    queryKey: ["geoTopCited", projectId, domain, livePlatform],
+    enabled: ready && wantLive && livePlatform !== null,
+    staleTime: GEO_QUERY_STALE_TIME_MS,
+    queryFn: () =>
+      getGeoTopCited({
+        data: { domain: domain ?? "", platform: livePlatform ?? "chat_gpt" },
+      }),
+  });
+
   // `listRuns` is newest-first, so the head is the most recent patrol.
   const lastRunAt = runs.data?.[0]?.startedAt ?? null;
   const freshness = ageLabel(lastRunAt);
@@ -201,5 +244,32 @@ export function useGeoPageData(projectId: string) {
         `Could not load the ${platform} mentions history.`,
       ),
     })),
+
+    /**
+     * The metered panels. `wantLive` is exposed so the page can put them behind a
+     * button, and `isLocked` distinguishes "you have not asked yet" from "this
+     * needs the paid plan" — a reader who cannot tell those apart concludes the
+     * feature is broken.
+     */
+    live: {
+      wantLive,
+      request: () => setWantLive(true),
+      platform: livePlatform,
+      newLost: newLost.data ?? null,
+      newLostLoading: newLost.isLoading,
+      newLostError: geoErrorMessage(
+        newLost.error,
+        "Could not load new and lost mentions.",
+      ),
+      topCited: topCited.data?.pages ?? null,
+      topCitedLoading: topCited.isLoading,
+      topCitedError: geoErrorMessage(
+        topCited.error,
+        "Could not load the top cited pages.",
+      ),
+      isLocked:
+        newLost.error !== null &&
+        getErrorCode(newLost.error) === "PAYMENT_REQUIRED",
+    },
   };
 }

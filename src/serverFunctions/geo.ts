@@ -1,7 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { GeoService } from "@/server/features/geo/services/GeoService";
+import {
+  getNewLostSeries,
+  getTopCitedPages,
+} from "@/server/features/geo/services/geoLiveReads";
 import { GEO_PLATFORMS } from "@/types/schemas/geo";
+import { customerHasPaidPlan } from "@/server/billing/subscription";
+import { AppError } from "@/server/lib/errors";
+import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import { requireProjectContext } from "@/serverFunctions/middleware";
 import {
   createGeoPromptSetSchema,
@@ -168,6 +175,57 @@ export const getGeoMentionHistory = createServerFn({ method: "POST" })
       projectId: context.projectId,
     }),
   );
+
+// ---------------------------------------------------------------------------
+// Live, metered reads
+//
+// Everything above is an archive read and costs nothing. These two do not: the
+// new/lost counters cannot be derived from stored levels (10 → 12 does not say
+// which prompt appeared), and the top-cited ranking is the vendor's current view
+// of the whole corpus rather than our per-answer citations. Both hit the vendor,
+// so both are gated behind the paid plan in hosted mode — the same rule
+// `ai-search` uses, for the same reason.
+// ---------------------------------------------------------------------------
+
+async function assertPaidPlanForLiveRead(organizationId: string) {
+  if (!(await isHostedServerAuthMode())) return;
+  if (await customerHasPaidPlan(organizationId)) return;
+  throw new AppError(
+    "PAYMENT_REQUIRED",
+    "Upgrade to the paid plan to see new and lost mentions, or the live top-cited ranking. The rest of this page is included.",
+  );
+}
+
+const newLostInputSchema = z.object({
+  domain: z.string().min(1).max(2048),
+  platform: z.enum(GEO_PLATFORMS),
+  from: z.string().date().optional(),
+  to: z.string().date().optional(),
+  groupRange: z.enum(["day", "week", "month"]).optional(),
+});
+
+export const getGeoNewLost = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(newLostInputSchema)
+  .handler(async ({ data, context }) => {
+    await assertPaidPlanForLiveRead(context.organizationId);
+    return getNewLostSeries({ ...data, projectId: context.projectId });
+  });
+
+const topCitedInputSchema = z.object({
+  domain: z.string().min(1).max(2048),
+  platform: z.enum(GEO_PLATFORMS),
+  limit: z.number().int().min(1).max(100).optional(),
+  kind: z.enum(["pages", "domains"]).optional(),
+});
+
+export const getGeoTopCited = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(topCitedInputSchema)
+  .handler(async ({ data, context }) => {
+    await assertPaidPlanForLiveRead(context.organizationId);
+    return getTopCitedPages({ ...data, projectId: context.projectId });
+  });
 
 // --- ETV series ------------------------------------------------------------
 
