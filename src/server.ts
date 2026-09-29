@@ -7,6 +7,7 @@ import { resolveUserContextFromHeaders } from "@/middleware/ensure-user/resolve"
 import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
 import { SamSessionRepository } from "@/server/features/sam/SamSessionRepository";
 import { runScheduledRankChecks } from "@/server/features/rank-tracking/services/scheduledRankChecks";
+import { runDueGeoPatrols } from "@/server/features/geo/services/scheduledGeoPatrol";
 import { reconcileStaleAudits } from "@/server/features/audit/services/auditReconciler";
 import { getOrCreateOrganizationCustomer } from "@/server/billing/subscription";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
@@ -228,6 +229,17 @@ export default {
       watchdogError = err;
       console.error("[cron] Stale-audit reconcile failed:", err);
     }
+
+    // The nightly GEO patrol rides the same daily tick rather than waking the
+    // worker a second time. It is isolated in its own try/catch for the same
+    // reason the watchdog is: a DataForSEO outage must not stop rank tracking,
+    // and a rank-tracking outage must not stop the archive from filling.
+    try {
+      await withPgClient(() => runDueGeoPatrols());
+    } catch (err) {
+      console.error("[cron] GEO patrol failed:", err);
+    }
+
     // Scope a per-request Postgres client for the cron run (no-op in D1 mode).
     await withPgClient(() => runScheduledRankChecks(env));
     if (watchdogError) throw watchdogError;
