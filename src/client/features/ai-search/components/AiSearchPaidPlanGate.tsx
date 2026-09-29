@@ -18,7 +18,7 @@ export function AiSearchPaidPlanGate({ feature, description, bullets }: Props) {
             Paid plan
           </span>
           <h2 className="text-xl font-semibold tracking-tight">
-            Unlock {feature}
+            {feature} is on the paid plan
           </h2>
           <p className="text-sm text-base-content/70">{description}</p>
         </div>
