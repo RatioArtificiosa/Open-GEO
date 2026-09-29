@@ -1,12 +1,37 @@
 import { z } from "zod";
 import { dataforseoPost } from "@/server/lib/dataforseo/core";
 import {
+  resolveEtvMode,
+  type EtvBearingLabsEndpoint,
+  type EtvProvenance,
+} from "@/shared/etv-versioning";
+import {
   assertOk,
   buildTaskBilling,
   parseTaskItems,
   type DataforseoApiResponse,
   type DataforseoItemsTask,
 } from "@/server/lib/dataforseo/envelope";
+
+/**
+ * Resolve and apply the ETV mode for a Labs call.
+ *
+ * The returned `useNewEtv` is spread into the task body, so the flag we
+ * recorded is literally the flag we sent — a mismatch between the two would be a
+ * silent lie in the archive.
+ */
+function etvFields(
+  endpoint: EtvBearingLabsEndpoint,
+  now?: Date,
+): EtvProvenance & { use_new_etv: boolean } {
+  const mode = resolveEtvMode({ endpoint, now });
+  return {
+    formulaVersion: mode.version,
+    useNewEtv: mode.useNewEtv,
+    use_new_etv: mode.useNewEtv,
+    requestedAt: (now ?? new Date()).toISOString(),
+  };
+}
 
 // Labs payload types: the fields the app reads, typed honestly (the wire nulls
 // any of them); the index signature carries everything else through untyped,
@@ -236,6 +261,7 @@ export async function fetchDomainRankOverview(input: {
   locationCode: number;
   languageCode: string;
 }): Promise<DataforseoApiResponse<DomainMetricsItem[]>> {
+  const etv = etvFields("domain_rank_overview");
   const response = await dataforseoPost<DataforseoItemsTask<DomainMetricsItem>>(
     "/v3/dataforseo_labs/google/domain_rank_overview/live",
     [
@@ -244,6 +270,9 @@ export async function fetchDomainRankOverview(input: {
         location_code: input.locationCode,
         language_code: input.languageCode,
         limit: 1,
+        // Pin the ETV model explicitly, so the stored value stays comparable
+        // with our history after the vendor's 2026-11-01 cutover.
+        use_new_etv: etv.useNewEtv,
       },
     ],
   );
@@ -251,6 +280,7 @@ export async function fetchDomainRankOverview(input: {
   return {
     data: task.result?.[0]?.items ?? [],
     billing: buildTaskBilling(task),
+    etv,
   };
 }
 
@@ -272,6 +302,7 @@ export async function fetchRankedKeywords(input: {
   // Note: ranked_keywords has no include_subdomains parameter — a domain
   // target always covers the hostname plus its subdomains. Narrower scopes
   // are expressed through `filters` (see researchScopeFilters.ts).
+  const etv = etvFields("ranked_keywords");
   const response = await dataforseoPost<DataforseoItemsTask<unknown>>(
     "/v3/dataforseo_labs/google/ranked_keywords/live",
     [
@@ -284,6 +315,9 @@ export async function fetchRankedKeywords(input: {
         order_by: input.orderBy,
         filters: input.filters,
         item_types: input.itemTypes,
+        // Pin the ETV model explicitly, so a stored value stays comparable with
+        // our history after the vendor's 2026-11-01 cutover.
+        use_new_etv: etv.useNewEtv,
       },
     ],
   );
@@ -298,6 +332,7 @@ export async function fetchRankedKeywords(input: {
       totalCount: task.result?.[0]?.total_count ?? null,
     },
     billing: buildTaskBilling(task),
+    etv,
   };
 }
 

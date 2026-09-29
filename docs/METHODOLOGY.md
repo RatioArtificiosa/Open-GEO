@@ -67,14 +67,27 @@ as one.
 
 Provided by DataForSEO's Labs endpoints as a model output, not a measurement.
 
-> ⚠️ **ETV formula change — 2026-11-01.** DataForSEO is switching ETV to an improved model
+> ⚠️ **ETV formula change — 2026-11-01.** DataForSEO is switching ETV to a new model
 > (layout-aware CTR that accounts for AI Overviews, shopping and snippets; intent-aware; and
 > clickstream-normalised volume). Values computed under the two formulas are **not** directly
 > comparable, and a series can show a discontinuity at the cutover even when rankings did not change.
 >
+> Two things make this worse than a simple cutover, and both are worth knowing:
+>
+> - **Historical endpoints are excluded from the new model.** DataForSEO's own wording is that the
+>   new ETV is available "except for the ones returning historical metrics." So our historical
+>   series stays on the old formula and **cannot be restated**. The discontinuity is permanent
+>   unless the vendor backfills.
+> - **`estimated_paid_traffic_cost` changes too**, because it derives from organic ETV and paid
+>   CPC. Any figure derived from it moves as well.
+>
 > OpenGeo therefore **version-stamps every stored ETV value** (`etv_formula_version`) and never
 > charts across the boundary without labelling it. If you see a step in a traffic line, check the
 > formula version before you conclude your traffic moved.
+>
+> _The vendor's opt-in flag is `use_new_etv`. If you have seen `use_improved_etv` referenced
+> elsewhere — it circulates in support-chat summaries and appears in no documentation — that name
+> is wrong, and sending it is a silent no-op._
 
 ### On-page score
 

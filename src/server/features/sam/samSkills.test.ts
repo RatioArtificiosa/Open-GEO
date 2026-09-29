@@ -12,13 +12,17 @@ describe("buildSamSkillSource", () => {
     expect(names).toEqual([
       "competitive-landscape",
       "competitor-analysis",
+      // GEO — the three skills that make this OpenGeo rather than OpenSEO.
+      "geo-audit",
       "keyword-clustering",
       "keyword-research",
       "link-prospecting",
       "local-seo",
+      "opengeo",
       "seo-audit",
       "seo-coach",
       "seo-project-setup",
+      "what-to-build",
     ]);
 
     const loaded = await source.load("seo-project-setup");

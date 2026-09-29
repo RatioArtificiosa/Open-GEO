@@ -138,7 +138,77 @@ searches. **It is not proof that web search happened.**
 - Filtering: filter against the **exact documented path for that endpoint**; prefer **LIKE over regex**
   where both work. Never filter on `etv` when you mean ranking count.
 - **Do not assume an undocumented parameter is supported** because another Labs endpoint exposes it.
-  (This is exactly our `use_improved_etv` situation — see [`METHODOLOGY.md`](./METHODOLOGY.md).)
+
+### 4.1 Bulk traffic estimation — the same key is two different shapes
+
+`bulk_traffic_estimation` and `historical_bulk_traffic_estimation` look like the
+same endpoint with a `historical_` prefix. They are not, and the difference is
+in the payload.
+
+|                    | `bulk_traffic_estimation`                     | `historical_bulk_traffic_estimation`          |
+| ------------------ | --------------------------------------------- | --------------------------------------------- |
+| Path               | `.../bulk_traffic_estimation/live`            | `.../historical_bulk_traffic_estimation/live` |
+| Targets            | up to 1,000 domains, subdomains, **or pages** | up to 1,000 domains or subdomains             |
+| `metrics.organic`  | an **object**: `{ etv, count }`               | an **array** of `{ year, month, etv, count }` |
+| `date_from`        | —                                             | `yyyy-mm-dd`, history starts **2020-10-01**   |
+| Forward projection | never                                         | never                                         |
+
+```json
+// current — organic is an object
+{ "organic": { "etv": 217332878.18734226, "count": 11786473 },
+  "paid": { "etv": 0, "count": 0 },
+  "local_pack": null, "featured_snippet": null }
+
+// historical — organic is an array of months
+{ "organic": [ { "year": 2021, "month": 3, "etv": 224412747.905034, "count": 16031288 } ] }
+```
+
+A shared parser for the two will type-check and then quietly return garbage.
+And `local_pack: null` means _that SERP type was not applicable_ — a different
+thing from a metric object whose `etv` and `count` are both zero.
+
+Domains go in **without** `https://` and `www.`; pages must be absolute URLs.
+A wrong target here is a silently different domain, not an error.
+
+**Neither endpoint forecasts.** `bulk_traffic_estimation` is a _current_ monthly
+estimate; the historical one is history. Forward projection is ours to build.
+
+### 4.2 The ETV formula change — the one that will bite
+
+**Verified 2026-09-28 against the vendor's announcement page, not a summary.**
+
+DataForSEO is replacing the ETV model in Labs. The new one accounts for SERP
+features that displace clicks (AI Overviews, featured snippets, paid, local
+packs, images, video), varies by search intent, and normalises search volume with
+clickstream data. It becomes the **default on 2026-11-01**.
+
+**The parameter is `use_new_etv`.** Not `use_improved_etv` — that name circulates
+in support-chat summaries and appears in no documentation page. Sending the wrong
+name is a silent no-op, not an error.
+
+| Account registered  | Default before Nov 1    | Default after Nov 1 |
+| ------------------- | ----------------------- | ------------------- |
+| Before 2026-09-01   | legacy                  | **new**             |
+| On/after 2026-09-01 | **new** (no transition) | **new**             |
+
+**Three consequences:**
+
+1. **Historical endpoints are excluded.** The announcement says the new ETV is
+   available "in all relevant endpoints where the `etv` field is present, _except
+   for the ones returning historical metrics_." So `historical_bulk_traffic_estimation`
+   and `historical_rank_overview` keep the legacy formula. **Your historical series
+   is legacy and cannot be restated** — the discontinuity is permanent unless the
+   vendor backfills.
+2. **`estimated_paid_traffic_cost` changes too**, because it derives from organic
+   ETV. Code reading it is affected even if it never touches `etv`.
+3. **A new account has no legacy baseline at all.** Register after 2026-09-01 and
+   every value you ever get is the new formula, so "pre-cutover vs post-cutover"
+   is impossible from day one.
+
+**What to do:** store the formula version and request time beside every ETV value
+you persist. Never compute a trend across the boundary without labelling it. Do
+not send the flag to an endpoint whose schema doesn't list it, and do not assume
+it was honoured. See [`METHODOLOGY.md`](./METHODOLOGY.md).
 
 ---
 
@@ -150,20 +220,39 @@ searches. **It is not proof that web search happened.**
 **Core Web Vitals require browser rendering** _and_ the related JS/resource settings. Enabling one and
 expecting all browser metrics is a common error.
 
-| Gotcha                  | Detail                                                                                                                                                                      |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `max_crawl_pages: 1`    | Disables sitewide checks (canonicalization, HTTPS redirects, 404 behaviour, directory browsing, server signature, WWW redirects). **A one-page crawl is not a site audit.** |
-| `start_url`             | The target is treated as the **domain** in the URL, not a page-only audit. Use Instant Pages for one-page data.                                                             |
-| Sitemaps                | Crawler follows sitemap order; `click_depth` can be `0` and `max_crawl_depth` is ignored; only sitemap-listed pages are crawled.                                            |
-| `enable_xhr`            | Requires `enable_javascript: true`                                                                                                                                          |
-| `custom_js`             | ~**700 ms** max execution, **2,000 characters** max                                                                                                                         |
-| Browser rendering       | Ignored unless the required rendering/JS settings are also enabled                                                                                                          |
-| Anti-bot                | JS-rendered pages can still fail via bot protection, cookies, network, timeouts                                                                                             |
-| `accept_language`       | Locale-sensitive sites deny the crawler without it and return broken pages                                                                                                  |
-| `allowed_subdomains`    | **Ignored while `allow_subdomains: true`**                                                                                                                                  |
-| `robots_txt_merge_mode` | `override` requires supplying `custom_robots_txt`                                                                                                                           |
-| `priority_urls`         | Must be from the same domain                                                                                                                                                |
-| Task response           | `task_post` returns **task creation, not crawl results** — fetch later or use a callback                                                                                    |
+| Gotcha                  | Detail                                                                                                                                                                                                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max_crawl_pages: 1`    | Disables sitewide checks (canonicalization, HTTPS redirects, 404 behaviour, directory browsing, server signature, WWW redirects). **A one-page crawl is not a site audit** — and it is silently degraded, not an error. See below. |
+| `start_url`             | The target is treated as the **domain** in the URL, not a page-only audit. Use Instant Pages for one-page data.                                                                                                                    |
+| Sitemaps                | Crawler follows sitemap order; `click_depth` can be `0` and `max_crawl_depth` is ignored; only sitemap-listed pages are crawled.                                                                                                   |
+| `enable_xhr`            | Requires `enable_javascript: true`                                                                                                                                                                                                 |
+| `custom_js`             | ~**700 ms** max execution, **2,000 characters** max                                                                                                                                                                                |
+| Browser rendering       | Ignored unless the required rendering/JS settings are also enabled                                                                                                                                                                 |
+| Anti-bot                | JS-rendered pages can still fail via bot protection, cookies, network, timeouts                                                                                                                                                    |
+| `accept_language`       | Locale-sensitive sites deny the crawler without it and return broken pages                                                                                                                                                         |
+| `allowed_subdomains`    | **Ignored while `allow_subdomains: true`**                                                                                                                                                                                         |
+| `robots_txt_merge_mode` | `override` requires supplying `custom_robots_txt`                                                                                                                                                                                  |
+| `priority_urls`         | Must be from the same domain                                                                                                                                                                                                       |
+| Task response           | `task_post` returns **task creation, not crawl results** — fetch later or use a callback                                                                                                                                           |
+
+### 5.1 `max_crawl_pages: 1` is worse than you think `[V 2026-09-28]`
+
+DataForSEO changed these defaults to cut crawl time, and the rules are **not uniform**:
+
+| You set                                                       | Result                                                                                                                                                                                   |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max_crawl_pages: 1`, **no** `start_url`, or a homepage in it | These checks are disabled: `test_canonicalization`, `enable_www_redirect_check`, `test_hidden_server_signature`, `test_page_not_found`, `test_directory_browsing`, `test_https_redirect` |
+| `max_crawl_pages: 1` + a **non-homepage** `start_url`         | **All** sitewide checks are disabled                                                                                                                                                     |
+
+**And it can be undone deliberately**: `force_sitewide_checks: true` re-enables
+them for a one-page crawl. That matters because both cases above are
+indistinguishable in the response — you get a clean result either way, and the
+missing checks look like a site with no problems.
+
+**→ In OpenGeo:** if a user asks for a single-page audit we either set
+`force_sitewide_checks: true` and say the crawl is heavier, or we return the
+result with a note naming the checks that did not run. Silently dropping them is
+how a tool reports "no issues" on a site with a www redirect loop.
 
 ---
 

@@ -41,7 +41,11 @@ const frontmatterSchema = z.looseObject({
 });
 
 function parseSkill(path: string, raw: string): SamSkill | null {
-  const match = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(raw);
+  // Tolerate CRLF: a checkout on Windows gives the frontmatter delimiters
+  // `\r\n`, and an LF-only pattern then fails to match — which silently made
+  // every CRLF skill invisible to SAM rather than raising a useful error.
+  const match =
+    /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)([\s\S]*)$/.exec(raw);
   if (!match) throw new Error(`Skill has no frontmatter: ${path}`);
   const parsed = frontmatterSchema.safeParse(parseYaml(match[1]));
   if (!parsed.success) {

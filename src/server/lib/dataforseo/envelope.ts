@@ -9,6 +9,8 @@ import type { ErrorCode } from "@/shared/error-codes";
 // DataforseoApiResponse<T>; nothing else constructs a billing object.
 // ---------------------------------------------------------------------------
 
+import type { EtvProvenance } from "@/shared/etv-versioning";
+
 export type DataforseoApiCallCost = {
   path: string[];
   costUsd: number;
@@ -17,6 +19,13 @@ export type DataforseoApiCallCost = {
 export type DataforseoApiResponse<T> = {
   data: T;
   billing: DataforseoApiCallCost;
+  /**
+   * Present only on endpoints that return an ETV value, so the caller can store
+   * which formula produced the number. DataForSEO switches ETV models on
+   * 2026-11-01, and a stored value without its version becomes unreadable then.
+   * See `@/shared/etv-versioning`.
+   */
+  etv?: EtvProvenance;
 };
 
 /**
