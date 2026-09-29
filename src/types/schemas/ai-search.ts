@@ -106,6 +106,35 @@ const sovMatrixSchema = z.object({
   summary: z.string().max(2000),
 });
 
+/**
+ * One platform's position against its own baseline.
+ *
+ * `deltaPct` is null whenever either side is unknown or the baseline is not
+ * positive. There is no zero-filling: a missing baseline means the index is
+ * uncomputable, and reporting 0% would read as "we measured and you are average".
+ */
+const platformIndexEntrySchema = z.object({
+  platform: z.enum(["chat_gpt", "google"]),
+  metric: z.number().nonnegative().nullable(),
+  baseline: z.number().nonnegative().nullable(),
+  deltaPct: z.number().nullable(),
+  reading: z.string().max(1000),
+});
+
+/**
+ * The cross-platform normalized index.
+ *
+ * `isCombinable` is typed `false` and is not optional, so a UI can assert on it
+ * and a future change cannot quietly make it `true` without failing to compile
+ * at every call site. The two percentages are against different denominators and
+ * must never be added.
+ */
+const platformIndexSchema = z.object({
+  entries: z.array(platformIndexEntrySchema).max(4),
+  isCombinable: z.literal(false),
+  summary: z.string().max(4000),
+});
+
 const brandTopPageKeywordSchema = z.object({
   question: z.string().max(500),
   aiSearchVolume: z.number().int().nonnegative().nullable(),
@@ -185,6 +214,13 @@ export const brandLookupResultSchema = z.object({
    * as "no competitors", which is a different claim from "not computed yet".
    */
   sovMatrix: sovMatrixSchema,
+  /**
+   * The per-platform normalized index.
+   *
+   * Every entry is null whenever no baseline was supplied, which is the normal
+   * case for a one-shot brand lookup — see the `baseline` note on `ShapeArgs`.
+   */
+  platformIndex: platformIndexSchema,
   topPages: z.array(brandTopPageSchema).max(40),
   topQueries: z.array(brandTopQuerySchema).max(50),
   monthlyVolume: z.array(brandMonthlyVolumeSchema),

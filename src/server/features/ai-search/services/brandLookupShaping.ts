@@ -18,6 +18,7 @@ import {
   type CrossOutcome,
 } from "@/server/features/ai-search/services/shareOfVoice";
 import { computeSovMatrix } from "@/server/features/ai-search/services/sovMatrix";
+import { computePlatformIndex } from "@/server/features/ai-search/services/platformIndex";
 import type { BrandLookupResult } from "@/types/schemas/ai-search";
 import type { detectTarget } from "@/shared/targetDetection";
 import {
@@ -58,6 +59,20 @@ export type ShapeArgs = {
   competitorKeys: string[];
   userLocationCode: number;
   userLanguageCode: string;
+  /**
+   * Reference counts for the normalized index, per platform.
+   *
+   * **Optional on purpose.** A brand lookup is a one-shot live query with no
+   * history — there is no "first run" here to baseline against, and a category
+   * median is something we do not collect. So a caller with no comparison set
+   * supplies nothing, and the index reports the gap rather than dividing by a
+   * constant we invented. A surface that *does* have a comparison set (the SOV
+   * matrix, a saved competitor list) passes one in.
+   */
+  baseline?: {
+    googleMentions: number;
+    chatGptMentions: number;
+  } | null;
 };
 
 export function shapeResult(args: ShapeArgs): BrandLookupResult {
@@ -173,6 +188,48 @@ export function shapeResult(args: ShapeArgs): BrandLookupResult {
     ],
   });
 
+  /**
+   * The cross-platform normalized index, for the surface that genuinely needs a
+   * combined view.
+   *
+   * When `args.baseline` is absent — the common case here, since a brand lookup
+   * is a single live query with no history — every entry comes back null with a
+   * reading that says why. That is the designed behaviour, not a gap: the index
+   * is a ratio, so a denominator we invented would make every number derived from
+   * it a fabrication wearing a percentage sign.
+   */
+  const platformIndex = computePlatformIndex({
+    metrics: {
+      ...(perPlatform.some((p) => p.platform === "google")
+        ? {
+            google:
+              perPlatform.find((p) => p.platform === "google")?.mentions ??
+              null,
+          }
+        : {}),
+      ...(perPlatform.some((p) => p.platform === "chat_gpt")
+        ? {
+            chat_gpt:
+              perPlatform.find((p) => p.platform === "chat_gpt")?.mentions ??
+              null,
+          }
+        : {}),
+    },
+    baselines: [
+      {
+        platform: "google",
+        value: args.baseline?.googleMentions ?? 0,
+        basis: "your own Google mentions when monitoring started",
+      },
+      {
+        platform: "chat_gpt",
+        value: args.baseline?.chatGptMentions ?? 0,
+        basis: "your own ChatGPT mentions when monitoring started",
+      },
+    ],
+    metricLabel: "mention count",
+  });
+
   const hasData =
     (totalMentions ?? 0) > 0 ||
     topPages.length > 0 ||
@@ -193,6 +250,7 @@ export function shapeResult(args: ShapeArgs): BrandLookupResult {
     perPlatform,
     shareOfVoice,
     sovMatrix,
+    platformIndex,
     topPages,
     topQueries,
     monthlyVolume,
