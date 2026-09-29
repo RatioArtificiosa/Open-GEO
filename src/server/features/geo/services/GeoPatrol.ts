@@ -6,6 +6,7 @@ import {
   type LlmPlatform,
 } from "@/server/lib/dataforseo/shared";
 import { GeoService } from "@/server/features/geo/services/GeoService";
+import { recordVendorTask } from "@/server/features/geo/services/vendorTaskRecorder";
 import { GeoSetupRepository } from "@/server/features/geo/repositories/GeoSetupRepository";
 import type { GeoAnswerInsert } from "@/server/features/geo/repositories/GeoAnswerRepository";
 import { platformSupportsRetrieval } from "@/server/features/geo/repositories/GeoSetupRepository";
@@ -239,12 +240,35 @@ async function runForTarget(
     }
 
     try {
-      const data = await client.aiSearch.mentionsSearch({
+      const startedAt = new Date().toISOString();
+      const requestBody = {
         target: buildLlmTarget({ type: "domain", value: target.domain }),
         platform: vendorPlatform,
         locationCode,
         languageCode,
         limit: Math.min(remaining, 100),
+      };
+      const data = await client.aiSearch.mentionsSearch(requestBody);
+
+      // The evidence row, written here rather than at the SDK seam because only
+      // this layer knows the project, and a table keyed by project with no
+      // project is a table nobody can read. It is what makes a stored mention
+      // count re-derivable after DataForSEO changes its model — the question a
+      // customer asks when the number moves.
+      //
+      // Deliberately best-effort: a failure to store evidence must not fail a
+      // patrol, so the recorder swallows and logs. The gap is stated rather than
+      // hidden.
+      await recordVendorTask({
+        projectId: input.projectId,
+        path: "v3/ai_optimization/llm_mentions/search/live",
+        requestBody,
+        startedAt,
+        completedAt: new Date().toISOString(),
+        // The mention count is the *headline* of this call's response, and
+        // recording it here means a later model change can be told apart from a
+        // real movement in visibility.
+        responseBody: { answerCount: data.length },
       });
 
       if (data.length === 0) {
