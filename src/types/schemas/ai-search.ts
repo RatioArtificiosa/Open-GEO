@@ -75,6 +75,37 @@ const brandShareOfVoiceSchema = z.object({
   ),
 });
 
+/**
+ * One brand's row in the share-of-voice matrix.
+ *
+ * `cells` is keyed by platform rather than being an array, because a platform
+ * that failed still needs a slot — a missing key would be indistinguishable from
+ * a platform we never attempted.
+ */
+const sovCellSchema = z.object({
+  mentions: z.number().int().nonnegative().nullable(),
+  sharePct: z.number().nullable(),
+});
+
+const sovRowSchema = z.object({
+  label: z.string().max(BRAND_LOOKUP_MAX_INPUT_LENGTH),
+  isTarget: z.boolean(),
+  cells: z.record(z.string(), sovCellSchema),
+  // Mentions summed across platforms, and only mentions. Demand is never summed:
+  // the two platforms' `ai_search_volume` are different units (see CL-212a).
+  totalMentions: z.number().int().nonnegative().nullable(),
+});
+
+const sovMatrixSchema = z.object({
+  rows: z.array(sovRowSchema).max(12),
+  /** Every platform we attempted, in call order. */
+  platforms: z.array(z.enum(["chat_gpt", "google"])),
+  measuredPlatforms: z.array(z.enum(["chat_gpt", "google"])),
+  /** Attempted but failed. A total spanning only measured platforms is partial. */
+  unavailablePlatforms: z.array(z.enum(["chat_gpt", "google"])),
+  summary: z.string().max(2000),
+});
+
 const brandTopPageKeywordSchema = z.object({
   question: z.string().max(500),
   aiSearchVolume: z.number().int().nonnegative().nullable(),
@@ -141,6 +172,19 @@ export const brandLookupResultSchema = z.object({
   // are unreachable anyway (the cache key's param set changed), see the
   // buildCacheKey comment in brandLookup.ts.
   shareOfVoice: brandShareOfVoiceSchema.nullable(),
+  /**
+   * The per-platform breakdown behind `shareOfVoice`.
+   *
+   * Both are returned because they answer different questions: `shareOfVoice` is
+   * "how am I doing against my rivals", the matrix is "where". The rollup sums
+   * away the cells, and a brand at 60% entirely on ChatGPT is the same number as
+   * one at 60% split evenly — different businesses, different next moves.
+   *
+   * Never optional and never defaulted: a cached entry written before the matrix
+   * existed would parse with an undefined `sovMatrix` and the UI would treat that
+   * as "no competitors", which is a different claim from "not computed yet".
+   */
+  sovMatrix: sovMatrixSchema,
   topPages: z.array(brandTopPageSchema).max(40),
   topQueries: z.array(brandTopQuerySchema).max(50),
   monthlyVolume: z.array(brandMonthlyVolumeSchema),

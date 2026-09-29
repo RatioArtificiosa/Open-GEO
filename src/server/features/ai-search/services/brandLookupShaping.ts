@@ -17,6 +17,7 @@ import {
   sumNullable,
   type CrossOutcome,
 } from "@/server/features/ai-search/services/shareOfVoice";
+import { computeSovMatrix } from "@/server/features/ai-search/services/sovMatrix";
 import type { BrandLookupResult } from "@/types/schemas/ai-search";
 import type { detectTarget } from "@/shared/targetDetection";
 import {
@@ -138,13 +139,39 @@ export function shapeResult(args: ShapeArgs): BrandLookupResult {
     ? successfulBundles
     : successfulBundles.filter((b) => b.platform !== "chat_gpt");
   const monthlyVolume = aggregateMonthlyVolume(trendBundles);
+  const crossOutcomes = chatGptLocaleMatches
+    ? args.crossOutcomes
+    : args.crossOutcomes.filter((outcome) => outcome.platform !== "chat_gpt");
   const shareOfVoice = computeShareOfVoice(
-    chatGptLocaleMatches
-      ? args.crossOutcomes
-      : args.crossOutcomes.filter((outcome) => outcome.platform !== "chat_gpt"),
+    crossOutcomes,
     args.detected.value,
     args.competitorKeys,
   );
+  /**
+   * The per-platform breakdown behind the rolled-up `shareOfVoice` above.
+   *
+   * Both are returned because they answer different questions. `shareOfVoice` is
+   * the "how am I doing against my rivals" number; the matrix is the "where" —
+   * the per-platform cells that the rollup sums away. A brand at 60% entirely on
+   * ChatGPT and a brand at 60% split evenly are the same number and different
+   * businesses, and only the matrix tells them apart.
+   *
+   * `attemptedPlatforms` is the union of what the caller *asked for* and what
+   * came back, not just the successes — a platform that failed has no successful
+   * outcome to infer itself from, and dropping it would tell the reader we have
+   * no data on it when in fact we never got to ask.
+   */
+  const sovMatrix = computeSovMatrix({
+    outcomes: crossOutcomes,
+    targetValue: args.detected.value,
+    competitors: args.competitorKeys,
+    attemptedPlatforms: [
+      ...new Set([
+        ...args.crossOutcomes.map((outcome) => outcome.platform),
+        ...(shareOfVoice?.platforms ?? []),
+      ]),
+    ],
+  });
 
   const hasData =
     (totalMentions ?? 0) > 0 ||
@@ -165,6 +192,7 @@ export function shapeResult(args: ShapeArgs): BrandLookupResult {
     totalAiSearchVolume,
     perPlatform,
     shareOfVoice,
+    sovMatrix,
     topPages,
     topQueries,
     monthlyVolume,
