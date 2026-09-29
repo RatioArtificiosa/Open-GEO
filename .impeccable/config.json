@@ -1,0 +1,25 @@
+{
+  "$comment": [
+    "Design-system enforcement for OpenGeo. The tool auto-loads DESIGN.md from the",
+    "repo root, so the rules in that document are the source of truth and this file",
+    "only records the two mechanical exceptions. Do not add an entry here to silence a",
+    "finding you disagree with - fix DESIGN.md or the code, because a suppression is a",
+    "lie about the state of the product."
+  ],
+  "detector": {
+    "ignoreFiles": [
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "**/*.spec.ts",
+      "**/*.spec.tsx"
+    ],
+    "ignoreRules": {
+      "broken-image": {
+        "reason": "The two remaining hits were deliberately malformed HTML fixtures inside test files: page-analyzer.test.ts and site-audit-workflow-helpers.test.ts assert that the crawler DETECTS a missing src and an empty alt. They are the analyser's own test data, not shipped UI. Both are covered by ignoreFiles above; this entry is belt-and-braces in case a fixture moves."
+      }
+    },
+    "designSystem": {
+      "enabled": true
+    }
+  }
+}

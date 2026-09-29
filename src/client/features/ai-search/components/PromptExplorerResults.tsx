@@ -43,13 +43,9 @@ function ModelResultCard({
   modelResult: PromptExplorerModelResult;
   highlightBrand: string | null;
 }) {
-  const accent = getModelAccent(modelResult.model);
-
   if (modelResult.status === "error") {
     return (
-      <article
-        className={`overflow-hidden rounded-r-lg border border-base-300 border-l-4 ${accent.border} bg-base-100`}
-      >
+      <article className="overflow-hidden rounded-lg border border-base-300 bg-base-100">
         <ModelHeader
           model={modelResult.model}
           modelName={null}
@@ -69,7 +65,11 @@ function ModelResultCard({
 
   return (
     <article
-      className={`overflow-hidden rounded-r-lg border border-base-300 border-l-4 ${accent.border} bg-base-100`}
+      className="overflow-hidden rounded-lg border border-base-300 bg-base-100"
+      // Platform identity is carried by the accent dot in ModelHeader, not by a
+      // side rail. A thick coloured edge is the most recognisable tell of a
+      // generated UI, and DESIGN.md §2.3 keeps amber for the signal number only.
+      data-platform={modelResult.model}
     >
       <ModelHeader
         model={modelResult.model}

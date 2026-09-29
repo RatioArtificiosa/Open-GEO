@@ -39,6 +39,7 @@
     "release:publish": "node scripts/publish-release.mjs",
     "sync-plugin-skills": "node scripts/sync-plugin-skills.mjs",
     "test": "vitest run",
+    "detect:slop": "impeccable detect src/",
     "test:watch": "vitest",
     "test:ci": "vitest run --reporter=dot",
     "test:e2e": "playwright test",
@@ -54,7 +55,7 @@
     "repair:rank-locations": "tsx scripts/repair-rank-tracking-locations.ts",
     "seed:rank-tracking": "tsx scripts/seed-rank-tracking.ts",
     "seed:projects": "tsx scripts/seed-projects.ts",
-    "ci:check": "prettier --check . && knip && tsc --noEmit && tsc --noEmit -p badseo/tsconfig.json && oxlint . --type-aware && pnpm sync-plugin-skills && test -z \"$(git status --porcelain -- plugins/opengeo/skills)\""
+    "ci:check": "prettier --check . && knip && tsc --noEmit && tsc --noEmit -p badseo/tsconfig.json && oxlint . --type-aware && pnpm detect:slop && pnpm sync-plugin-skills && test -z \"$(git status --porcelain -- plugins/opengeo/skills)\""
   },
   "cloudflare": {
     "bindings": {
@@ -141,6 +142,7 @@
     "cheerio": "^1.2.0",
     "drizzle-kit": "^0.31.10",
     "effect": "4.0.0-beta.93",
+    "impeccable": "4.1.0",
     "knip": "^5.88.1",
     "oxlint": "^1.50.0",
     "oxlint-tsgolint": "^0.15.0",

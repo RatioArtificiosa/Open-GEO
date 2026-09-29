@@ -9,7 +9,7 @@ export function PromptExplorerLoadingState({ modelCount }: Props) {
       {Array.from({ length: count }).map((_, index) => (
         <article
           key={index}
-          className="overflow-hidden rounded-r-lg border border-base-300 border-l-4 border-l-base-300 bg-base-100"
+          className="overflow-hidden rounded-lg border border-base-300 bg-base-100"
         >
           <header className="flex items-center justify-between border-b border-base-200 bg-base-200/40 px-5 py-3">
             <div className="flex items-center gap-2">

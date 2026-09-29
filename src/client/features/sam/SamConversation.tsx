@@ -206,10 +206,23 @@ export function SamConversation({
 
           {showTyping ? (
             <div className="flex items-center gap-2 pt-1 text-base-content/40">
-              <span className="flex items-center gap-1.5">
-                <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.3s]" />
-                <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.15s]" />
-                <span className="size-1.5 animate-bounce rounded-full bg-current" />
+              {/* A typing indicator, not a toy: a smooth opacity pulse at a slow
+                  cycle. DESIGN.md §7 bans bounce and stagger, and a 1.5s period
+                  reads as "working" rather than "performing". */}
+              <span
+                className="flex items-center gap-1.5"
+                aria-label="SAM is typing"
+              >
+                {[0, 1, 2].map((dot) => (
+                  <span
+                    key={dot}
+                    className="size-1.5 animate-pulse rounded-full bg-current"
+                    style={{
+                      animationDelay: `${dot * 0.2}s`,
+                      animationDuration: "1.5s",
+                    }}
+                  />
+                ))}
               </span>
             </div>
           ) : null}
