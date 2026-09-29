@@ -187,7 +187,8 @@ export const DFS_LABS = {
     unitName: "domain-month",
     caveat:
       "Each item is one month of history, so cost scales with the range " +
-      "requested. `use_improved_etv` applies — see ETV_VERSION.",
+      "requested. Historical endpoints are EXCLUDED from the new ETV model, so " +
+      "this series stays on the legacy formula — see ETV_VERSION.",
   } satisfies DfsPrice,
   /** historical SERP snapshots — the cheapest historical data available. */
   historicalSerps: {
@@ -329,23 +330,54 @@ export const DFS_DOMAIN = {
 
 // ---------------------------------------------------------------------------
 // ETV formula versioning — the 2026-11-01 deadline
+//
+// The price facts here are verified against the vendor's own announcement page
+// (dataforseo.com/update/new-etv-calculation-in-dataforseo-labs-api, fetched
+// 2026-09-28). The decision logic lives in `@/shared/etv-versioning`; this block
+// is only the schedule, so there is one place to look for "when does this change".
 // ---------------------------------------------------------------------------
 export const ETV_VERSION = {
   /**
-   * DataForSEO announced an improved ETV model (layout-aware CTR for AI
+   * DataForSEO announced a new ETV model (layout-aware CTR for AI
    * Overviews / shopping / snippets, intent-aware, clickstream-normalised),
-   * available from 2026-09-02 and defaulting on 2026-11-01.
+   * defaulting on 2026-11-01.
    */
   improvedDefaultFrom: "2026-11-01",
-  earlyAccessFrom: "2026-09-02",
   /**
-   * `domain_metrics_by_categories` / `historical_bulk_traffic_estimation` and
-   * the other ETV-returning Labs endpoints. Documented at announcement time;
-   * NOT yet visible in the individual endpoint parameter tables — verify
-   * per-endpoint before sending it in production.
+   * Accounts registered on or after this date already default to the new model,
+   * so they get no transition window and have no legacy baseline to compare
+   * against.
    */
-  paramName: "use_improved_etv",
-  endpointsAnnounced: [
+  newDefaultFromRegistration: "2026-09-01",
+  /**
+   * The vendor's parameter is `use_new_etv`.
+   *
+   * It is NOT `use_improved_etv` — that name circulates in support-chat
+   * summaries and appears in no documentation page. Sending it is a silent
+   * no-op, not an error, so the mistake would not have been caught by a test.
+   */
+  paramName: "use_new_etv",
+  /**
+   * Endpoints the vendor states carry the new ETV. Historical-returning
+   * endpoints are explicitly EXCLUDED, so a historical series stays legacy and
+   * cannot be restated.
+   */
+  historicalEndpointsExcluded: [
+    "historical_rank_overview",
+    "historical_bulk_traffic_estimation",
+  ],
+  /**
+   * `estimated_paid_traffic_cost` derives from organic ETV and paid CPC, so it
+   * moves with the change even though it is not an `etv` field.
+   */
+  alsoAffectsFields: ["estimated_paid_traffic_cost"],
+  /**
+   * Endpoints the vendor states carry the NEW ETV. The historical ones are
+   * deliberately absent: they are in `historicalEndpointsExcluded` instead, and
+   * a test asserts the two lists stay disjoint. Listing both is how a caller
+   * would end up stamping a historical value `new`.
+   */
+  endpointsWithNewEtv: [
     "categories_for_domain",
     "ranked_keywords",
     "serp_competitors",
@@ -354,15 +386,15 @@ export const ETV_VERSION = {
     "subdomains",
     "relevant_pages",
     "domain_rank_overview",
-    "historical_rank_overview",
-    "historical_bulk_traffic_estimation",
     "page_intersection",
   ] as const,
   caveat:
-    "No backfill is documented. Values computed under the two formulas may " +
-    "not be directly comparable, and a series can show a discontinuity at the " +
-    "cutover even when rankings did not change. We therefore version-stamp " +
-    "every stored ETV value and never trend across the boundary unlabelled.",
+    "No backfill is documented, and historical endpoints are excluded from the " +
+    "new model, so a historical series stays legacy and cannot be restated. " +
+    "Values computed under the two formulas may not be directly comparable, and " +
+    "a series can show a discontinuity at the cutover even when rankings did not " +
+    "change. We therefore version-stamp every stored ETV value and never trend " +
+    "across the boundary unlabelled.",
 } as const;
 
 // ---------------------------------------------------------------------------

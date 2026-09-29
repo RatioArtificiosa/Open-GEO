@@ -67,8 +67,36 @@ describe("dataforseo price book", () => {
 
   it("records the 2026-11-01 ETV cutover so it cannot be forgotten", () => {
     expect(ETV_VERSION.improvedDefaultFrom).toBe("2026-11-01");
-    expect(ETV_VERSION.paramName).toBe("use_improved_etv");
     expect(ETV_VERSION.caveat).toMatch(/version-stamp/i);
+  });
+
+  it("names the vendor's actual parameter", () => {
+    // Regression guard. The name circulated in support-chat summaries as
+    // `use_improved_etv`, which appears in no DataForSEO documentation page.
+    // Sending it is a silent no-op, so nothing but this test would catch it.
+    expect(ETV_VERSION.paramName).toBe("use_new_etv");
+  });
+
+  it("keeps the new-model and historical endpoint lists disjoint", () => {
+    // DataForSEO excludes historical endpoints from the new model. Listing an
+    // endpoint in both is how a stored historical value would get stamped `new`.
+    for (const endpoint of ETV_VERSION.historicalEndpointsExcluded) {
+      expect(ETV_VERSION.endpointsWithNewEtv).not.toContain(endpoint);
+    }
+  });
+
+  it("records that accounts registered after 2026-09-01 default to the new model", () => {
+    // A new account has no legacy baseline, which changes what we can claim in
+    // the UI about a before/after comparison.
+    expect(ETV_VERSION.newDefaultFromRegistration).toBe("2026-09-01");
+  });
+
+  it("records that estimated_paid_traffic_cost moves with the change", () => {
+    // It derives from organic ETV, so code reading it is affected even though
+    // it never touches an `etv` field.
+    expect(ETV_VERSION.alsoAffectsFields).toContain(
+      "estimated_paid_traffic_cost",
+    );
   });
 });
 
