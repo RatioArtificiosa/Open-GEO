@@ -414,6 +414,60 @@ export const aiKeywordMetrics = sqliteTable(
 );
 
 /**
+ * Monthly mentions and demand for one monitored target.
+ *
+ * The `llm_mentions/historical` endpoint returns monthly aggregates only — there
+ * is no `group_range` on it, so a daily reading is not available from that
+ * source. The month is therefore part of the primary key, and a second capture of
+ * the same month **upserts** rather than appends: the vendor revises history, and
+ * a second row for the same month would make a chart double-count it.
+ *
+ * `platform` is in the key for the same reason it is in every other GEO key: two
+ * platforms compute demand differently, and a row that blended them would be
+ * unreadable rather than merely wrong.
+ *
+ * The two volume columns are nullable, and separately so. "No mentions recorded"
+ * and "zero mentions recorded" are different facts, and collapsing them is how a
+ * brand disappears from a chart without anyone being told.
+ */
+export const aiMentionHistory = sqliteTable(
+  "ai_mention_history",
+  {
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    targetId: text("target_id")
+      .notNull()
+      .references(() => geoTargets.id, { onDelete: "cascade" }),
+    platform: text("platform").notNull(),
+    locationCode: integer("location_code").notNull(),
+    languageCode: text("language_code").notNull(),
+    /** `YYYY-MM`. The vendor sends year and month as two integers. */
+    month: text("month").notNull(),
+    mentions: integer("mentions"),
+    aiSearchVolume: integer("ai_search_volume"),
+    capturedAt: text("captured_at").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [
+        table.projectId,
+        table.targetId,
+        table.platform,
+        table.locationCode,
+        table.languageCode,
+        table.month,
+      ],
+    }),
+    index("ai_mention_history_project_target_month_idx").on(
+      table.projectId,
+      table.targetId,
+      table.month,
+    ),
+  ],
+);
+
+/**
  * Google AI Mode snapshots, kept apart from geo_answers because the payload is a
  * different shape (elements, tables, shopping) and the unit of change is the
  * whole answer, not one citation. `answerMarkdown` is verbatim for the same

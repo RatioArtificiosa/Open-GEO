@@ -137,6 +137,7 @@ export const {
   geoTargetMetrics,
   geoCitationDomains,
   aiKeywordMetrics,
+  aiMentionHistory,
   aiModeSnapshots,
   aiModeSnapshotCitations,
 } = schema;
