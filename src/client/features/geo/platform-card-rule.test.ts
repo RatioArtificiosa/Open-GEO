@@ -107,11 +107,24 @@ type Offender = { file: string; line: number; text: string };
  * that was actually shipped was `sumNullable(perPlatform.map(p => p.volume))` —
  * a `map` into a `sum*` helper, with no `reduce` and no `for` anywhere near it.
  * The first version of this pattern looked for `.reduce` and would have missed
- * it. `.map` is here because a map over a platform collection that ends in a
- * demand field *is* the shape; a map that does neither is not flagged, because
- * `PLATFORM_COLLECTION` and `DEMAND_METRIC` must both match too.
+ * it.
+ *
+ * **Iteration alone is not accumulation, and the fourth version of this gate
+ * learned that from a false positive.** `visibilityCard.ts` seeds one entry per
+ * requested platform in a `for`, then maps the provider's `platform` buckets —
+ * carrying `aiSearchVolume` through unchanged, alongside the platform it came
+ * from. The window saw a platform collection, iteration, and a demand field,
+ * and flagged code that sums nothing.
+ *
+ * The difference is **whether the values collapse**. The bug reduces N platform
+ * figures to one number; a per-platform loop or map keeps N. So what counts is
+ * arithmetic *over* the collection — a `sum*` helper, a `reduce`, or an
+ * accumulating assignment. `Math.max` and `.length` were tried and removed: both
+ * appear in correct per-platform code, and a gate that flags them teaches people
+ * to ignore it. Bare `+` and `*` are absent for the same reason — they appear
+ * in every ordinary expression.
  */
-const ACCUMULATES = /(\.reduce|\bfor\s*\(|\.map\s*\()/;
+const ACCUMULATES = /(\.reduce|\bsum[A-Z_a-z0-9]*\s*\(|\+=|\*=)/;
 
 /**
  * Does this window sum a demand metric across platforms?
@@ -128,6 +141,26 @@ function sumsDemandAcrossPlatforms(window: string): boolean {
   );
 }
 
+/**
+ * Reduce one line to the part that can execute.
+ *
+ * Block comments, line comments, and a bare `name: Type;` field declaration are
+ * removed. None of them can sum anything, and each of them was caught producing a
+ * false positive — a window that spans a type declaration and a distant loop is
+ * the same bug as a window that spans two unrelated statements, which the 6-line
+ * limit was supposed to prevent.
+ */
+function strip(line: string): string {
+  const withoutBlock = line.replace(/\/\*[\s\S]*?\*\//g, " ");
+  const withoutLineComment = withoutBlock.replace(/\/\/.*$/, "");
+  const trimmed = withoutLineComment.trim();
+  // A type field with no `=`: `aiSearchVolume: number | null;` or, inside an
+  // object literal, `aiSearchVolume: null,`. Both forms occur, and both are
+  // declarations rather than computations.
+  if (/^[A-Za-z_$][\w$]*\??\s*:\s*[^=;]+[;,]$/.test(trimmed)) return "";
+  return trimmed;
+}
+
 function findOffenders(): Offender[] {
   const offenders: Offender[] = [];
   for (const file of sourceFiles()) {
@@ -142,7 +175,20 @@ function findOffenders(): Offender[] {
       //   sumNullable(
       //     aggregatablePlatforms.map((p) => p.aiSearchVolume),
       // and short enough that two unrelated statements cannot join up.
-      const window = lines.slice(i, i + 6).join("\n");
+      //
+      // Comments and type declarations are **stripped first**. This was the last
+      // false positive: a 6-line window spanning
+      //   aiSearchVolume: number | null;
+      //   /** ... */
+      // joined a demand field in a *type* to a platform loop twenty lines above
+      // it, and a field declaration is not a computation. `strip` also keeps
+      // the prose in these very comments from ever counting as code, which is a
+      // hazard the window had all along.
+      const window = lines
+        .slice(i, i + 6)
+        .map(strip)
+        .filter((entry) => entry !== "")
+        .join("\n");
 
       if (COMBINED_ACCESSOR.test(line)) {
         offenders.push({ file: relative, line: i + 1, text: line.trim() });
