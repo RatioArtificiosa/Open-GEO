@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { EtvBoundaryChart, type EtvChartPoint } from "./EtvBoundaryChart";
+import { ETV_CUTOVER_DATE } from "@/shared/etv-versioning";
 
 /**
  * The GEO visibility panel.
@@ -13,6 +14,22 @@ import { EtvBoundaryChart, type EtvChartPoint } from "./EtvBoundaryChart";
  * attributed to them needs to know these are *estimates from a model*, not
  * measurements, before they act on the number.
  */
+
+/**
+ * The cutover date, written the way a person says it.
+ *
+ * Formatted from `ETV_CUTOVER_DATE` rather than typed into the copy above. A
+ * hardcoded date in prose is a second source of truth that outlives the constant
+ * it mirrors, and this one is quoted on the homepage.
+ */
+const CUTOVER_LABEL = new Date(
+  `${ETV_CUTOVER_DATE}T00:00:00Z`,
+).toLocaleDateString("en-GB", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
 
 type GeoVisibilitySeries = {
   /** Points carrying their own formula version. */
@@ -42,7 +59,7 @@ export function GeoVisibilityPanel({
           A model estimate, not a measurement. Every value is labelled with the
           formula that produced it, because{" "}
           <span className="text-base-content/80">
-            the model changes on 1 November 2026
+            the model changes on {CUTOVER_LABEL}
           </span>
           .
         </p>

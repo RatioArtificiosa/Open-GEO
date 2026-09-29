@@ -3,6 +3,7 @@ import {
   Bot,
   Brain,
   ClipboardCheck,
+  Eye,
   FileText,
   Globe,
   LayoutDashboard,
@@ -79,6 +80,11 @@ const projectNavItems = [
     label: "Context",
     icon: Brain,
   },
+  {
+    to: "/p/$projectId/geo" as const,
+    label: "AI Visibility",
+    icon: Eye,
+  },
 ] as const;
 
 // Project-independent. Rendered inside the project "AI" group when a project
@@ -133,6 +139,7 @@ export function getProjectNavGroups(projectId: string) {
       items: [
         byPath("/p/$projectId/search-performance"),
         byPath("/p/$projectId/rank-tracking"),
+        byPath("/p/$projectId/geo"),
         byPath("/p/$projectId/saved"),
         byPath("/p/$projectId/audit"),
       ],

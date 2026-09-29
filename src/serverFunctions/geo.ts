@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { GeoService } from "@/server/features/geo/services/GeoService";
 import { requireProjectContext } from "@/serverFunctions/middleware";
 import {
@@ -33,10 +34,10 @@ export const upsertGeoTarget = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
   .validator(upsertGeoTargetSchema)
   // `projectId` goes LAST in the spread order. Putting it first would let a
-  // `projectId` inside the validated body overwrite the authorized context -
-  // the schema ignores unknown keys, so that would be a cross-project read or
-  // write. The sibling projectContext function has the same shape and the same
-  // latent ordering; fix both before wiring any UI.
+  // `projectId` inside the validated body overwrite the authorized context: the
+  // schema ignores unknown keys, so that would be a cross-project read or write.
+  // (`updateProjectContext` is safe for a different reason — it passes
+  // `context.projectId` positionally and never spreads `data`.)
   .handler(async ({ data, context }) =>
     GeoService.upsertTarget({ ...data, projectId: context.projectId }),
   );
@@ -141,4 +142,34 @@ export const getGeoAiKeywordHistory = createServerFn({ method: "POST" })
   .validator(getGeoAiKeywordHistorySchema)
   .handler(async ({ data, context }) =>
     GeoService.getAiKeywordHistory(context.projectId, data.keyword),
+  );
+
+// --- ETV series ------------------------------------------------------------
+
+const etvSeriesSchema = z.object({
+  domain: z.string().min(1).max(2048),
+  endpoint: z
+    .enum(["domain_rank_overview", "ranked_keywords", "relevant_pages"])
+    .optional()
+    .describe(
+      "Which Labs endpoint the series came from. Series are never mixed across endpoints.",
+    ),
+  limit: z.number().int().min(1).max(500).optional(),
+});
+
+/**
+ * The stored ETV series, with each point's formula version attached.
+ *
+ * The version travels WITH the value rather than beside it. A chart that has to
+ * look the model up separately will eventually draw a mixed series as a clean
+ * line, which is the exact failure this endpoint exists to prevent.
+ */
+export const getGeoEtvSeries = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(etvSeriesSchema)
+  .handler(async ({ data, context }) =>
+    GeoService.getEtvSeries({
+      ...data,
+      projectId: context.projectId,
+    }),
   );

@@ -209,9 +209,36 @@ function insertPrompts(
   );
 }
 
+/**
+ * Find a target by any spelling the caller might paste.
+ *
+ * Returns null rather than throwing: a service asking about an unmonitored
+ * domain decides how to phrase that, and a NOT_FOUND stack is not a sentence.
+ */
+async function getTargetByDomain(
+  projectId: string,
+  domain: string,
+): Promise<GeoTargetRow | null> {
+  const wanted = domain.trim().toLowerCase();
+  const targets = await listTargets(projectId);
+  return (
+    targets.find(
+      (row) =>
+        (row.domain === wanted ||
+          row.domain ===
+            wanted
+              .replace(/^https?:\/\//, "")
+              .replace(/^www\./, "")
+              .split("/")[0]) ??
+        "",
+    ) ?? null
+  );
+}
+
 export const GeoSetupRepository = {
   listTargets,
   getTarget,
+  getTargetByDomain,
   upsertTarget,
   deleteTarget,
   listPromptSets,

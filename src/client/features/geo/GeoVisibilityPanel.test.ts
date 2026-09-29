@@ -1,5 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { GeoVisibilityPanel } from "./GeoVisibilityPanel";
 import type { EtvPoint } from "./etv-series-view";
@@ -40,6 +42,18 @@ describe("GeoVisibilityPanel", () => {
     // Before a reader acts on a number, they learn what it is.
     expect(html).toContain("A model estimate, not a measurement");
     expect(html).toContain("1 November 2026");
+  });
+
+  it("derives the date from the shared constant, not from prose", () => {
+    // A hardcoded "1 November 2026" in copy is a second source of truth that
+    // outlives the constant it mirrors — and this one is quoted on the homepage.
+    // Rendering the constant's own formatting is what keeps them in step.
+    const source = readFileSync(
+      join(process.cwd(), "src/client/features/geo/GeoVisibilityPanel.tsx"),
+      "utf8",
+    );
+    expect(source).toContain("ETV_CUTOVER_DATE");
+    expect(source).not.toMatch(/\d{1,2} November 20\d\d/);
   });
 
   it("draws and explains the boundary when the series crosses it", () => {
