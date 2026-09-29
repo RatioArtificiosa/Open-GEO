@@ -213,6 +213,7 @@ async function getCitationGap(input: {
   platform: unknown;
   domain?: string;
   since?: string;
+  limit?: number;
 }) {
   const platform = requirePlatform(input.platform);
   const target = await GeoSetupRepository.getTarget(
@@ -241,7 +242,7 @@ async function getCitationGap(input: {
       input.targetId,
       platform,
       input.domain ?? target.domain,
-      { since: input.since, limit: 100 },
+      { since: input.since, limit: input.limit ?? 100 },
     ),
   };
 }

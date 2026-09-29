@@ -38,6 +38,15 @@ import {
 import { createProjectTool } from "@/server/mcp/tools/create-project";
 import { listProjectsTool } from "@/server/mcp/tools/list-projects";
 import {
+  getGeoAnswerHistoryTool,
+  getGeoVisibilityTool,
+  listGeoTargetsTool,
+} from "@/server/mcp/tools/geo-read-tools";
+import {
+  getGeoCitationGapTool,
+  getGeoRunsTool,
+} from "@/server/mcp/tools/geo-diagnostic-tools";
+import {
   getProjectContextTool,
   updateProjectContextTool,
 } from "@/server/mcp/tools/project-context";
@@ -191,6 +200,11 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getBacklinksOverviewTool);
   register(getBacklinksProfileTool);
   register(getSerpResultsTool);
+  register(listGeoTargetsTool);
+  register(getGeoVisibilityTool);
+  register(getGeoCitationGapTool);
+  register(getGeoAnswerHistoryTool);
+  register(getGeoRunsTool);
   register(searchSerpLocationsTool);
   register(createRankTrackerTool);
   register(getRankTrackerTool);
