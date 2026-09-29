@@ -275,10 +275,29 @@ function normaliseUrl(url: string): string {
 function orderByPosition(citations: ParsedCitation[]): void {
   const ordered: ParsedCitation[] = [];
   for (const citation of citations) {
+    // An unpositioned citation has no place in the answer, so it is appended
+    // rather than inserted: ranking it first would be inventing a reading
+    // order, and searching for an insert point would place it at the front for
+    // exactly that reason. Appending is the only position we can defend.
+    if (citation.startIndex === null) {
+      ordered.push(citation);
+      continue;
+    }
     let at = ordered.length;
     for (let i = 0; i < ordered.length; i += 1) {
       const other = ordered[i];
-      if (other !== undefined && sortsAfter(citation, other)) {
+      // Insert before the first *positioned* entry that starts later. The
+      // argument order here is the bug this function was actually written with:
+      // `sortsAfter(candidate, other)` asks "does the candidate go after this
+      // one?", and inserting *before* on that answer reverses the list. It took
+      // two attempts to get right, and the tests caught it both times — because
+      // they assert a *specific* order rather than a count, which is the only
+      // reason a reversal cannot pass quietly.
+      if (
+        other !== undefined &&
+        other.startIndex !== null &&
+        other.startIndex > citation.startIndex
+      ) {
         at = i;
         break;
       }
@@ -291,20 +310,6 @@ function orderByPosition(citations: ParsedCitation[]): void {
   }
   citations.length = 0;
   for (const citation of ordered) citations.push(citation);
-}
-
-/** Does `candidate` belong after `existing`? */
-function sortsAfter(
-  candidate: ParsedCitation,
-  existing: ParsedCitation,
-): boolean {
-  const l = candidate.startIndex;
-  const r = existing.startIndex;
-  // An unpositioned citation has no place in the answer, so claiming it came
-  // first would be inventing a reading order.
-  if (l === null) return false;
-  if (r === null) return true;
-  return l > r;
 }
 
 function describe(result: ParsedAnswer): string {
