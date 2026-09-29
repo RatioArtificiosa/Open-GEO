@@ -1,5 +1,7 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { computeVisibilityScore } from "@/client/features/geo/visibility-score";
+import { buildMentionsTrend, type MentionMonth } from "./mentions-trend";
 import {
   getGeoCitationGap,
   getGeoEtvSeries,
@@ -57,6 +59,41 @@ function ageLabel(iso: string | null | undefined): string | null {
   if (hours < 1) return "less than an hour ago";
   if (hours < 24) return `${hours}h ago`;
   return `${Math.round(hours / 24)}d ago`;
+}
+
+/**
+ * Momentum, 0–100, from the stored series.
+ *
+ * The one score component that is honestly derivable from the archive: the
+ * 13-month direction. Two points are the minimum, because one point is not a
+ * trend — the same rule `buildMentionsTrend` uses, and it returns null for the
+ * same reason.
+ *
+ * `null` below the floor rather than a low score. "We do not have two months
+ * yet" is a different claim from "your visibility is falling", and only the
+ * first is true on day one.
+ */
+function buildMomentumFrom(months: MentionMonth[]): number | null {
+  const trend = buildMentionsTrend(months);
+  if (trend.change === null || trend.firstMeasuredMonth === null) return null;
+  // The change is an absolute count, so it is scaled against the first measured
+  // month rather than an arbitrary ceiling: a brand going 2 → 4 has doubled,
+  // and a brand going 20,000 → 20,001 has not.
+  const base = trend.points.find(
+    (point) => point.month === trend.firstMeasuredMonth,
+  )?.mentions;
+  if (base === null || base === undefined || base <= 0) return null;
+  const relative = trend.change / base;
+  // -100% (lost everything) maps to 0 and +100% (doubled) maps to 100.
+  return Math.max(0, Math.min(100, Math.round(50 + relative * 50)));
+}
+
+function describeMomentum(months: MentionMonth[]): string {
+  const trend = buildMentionsTrend(months);
+  if (trend.change === null) {
+    return "Needs at least two months with a recorded figure. One point is not a trend.";
+  }
+  return `${trend.firstMeasuredMonth} → ${trend.lastMeasuredMonth}, ${trend.change >= 0 ? "+" : ""}${trend.change} mentions across ${trend.measuredCount} measured months.`;
 }
 
 export function useGeoPageData(projectId: string) {
@@ -167,6 +204,54 @@ export function useGeoPageData(projectId: string) {
       }),
   });
 
+  /**
+   * One entry per platform, each with its own months.
+   *
+   * Built here rather than inline in the return value because both the score and
+   * the trend read it, and a platform whose query failed still gets an entry with
+   * empty months — so it renders an honest "no figure yet" rather than
+   * disappearing and leaving the reader to wonder whether it was ever measured.
+   */
+  const platformSeries = TRACKED_PLATFORMS.map((platform, index) => ({
+    platform,
+    months: mentionSeries[index]?.data?.months ?? [],
+    market: mentionSeries[index]?.data?.market ?? null,
+    isLoading: mentionSeries[index]?.isLoading ?? false,
+    errorMessage: geoErrorMessage(
+      mentionSeries[index]?.error,
+      `Could not load the ${platform} mentions history.`,
+    ),
+  }));
+
+  /**
+   * The visibility score, per platform.
+   *
+   * **Assembled from the archive, not from a vendor call** — every input is
+   * something the patrol already stored, so the score costs nothing to show. The
+   * components that cannot be derived from stored levels (share of voice needs a
+   * tracked competitor set; mention coverage needs a category median) arrive as
+   * `null` and the score says so rather than guessing.
+   */
+  const scores = useMemo(
+    () =>
+      platformSeries.map((entry) =>
+        computeVisibilityScore({
+          platform: entry.platform,
+          // Mention coverage and citation authority have no honest source in the
+          // archive today — the first needs a category median we do not have,
+          // the second needs domain-quality data we do not store. They arrive as
+          // null, the score reports the gap, and the reader is told which part
+          // of the number is standing on nothing.
+          mentionCoverage: null,
+          shareOfVoice: null,
+          citationAuthority: null,
+          momentum: buildMomentumFrom(entry.months),
+          evidence: { momentum: describeMomentum(entry.months) },
+        }),
+      ),
+    [platformSeries],
+  );
+
   // `listRuns` is newest-first, so the head is the most recent patrol.
   const lastRunAt = runs.data?.[0]?.startedAt ?? null;
   const freshness = ageLabel(lastRunAt);
@@ -228,22 +313,8 @@ export function useGeoPageData(projectId: string) {
     etvPoints: etvSeries.data?.points ?? [],
     etvFormulaVersions: etvSeries.data?.formulaVersions ?? [],
 
-    /**
-     * One entry per platform, each with its own months. A platform whose query
-     * failed still gets an entry with empty months, so the panel renders an
-     * honest "no figure yet" rather than disappearing and leaving the reader to
-     * wonder whether it was ever measured.
-     */
-    mentionSeries: TRACKED_PLATFORMS.map((platform, index) => ({
-      platform,
-      months: mentionSeries[index]?.data?.months ?? [],
-      market: mentionSeries[index]?.data?.market ?? null,
-      isLoading: mentionSeries[index]?.isLoading ?? false,
-      errorMessage: geoErrorMessage(
-        mentionSeries[index]?.error,
-        `Could not load the ${platform} mentions history.`,
-      ),
-    })),
+    /** One entry per platform; see `platformSeries` above. */
+    mentionSeries: platformSeries,
 
     /**
      * The metered panels. `wantLive` is exposed so the page can put them behind a
@@ -271,5 +342,8 @@ export function useGeoPageData(projectId: string) {
         newLost.error !== null &&
         getErrorCode(newLost.error) === "PAYMENT_REQUIRED",
     },
+
+    /** One score per platform, never combined. */
+    scores,
   };
 }

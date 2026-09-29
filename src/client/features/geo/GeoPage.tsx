@@ -3,6 +3,7 @@ import { GeoVisibilityPanel } from "./GeoVisibilityPanel";
 import { GeoTargetForm } from "./GeoTargetForm";
 import { MentionsTrendPanel } from "./MentionsTrendPanel";
 import { NewLostPanel, TopCitedPanel, MetricFootnote } from "./LivePanels";
+import { ScoreRing } from "./ScoreRing";
 import { useGeoPageData } from "./useGeoPageData";
 
 /**
@@ -155,6 +156,16 @@ export function GeoPage({ projectId }: { projectId: string }) {
                   />
                 ))}
               </div>
+            </section>
+
+            <section
+              aria-label="Visibility score"
+              className="grid grid-cols-1 gap-3 xl:grid-cols-2"
+            >
+              {/* One ring per platform, never a combined one. */}
+              {data.scores.map((score) => (
+                <ScoreRing key={score.platform} score={score} />
+              ))}
             </section>
 
             <section aria-label="Live vendor queries" className="space-y-3">
