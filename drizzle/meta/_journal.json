@@ -344,6 +344,13 @@
       "when": 1790637901703,
       "tag": "0048_opengeo_geo",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "6",
+      "when": 1790647962931,
+      "tag": "0049_domain_metrics",
+      "breakpoints": true
     }
   ]
 }
