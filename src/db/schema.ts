@@ -12,6 +12,7 @@ import * as sqliteGa4 from "./ga4.schema";
 import * as sqliteGsc from "./gsc.schema";
 import * as sqliteTelemetry from "./telemetry.schema";
 import * as sqliteGeo from "./geo.schema";
+import * as sqliteVendorTasks from "./vendor-tasks.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgDomainMetrics from "./pg/domain-metrics.schema";
 import * as pgProjectContext from "./pg/project-context.schema";
@@ -25,6 +26,7 @@ import * as pgGa4 from "./pg/ga4.schema";
 import * as pgGsc from "./pg/gsc.schema";
 import * as pgTelemetry from "./pg/telemetry.schema";
 import * as pgGeo from "./pg/geo.schema";
+import * as pgVendorTasks from "./pg/vendor-tasks.schema";
 
 // Canonical schema barrel. Repositories import their tables from here and the
 // provider-aware `db` from "@/db", so each repository is written ONCE for both
@@ -48,7 +50,8 @@ type AppSchema = typeof sqliteApp &
   typeof sqliteGa4 &
   typeof sqliteGsc &
   typeof sqliteTelemetry &
-  typeof sqliteGeo;
+  typeof sqliteGeo &
+  typeof sqliteVendorTasks;
 
 const runtimeSchema =
   getDatabaseProvider() === "postgres"
@@ -66,6 +69,7 @@ const runtimeSchema =
         ...pgGsc,
         ...pgTelemetry,
         ...pgGeo,
+        ...pgVendorTasks,
       }
     : {
         ...sqliteApp,
@@ -81,6 +85,7 @@ const runtimeSchema =
         ...sqliteGsc,
         ...sqliteTelemetry,
         ...sqliteGeo,
+        ...sqliteVendorTasks,
       };
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- guarded by schema-parity.test.ts
@@ -130,6 +135,7 @@ export const {
   geoPrompts,
   geoSnapshots,
   geoAnswers,
+  geoVendorTasks,
   geoAnswerCitations,
   geoAnswerRetrievals,
   geoFanoutQueries,

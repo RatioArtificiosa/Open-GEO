@@ -204,6 +204,13 @@
       "when": 1790661704470,
       "tag": "0028_icy_shaman",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1790721671799,
+      "tag": "0029_fantastic_magneto",
+      "breakpoints": true
     }
   ]
 }

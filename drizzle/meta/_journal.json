@@ -358,6 +358,13 @@
       "when": 1790661692913,
       "tag": "0050_bumpy_bloodstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "6",
+      "when": 1790721667139,
+      "tag": "0051_ordinary_sprite",
+      "breakpoints": true
     }
   ]
 }
