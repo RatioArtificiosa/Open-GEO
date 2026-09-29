@@ -55,7 +55,14 @@ export type AiKeywordRow = {
   aiSearchVolume: number | null;
 };
 
-type DemandRow = {
+/**
+ * One row of the joined table.
+ *
+ * Exported because `aiNativeScore.ts` consumes it directly — the score is a
+ * summary of a row the table already built, not a second source of truth about
+ * the same two numbers.
+ */
+export type DemandRow = {
   keyword: string;
   googleVolume: number | null;
   aiVolume: number | null;
