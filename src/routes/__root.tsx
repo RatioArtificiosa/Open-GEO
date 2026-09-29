@@ -85,6 +85,16 @@ export const Route = createRootRoute({
       },
       { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
       { rel: "manifest", href: "/site.webmanifest" },
+      {
+        // Agent discovery, per the llms.txt spec v2: `alternate` names the
+        // markdown version of this page, `describedby` names the llms.txt that
+        // covers it. A crawler that never sees the file will never fetch it, and
+        // the whole point is that an agent can onboard without a human.
+        rel: "alternate",
+        type: "text/markdown",
+        href: "/llms.txt",
+      },
+      { rel: "describedby", href: "/llms.txt" },
     ],
     scripts: [],
   }),

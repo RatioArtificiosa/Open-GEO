@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as AuthErrorRouteImport } from './routes/auth-error'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
@@ -78,6 +79,11 @@ const VerifyEmailRoute = VerifyEmailRouteImport.update({
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
+  id: '/llms.txt',
+  path: '/llms.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -392,6 +398,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/auth-error': typeof AuthErrorRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/llms.txt': typeof LlmsDottxtRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/.well-known/openai-apps-challenge': typeof Char91DotwellKnownChar93OpenaiAppsChallengeRoute
@@ -450,6 +457,7 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/auth-error': typeof AuthErrorRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/llms.txt': typeof LlmsDottxtRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/.well-known/openai-apps-challenge': typeof Char91DotwellKnownChar93OpenaiAppsChallengeRoute
@@ -507,6 +515,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/auth-error': typeof AuthErrorRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/llms.txt': typeof LlmsDottxtRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/.well-known/openai-apps-challenge': typeof Char91DotwellKnownChar93OpenaiAppsChallengeRoute
@@ -568,6 +577,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth-error'
     | '/forgot-password'
+    | '/llms.txt'
     | '/reset-password'
     | '/verify-email'
     | '/.well-known/openai-apps-challenge'
@@ -626,6 +636,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth-error'
     | '/forgot-password'
+    | '/llms.txt'
     | '/reset-password'
     | '/verify-email'
     | '/.well-known/openai-apps-challenge'
@@ -682,6 +693,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth-error'
     | '/forgot-password'
+    | '/llms.txt'
     | '/reset-password'
     | '/verify-email'
     | '/.well-known/openai-apps-challenge'
@@ -745,6 +757,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   AuthErrorRoute: typeof AuthErrorRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
+  LlmsDottxtRoute: typeof LlmsDottxtRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   Char91DotwellKnownChar93OpenaiAppsChallengeRoute: typeof Char91DotwellKnownChar93OpenaiAppsChallengeRoute
@@ -774,6 +787,13 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/llms.txt': {
+      id: '/llms.txt'
+      path: '/llms.txt'
+      fullPath: '/llms.txt'
+      preLoaderRoute: typeof LlmsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forgot-password': {
@@ -1379,6 +1399,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   AuthErrorRoute: AuthErrorRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  LlmsDottxtRoute: LlmsDottxtRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   Char91DotwellKnownChar93OpenaiAppsChallengeRoute:
