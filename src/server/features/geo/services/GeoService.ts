@@ -145,6 +145,16 @@ async function createPromptSet(input: {
   return set;
 }
 
+/** Delete a prompt set. Its prompts cascade. */
+async function deletePromptSet(projectId: string, promptSetId: string) {
+  await runBatch((tx) => [
+    GeoSetupRepository.deletePromptSet(tx, projectId, promptSetId),
+  ]);
+  return (
+    (await GeoSetupRepository.getPromptSet(projectId, promptSetId)) === null
+  );
+}
+
 // ---------------------------------------------------------------------------
 // The archive
 // ---------------------------------------------------------------------------
@@ -389,6 +399,7 @@ export const GeoService = {
   deleteTarget,
   listPromptSets,
   createPromptSet,
+  deletePromptSet,
   getVisibility,
   getCitationGap,
   getAnswer,

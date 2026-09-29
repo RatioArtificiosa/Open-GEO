@@ -22,11 +22,11 @@ import {
 } from "@/db/schema";
 import type { GeoPlatform, GeoTx } from "./GeoSetupRepository";
 
-export type GeoSnapshotRow = typeof geoSnapshots.$inferSelect;
-export type GeoTargetMetricRow = typeof geoTargetMetrics.$inferSelect;
-export type GeoCitationDomainRow = typeof geoCitationDomains.$inferSelect;
-export type AiKeywordMetricRow = typeof aiKeywordMetrics.$inferSelect;
-export type AiModeSnapshotRow = typeof aiModeSnapshots.$inferSelect;
+type GeoSnapshotRow = typeof geoSnapshots.$inferSelect;
+type GeoTargetMetricRow = typeof geoTargetMetrics.$inferSelect;
+type GeoCitationDomainRow = typeof geoCitationDomains.$inferSelect;
+type AiKeywordMetricRow = typeof aiKeywordMetrics.$inferSelect;
+type AiModeSnapshotRow = typeof aiModeSnapshots.$inferSelect;
 
 // ---------------------------------------------------------------------------
 // Snapshots

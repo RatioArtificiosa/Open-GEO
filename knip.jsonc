@@ -22,6 +22,11 @@
     "src/db/pg/schema.ts",
     // Standalone CLI/dev scripts, invoked via package.json scripts
     "scripts/**",
+    // TanStack server functions are the app's API surface: they are called
+    // from route components and MCP, not imported by each other. Nothing in
+    // the module graph imports them, so without this every server function
+    // reads as an unused export.
+    "src/serverFunctions/**/*.ts",
   ],
   // badseo/ is the standalone broken-SEO fixture worker (own deps/config),
   // like web/ it isn't part of the app's module graph.
