@@ -55,69 +55,100 @@ function code(file: string): string {
  * The first version of this check flagged `citedSources.ts`, which groups rows
  * **by** platform and caps each group separately — the opposite of the bug.
  * Flagging it taught the lesson the rule is built on: **mentioning a platform and
- * summing a platform are different shapes, and only one of them is wrong.** So
- * `flatMap` on its own is not a signal, and neither is a `reduce` that never
- * touches a per-platform metric.
+ * summing a platform are different shapes, and only one of them is wrong.**
+ *
+ * Three versions later the pattern needs the *whole* violation within a few
+ * characters: a platform collection, mapped or reduced, into a **demand** field.
+ * A wider window re-flagged `shareOfVoice.ts`, which computes a per-platform
+ * share — correct, and never a single number.
  */
 const PLATFORM_COLLECTION =
-  /(perPlatform|byPlatform|platformBuckets|platformSeries|platforms\b)/;
-const DEMAND_METRIC =
-  /(ai_?search_?volume|aiSearchVolume|capturedVolume|\bmentions\b)/i;
-
-/** An explicit combined accessor would be the bug in its most obvious form. */
-const COMBINED_ACCESSOR =
-  /\b(totalMentions|allPlatforms|combinedMentions|blendedVisibility|mergedVolume)\b/;
+  /(perPlatform|byPlatform|platformBuckets|platformSeries|platforms\b|aggregatablePlatforms|filteredPlatforms)/;
 
 /**
- * Where the rule is enforced.
+ * A demand metric — and only a demand metric.
  *
- * Scoped to the **GEO** feature deliberately, and the reason is in the history of
- * this file: a repo-wide version flagged `ai-search`'s `brandLookupShaping.ts`,
- * which genuinely does sum `aiSearchVolume` across `chat_gpt` and `google`. That
- * is a real violation and it is recorded as `CL-135` rather than silently
- * allowed here — but a gate that fires on a known, unfixed violation in a
- * neighbouring feature stops being a gate and becomes background noise. People
- * learn to ignore it, and then it catches nothing.
- *
- * So: this file polices GEO, where the rule is a promise the product makes in
- * its own copy. `ai-search` is tracked separately and honestly.
+ * `mentions` is deliberately absent. Both platforms count the same kind of
+ * event, so 10 + 5 is a meaningful 15, and a rule that banned it would flag
+ * correct code and teach the gate to be wrong. The rule is about **units**, not
+ * about arithmetic.
  */
-const GEO_ROOT = join(SRC, "client/features/geo");
-const GEO_SERVICE = join(SRC, "server/features/geo");
+const DEMAND_METRIC = /(ai_?search_?volume|aiSearchVolume|capturedVolume)/i;
 
-/** The source files the GEO feature actually owns. */
-function geoSourceFiles(): string[] {
-  return [
-    ...sourceFiles(GEO_ROOT),
-    ...sourceFiles(GEO_SERVICE),
-    ...sourceFiles(join(SRC, "serverFunctions")),
-  ];
-}
+/**
+ * An explicit combined accessor would be the bug with no computation to hide
+ * behind.
+ *
+ * `totalAiSearchVolume` is *not* listed: it is a field that now carries one
+ * platform's figure under an honest label ("ChatGPT demand"), which is the fix
+ * rather than the fault.
+ */
+const COMBINED_ACCESSOR =
+  /\b(allPlatforms|combinedVolume|blendedVisibility|mergedVolume|totalDemand)\b/;
 
+/**
+ * Where the rule is enforced: **the whole repo.**
+ *
+ * It was scoped to GEO when first written, because it had just found a real
+ * violation in `ai-search` (`brandLookupShaping.ts` summing `aiSearchVolume`
+ * across `chat_gpt` and `google`) and a check that fires on a known, unfixed
+ * violation next door stops being a gate and becomes background noise. That
+ * violation is now fixed (CL-135) with three behavioural tests pinning it, so
+ * the scope is back to everything — which is where it belongs, because the
+ * mistake is not feature-specific and the next person to write it will not know
+ * this file exists.
+ */
 type Offender = { file: string; line: number; text: string };
+
+/**
+ * Any accumulation. A demand metric alone is not a violation.
+ *
+ * `.map` is in this list because of what the self-test below caught: the bug
+ * that was actually shipped was `sumNullable(perPlatform.map(p => p.volume))` —
+ * a `map` into a `sum*` helper, with no `reduce` and no `for` anywhere near it.
+ * The first version of this pattern looked for `.reduce` and would have missed
+ * it. `.map` is here because a map over a platform collection that ends in a
+ * demand field *is* the shape; a map that does neither is not flagged, because
+ * `PLATFORM_COLLECTION` and `DEMAND_METRIC` must both match too.
+ */
+const ACCUMULATES = /(\.reduce|\bfor\s*\(|\.map\s*\()/;
+
+/**
+ * Does this window sum a demand metric across platforms?
+ *
+ * Named so the self-tests below exercise *this* function rather than
+ * re-implementing its three conditions — a copy of the logic in a test proves
+ * nothing about the logic that runs in the scan.
+ */
+function sumsDemandAcrossPlatforms(window: string): boolean {
+  return (
+    ACCUMULATES.test(window) &&
+    PLATFORM_COLLECTION.test(window) &&
+    DEMAND_METRIC.test(window)
+  );
+}
 
 function findOffenders(): Offender[] {
   const offenders: Offender[] = [];
-  for (const file of geoSourceFiles()) {
+  for (const file of sourceFiles()) {
     const relative = file.slice(SRC.length + 1).replaceAll("\\", "/");
-    const lines = code(file).split("\n");
+    const source = code(file);
+    const lines = source.split("\n");
+    const hasPlatforms = PLATFORM_COLLECTION.test(source);
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i] ?? "";
-      // A 12-line window: enough to see the accumulator and the collection it
-      // runs over, short enough that two unrelated statements do not join up.
-      const window = lines.slice(i, i + 12).join("\n");
+      // A 6-line window: enough for a wrapped
+      //   sumNullable(
+      //     aggregatablePlatforms.map((p) => p.aiSearchVolume),
+      // and short enough that two unrelated statements cannot join up.
+      const window = lines.slice(i, i + 6).join("\n");
 
       if (COMBINED_ACCESSOR.test(line)) {
         offenders.push({ file: relative, line: i + 1, text: line.trim() });
         continue;
       }
-      const accumulates = /\.reduce\s*\(|for\s*\(|\+=/.test(window);
-      if (
-        accumulates &&
-        PLATFORM_COLLECTION.test(window) &&
-        DEMAND_METRIC.test(window)
-      ) {
+      if (hasPlatforms && sumsDemandAcrossPlatforms(window)) {
         offenders.push({ file: relative, line: i + 1, text: line.trim() });
       }
     }
@@ -131,7 +162,7 @@ describe("the platform card rule", () => {
   it("reads a real number of source files", () => {
     // The most dangerous failure mode for a source-scanning gate is a wrong path
     // that has been passing vacuously since the day it was written.
-    expect(geoSourceFiles().length).toBeGreaterThan(5);
+    expect(sourceFiles().length).toBeGreaterThan(50);
   });
 
   it("has no code path that sums across platforms", () => {
@@ -168,5 +199,49 @@ describe("the platform card rule", () => {
     );
     expect(service).toMatch(/retrievalAvailable/);
     expect(service).toMatch(/reason:/);
+  });
+
+  it("would actually catch the bug it was written for", () => {
+    // A gate that cannot fail is not a gate. This is the exact statement the
+    // CL-132 scan found live in `brandLookupShaping.ts`:
+    //
+    //   const totalAiSearchVolume = sumNullable(
+    //     aggregatablePlatforms.map((p) => p.aiSearchVolume),
+    //   );
+    //
+    // It caught a second gap in its own patterns on the first run —
+    // `aggregatablePlatforms` was not in `PLATFORM_COLLECTION` — which is the
+    // argument for having this test at all.
+    const theBugThatWasShipped = [
+      "const totalAiSearchVolume = sumNullable(",
+      "  aggregatablePlatforms.map((p) => p.aiSearchVolume),",
+      ");",
+    ].join("\n");
+    expect(sumsDemandAcrossPlatforms(theBugThatWasShipped)).toBe(true);
+  });
+
+  it("does not flag a legitimate per-platform grouping", () => {
+    // The false positive that the first version produced. `citedSources.ts`
+    // buckets rows by platform and caps each bucket — the opposite of the bug, and
+    // a gate that flags it is a gate people learn to ignore.
+    const grouping = [
+      "const byPlatform = new Map<LlmPlatform, typeof rows>();",
+      "for (const row of rows) {",
+      "  const list = byPlatform.get(row.platform) ?? [];",
+      "  list.push(row);",
+      "}",
+    ].join("\n");
+    expect(sumsDemandAcrossPlatforms(grouping)).toBe(false);
+  });
+
+  it("does not flag a mention sum, because a mention is a mention", () => {
+    // 10 + 5 is 15 and is meaningful across platforms. A rule that banned it
+    // would be wrong, and a gate that is wrong is worse than no gate.
+    const mentionSum = [
+      "const totalMentions = sumNullable(",
+      "  aggregatablePlatforms.map((p) => p.mentions),",
+      ");",
+    ].join("\n");
+    expect(sumsDemandAcrossPlatforms(mentionSum)).toBe(false);
   });
 });

@@ -210,6 +210,43 @@ describe("shapeResult", () => {
     expect(result.aggregatesAreDomainLevel).toBe(true);
     expect(result.resolvedTarget).toBe("acme.com/blog");
   });
+
+  it("does not add Google demand to ChatGPT demand", () => {
+    // The two figures are not the same unit. Google's `ai_search_volume` is real
+    // search volume; ChatGPT's is People-Also-Ask modelled — we measured
+    // 12,621,380 against 63,850 for one keyword. Summing them produces a
+    // confident number that means nothing, so the field carries ChatGPT only and
+    // the card is labelled "ChatGPT demand".
+    //
+    // This fixture uses 9,000,000 and 50 rather than realistic magnitudes: any
+    // sum is visibly absurd, which is the point.
+    const result = shapeResult(
+      baseArgs({
+        platformBundles: [
+          platformBundle("chat_gpt", 10, 50),
+          platformBundle("google", 5, 9_000_000),
+        ],
+      }),
+    );
+    expect(result.totalAiSearchVolume).toBe(50);
+    expect(result.totalAiSearchVolume).not.toBe(9_000_050);
+  });
+
+  it("still adds mentions across platforms, because a mention is a mention", () => {
+    // The rule is about *units*, not about arithmetic. Mentions count the same
+    // kind of event on both platforms, so 10 + 5 is 15 and is meaningful.
+    const result = shapeResult(baseArgs());
+    expect(result.totalMentions).toBe(15);
+  });
+
+  it("reports a null demand figure when ChatGPT is not in the result", () => {
+    // Better an absent number than Google's figure wearing the label "ChatGPT
+    // demand" — which is the specific confusion this field is guarding against.
+    const result = shapeResult(
+      baseArgs({ platformBundles: [platformBundle("google", 5, 9_000_000)] }),
+    );
+    expect(result.totalAiSearchVolume).toBeNull();
+  });
 });
 
 function page(url: string): LlmTopPagesItem {

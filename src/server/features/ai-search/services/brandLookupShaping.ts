@@ -98,12 +98,27 @@ export function shapeResult(args: ShapeArgs): BrandLookupResult {
   const aggregatablePlatforms = perPlatform.filter(
     (p) => chatGptLocaleMatches || p.platform !== "chat_gpt",
   );
+  // `mentions` is summable across platforms: a mention is a mention, and the
+  // two platforms count the same kind of event.
   const totalMentions = sumNullable(
     aggregatablePlatforms.map((p) => p.mentions),
   );
-  const totalAiSearchVolume = sumNullable(
-    aggregatablePlatforms.map((p) => p.aiSearchVolume),
-  );
+
+  // `aiSearchVolume` is **not** summable across platforms, and the difference is
+  // not subtle. Google's figure is real search volume; ChatGPT's is
+  // People-Also-Ask modelled. We measured 12,621,380 against 63,850 for a single
+  // keyword — a ratio of roughly 198×. Adding them yields a number that looks
+  // authoritative and means nothing, and the tooltip could not rescue it
+  // because a reader has already seen one figure by then.
+  //
+  // So the combined field is the **ChatGPT** figure only, and it is null when
+  // ChatGPT is not in the result. The card's label says "ChatGPT" for exactly
+  // this reason; `perPlatform` carries both, side by side, and is what a reader
+  // compares.
+  const chatGptVolume = aggregatablePlatforms.find(
+    (p) => p.platform === "chat_gpt",
+  )?.aiSearchVolume;
+  const totalAiSearchVolume = chatGptVolume ?? null;
 
   const topPages = deriveCitedSources(
     successfulBundles.map((bundle) => ({

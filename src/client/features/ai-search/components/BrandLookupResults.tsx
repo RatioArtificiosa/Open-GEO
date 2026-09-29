@@ -139,8 +139,8 @@ function StatsCard({ result }: { result: BrandLookupResult }) {
           isDomainLevel={result.aggregatesAreDomainLevel}
         />
         <StatBlock
-          label="AI search volume"
-          tooltip="Estimated monthly search demand for prompts where the searched brand or domain appears in AI answers. This is prompt demand, not mention count."
+          label="ChatGPT demand"
+          tooltip="Estimated monthly conversational demand for prompts where the searched brand or domain appears in ChatGPT answers. This is one platform only: Google's AI Overview demand is measured differently, so the two are shown side by side below rather than added together."
           value={result.totalAiSearchVolume}
           perPlatform={result.perPlatform}
           metric="aiSearchVolume"
