@@ -1,6 +1,12 @@
 import { AppError } from "@/server/lib/errors";
 import { getRequiredEnvValue } from "@/server/lib/runtime-env";
 import { demoResponseFor } from "@/server/lib/dataforseo/demo-fixtures";
+import {
+  gateFor,
+  RateGate,
+  Semaphore,
+  withRateSlot,
+} from "@/server/lib/dataforseo/gates";
 import type { ErrorCode } from "@/shared/error-codes";
 // Type-only: erased at compile, so no runtime cycle with envelope.ts (which
 // imports DataforseoErrorClassifier from here the same way).
@@ -188,15 +194,34 @@ async function requestDataforseo<TTask extends DataforseoTaskLike>(
     options.classify,
     options.maxServerErrorRetries,
   );
-  const response = await doFetch(`${options.baseUrl ?? API_BASE}${path}`, {
-    method,
-    headers: {
-      Accept: "application/json",
-      ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
-    },
-    body: method === "POST" ? JSON.stringify(body) : undefined,
-    signal: options.signal,
-  });
+  // The vendor's own ceilings, enforced at the one seam every call passes
+  // through. Placed here — after the demo short-circuit, before the network —
+  // for three reasons: demo mode stays free and instant, a new endpoint is
+  // bounded without touching its module, and the bound applies to `task_get`
+  // polling exactly as it does to a live call, which matters because polling is
+  // the term that actually exhausts the account budget.
+  //
+  // Waiting here is deliberate and it is what the limits module is for: a
+  // customer-visible request must not fail because a sibling fan-out is running.
+  // `options.signal` still governs the wait, so a cancelled request stops
+  // queueing rather than sitting in line for a slot it will never use.
+  const gate = gateFor(path);
+  const send = async (): Promise<Response> =>
+    doFetch(`${options.baseUrl ?? API_BASE}${path}`, {
+      method,
+      headers: {
+        Accept: "application/json",
+        ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
+      },
+      body: method === "POST" ? JSON.stringify(body) : undefined,
+      signal: options.signal,
+    });
+  const response =
+    gate instanceof Semaphore
+      ? await gate.run(send)
+      : gate instanceof RateGate
+        ? await withRateSlot(gate, send, options.signal)
+        : await send();
   const text = await response.text();
   if (text === "") return null;
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the task type is the caller's claim about the payload; billing metadata and item fields are validated downstream (envelope.ts + section Zod schemas)
