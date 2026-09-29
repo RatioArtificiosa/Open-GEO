@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { dataforseoGet, dataforseoPost } from "@/server/lib/dataforseo/core";
+import { NO_RETRY_BILLED_POST } from "@/server/lib/dataforseo/billedTasks";
 import { MAX_TASKS_PER_POST } from "@/server/lib/dataforseo/shared";
 import {
   assertOk,
@@ -247,6 +248,13 @@ export async function postRankCheckTasks(input: {
       // DataForSEO task id back to our keyword without relying on order.
       tag: `${task.keywordId}:${task.device}`,
     })),
+    // No server-error retry. This post is billed when accepted, so a 5xx on the
+    // way back does not prove the provider skipped the charge — replaying it
+    // creates a *second* batch of billed tasks and the customer pays twice for
+    // work done once. This call was missing the opt-out and inherited the shared
+    // default of two retries; see `billedTasks.ts` for the convention and the
+    // gate that keeps the next post from repeating it.
+    NO_RETRY_BILLED_POST,
   );
 
   if (!response || response.status_code !== 20000) {
