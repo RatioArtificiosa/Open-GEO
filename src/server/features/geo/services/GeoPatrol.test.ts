@@ -55,8 +55,17 @@ function mentionsCall(): Record<string, unknown> {
   return Object.fromEntries(Object.entries(first[0]));
 }
 
+// The module mock replaces the WHOLE module, so anything GeoPatrol imports from
+// it must be re-declared here. Forgetting one makes the patrol throw at call
+// time rather than at import time, which reads as "no mentions found" — the
+// worst possible failure mode for a monitoring job.
+//
+// `platformSupportsRetrieval` is declared rather than imported for real:
+// `importActual` would pull the repository's `@/db` dependency in, which reads
+// `cloudflare:workers`, a Workers-only module vitest cannot resolve.
 vi.mock("@/server/features/geo/repositories/GeoSetupRepository", () => ({
   GeoSetupRepository: { listTargets },
+  platformSupportsRetrieval: (platform: string) => platform === "chat_gpt",
 }));
 vi.mock("@/server/features/geo/services/GeoService", () => ({
   GeoService: { recordRun },
@@ -86,15 +95,40 @@ const CUSTOMER = {
   projectId: "p1",
 };
 
-function mentionItem(overrides: Record<string, unknown> = {}) {
+/**
+ * Build one vendor mention row.
+ *
+ * `citations` and `searchResults` are separate on purpose: they are different
+ * sets in the real payload, and the difference between them is the gap. A helper
+ * that derived one from the other would make that impossible to test.
+ */
+function mentionItem(
+  options: {
+    citations?: string[];
+    searchResults?: string[] | null;
+  } = {},
+) {
+  const citations = options.citations ?? ["https://acme.com/pricing"];
   return {
     question: "best geo tool",
-    sources: [
-      { url: "https://acme.com/pricing", title: "Pricing", domain: "acme.com" },
-    ],
+    sources: citations.map((url) => ({
+      url,
+      title: "Pricing",
+      domain: "acme.com",
+    })),
+    // `null` is what DataForSEO sends for google. The default here is a
+    // non-null list so a test that does not care about the gap still exercises
+    // the retrieval path.
+    search_results:
+      options.searchResults === null
+        ? null
+        : (options.searchResults ?? citations).map((url) => ({
+            url,
+            title: "Pricing",
+            domain: "acme.com",
+          })),
     ai_search_volume: 1200,
     last_response_at: "2026-05-01 00:00:00 +00:00",
-    ...overrides,
   };
 }
 
@@ -134,30 +168,78 @@ describe("GeoPatrol", () => {
     expect(runInput.answers[0].citations[0].domain).toBe("acme.com");
   });
 
-  it("records a retrieval for ChatGPT, which reports one", async () => {
-    reset([mentionItem()]);
+  it("records retrievals from search_results, not from the citation set", async () => {
+    // The two are different sets. `sources` is what the model CITED;
+    // `search_results` is everything it RETRIEVED, including unused entries.
+    // Copying citations into retrievals — which an earlier version did — makes
+    // the retrieved-but-uncited gap permanently empty, so the headline feature
+    // would silently return "nothing in the gap" forever.
+    reset([mentionItem({ searchResults: ["https://acme.com/a"] })]);
     await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,
       createdBy: "schedule",
       platforms: ["chat_gpt"],
     });
-    const runInput = recordedRun();
-    expect(runInput.answers[0].retrievals).toHaveLength(1);
+    const answer = recordedRun().answers[0];
+    expect(answer.retrievals).toEqual([
+      { url: "https://acme.com/a", domain: "acme.com", rank: 1 },
+    ]);
   });
 
-  it("records no retrieval for Google, which does not report one", async () => {
-    // The llm_mentions payload does not separate retrieved from cited. Claiming
-    // a retrieval we did not observe would invent the gap.
-    reset([mentionItem()]);
+  it("keeps a retrieved-but-uncited page in retrievals and out of citations", async () => {
+    // The whole product in one assertion: a page the model read and passed over.
+    reset([
+      mentionItem({
+        citations: ["https://acme.com/pricing"],
+        searchResults: [
+          "https://acme.com/pricing",
+          "https://acme.com/comparison",
+        ],
+      }),
+    ]);
+    await GeoPatrol.run({
+      projectId: "p1",
+      customer: CUSTOMER,
+      createdBy: "schedule",
+      platforms: ["chat_gpt"],
+    });
+    const answer = recordedRun().answers[0];
+    expect(answer.citations.map((c) => c.url)).toEqual([
+      "https://acme.com/pricing",
+    ]);
+    // The uncited page is present as a retrieval, so the gap query can find it.
+    expect(answer.retrievals?.map((r) => r.url)).toEqual([
+      "https://acme.com/pricing",
+      "https://acme.com/comparison",
+    ]);
+  });
+
+  it("records no retrieval for Google, whose payload has no search_results", async () => {
+    // DataForSEO returns `search_results: null` for google. Claiming a
+    // retrieval we did not observe would invent the gap.
+    reset([mentionItem({ searchResults: ["https://acme.com/a"] })]);
     await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,
       createdBy: "schedule",
       platforms: ["google_ai_overview"],
     });
-    const runInput = recordedRun();
-    expect(runInput.answers[0].retrievals).toBeUndefined();
+    expect(recordedRun().answers[0].retrievals).toBeUndefined();
+  });
+
+  it("leaves retrievals undefined when ChatGPT returns no search_results", async () => {
+    // "No retrieval data" and "the model retrieved nothing" are different
+    // claims. Only the first is true here, and an empty array would claim the
+    // second.
+    reset([mentionItem({ searchResults: null })]);
+    await GeoPatrol.run({
+      projectId: "p1",
+      customer: CUSTOMER,
+      createdBy: "schedule",
+      platforms: ["chat_gpt"],
+    });
+    expect(recordedRun().answers[0].retrievals).toBeUndefined();
   });
 
   it("skips a platform llm_mentions does not serve, and says so", async () => {
@@ -250,7 +332,9 @@ describe("GeoPatrol", () => {
   });
 
   it("skips a mention with no question rather than storing an empty prompt", async () => {
-    reset([mentionItem({ question: null })]);
+    // An empty prompt would be indistinguishable from "the model was asked
+    // nothing", and it would poison every later filter on the archive.
+    reset([{ ...mentionItem(), question: null }]);
     const result = await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,

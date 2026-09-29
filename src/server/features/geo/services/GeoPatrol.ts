@@ -8,6 +8,7 @@ import {
 import { GeoService } from "@/server/features/geo/services/GeoService";
 import { GeoSetupRepository } from "@/server/features/geo/repositories/GeoSetupRepository";
 import type { GeoAnswerInsert } from "@/server/features/geo/repositories/GeoAnswerRepository";
+import { platformSupportsRetrieval } from "@/server/features/geo/repositories/GeoSetupRepository";
 import type { GeoPlatform } from "@/server/features/geo/repositories/GeoSetupRepository";
 import type { LlmMentionItem } from "@/server/lib/dataforseoLlmSchemas";
 import type { BillingCustomerContext } from "@/server/billing/subscription";
@@ -122,6 +123,29 @@ function toAnswerRow(input: {
     rank: index + 1,
   }));
 
+  // Retrievals come from `search_results` — "all web search outputs the model
+  // retrieved while looking up information, including duplicates and unused
+  // entries" — which is a SUPERSET of `sources` ("the sources the model cited or
+  // relied on in its final answer").
+  //
+  // That difference is the retrieved-but-uncited gap, which is the one thing
+  // this product sells. An earlier version of this file copied the citation set
+  // into retrievals, which made the gap permanently empty: every retrieved page
+  // matched a cited page and the LEFT JOIN found nothing. The page looked right
+  // and the feature did not work.
+  //
+  // `search_results` is chat_gpt-only (DataForSEO returns null for google), which
+  // is the same limitation `RETRIEVAL_PLATFORMS` encodes — so this is the one
+  // place that guard is applied, and the reason for it is the field, not a
+  // platform name.
+  const retrievals = input.item.search_results
+    ?.map((result, index) => ({
+      url: result.url ?? "",
+      domain: result.url ? hostOf(result.url) : (result.domain ?? null),
+      rank: index + 1,
+    }))
+    .filter((entry) => entry.url.length > 0);
+
   return {
     answer: {
       id: input.answerId,
@@ -143,13 +167,12 @@ function toAnswerRow(input: {
       rawJson: JSON.stringify(input.item),
     },
     citations,
-    // ChatGPT is the only platform where the vendor reports a retrieval list.
-    // Elsewhere we cannot distinguish retrieved from cited, so we store
-    // citations only — never a retrieval we did not observe.
-    retrievals:
-      input.platform === "chat_gpt"
-        ? citations.map((c) => ({ url: c.url, domain: c.domain, rank: c.rank }))
-        : undefined,
+    // `undefined` rather than `[]` when the vendor reported no retrieval list:
+    // "we have no retrieval data" and "the model retrieved nothing" are
+    // different claims, and only the first is true for google.
+    retrievals: platformSupportsRetrieval(input.platform)
+      ? retrievals
+      : undefined,
   };
 }
 

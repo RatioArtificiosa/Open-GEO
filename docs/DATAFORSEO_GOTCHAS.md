@@ -256,7 +256,60 @@ how a tool reports "no issues" on a site with a www redirect loop.
 
 ---
 
-## 6. Keywords Data
+## 6. AI Optimization — LLM Mentions
+
+_Verified 2026-09-28 against the live docs. This is the family that reports what AI systems
+actually say about a brand, and it has four traps that each corrupt a headline metric._
+
+### 6.1 `sources` and `search_results` are different sets — and only one is a citation
+
+| Field            | What DataForSEO documents it as                                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `sources`        | "the sources the model **cited or relied on** in its final answer"                                                        |
+| `search_results` | "all web search outputs the model **retrieved** when looking up information, **including duplicates and unused entries**" |
+
+`search_results` is therefore a **superset** of `sources`, and the difference between them is
+the retrieved-but-uncited gap.
+
+**The trap:** copying the citation set into your retrieval set. Every retrieved page then matches
+a cited page, the gap query returns nothing forever, and the feature looks healthy while
+reporting zero findings.
+
+**→ In OpenGeo:** `GeoPatrol` maps `sources → geo_answer_citations` and
+`search_results → geo_answer_retrievals`, and never derives one from the other. `search_results`
+is **chat_gpt only** (DataForSEO returns `null` for google), which is what `RETRIEVAL_PLATFORMS`
+encodes — so for Google the gap is reported as _unavailable_, never as _empty_.
+
+### 6.2 The whole family is Live-only — there is nothing to poll
+
+`llm_mentions` has no `task_get`. The "Live endpoints return `result: null` while the task is
+still running" behaviour belongs to the _asynchronous_ DataForSEO products and does **not** apply
+here. A `null` or missing result on this family means empty, not pending. If you carry over
+pending-task handling from the Labs or SERP clients, you will wait forever for a result that has
+already arrived.
+
+### 6.3 `search/live` is Legacy; use `search_mentions/live`
+
+DataForSEO marks the older path **"(Legacy)"** and states the current one "will continue to be
+supported for the foreseeable future (no deprecation date is set), but all new integrations must
+use the new path." The two are otherwise identical. Because the OpenGeo patrol runs from a
+nightly cron, a hard-coded legacy URL is a future 404 that would only surface as "this customer's
+archive stopped filling", with no error in the app.
+
+### 6.4 ChatGPT data is US/en only, and the defaults hide it
+
+`location_code` defaults to **2840** and `language_code` to **en** — the _only_ market with ChatGPT
+coverage. A request that omits both looks valid and silently returns US data. Any other market
+returns an empty set that is **indistinguishable from "not mentioned"**, so substituting 2840
+without recording the substitution would quietly measure the wrong region.
+
+**→ In OpenGeo:** the patrol substitutes the supported market and writes the substitution into
+the run notes, so a customer asking "why does my Berlin project look identical to my New York
+one?" gets a real answer.
+
+---
+
+## 7. Keywords Data
 
 **Multiple, non-interchangeable search-volume sources:** Google Ads · clickstream · Bing · Trends ·
 AI search volume. **Never merge them into one `search_volume` column** without recording the source.
@@ -280,7 +333,7 @@ unless that is an explicit business rule.
 
 ---
 
-## 7. Backlinks
+## 8. Backlinks
 
 - **Our index ≠ Google's link graph.** A missing backlink doesn't prove Google doesn't know it; a
   listed one doesn't guarantee Google counts it.
@@ -293,7 +346,7 @@ unless that is an explicit business rule.
 
 ---
 
-## 8. Content Analysis
+## 9. Content Analysis
 
 - **Coverage is dataset-dependent.** A change in crawl coverage, index freshness, query, filters,
   language, location or date range changes the result even if the real-world count did not.
@@ -309,7 +362,7 @@ unless that is an explicit business rule.
 
 ---
 
-## 9. The defensive client
+## 10. The defensive client
 
 Every OpenGeo DataForSEO call must:
 

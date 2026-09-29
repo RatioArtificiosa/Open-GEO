@@ -54,6 +54,17 @@ function firstResult(task: DataforseoTaskLike): Record<string, unknown> | null {
 // LLM Mentions Search
 // ---------------------------------------------------------------------------
 
+/**
+ * The current LLM Mentions search path.
+ *
+ * `search/live` is documented as **Legacy**, replaced by `search_mentions/live`.
+ * The old path still works with no announced removal date, but a hard-coded
+ * legacy URL in a nightly cron job is a future 404 nobody sees until a customer's
+ * archive silently stops filling.
+ */
+const LLM_MENTIONS_SEARCH_PATH =
+  "/v3/ai_optimization/llm_mentions/search_mentions/live" as const;
+
 type LlmMentionsSearchInput = {
   target: LlmTarget;
   platform: LlmPlatform;
@@ -65,8 +76,13 @@ type LlmMentionsSearchInput = {
 export async function fetchLlmMentionsSearch(
   input: LlmMentionsSearchInput,
 ): Promise<DataforseoApiResponse<LlmMentionItem[]>> {
+  // `search/live` is marked **Legacy** by DataForSEO and replaced by
+  // `search_mentions/live`. The old path still works with no announced
+  // deprecation date, so this is not urgent — but every new integration must use
+  // the new one, and when the legacy path is eventually removed the failure
+  // would be a 404 in the middle of the nightly patrol, not at build time.
   const response = await dataforseoPost(
-    "/v3/ai_optimization/llm_mentions/search/live",
+    LLM_MENTIONS_SEARCH_PATH,
     [
       {
         target: targetList(input.target),
@@ -78,10 +94,7 @@ export async function fetchLlmMentionsSearch(
     ],
     { classify: classifyAiSearchError },
   );
-  const task = assertOk(
-    response,
-    assertOptions("/v3/ai_optimization/llm_mentions/search/live"),
-  );
+  const task = assertOk(response, assertOptions(LLM_MENTIONS_SEARCH_PATH));
 
   const items = z
     .array(llmMentionItemSchema)

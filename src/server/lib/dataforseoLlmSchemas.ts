@@ -28,6 +28,31 @@ const mentionSourceSchema = z
   })
   .passthrough();
 
+/**
+ * A page the model *retrieved* while answering.
+ *
+ * Structurally identical to a source, and deliberately kept as its own field
+ * because the two mean different things and confusing them is the single worst
+ * error this product can make:
+ *
+ * - `sources` are the pages the model **cited or relied on** in its final answer.
+ * - `search_results` are **all** the web search outputs it retrieved while
+ *   looking things up, **including duplicates and unused entries**.
+ *
+ * So `search_results` is a superset, and the difference between the two is
+ * exactly the retrieved-but-uncited gap this product is built to measure.
+ * Populating retrievals from `sources` would make that gap permanently empty.
+ *
+ * Documented as chat_gpt-only: DataForSEO returns `null` for google.
+ */
+const searchResultSchema = z
+  .object({
+    url: z.string().nullable().optional(),
+    title: z.string().nullable().optional(),
+    domain: z.string().nullable().optional(),
+  })
+  .passthrough();
+
 const brandEntitySchema = z
   .object({
     title: z.string().nullable().optional(),
@@ -35,7 +60,7 @@ const brandEntitySchema = z
   .passthrough();
 
 // ---------------------------------------------------------------------------
-// LLM Mentions Search — `/v3/ai_optimization/llm_mentions/search/live`
+// LLM Mentions Search — `/v3/ai_optimization/llm_mentions/search_mentions/live`
 // Returns one row per LLM answer that matched the target.
 // ---------------------------------------------------------------------------
 
@@ -43,6 +68,7 @@ export const llmMentionItemSchema = z
   .object({
     question: z.string().nullable().optional(),
     sources: z.array(mentionSourceSchema).nullable().optional(),
+    search_results: z.array(searchResultSchema).nullable().optional(),
     ai_search_volume: z.number().nullable().optional(),
     monthly_searches: z.array(monthlyVolumeSchema).nullable().optional(),
     first_response_at: z.string().nullable().optional(),
