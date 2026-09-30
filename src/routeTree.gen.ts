@@ -69,6 +69,8 @@ import { Route as ProjectPProjectIdSettingsContextRouteImport } from './routes/_
 import { Route as ProjectPProjectIdReportsTemplatesRouteImport } from './routes/_project/p/$projectId/reports/templates'
 import { Route as ProjectPProjectIdReportsReportIdRouteImport } from './routes/_project/p/$projectId/reports/$reportId'
 import { Route as ProjectPProjectIdRankTrackingConfigIdRouteImport } from './routes/_project/p/$projectId/rank-tracking/$configId'
+import { Route as ProjectPProjectIdGeoEvidenceIndexRouteImport } from './routes/_project/p/$projectId/geo/evidence/index'
+import { Route as ProjectPProjectIdGeoEvidenceSnapshotIdRouteImport } from './routes/_project/p/$projectId/geo/evidence/$snapshotId'
 import { Route as ProjectPProjectIdAuditIssuesResultIdRouteImport } from './routes/_project/p/$projectId/audit/issues/$resultId'
 
 const VerifyEmailRoute = VerifyEmailRouteImport.update({
@@ -387,6 +389,18 @@ const ProjectPProjectIdRankTrackingConfigIdRoute =
     path: '/$configId',
     getParentRoute: () => ProjectPProjectIdRankTrackingRoute,
   } as any)
+const ProjectPProjectIdGeoEvidenceIndexRoute =
+  ProjectPProjectIdGeoEvidenceIndexRouteImport.update({
+    id: '/evidence/',
+    path: '/evidence/',
+    getParentRoute: () => ProjectPProjectIdGeoRoute,
+  } as any)
+const ProjectPProjectIdGeoEvidenceSnapshotIdRoute =
+  ProjectPProjectIdGeoEvidenceSnapshotIdRouteImport.update({
+    id: '/evidence/$snapshotId',
+    path: '/evidence/$snapshotId',
+    getParentRoute: () => ProjectPProjectIdGeoRoute,
+  } as any)
 const ProjectPProjectIdAuditIssuesResultIdRoute =
   ProjectPProjectIdAuditIssuesResultIdRouteImport.update({
     id: '/issues/$resultId',
@@ -431,7 +445,7 @@ export interface FileRoutesByFullPath {
   '/p/$projectId/brand-lookup': typeof ProjectPProjectIdBrandLookupRoute
   '/p/$projectId/context': typeof ProjectPProjectIdContextRoute
   '/p/$projectId/domain': typeof ProjectPProjectIdDomainRoute
-  '/p/$projectId/geo': typeof ProjectPProjectIdGeoRoute
+  '/p/$projectId/geo': typeof ProjectPProjectIdGeoRouteWithChildren
   '/p/$projectId/keywords': typeof ProjectPProjectIdKeywordsRoute
   '/p/$projectId/prompt-explorer': typeof ProjectPProjectIdPromptExplorerRoute
   '/p/$projectId/rank-tracking': typeof ProjectPProjectIdRankTrackingRouteWithChildren
@@ -452,6 +466,8 @@ export interface FileRoutesByFullPath {
   '/p/$projectId/reports/': typeof ProjectPProjectIdReportsIndexRoute
   '/p/$projectId/settings/': typeof ProjectPProjectIdSettingsIndexRoute
   '/p/$projectId/audit/issues/$resultId': typeof ProjectPProjectIdAuditIssuesResultIdRoute
+  '/p/$projectId/geo/evidence/$snapshotId': typeof ProjectPProjectIdGeoEvidenceSnapshotIdRoute
+  '/p/$projectId/geo/evidence/': typeof ProjectPProjectIdGeoEvidenceIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
@@ -487,7 +503,7 @@ export interface FileRoutesByTo {
   '/p/$projectId/brand-lookup': typeof ProjectPProjectIdBrandLookupRoute
   '/p/$projectId/context': typeof ProjectPProjectIdContextRoute
   '/p/$projectId/domain': typeof ProjectPProjectIdDomainRoute
-  '/p/$projectId/geo': typeof ProjectPProjectIdGeoRoute
+  '/p/$projectId/geo': typeof ProjectPProjectIdGeoRouteWithChildren
   '/p/$projectId/keywords': typeof ProjectPProjectIdKeywordsRoute
   '/p/$projectId/prompt-explorer': typeof ProjectPProjectIdPromptExplorerRoute
   '/p/$projectId/sam': typeof ProjectPProjectIdSamRoute
@@ -506,6 +522,8 @@ export interface FileRoutesByTo {
   '/p/$projectId/reports': typeof ProjectPProjectIdReportsIndexRoute
   '/p/$projectId/settings': typeof ProjectPProjectIdSettingsIndexRoute
   '/p/$projectId/audit/issues/$resultId': typeof ProjectPProjectIdAuditIssuesResultIdRoute
+  '/p/$projectId/geo/evidence/$snapshotId': typeof ProjectPProjectIdGeoEvidenceSnapshotIdRoute
+  '/p/$projectId/geo/evidence': typeof ProjectPProjectIdGeoEvidenceIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -549,7 +567,7 @@ export interface FileRoutesById {
   '/_project/p/$projectId/brand-lookup': typeof ProjectPProjectIdBrandLookupRoute
   '/_project/p/$projectId/context': typeof ProjectPProjectIdContextRoute
   '/_project/p/$projectId/domain': typeof ProjectPProjectIdDomainRoute
-  '/_project/p/$projectId/geo': typeof ProjectPProjectIdGeoRoute
+  '/_project/p/$projectId/geo': typeof ProjectPProjectIdGeoRouteWithChildren
   '/_project/p/$projectId/keywords': typeof ProjectPProjectIdKeywordsRoute
   '/_project/p/$projectId/prompt-explorer': typeof ProjectPProjectIdPromptExplorerRoute
   '/_project/p/$projectId/rank-tracking': typeof ProjectPProjectIdRankTrackingRouteWithChildren
@@ -570,6 +588,8 @@ export interface FileRoutesById {
   '/_project/p/$projectId/reports/': typeof ProjectPProjectIdReportsIndexRoute
   '/_project/p/$projectId/settings/': typeof ProjectPProjectIdSettingsIndexRoute
   '/_project/p/$projectId/audit/issues/$resultId': typeof ProjectPProjectIdAuditIssuesResultIdRoute
+  '/_project/p/$projectId/geo/evidence/$snapshotId': typeof ProjectPProjectIdGeoEvidenceSnapshotIdRoute
+  '/_project/p/$projectId/geo/evidence/': typeof ProjectPProjectIdGeoEvidenceIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -631,6 +651,8 @@ export interface FileRouteTypes {
     | '/p/$projectId/reports/'
     | '/p/$projectId/settings/'
     | '/p/$projectId/audit/issues/$resultId'
+    | '/p/$projectId/geo/evidence/$snapshotId'
+    | '/p/$projectId/geo/evidence/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -685,6 +707,8 @@ export interface FileRouteTypes {
     | '/p/$projectId/reports'
     | '/p/$projectId/settings'
     | '/p/$projectId/audit/issues/$resultId'
+    | '/p/$projectId/geo/evidence/$snapshotId'
+    | '/p/$projectId/geo/evidence'
   id:
     | '__root__'
     | '/_app'
@@ -748,6 +772,8 @@ export interface FileRouteTypes {
     | '/_project/p/$projectId/reports/'
     | '/_project/p/$projectId/settings/'
     | '/_project/p/$projectId/audit/issues/$resultId'
+    | '/_project/p/$projectId/geo/evidence/$snapshotId'
+    | '/_project/p/$projectId/geo/evidence/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1195,6 +1221,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectPProjectIdRankTrackingConfigIdRouteImport
       parentRoute: typeof ProjectPProjectIdRankTrackingRoute
     }
+    '/_project/p/$projectId/geo/evidence/': {
+      id: '/_project/p/$projectId/geo/evidence/'
+      path: '/evidence'
+      fullPath: '/p/$projectId/geo/evidence/'
+      preLoaderRoute: typeof ProjectPProjectIdGeoEvidenceIndexRouteImport
+      parentRoute: typeof ProjectPProjectIdGeoRoute
+    }
+    '/_project/p/$projectId/geo/evidence/$snapshotId': {
+      id: '/_project/p/$projectId/geo/evidence/$snapshotId'
+      path: '/evidence/$snapshotId'
+      fullPath: '/p/$projectId/geo/evidence/$snapshotId'
+      preLoaderRoute: typeof ProjectPProjectIdGeoEvidenceSnapshotIdRouteImport
+      parentRoute: typeof ProjectPProjectIdGeoRoute
+    }
     '/_project/p/$projectId/audit/issues/$resultId': {
       id: '/_project/p/$projectId/audit/issues/$resultId'
       path: '/issues/$resultId'
@@ -1264,6 +1304,21 @@ const ProjectPProjectIdAuditRouteWithChildren =
     ProjectPProjectIdAuditRouteChildren,
   )
 
+interface ProjectPProjectIdGeoRouteChildren {
+  ProjectPProjectIdGeoEvidenceSnapshotIdRoute: typeof ProjectPProjectIdGeoEvidenceSnapshotIdRoute
+  ProjectPProjectIdGeoEvidenceIndexRoute: typeof ProjectPProjectIdGeoEvidenceIndexRoute
+}
+
+const ProjectPProjectIdGeoRouteChildren: ProjectPProjectIdGeoRouteChildren = {
+  ProjectPProjectIdGeoEvidenceSnapshotIdRoute:
+    ProjectPProjectIdGeoEvidenceSnapshotIdRoute,
+  ProjectPProjectIdGeoEvidenceIndexRoute:
+    ProjectPProjectIdGeoEvidenceIndexRoute,
+}
+
+const ProjectPProjectIdGeoRouteWithChildren =
+  ProjectPProjectIdGeoRoute._addFileChildren(ProjectPProjectIdGeoRouteChildren)
+
 interface ProjectPProjectIdRankTrackingRouteChildren {
   ProjectPProjectIdRankTrackingConfigIdRoute: typeof ProjectPProjectIdRankTrackingConfigIdRoute
   ProjectPProjectIdRankTrackingIndexRoute: typeof ProjectPProjectIdRankTrackingIndexRoute
@@ -1308,7 +1363,7 @@ interface ProjectPProjectIdRouteRouteChildren {
   ProjectPProjectIdBrandLookupRoute: typeof ProjectPProjectIdBrandLookupRoute
   ProjectPProjectIdContextRoute: typeof ProjectPProjectIdContextRoute
   ProjectPProjectIdDomainRoute: typeof ProjectPProjectIdDomainRoute
-  ProjectPProjectIdGeoRoute: typeof ProjectPProjectIdGeoRoute
+  ProjectPProjectIdGeoRoute: typeof ProjectPProjectIdGeoRouteWithChildren
   ProjectPProjectIdKeywordsRoute: typeof ProjectPProjectIdKeywordsRoute
   ProjectPProjectIdPromptExplorerRoute: typeof ProjectPProjectIdPromptExplorerRoute
   ProjectPProjectIdRankTrackingRoute: typeof ProjectPProjectIdRankTrackingRouteWithChildren
@@ -1329,7 +1384,7 @@ const ProjectPProjectIdRouteRouteChildren: ProjectPProjectIdRouteRouteChildren =
     ProjectPProjectIdBrandLookupRoute: ProjectPProjectIdBrandLookupRoute,
     ProjectPProjectIdContextRoute: ProjectPProjectIdContextRoute,
     ProjectPProjectIdDomainRoute: ProjectPProjectIdDomainRoute,
-    ProjectPProjectIdGeoRoute: ProjectPProjectIdGeoRoute,
+    ProjectPProjectIdGeoRoute: ProjectPProjectIdGeoRouteWithChildren,
     ProjectPProjectIdKeywordsRoute: ProjectPProjectIdKeywordsRoute,
     ProjectPProjectIdPromptExplorerRoute: ProjectPProjectIdPromptExplorerRoute,
     ProjectPProjectIdRankTrackingRoute:

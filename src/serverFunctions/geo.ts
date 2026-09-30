@@ -6,6 +6,11 @@ import {
   getTopCitedPages,
 } from "@/server/features/geo/services/geoLiveReads";
 import { GEO_PLATFORMS } from "@/types/schemas/geo";
+import {
+  getEvidenceForSnapshot,
+  getSpendReconciliation,
+  listEvidencedSnapshots,
+} from "@/server/features/geo/services/evidenceDrawer";
 import { customerHasPaidPlan } from "@/server/billing/subscription";
 import { AppError } from "@/server/lib/errors";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
@@ -141,6 +146,89 @@ export const getGeoShareOfVoice = createServerFn({ method: "POST" })
   .validator(getGeoShareOfVoiceSchema)
   .handler(async ({ data, context }) =>
     GeoService.getShareOfVoice({ ...data, projectId: context.projectId }),
+  );
+
+// --- Evidence ---------------------------------------------------------------
+
+/**
+ * The evidence behind one run, and what is missing from it.
+ *
+ * An **archive read** — it queries rows we already hold and never re-queries the
+ * vendor. That is deliberate and load-bearing: a drawer that re-fetched to
+ * "confirm" would cost money, would not return the bytes we were billed for, and
+ * would be a second source of truth for a number the archive already holds.
+ *
+ * So the free tier can have this. The paid tier exists for the *live* reads above
+ * (CL-131's new/lost and top-cited), which genuinely cannot be derived from
+ * stored levels.
+ *
+ * `gaps` travels with the payload rather than being reconstructed in the client,
+ * because a gap the client has to notice is a gap the client will not.
+ */
+export const getGeoEvidence = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(
+    z.object({
+      snapshotId: z.string().min(1).max(128),
+    }),
+  )
+  .handler(async ({ data, context }) => {
+    // The snapshot id is scoped by the *project* before the drawer is asked, so a
+    // snapshot belonging to another organisation returns its "not in the archive"
+    // gap rather than its evidence. Without this, the id alone is a capability:
+    // anyone who could guess one could read another customer's prompts.
+    //
+    // The refusal carries the same shape as the success — including a
+    // reconciliation of zeroes — because a union of two different shapes here
+    // would force every caller to narrow, and the caller that narrowed wrong would
+    // render a real cost as `undefined`. One shape, two meanings.
+    const owned = await GeoService.ownsSnapshot(
+      context.projectId,
+      data.snapshotId,
+    );
+    if (!owned) {
+      return {
+        answers: [],
+        calls: [],
+        reconciliation: {
+          vendorUsd: 0,
+          chargedUsd: 0,
+          differenceUsd: 0,
+          unpricedCalls: 0,
+          note: null,
+        },
+        gaps: [
+          {
+            kind: "no_evidence" as const,
+            detail:
+              "That run is not in this project's archive. The id may be wrong, or the run may belong to another project.",
+          },
+        ],
+      };
+    }
+    const drawer = await getEvidenceForSnapshot(data.snapshotId);
+    return {
+      ...drawer,
+      reconciliation: await getSpendReconciliation(data.snapshotId),
+    };
+  });
+
+/**
+ * The runs that have evidence behind them — the drawer's index.
+ *
+ * A snapshot with no recorded call is a dead end: the drawer opens onto "we
+ * cannot show our work", which is honest and not useful. So the list only offers
+ * the ones a reader can actually open.
+ */
+export const listGeoEvidencedRuns = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(
+    z.object({
+      limit: z.number().int().min(1).max(100).optional(),
+    }),
+  )
+  .handler(async ({ data, context }) =>
+    listEvidencedSnapshots(context.projectId, data.limit ?? 50),
   );
 
 // --- AI demand -------------------------------------------------------------

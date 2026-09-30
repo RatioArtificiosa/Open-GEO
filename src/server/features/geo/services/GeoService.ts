@@ -351,6 +351,27 @@ async function getRun(projectId: string, snapshotId: string) {
   };
 }
 
+/**
+ * Is this snapshot one of the project's?
+ *
+ * Exists because the evidence drawer is the first read in this feature that takes
+ * a bare snapshot id and could otherwise scope itself on the id alone. Every other
+ * run read goes through `getRun`, which passes `projectId` into the repository and
+ * so filters by it; the drawer's repository functions do not, because the drawer is
+ * also called from the drain and the patrol where the snapshot was just written.
+ *
+ * So the check is here, at the boundary, and the drawer's own functions are left
+ * unscoped for their internal callers. One check, at the edge, beats a project
+ * parameter threaded through four functions that mostly do not have one.
+ */
+async function ownsSnapshot(
+  projectId: string,
+  snapshotId: string,
+): Promise<boolean> {
+  const snapshot = await GeoRunRepository.getSnapshot(projectId, snapshotId);
+  return snapshot !== null;
+}
+
 /** Share of voice for one run, per platform. Never summed across platforms. */
 async function getShareOfVoice(input: {
   projectId: string;
@@ -471,6 +492,7 @@ export const GeoService = {
   listRuns,
   listRunDemand,
   getRun,
+  ownsSnapshot,
   getShareOfVoice,
   getAiKeywordHistory,
   getEtvSeries,

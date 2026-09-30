@@ -1,0 +1,224 @@
+import { useQuery } from "@tanstack/react-query";
+import { getGeoEvidence, listGeoEvidencedRuns } from "@/serverFunctions/geo";
+
+/**
+ * The Evidence Drawer, as a surface.
+ *
+ * ## Gaps first. Above the fold. Not negotiable.
+ *
+ * The drawer's job is to say what is missing *before* the reader has formed an
+ * impression of what is there. So the gap list renders **first**, and when there
+ * is a gap it renders in the position of the number, not as a footnote beneath a
+ * table of clean rows.
+ *
+ * The layout it avoids is the obvious one: three tidy rows, a "cost: $0.04" line,
+ * and a small grey note underneath reading *"some evidence was truncated"*. That
+ * reads as three tidy rows. A reader who scrolls past a warning has not been
+ * warned, and the whole point of CL-308 was that the honest answer is frequently
+ * *"partly"*.
+ *
+ * ## No score, no grade, no verdict
+ *
+ * Consistent with `llms.txt` (CL-300a) and the citability score's coverage note
+ * (CL-301): this surface names defects and shows what was measured. A drawer
+ * labelled "verified" or scored would be a claim about coverage that the `gaps`
+ * array exists to contradict.
+ *
+ * The cost line is the one number, and it is reconciled rather than summarised —
+ * the vendor's charge and what the customer paid side by side, with the difference
+ * named. One blended figure would hide which of three legible causes applies, and
+ * "why does the bill disagree with the receipt" is the question this exists to
+ * answer.
+ */
+
+export function EvidenceDrawer({
+  projectId,
+  snapshotId,
+}: {
+  projectId: string;
+  snapshotId: string;
+}) {
+  const { data, isPending, isError } = useQuery({
+    queryKey: ["geoEvidence", projectId, snapshotId],
+    queryFn: () => getGeoEvidence({ data: { snapshotId } }),
+  });
+
+  if (isPending) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <span className="loading loading-spinner loading-lg" />
+      </div>
+    );
+  }
+
+  if (isError || data === undefined) {
+    // A failed read is not the same as an empty drawer, and saying so is the
+    // whole discipline: "we could not check" and "there is nothing" are different
+    // sentences and only the first is true here.
+    return (
+      <div className="alert alert-error" role="alert">
+        <span>
+          The evidence for this run could not be loaded. Nothing is shown here
+          because a partial read would look like a complete one.
+        </span>
+      </div>
+    );
+  }
+
+  const reconciliation = data.reconciliation;
+
+  return (
+    <div className="space-y-6">
+      {/*
+        First, and full width. A gap that renders below the evidence is a gap
+        that gets scrolled past.
+      */}
+      {data.gaps.length > 0 ? (
+        <div className="alert alert-warning" role="status">
+          <div className="space-y-1">
+            <p className="font-medium">What you can see here is incomplete.</p>
+            <ul className="list-disc pl-5 text-sm">
+              {data.gaps.map((gap) => (
+                <li key={`${gap.kind}-${gap.detail.slice(0, 24)}`}>
+                  {gap.detail}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      ) : null}
+
+      <section aria-labelledby="evidence-cost">
+        <h2 id="evidence-cost" className="text-lg font-semibold">
+          What this run cost
+        </h2>
+        <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div>
+            <dt className="text-sm text-base-content/70">The vendor charged</dt>
+            <dd className="font-mono">{formatUsd(reconciliation.vendorUsd)}</dd>
+          </div>
+          <div>
+            <dt className="text-sm text-base-content/70">The customer paid</dt>
+            <dd className="font-mono">
+              {formatUsd(reconciliation.chargedUsd)}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-sm text-base-content/70">The difference</dt>
+            <dd className="font-mono">
+              {formatUsd(reconciliation.differenceUsd)}
+            </dd>
+          </div>
+        </dl>
+        {reconciliation.note ? (
+          <p className="mt-2 text-sm text-base-content/70">
+            {reconciliation.note}
+          </p>
+        ) : null}
+      </section>
+
+      <section aria-labelledby="evidence-prompts">
+        <h2 id="evidence-prompts" className="text-lg font-semibold">
+          The prompts behind these numbers
+        </h2>
+        {data.answers.length === 0 ? (
+          <p className="mt-2 text-sm text-base-content/70">
+            No stored answers are linked to this run.
+          </p>
+        ) : (
+          <ul className="mt-2 space-y-3">
+            {data.answers.map((answer) => (
+              <li key={answer.answerId} className="border-l-2 pl-3">
+                <p className="text-sm font-medium">{answer.prompt}</p>
+                <p className="text-xs text-base-content/70">
+                  {answer.platform} &middot; answered {answer.answeredAt}
+                </p>
+                {answer.answerText ? (
+                  <p className="mt-1 text-sm">{answer.answerText}</p>
+                ) : (
+                  /*
+                   * Named rather than blank. This endpoint returns a mention
+                   * count, not an answer, so a null body is the *normal* case
+                   * for a live mentions row — and a blank space reads as an
+                   * answer we lost rather than one we never received.
+                   */
+                  <p className="mt-1 text-sm text-base-content/70">
+                    This source reports whether the brand was mentioned, not the
+                    answer text.
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section aria-labelledby="evidence-calls">
+        <h2 id="evidence-calls" className="text-lg font-semibold">
+          The calls we made
+        </h2>
+        {data.calls.length === 0 ? (
+          <p className="mt-2 text-sm text-base-content/70">
+            No vendor call was recorded for this run.
+          </p>
+        ) : (
+          <ul className="mt-2 space-y-2">
+            {data.calls.map((call) => (
+              <li key={call.id} className="text-sm">
+                <span className="font-mono">{call.path}</span>
+                <span className="ml-2 text-base-content/70">
+                  {call.startedAt} &middot; {call.statusCode ?? "no status"}
+                  {call.costUsd === null
+                    ? " · no cost recorded"
+                    : ` · ${formatUsd(call.costUsd)}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}
+
+/** The drawer's index — the runs that actually have evidence behind them. */
+export function EvidenceDrawerIndex({ projectId }: { projectId: string }) {
+  const { data, isPending } = useQuery({
+    queryKey: ["geoEvidencedRuns", projectId],
+    queryFn: () => listGeoEvidencedRuns({ data: {} }),
+  });
+
+  if (isPending) {
+    return <span className="loading loading-spinner" />;
+  }
+  if (data === undefined || data.length === 0) {
+    // Said plainly rather than rendered as an empty list, which reads as a page
+    // that failed to load its own contents.
+    return (
+      <p className="text-sm text-base-content/70">
+        No run has recorded evidence yet. The recorder is best-effort, so early
+        runs may not have one.
+      </p>
+    );
+  }
+
+  return (
+    <ul className="space-y-1">
+      {data.map((run) => (
+        <li key={run.snapshotId} className="text-sm">
+          <span className="font-mono">{run.snapshotId}</span>
+          <span className="ml-2 text-base-content/70">
+            {run.capturedAt} &middot; {run.calls} call
+            {run.calls === 1 ? "" : "s"}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function formatUsd(value: number): string {
+  // Four places, because a rounding difference between the vendor line and the
+  // customer line is exactly what a reader compares them to find.
+  return `$${value.toFixed(4)}`;
+}
