@@ -194,28 +194,38 @@ export default {
     env: Env,
     _ctx: ExecutionContext,
   ) {
-    if (controller.cron === MCP_OAUTH_PURGE_CRON) {
+    // Daily-only work runs on the daily tick **in addition to** the work every
+    // tick shares. It used to `return` here, which meant the daily tick did
+    // *only* OAuth GC — so on `17 3 * * *` the watchdog, the GEO patrol, GEO
+    // retention and the rank checks all silently did not run, and on every other
+    // tick they all did. The comments below said "the nightly patrol rides the
+    // same daily tick"; the code did the exact inverse.
+    //
+    // Nothing caught it because the patrol's own 24-hour cadence filter made a
+    // 5-minute tick a no-op *for the patrol* — so the symptom (a nightly job
+    // running 288×/day) is invisible while the inversion is present, and only
+    // becomes real the moment someone removes that filter or changes the
+    // cadence. Both directions are now explicit and a test pins the schedule.
+    const isDailyTick = controller.cron === MCP_OAUTH_PURGE_CRON;
+    if (isDailyTick && isHostedAuthMode(getAuthMode(env.AUTH_MODE))) {
       // Only hosted mode runs the OAuth provider (and has OAUTH_KV bound).
-      if (isHostedAuthMode(getAuthMode(env.AUTH_MODE))) {
-        const result = await openSeoOAuthProvider.purgeExpiredData(
-          env as OpenSeoOAuthEnv,
-        );
-        console.log("[mcp-oauth] purged expired OAuth data", result);
-        if (!result.done) {
-          // The sweep only advances past live records via deletions; a
-          // persistent incomplete scan means the keyspace outgrew the batch.
-          console.warn("[mcp-oauth] purge did not cover the full keyspace");
-        }
-
-        // Daily referral-sale sweep: catches paid Autumn invoices the
-        // billing.updated webhook path misses (renewals, one-time top-ups).
-        try {
-          await sweepDubReferredOrganizations();
-        } catch (err) {
-          console.error("[cron] Dub referral sale sweep failed:", err);
-        }
+      const result = await openSeoOAuthProvider.purgeExpiredData(
+        env as OpenSeoOAuthEnv,
+      );
+      console.log("[mcp-oauth] purged expired OAuth data", result);
+      if (!result.done) {
+        // The sweep only advances past live records via deletions; a
+        // persistent incomplete scan means the keyspace outgrew the batch.
+        console.warn("[mcp-oauth] purge did not cover the full keyspace");
       }
-      return;
+
+      // Daily referral-sale sweep: catches paid Autumn invoices the
+      // billing.updated webhook path misses (renewals, one-time top-ups).
+      try {
+        await sweepDubReferredOrganizations();
+      } catch (err) {
+        console.error("[cron] Dub referral sale sweep failed:", err);
+      }
     }
 
     // Watchdog first: reconcile audits stuck in "running" whose workflow died
@@ -231,10 +241,16 @@ export default {
       console.error("[cron] Stale-audit reconcile failed:", err);
     }
 
-    // The nightly GEO patrol rides the same daily tick rather than waking the
-    // worker a second time. It is isolated in its own try/catch for the same
-    // reason the watchdog is: a DataForSEO outage must not stop rank tracking,
-    // and a rank-tracking outage must not stop the archive from filling.
+    // The nightly GEO patrol runs here, on **every** tick. Its own 24-hour
+    // cadence filter in `listDueTargets` is what makes a 5-minute tick a no-op,
+    // so the work is dispatched often and *admitted* once a day. That is
+    // deliberate: the due decision reads a full history and is a duration, not a
+    // column, so it belongs in JS — but the *budget* and the fault isolation
+    // belong on the shared tick.
+    //
+    // It is isolated in its own try/catch for the same reason the watchdog is:
+    // a DataForSEO outage must not stop rank tracking, and a rank-tracking
+    // outage must not stop the archive from filling.
     try {
       await withPgClient(() => runDueGeoPatrols());
     } catch (err) {
