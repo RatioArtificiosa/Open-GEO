@@ -101,14 +101,39 @@ type ParsedAnswer = {
    * is worth surfacing rather than silently losing.
    */
   markers: Array<{ url: string; startIndex: number; endIndex: number }>;
-  /** Markers present in the text but absent from `annotations`. */
+  /**
+   * Annotations the vendor reported that no marker in the answer text points at.
+   *
+   * The **inverse** of what the name suggests, which is worth stating because a
+   * reader who assumes the other meaning draws the opposite conclusion from the
+   * same array — this list is the *vendor's* sources, not the model's.
+   *
+   * They are **kept** as citations with `locatedBy: "unpositioned"`, not
+   * dropped: a source the vendor reported for this answer is evidence, and
+   * dropping it would understate the archive. What the model demonstrably wrote
+   * is recoverable from the `locatedBy` field, so nothing is lost either way.
+   *
+   * (This field was documented the opposite way round until a collector trusted
+   * the name and wrote a note claiming the text was the only source. A
+   * docstring that contradicts the code is a bug that compiles.)
+   */
   unannotated: string[];
   summary: string;
 };
 
+/**
+ * @param annotations Untrusted vendor JSON.
+ *
+ *   `unknown` rather than `RawAnnotation[]`, because that is what it is: a
+ *   payload from an API whose field names have already changed once (the format
+ *   in the original spec was wrong about both the marker shape and the offsets).
+ *   Typing it as the shape we *want* would let every field access compile and
+ *   every one of them be a guess. `indexAnnotations` narrows each entry, so an
+ *   annotation that is not the documented shape is skipped rather than trusted.
+ */
 export function parseAnswerCitations(
   answerText: string | null | undefined,
-  annotations: readonly RawAnnotation[] | null | undefined,
+  annotations: readonly unknown[] | null | undefined,
 ): ParsedAnswer {
   const text = answerText ?? "";
   const markers = collectMarkers(text);
@@ -164,12 +189,19 @@ export function parseAnswerCitations(
 
   orderByPosition(citations);
 
+  // An annotation the vendor reported that no marker in the text points at.
+  // Narrowed for the same reason `indexAnnotations` is: a bare string or a null
+  // in that array must cost one skipped entry, not a thrown parse.
   const unannotated = [
     ...new Set(
-      annotations
-        ?.filter((a) => a.url && !seen.has(normaliseUrl(a.url)))
-        .map((a) => a.url ?? "")
-        .filter((u) => u !== "") ?? [],
+      (annotations ?? [])
+        .map((entry) =>
+          typeof entry === "object" && entry !== null
+            ? (entry as RawAnnotation).url
+            : undefined,
+        )
+        .filter((url): url is string => typeof url === "string" && url !== "")
+        .filter((url) => !seen.has(normaliseUrl(url))),
     ),
   ];
 
@@ -228,13 +260,21 @@ function collectMarkers(
 }
 
 function indexAnnotations(
-  annotations: readonly RawAnnotation[] | null | undefined,
+  annotations: readonly unknown[] | null | undefined,
 ): Map<string, RawAnnotation> {
   const map = new Map<string, RawAnnotation>();
-  for (const annotation of annotations ?? []) {
-    if (!annotation.url) continue;
-    const key = normaliseUrl(annotation.url);
-    if (!map.has(key)) map.set(key, annotation);
+  for (const entry of annotations ?? []) {
+    // Narrowed here rather than asserted at the call site, because an annotation
+    // that is not an object — a bare string in one API version, `null` in
+    // another — would otherwise throw on the first property access and take the
+    // whole parse down with it. One malformed entry should cost one citation.
+    if (typeof entry !== "object" || entry === null) continue;
+    const url = (entry as RawAnnotation).url;
+    if (typeof url !== "string" || url === "") continue;
+    const key = normaliseUrl(url);
+    if (map.has(key)) continue;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to an object above; the cast only re-states the optional-field shape
+    map.set(key, entry as RawAnnotation);
   }
   return map;
 }
