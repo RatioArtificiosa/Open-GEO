@@ -57,6 +57,11 @@ const geoServiceMock = {
   getRun: serviceSpy(),
   getShareOfVoice: serviceSpy(),
   getAiKeywordHistory: serviceSpy(),
+  // The evidence drawer's authorization check. Present in the mock because
+  // `getGeoEvidence` calls it before anything else, and its absence here made
+  // the *other* test in this file fail with a `not a function` — an unrelated
+  // error pointing at the wrong line, which is the worst kind to debug.
+  ownsSnapshot: serviceSpy(),
 };
 vi.mock("@/server/features/geo/services/GeoService", () => ({
   GeoService: geoServiceMock,
@@ -69,6 +74,17 @@ vi.mock("@/server/features/geo/services/GeoService", () => ({
 vi.mock("@/server/features/geo/services/geoLiveReads", () => ({
   getNewLostSeries: vi.fn(),
   getTopCitedPages: vi.fn(),
+}));
+
+// The evidence drawer's reads live in their own module and reach `@/db`, which
+// has no client outside a Worker. Without this mock, importing
+// `@/serverFunctions/geo` builds a real (unconfigured) database handle and the
+// two tests here fail on `undefined.prepare` — an error about the database
+// raised by a test about the export surface, which is the least diagnosable kind.
+vi.mock("@/server/features/geo/services/evidenceDrawer", () => ({
+  getEvidenceForSnapshot: vi.fn(),
+  getSpendReconciliation: vi.fn(),
+  listEvidencedSnapshots: vi.fn(),
 }));
 
 // The paid-plan gate for the metered reads reaches `@/server/billing`, which
@@ -105,6 +121,7 @@ const EXPECTED = [
   "getGeoCitationGap",
   "getGeoCitationProfile",
   "getGeoEtvSeries",
+  "getGeoEvidence",
   "getGeoMentionHistory",
   "getGeoNewLost",
   "getGeoTopCited",
@@ -112,6 +129,7 @@ const EXPECTED = [
   "getGeoShareOfVoice",
   "getGeoVisibility",
   "listGeoAnswerHistory",
+  "listGeoEvidencedRuns",
   "listGeoPromptSets",
   "listGeoRuns",
   "listGeoTargets",

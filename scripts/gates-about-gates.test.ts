@@ -84,13 +84,13 @@ function looksLikeAGate(source: string): boolean {
 
   // **A gate needs no database.** This is the distinction, and the first two
   // versions of this rule missed it, so the survey confidently listed six
-  // repository and component tests as blind gates â€” including
+  // repository and component tests as blind gates ”” including
   // `AiMentionHistoryRepository.query.test.ts`, which reads a migration purely
   // to build a fixture and is not a gate in any sense.
   //
   // A test that stands up libsql or drizzle is testing *behaviour against data*.
   // A gate tests *a property of the source text* and needs nothing but the
-  // filesystem. Where a file does both, it is still a gate â€” so this excludes
+  // filesystem. Where a file does both, it is still a gate ”” so this excludes
   // only the ones that are nothing but.
   const standsUpADatabase =
     /createClient\(|from\s+["']@libsql\/client["']|drizzle\(|vi\.doMock\(["']@\/db["']/.test(

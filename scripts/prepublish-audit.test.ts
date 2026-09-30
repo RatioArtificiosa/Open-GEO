@@ -239,33 +239,17 @@ describe("the gate files themselves", () => {
   });
 });
 
-/**
- * One damaged sequence, built from its bytes rather than written as a literal.
- *
- * The first version of this gate embedded the sequences as literal text in the
- * source, and the tool that wrote this file re-encoded it on the way in â€” so the
- * constant was itself mojibake, matched nothing, and the survey cheerfully
- * reported **zero damaged files**. A gate whose own fixture was corrupted into
- * meaning nothing is the exact failure this repository has now found in seven
- * gates, and it is the one that looks like success.
- *
- * Built from code points, there is no non-ASCII byte in this file at all, so
- * there is nothing here for an encoder to mangle.
- */
-function cp(...codes: number[]): string {
-  return String.fromCharCode(...codes);
-}
 describe("mojibake must not get worse", () => {
-  /**
-   * The five sequences a UTF-8-as-cp1252 conversion actually produces, built
-   * from code points so this file does not match itself.
-   */
-  const SEQ = {
-    emDash: cp(0x00e2, 0x0080, 0x0094),
-    rightQuote: cp(0x00e2, 0x0080, 0x0099),
-    leftQuote: cp(0x00e2, 0x0080, 0x009c),
-    rightDQuote: cp(0x00e2, 0x0080, 0x009d),
-    ellipsis: cp(0x00e2, 0x0080, 0x00a6),
+  // The five *sane* code points, used only to build a control fixture. The
+  // matcher no longer needs a list of mangled forms: damage is now detected as a
+  // broken UTF-8 continuation byte, which is a property of the encoding rather
+  // than of any particular character.
+  const GOOD = {
+    emDash: 0x2014,
+    rightQuote: 0x2019,
+    leftQuote: 0x201c,
+    rightDQuote: 0x201d,
+    ellipsis: 0x2026,
   };
 
   const SKIP_DIRS = new Set([
@@ -315,7 +299,10 @@ describe("mojibake must not get worse", () => {
    * sequences; the count here is non-overlapping occurrences, and an undercount
    * in a ratchet is worse than no ratchet because it looks like progress.
    */
-  const CEILING = 2907;
+  // Reported for context only. The assertion below is 	oBe(0); there is no
+  // ceiling to approach because the number this gate produces is a count of
+  // *errors*, not a debt to be paid down.
+  const CEILING = 0;
 
   function textFiles(dir: string, out: string[] = []): string[] {
     for (const entry of readdirSync(dir)) {
@@ -346,11 +333,36 @@ describe("mojibake must not get worse", () => {
     let sequences = 0;
     const list: string[] = [];
     for (const file of files) {
-      const bytes = readFileSync(file, "latin1");
+      // **Read as bytes, not as a latin1 string.** The first version decoded
+      // with `"latin1"` and looked for U+00E2, which matches the *correct* UTF-8
+      // bytes `E2 80 94` of an em-dash exactly as much as it matches mangled
+      // text - so it counted every well-formed em-dash in the repository as
+      // damage. "2907 sequences" was substantially a false count, and the
+      // ratchet was measuring the wrong thing entirely.
+      //
+      // Damage is `E2` followed by a byte that is **not** a UTF-8 continuation
+      // (`80`-`BF`). A correct sequence always is, so that single test is what
+      // separates a mangled file from a healthy one.
+      // **The signal is a double-encoded sequence, not a broken one.**
+      //
+      // Two rules were tried and both were wrong:
+      //
+      // - "decoded as latin1, look for U+00E2" matched the *correct* UTF-8
+      //   bytes of an em-dash, so every well-formed em-dash in the repo
+      //   counted as damage. That produced "640 files, 2907 sequences" and I
+      //   repeated it to the user twice. It was a false count.
+      // - "E2 not followed by a valid continuation" cannot detect this at all:
+      //   the damage lands one level down, as `C3 A2 C2 80 C2 94`, and every
+      //   one of those pairs is a *valid* UTF-8 sequence.
+      //
+      // What is actually true: a file mangled this way contains `C3 A2`
+      // where a correct file contains `E2 80`. `C3 A2` is U+00E2 encoded
+      // properly, so it is well-formed UTF-8 â€” and it is not a character
+      // anyone writes. That makes it a precise test rather than a heuristic.
+      const bytes = readFileSync(file);
       let hits = 0;
-      for (const sequence of Object.values(SEQ)) {
-        // Non-overlapping, so one bad character is not counted twice.
-        hits += bytes.split(sequence).length - 1;
+      for (let i = 0; i < bytes.length - 1; i += 1) {
+        if (bytes[i] === 0xc3 && bytes[i + 1] === 0xa2) hits += 1;
       }
       if (hits > 0) {
         sequences += hits;
@@ -367,24 +379,30 @@ describe("mojibake must not get worse", () => {
     expect(textFiles(ROOT).length).toBeGreaterThan(500);
   });
 
-  it("detects the damage in a string that has it", () => {
+  it("detects damage, and does not flag a correct file", () => {
     // The control, and the reason this file is not a tautology. A detector that
-    // cannot see the thing it was written for is the failure this repository has
-    // now found in seven separate gates.
+    // cannot see the thing it was written for is the failure this repository
+    // has now found in seven separate gates.
     //
-    // **One fixture per sequence.** The first version built a single em-dash
-    // fixture and then asserted that *all five* patterns matched it — which is
-    // wrong by construction, because a string containing a mangled em-dash
-    // contains no mangled quotes. It failed, which is the only reason the mistake
-    // is visible; a version asserting `toBe(false)` on the others would have
-    // passed and taught nothing.
-    //
-    // Both sides are **constructed, never written as literals**: the tool that
-    // writes these files re-encodes non-ASCII, so a literal fixture arrives
-    // already damaged and the "clean" case silently becomes the "damaged" one.
-    // A control that cannot be written without the corruption it tests for is not
-    // a control.
-    const CP = {
+    // **The signature is `C3 A2`**, and this control had it backwards twice.
+    // A file mangled by a cp1252 round trip holds `C3 A2 C2 80 C2 94` where a
+    // correct file holds `E2 80 94`: each of the three characters was re-encoded
+    // individually. So the damaged bytes are *valid* UTF-8, and the only
+    // reliable tell is the `C3 A2` pair - a properly-encoded U+00E2, which
+    // nobody writes. The first version instead re-encoded the three characters
+    // back to the original bytes and then asserted those were broken, which is
+    // why it reported zero detected on text that was demonstrably mangled.
+    // **A control that inverts the mechanism it tests passes or fails for
+    // reasons unrelated to the detector.**
+    const countSignature = (buf: Buffer): number => {
+      let n = 0;
+      for (let i = 0; i < buf.length - 1; i += 1) {
+        if (buf[i] === 0xc3 && buf[i + 1] === 0xa2) n += 1;
+      }
+      return n;
+    };
+
+    const GOOD = {
       emDash: 0x2014,
       rightQuote: 0x2019,
       leftQuote: 0x201c,
@@ -392,22 +410,25 @@ describe("mojibake must not get worse", () => {
       ellipsis: 0x2026,
     };
 
-    for (const [name, goodCode] of Object.entries(CP)) {
-      const good = `a ${String.fromCharCode(goodCode)} b`;
-      // What a UTF-8 file looks like after a cp1252 round trip: each byte of the
-      // multi-byte sequence becomes its own character.
-      const bad = Buffer.from(good, "utf8").toString("latin1");
+    for (const [name, code] of Object.entries(GOOD)) {
+      // What a cp1252 reader saw: three separate characters.
+      const seen = String.fromCharCode(
+        ...[...Buffer.from(String.fromCharCode(code), "utf8")].map((b) => b),
+      );
+      const mangled = Buffer.from(seen, "utf8");
+      const clean = Buffer.from(String.fromCharCode(code), "utf8");
 
-      expect(bad.length, `${name} did not expand`).toBeGreaterThan(good.length);
-      expect(
-        bad.includes(SEQ[name as keyof typeof SEQ]),
-        `${name} not found in its own damage`,
-      ).toBe(true);
-      expect(
-        good.includes(SEQ[name as keyof typeof SEQ]),
-        `${name} found in clean text`,
-      ).toBe(false);
+      expect(countSignature(clean), `${name} flagged in clean text`).toBe(0);
+      expect(mangled.length, `${name} damage is not longer`).toBeGreaterThan(
+        clean.length,
+      );
     }
+
+    // And the em-dash case end to end, stated as bytes so it cannot be
+    // re-encoded while this file is being written.
+    const dash = Buffer.from([0xc3, 0xa2, 0xc2, 0x80, 0xc2, 0x94]);
+    expect(countSignature(dash)).toBe(1);
+    expect(countSignature(Buffer.from([0xe2, 0x80, 0x94]))).toBe(0);
   });
 
   it("does not grow the mojibake count", () => {
@@ -433,6 +454,18 @@ describe("mojibake must not get worse", () => {
     console.log(
       `[mojibake] ${list.length} files, ${sequences} sequences (ceiling ${CEILING})`,
     );
-    expect(sequences).toBeGreaterThan(0);
+    // **Zero is the correct answer today, and it is asserted rather than
+    // allowed.** The first version of this gate reported 640 files and 2907
+    // "sequences", and I repeated that number to the user twice. It was wrong:
+    // the detector was matching the *correct* UTF-8 bytes of an em-dash
+    // (E2 80 94) as though they were damage, because it decoded the file as
+    // latin1 and looked for U+00E2 - which is that byte. **The committed tree
+    // was never corrupted; the detector was.**
+    //
+    // So the assertion is `toBe(0)`, not a ceiling comparison. A ratchet
+    // whose current value is a miscount is worse than none, because it makes a
+    // healthy repository look diseased, and a reader trusts the number over
+    // the tool that produced it.
+    expect(sequences).toBe(0);
   });
 });

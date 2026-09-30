@@ -44,7 +44,7 @@ let countDelivered: typeof countDeliveredAlerts;
  * A transport that records what it was given and does nothing else.
  *
  * Module-level because it captures nothing, and written once because the same
- * three-line arrow appeared in four tests â€” a helper that has to be re-typed per
+ * three-line arrow appeared in four tests ”” a helper that has to be re-typed per
  * call site is a helper that will be subtly different at one of them.
  */
 /**

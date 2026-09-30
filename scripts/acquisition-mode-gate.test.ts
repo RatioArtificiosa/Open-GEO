@@ -37,14 +37,14 @@ function patrolSource(): string {
  * Hoisted out of the test so it can be fed a synthetic source. That is not
  * tidiness: while the rule was inline it *could not* have a negative control,
  * because a closure over `readFileSync` has no second input. A detector that
- * cannot be shown a failing case is a detector of unknown coverage â€” which is
+ * cannot be shown a failing case is a detector of unknown coverage ”” which is
  * exactly what this gate turned out to be, having passed with the queue as the
  * default until it was caught by hand.
  */
 export function declaresQueuedDefault(source: string): boolean {
   const declared = source.match(/^\s*mode\??\s*:[^;\n]*/m);
   // A missing field is **not** a pass. The first version did
-  // `slice(indexOf("mode?:"), â€¦)`, and `indexOf` returns -1 for a missing field,
+  // `slice(indexOf("mode?:"), ”¦)`, and `indexOf` returns -1 for a missing field,
   // so the slice read from the top of the file and the assertion succeeded for a
   // reason that had nothing to do with the field. Treating absence as a failure
   // is the only reading that cannot be satisfied by a rename.

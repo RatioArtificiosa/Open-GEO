@@ -9,6 +9,10 @@ import {
 } from "@/db/schema";
 import { GeoPatrol } from "@/server/features/geo/services/GeoPatrol";
 import {
+  alertOnRunChange,
+  ALERT_TRANSPORT,
+} from "@/server/features/geo/services/alertRunner";
+import {
   releaseRun,
   tryBeginRun,
 } from "@/server/features/geo/repositories/MonitorRunRepository";
@@ -231,6 +235,37 @@ async function runDuePatrols(
 
         for (const note of run.notes) {
           console.log(`[geo-patrol] ${projectId} — ${note}`);
+        }
+
+        // Alerting runs **after** the run, and only when there is a snapshot to
+        // compare — the whole premise is "these two stored answers differ", and a
+        // run that archived nothing has nothing to compare against. Alerting
+        // before the snapshot exists would compare against a run that is not
+        // written yet, and the diff would be against the wrong baseline.
+        //
+        // **Never throws.** A webhook outage must not fail a patrol, or the
+        // alerting failure becomes a monitoring outage. The same reasoning as the
+        // vendor-evidence recorder, which is best-effort for the same reason.
+        const alert = await alertOnRunChange({
+          projectId,
+          snapshotId: run.snapshotId,
+          transport: ALERT_TRANSPORT,
+        }).catch((alertError: unknown) => ({
+          outcome: "not_applicable" as const,
+          reason: `Alerting failed and was swallowed so the patrol could finish: ${
+            alertError instanceof Error
+              ? alertError.message
+              : String(alertError)
+          }`,
+        }));
+        if (
+          alert.outcome !== "not_applicable" &&
+          alert.outcome !== "no_baseline"
+        ) {
+          console.log(
+            `[geo-patrol] ${projectId} — alert ${alert.result.outcome}` +
+              (alert.result.detail === null ? "" : `: ${alert.result.detail}`),
+          );
         }
       } finally {
         // The slot is released whatever happens above. A throw that skipped this
