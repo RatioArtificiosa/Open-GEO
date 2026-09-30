@@ -68,7 +68,7 @@ type Outstanding = {
  * it yet — which is a fact about the call graph, not about whether the type
  * belongs on the interface.
  */
-export type DrainReport = {
+type DrainReport = {
   /** Tasks still waiting, newest last. */
   outstanding: Outstanding[];
   /** How many are past the vendor's documented ceiling. */

@@ -6,6 +6,13 @@ import {
   type LlmPlatform,
 } from "@/server/lib/dataforseo/shared";
 import { GeoService } from "@/server/features/geo/services/GeoService";
+import {
+  planPosts,
+  postBatch,
+  queueNote,
+  type AcquisitionMode,
+  type QueueCandidate,
+} from "@/server/features/geo/services/queuePlanner";
 import { recordVendorTask } from "@/server/features/geo/services/vendorTaskRecorder";
 import { GeoSetupRepository } from "@/server/features/geo/repositories/GeoSetupRepository";
 import type { GeoAnswerInsert } from "@/server/features/geo/repositories/GeoAnswerRepository";
@@ -68,9 +75,38 @@ type PatrolInput = {
    * cannot run up a large bill without a human noticing.
    */
   maxAnswers?: number;
+  /**
+   * How this run obtains its answers. **Defaults to `live`**, and the queue is
+   * opt-in per run rather than the default — see `queuePlanner` for why: the
+   * queue is ~30% cheaper and up to 72 hours slower, and switching by default
+   * would leave every surface rendering an empty archive for three days with no
+   * error anywhere. A gate in `scripts/acquisition-mode-gate.test.ts` fails the
+   * build if that default is ever changed without the change being argued for.
+   */
+  mode?: AcquisitionMode;
+  /**
+   * The prompts to ask, required in `queued` mode and ignored in `live`.
+   *
+   * Explicit rather than derived, because the two paths measure different
+   * things: `llm_mentions` takes a **brand** and reports a mention, while
+   * `llm_responses` takes a **question** and returns an answer. Deriving one from
+   * the other would put a mention count where an answer is expected.
+   */
+  queuePrompts?: string[];
 };
 
 const DEFAULT_MAX_ANSWERS = 500;
+
+/**
+ * The model a queued run asks when the caller names none.
+ *
+ * A named constant rather than an inline literal because a model's name is also
+ * its **price**, and a queue run that silently switched models would change what
+ * a run costs without changing anything a reader can see. The catalog in
+ * `llm-models.ts` is the authority; this is the documented default, not a
+ * discovery.
+ */
+const QUEUE_DEFAULT_MODEL = "gpt-5";
 
 /** llm_mentions only serves these two platforms. */
 const PLATFORM_TO_VENDOR: Partial<Record<GeoPlatform, LlmPlatform>> = {
@@ -201,6 +237,113 @@ async function runForTarget(
   // an *estimated* figure in a column a reader would take for a receipt.
   let costUsd = 0;
   let remaining = budget;
+
+  // The queue branch, taken before any Live call so a queued run does not also
+  // pay for the Live path. It returns early with an empty archive on purpose:
+  // there is no answer to archive yet, and a snapshot containing a pending task
+  // would render as a visibility result the product cannot yet support.
+  //
+  // ## The two paths ask different questions, and that is the honest limit here
+  //
+  // The Live path calls `llm_mentions/search`, which takes a **brand** and
+  // returns whether it was mentioned — no prompt, no answer text. The queued
+  // `llm_responses` endpoint takes a **prompt** and returns the answer. So a
+  // queued run is not a cheaper version of the Live run; it is a *different
+  // measurement*, and one the archive has no table for yet.
+  //
+  // So the branch does not guess. It requires the caller to supply the prompts
+  // explicitly, refuses to invent them from the target, and says in the run log
+  // which of the two happened. Guessing here would produce an archive that looks
+  // like the Live one and is not — a mention count rendered where a share of
+  // voice is expected.
+  if (input.mode === "queued") {
+    const prompts = input.queuePrompts ?? [];
+    if (prompts.length === 0) {
+      return {
+        snapshotId: null,
+        answersArchived: 0,
+        costUsd: 0,
+        notes: [
+          ...notes,
+          "Queued mode needs an explicit prompt list. The Live path asks about a brand and reports whether it was mentioned; the queued path asks a question and returns an answer, so a target alone does not describe the work. Nothing was posted.",
+        ],
+      };
+    }
+
+    const candidates: QueueCandidate[] = [];
+    for (const platform of platforms) {
+      if (remaining <= 0) {
+        notes.push(
+          `Stopped at the ${budget}-answer cap; ${platform} and later platforms were not posted.`,
+        );
+        break;
+      }
+      const vendorPlatform = PLATFORM_TO_VENDOR[platform];
+      if (!vendorPlatform) {
+        notes.push(
+          `${platform} is not served by llm_responses (ChatGPT and Google only); it is collected by the AI Mode monitor.`,
+        );
+        continue;
+      }
+      for (const prompt of prompts) {
+        if (remaining <= 0) break;
+        candidates.push({
+          prompt,
+          targetId: target.id,
+          platform: vendorPlatform === "google" ? "gemini" : "chat_gpt",
+          modelName: QUEUE_DEFAULT_MODEL,
+        });
+        remaining -= 1;
+      }
+    }
+
+    if (candidates.length === 0) {
+      return {
+        snapshotId: null,
+        answersArchived: 0,
+        costUsd: 0,
+        notes: [
+          ...notes,
+          "Nothing was posted: the capture plan had no prompts for this target.",
+        ],
+      };
+    }
+
+    // Grouped by platform because the queued endpoint is platform-scoped — a
+    // single `se` per post, and posting a Gemini prompt to the ChatGPT path
+    // would return a plausible answer about the wrong model.
+    const byPlatform = new Map<QueueCandidate["platform"], QueueCandidate[]>();
+    for (const candidate of candidates) {
+      const list = byPlatform.get(candidate.platform);
+      if (list) list.push(candidate);
+      else byPlatform.set(candidate.platform, [candidate]);
+    }
+
+    let posted = 0;
+    let accepted = 0;
+    let rejected = 0;
+    let offset = 0;
+    for (const [platform, group] of byPlatform) {
+      for (const batch of planPosts(group)) {
+        const outcome = await postBatch(platform, batch, offset);
+        offset += batch.length;
+        posted += batch.length;
+        if (!outcome.posted) {
+          notes.push(outcome.reason);
+          rejected += batch.length;
+          continue;
+        }
+        accepted += outcome.accepted;
+        rejected += outcome.rejected;
+        costUsd += outcome.advanceUsd;
+      }
+    }
+
+    notes.push(queueNote({ posted, accepted, rejected }));
+    // No snapshot, no answers: the run started work, and saying otherwise is the
+    // failure this whole branch exists to avoid.
+    return { snapshotId: null, answersArchived: 0, costUsd, notes };
+  }
 
   for (const platform of platforms) {
     if (remaining <= 0) {
