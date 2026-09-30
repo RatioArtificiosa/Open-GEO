@@ -56,8 +56,18 @@ export const MIN_PROMPTS_FOR_DIRECTION = 8;
 /** How many prompts a per-platform share rests on, as a *denominator*. */
 export type VisibilityObservation = {
   platform: string;
-  /** How many prompts were asked. Zero is a real state: nothing was asked. */
-  promptsAsked: number;
+  /**
+   * How many prompts were asked.
+   *
+   * **Null is a real state and the reason this is not `number` alone.** The
+   * archive records how often a brand was mentioned and does not record how many
+   * prompts were asked, so a stored month genuinely has no denominator. A type
+   * that forbade null would have made that month unexpressible, and the two ways
+   * out are both bad: a cast, or a denominator inferred from a neighbouring
+   * column. An inferred sample **narrows the band**, which is precisely the
+   * number this feature exists to protect.
+   */
+  promptsAsked: number | null;
   /** How many of them mentioned the brand. Must not exceed `promptsAsked`. */
   mentions: number;
   /** The observation's date, ISO. Oldest first in the series. */
@@ -155,7 +165,19 @@ export function forecastVisibility(
     // of prompts mention us" — two different questions with the same denominator
     // in sight.
     const latest = rows[rows.length - 1];
-    if (latest === undefined || latest.promptsAsked === 0) {
+    // `null` and `0` are different, and both mean "no rate".
+    //
+    // `null` is the state the archive is actually in today: mentions were
+    // recorded, the number of prompts asked was not. A check for `=== 0` alone
+    // lets `null` through, and `mentions / null` is `Infinity` — a mention
+    // rate of infinite percent, rendered on a dashboard as a confident number.
+    // The first version of this function had exactly that bug, and the only
+    // reason it was caught is that a reader had to pass a stored series through.
+    if (
+      latest === undefined ||
+      latest.promptsAsked === null ||
+      latest.promptsAsked === 0
+    ) {
       return {
         platform,
         rate: null,
@@ -288,8 +310,15 @@ function slopeAcrossWeeks(
 ): number | null {
   const slopes: number[] = [];
   for (const rows of grouped.values()) {
+    // A month with no denominator contributes no point. Filtering it here rather
+    // than dividing by `null` is what keeps a stored series out of the slope
+    // arithmetic entirely, instead of contributing an infinite point that
+    // quietly drags the average to infinity.
     const points = rows
-      .filter((r) => r.promptsAsked > 0)
+      .filter(
+        (r): r is typeof r & { promptsAsked: number } =>
+          r.promptsAsked !== null && r.promptsAsked > 0,
+      )
       .map((r, index) => ({ x: index, y: r.mentions / r.promptsAsked }));
     if (points.length < 2) continue;
     const n = points.length;

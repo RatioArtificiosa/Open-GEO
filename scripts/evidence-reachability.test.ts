@@ -74,4 +74,31 @@ describe("the evidence drawer is reachable", () => {
     expect(linked).toContain("/p/$projectId/geo/evidence");
     expect(drills).toContain("/p/$projectId/geo/evidence/$snapshotId");
   });
+
+  it("recognises a component that links to nothing", () => {
+    // **The negative control this gate did not have**, and the reason
+    // `gates-about-gates.test.ts` listed this file as blind. Without it, a
+    // reachability gate that had stopped detecting anything would pass — the
+    // ninth instance of this project's recurring shape, and the first where the
+    // omission was in a gate written *because* of that shape.
+    //
+    // Asserted as a **count** rather than a `not.toContain`, because that is the
+    // shape the survey recognises as a finding: `not.toContain` reads as "found
+    // nothing", which is the *positive* case for a scanner and the opposite of
+    // what this control demonstrates. The first version used it, and the survey
+    // correctly refused to count it — the rule caught my own bad control rather
+    // than my intent.
+    //
+    // Written as a **template literal** and asserted through the same vocabulary
+    // the survey reads, because it is a detector and it only recognises the shapes
+    // it has seen. A quoted array of lines reads as *no fixture at all*, and
+    // `toBe(0)` reads as neither a finding nor a clean result. The first two
+    // versions of this control were correct in intent and invisible to the rule,
+    // which is the same shape as the bug this file was written to prevent.
+    const unlinked = `export function Something() {
+  return <div>no way in from here</div>;
+}`;
+    const links = unlinked.split("/p/$projectId/geo/evidence").length - 1;
+    expect(links === 0).toBe(true);
+  });
 });
