@@ -8,7 +8,23 @@ import {
   projects,
 } from "@/db/schema";
 import { GeoPatrol } from "@/server/features/geo/services/GeoPatrol";
+import {
+  releaseRun,
+  tryBeginRun,
+} from "@/server/features/geo/repositories/MonitorRunRepository";
 import type { GeoPlatform } from "@/server/features/geo/repositories/GeoSetupRepository";
+
+/**
+ * The monitor identity for the nightly patrol.
+ *
+ * Named rather than inlined at the call site, because a second caller — the
+ * manual "run now" path — will need it, and two different strings for the same
+ * monitor would be two independent slots. The protection would be theatre.
+ *
+ * Module-private until that second caller exists: exporting it now would leave
+ * a constant nothing imports, and knip is right to say so.
+ */
+const GEO_PATROL_MONITOR = "geo_patrol";
 
 /**
  * The nightly GEO patrol.
@@ -160,29 +176,78 @@ async function runDuePatrols(
     }
 
     try {
-      // The system identity, scoped to the project, exactly as the scheduled
-      // rank checks do it. The billing context is built from real ids rather
-      // than cast: a fake one would skip the usage-credit check.
-      const customer = {
-        ...SYSTEM_ACTOR,
-        organizationId: targets[0]?.organizationId ?? "",
+      // Claim the monitor's single-in-flight slot BEFORE doing anything that
+      // costs money. This is the whole reason `monitor_runs` exists: two ticks
+      // overlapping, or a tick racing a manual "run now", would each bill the
+      // customer in full, and the archive would contain the same patrol twice.
+      //
+      // The claim is not a lock we hold in memory — it is an INSERT the database
+      // rejects, so it survives being in a different Worker isolate from the one
+      // that might already be running. A boolean in this function's scope would
+      // protect nothing.
+      const claim = await tryBeginRun({
+        id: crypto.randomUUID(),
         projectId,
-      };
-
-      const run = await GeoPatrol.run({
-        projectId,
-        customer,
-        createdBy: "schedule",
-        platforms: ["chat_gpt", "google_ai_overview"] as GeoPlatform[],
+        monitorType: GEO_PATROL_MONITOR,
+        // One monitor per project, not per target: the patrol loops over the
+        // project's targets inside a single run, and splitting them would let
+        // two patrols bill for the same project at once.
+        platform: "",
+        plannedItems: targets.length,
       });
 
-      result.projectsVisited += 1;
-      result.targetsPatrolled += targets.length;
-      result.answersArchived += run.answersArchived;
-      result.costUsd += run.costUsd;
+      if (!claim.ok) {
+        // A duplicate trigger, which is a normal outcome and not an error. It is
+        // named in `errors` because "we skipped a project" is a fact the run log
+        // should carry — a silently skipped project looks like a project with
+        // nothing to say.
+        result.errors.push(
+          `Patrol already in flight for this project (run ${claim.blockingRunId ?? "unknown"}); skipped rather than billing twice.`,
+        );
+        continue;
+      }
 
-      for (const note of run.notes) {
-        console.log(`[geo-patrol] ${projectId} — ${note}`);
+      try {
+        // The system identity, scoped to the project, exactly as the scheduled
+        // rank checks do it. The billing context is built from real ids rather
+        // than cast: a fake one would skip the usage-credit check.
+        const customer = {
+          ...SYSTEM_ACTOR,
+          organizationId: targets[0]?.organizationId ?? "",
+          projectId,
+        };
+
+        const run = await GeoPatrol.run({
+          projectId,
+          customer,
+          createdBy: "schedule",
+          platforms: ["chat_gpt", "google_ai_overview"] as GeoPlatform[],
+        });
+
+        result.projectsVisited += 1;
+        result.targetsPatrolled += targets.length;
+        result.answersArchived += run.answersArchived;
+        result.costUsd += run.costUsd;
+
+        for (const note of run.notes) {
+          console.log(`[geo-patrol] ${projectId} — ${note}`);
+        }
+      } finally {
+        // The slot is released whatever happens above. A throw that skipped this
+        // would leave the project **permanently** unable to run — no error, no
+        // retry, just a project that silently stopped being monitored. That is
+        // the same class of bug as the cron inversion, one level down.
+        await releaseRun(claim.runId, "scheduled patrol finished").catch(
+          (releaseError: unknown) => {
+            // A failed release is itself worth reporting rather than swallowing:
+            // the project's monitoring is now stuck, and silence would make it
+            // look like a quiet month.
+            console.error(
+              "[geo-patrol] failed to release the run slot",
+              releaseError,
+            );
+          },
+        );
       }
     } catch (error) {
       // One project's failure must not cancel the rest: a balance error on one

@@ -30,11 +30,52 @@ const PG_SCHEMA = "src/db/pg/monitor-runs.schema.ts";
 const REPOSITORY =
   "src/server/features/geo/repositories/MonitorRunRepository.ts";
 
+/**
+ * The raw SQL claim, with comments stripped.
+ *
+ * Every lookup in this file previously matched the *prose* rather than the
+ * statement — `indexOf("ON CONFLICT")` found the word "shape" inside a
+ * docblock sentence, and the `//` block above the claim quotes the grammar
+ * (`ON CONFLICT (cols) WHERE …`) as an example. A gate that reads its own
+ * documentation is not a gate.
+ *
+ * Only whole-line comments are removed, and a line is only a comment when it
+ * *starts* with one — so a `--` or `//` inside a string literal cannot be
+ * mistaken for one and the statement stays intact.
+ */
+function claimSource(): string {
+  return read(REPOSITORY)
+    .split("\n")
+    .filter((line) => {
+      const trimmed = line.trimStart();
+      return (
+        !trimmed.startsWith("//") &&
+        !trimmed.startsWith("/*") &&
+        !trimmed.startsWith("*")
+      );
+    })
+    .join("\n");
+}
+
 /** The four columns that make a monitor's identity, in the order the index uses. */
 const IDENTITY_COLUMNS = [
   "projectId",
   "monitorType",
   "monitorSubject",
+  "platform",
+] as const;
+
+/**
+ * The same four columns as the raw SQL names them.
+ *
+ * The claim is written as raw SQL because Drizzle's builder cannot express a
+ * partial unique index as a conflict target, so this is the form the conflict
+ * clause actually has — and the form a drift between the two files would show in.
+ */
+const IDENTITY_SNAKE_CASE = [
+  "project_id",
+  "monitor_type",
+  "monitor_subject",
   "platform",
 ] as const;
 
@@ -62,16 +103,52 @@ describe("monitor_runs: the index and the repository agree", () => {
   it("targets the conflict on the same four columns, in the same order", () => {
     // Order matters to Postgres, which matches a unique index by its column
     // list; a reordered target would not match the index and would raise.
-    const source = read(REPOSITORY);
-    // Anchored on the *call*, not the bare name: the module docblock discusses
-    // `onConflictDoNothing` in prose, and matching that would read the
-    // explanation instead of the code. The first version did, and asserted an
-    // empty list.
-    const at = source.indexOf(".onConflictDoNothing({");
+    //
+    // Read the column names out of **both** sides and compare, rather than
+    // asserting a literal. Asserting a literal only pins the repository to
+    // itself — the exact mistake the first version of this file made, and the
+    // one a drift guard exists to prevent.
+    const source = claimSource();
+    const at = source.indexOf("ON CONFLICT (");
     expect(at).toBeGreaterThan(-1);
-    const block = source.slice(at, at + 400);
-    const found = [...block.matchAll(/monitorRuns\.(\w+)/g)].map((m) => m[1]);
-    expect(found.slice(0, 4)).toEqual([...IDENTITY_COLUMNS]);
+    // Split on commas, so the last column — which has no trailing comma — is
+    // counted. The first version matched `/(\w+),/` and silently dropped it.
+    const claimed = (source.slice(at, at + 200).split(")")[0] ?? "")
+      .replace("ON CONFLICT (", "")
+      .split(",")
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+    expect(claimed).toEqual([...IDENTITY_SNAKE_CASE]);
+  });
+
+  it("carries the partial-index predicate inside the conflict target", () => {
+    // **This one was found by the real database, twice.**
+    //
+    // A unique index over `WHERE status IN ('pending','running')` cannot be
+    // matched by `ON CONFLICT (cols)` alone. SQLite rejects the statement
+    // outright — "ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE
+    // constraint" — on the **first** insert, so the patrol would never run at all
+    // rather than merely losing its protection.
+    //
+    // Every text assertion in this file passed with the clause missing, and then
+    // again with the predicate in the wrong position (Drizzle's
+    // `onConflictDoNothing({ where })` renders it after `DO NOTHING`, a syntax
+    // error). A text gate can check that two files agree; it cannot know what
+    // the engine's grammar requires. That limit is the reason the patrol suite
+    // runs its claim against a real in-memory SQLite — and this assertion exists
+    // only to keep the two spellings from drifting apart.
+    const source = claimSource();
+    const at = source.indexOf("ON CONFLICT (");
+    expect(at).toBeGreaterThan(-1);
+    const clause = source.slice(at, at + 300);
+    // Predicate before the action keyword: `... WHERE <pred> DO NOTHING`.
+    const whereAt = clause.indexOf("WHERE status IN");
+    const doAt = clause.indexOf("DO NOTHING");
+    expect(whereAt).toBeGreaterThan(-1);
+    expect(doAt).toBeGreaterThan(-1);
+    expect(whereAt).toBeLessThan(doAt);
+    // And it must be the same two statuses the index is scoped to.
+    expect(clause).toContain("'pending', 'running'");
   });
 
   it("uses a targeted conflict, never an un-targeted one", () => {
@@ -79,9 +156,15 @@ describe("monitor_runs: the index and the repository agree", () => {
     // collision, so a run that silently never started would look exactly like a
     // successful claim. `tryCreateRun` in the rank-tracking repository is
     // un-targeted; this is the fix, and this is what stops it regressing.
-    const source = read(REPOSITORY);
-    expect(source).toMatch(/\.onConflictDoNothing\(\{\s*target:/);
-    expect(source).not.toMatch(/\.onConflictDoNothing\(\);/);
+    //
+    // Checked as raw SQL because that is the form the repository now uses: a
+    // bare `ON CONFLICT DO NOTHING` with no column list is the un-targeted one.
+    const source = claimSource();
+    expect(source).toMatch(/ON CONFLICT \(\s*project_id\s*,/);
+    expect(source).not.toMatch(/ON CONFLICT DO NOTHING/);
+    // And it must not have quietly fallen back to Drizzle's builder, which
+    // cannot express a partial target — that is the mistake this file replaced.
+    expect(source).not.toContain("onConflictDoNothing");
   });
 
   it("normalises an absent subject or platform to empty rather than null", () => {

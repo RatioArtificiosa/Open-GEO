@@ -1,5 +1,6 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
+import { runRaw } from "@/db/runBatch";
 import { monitorRuns } from "@/db/schema";
 
 /**
@@ -29,7 +30,7 @@ import { monitorRuns } from "@/db/schema";
 /** Statuses that hold the single-in-flight slot. Mirrors the index exactly. */
 const ACTIVE_STATUSES = ["pending", "running"] as const;
 
-export type MonitorIdentity = {
+type MonitorIdentity = {
   projectId: string;
   monitorType: string;
   /** Empty string for a whole-project monitor — not null, which means "unset". */
@@ -38,7 +39,7 @@ export type MonitorIdentity = {
   platform?: string;
 };
 
-export type BeginRunResult =
+type BeginRunResult =
   | { ok: true; runId: string }
   | { ok: false; reason: "already_running"; blockingRunId: string | null };
 
@@ -47,6 +48,10 @@ export type BeginRunResult =
  *
  * Returns `ok: false` rather than throwing when another run holds the slot —
  * that is a normal outcome (two triggers fired), not an error.
+ *
+ * Both types are module-private: the result is read by narrowing `ok`, and a
+ * consumer never needs to name either. `ci:check` runs knip, which is right to
+ * object to an export nothing imports.
  */
 export async function tryBeginRun(
   identity: MonitorIdentity & {
@@ -58,28 +63,33 @@ export async function tryBeginRun(
   const monitorSubject = identity.monitorSubject ?? "";
   const platform = identity.platform ?? "";
 
-  // Targeted, never un-targeted: see the module docblock.
-  const inserted = await db
-    .insert(monitorRuns)
-    .values({
-      id: identity.id,
-      projectId: identity.projectId,
-      monitorType: identity.monitorType,
-      monitorSubject,
-      platform,
-      status: "pending",
-      plannedItems: identity.plannedItems ?? null,
-      budgetUsd: identity.budgetUsd ?? null,
-    })
-    .onConflictDoNothing({
-      target: [
-        monitorRuns.projectId,
-        monitorRuns.monitorType,
-        monitorRuns.monitorSubject,
-        monitorRuns.platform,
-      ],
-    })
-    .returning({ id: monitorRuns.id });
+  // The conflict clause is raw SQL, and it has to be. See `runRaw` for the two
+  // Drizzle shapes that look right in review and are not: a targeted conflict
+  // with no predicate (SQLite rejects the *first* insert), and a targeted
+  // conflict with `where` (Drizzle renders it after `DO NOTHING`, a syntax
+  // error). SQLite's grammar puts the predicate inside the target:
+  //
+  //     ON CONFLICT (cols) WHERE predicate DO NOTHING
+  //
+  // Both failures were found by running against a real SQLite rather than by
+  // reading — the source-scan gate over this file passed 7/7 through both. A text
+  // gate can check that two files agree; it cannot know what the engine's
+  // grammar requires. Hence the patrol suite running a real in-memory database.
+  const inserted = await runRaw<{ id: string }>(sql`
+    INSERT INTO monitor_runs (
+      id, project_id, monitor_type, monitor_subject, platform,
+      status, planned_items, budget_usd, completed_at
+    ) VALUES (
+      ${identity.id}, ${identity.projectId}, ${identity.monitorType},
+      ${monitorSubject}, ${platform},
+      'pending', ${identity.plannedItems ?? null},
+      ${identity.budgetUsd ?? null}, NULL
+    )
+    ON CONFLICT (project_id, monitor_type, monitor_subject, platform)
+      WHERE status IN ('pending', 'running')
+      DO NOTHING
+    RETURNING id
+  `);
 
   const row = inserted[0];
   if (row !== undefined) return { ok: true, runId: row.id };
@@ -95,7 +105,7 @@ export async function tryBeginRun(
 }
 
 /** The run currently holding a monitor's slot, if any. */
-export async function getActiveRun(identity: MonitorIdentity) {
+async function getActiveRun(identity: MonitorIdentity) {
   const rows = await db
     .select()
     .from(monitorRuns)
@@ -113,102 +123,34 @@ export async function getActiveRun(identity: MonitorIdentity) {
 }
 
 /**
- * A run that started and never finished, with the age that makes it stale.
+ * Release a run's slot, whatever happened to the work.
  *
- * The age is returned rather than judged here, because "how long is too long"
- * depends on the monitor: a Lighthouse audit legitimately runs for minutes, a
- * patrol for a second. A shared constant would be wrong for one of them, and
- * quietly terminating a long legitimate run is worse than tolerating a stale row
- * for a tick.
+ * Called from a `finally`, because a run that threw and never released its slot
+ * leaves the monitor **permanently** unable to start: no error, no retry, just a
+ * project that silently stopped being monitored. That is the same class of bug as
+ * the cron inversion, one level down.
+ *
+ * The status guard matters as much as the `finally`: without it a late callback
+ * could overwrite a real error message with a success, or a real cost with a
+ * zero — and the run history is the evidence the next reconciliation reads.
+ *
+ * Marked `failed` rather than `completed` because from the slot's point of view
+ * the two are the same event, and the caller has not reported a clean finish. The
+ * reason string says so, so a reader is not misled into thinking the patrol
+ * itself failed.
  */
-export async function getStaleRun(input: {
-  identity: MonitorIdentity;
-  ageMs: number;
-  now?: Date;
-}): Promise<{ id: string; reason: string } | null> {
-  const run = await getActiveRun(input.identity);
-  if (run === null) return null;
-  const now = input.now ?? new Date();
-  const startedAt = new Date(run.startedAt).getTime();
-  // A startedAt we cannot parse is itself a reason to reap: an unparseable
-  // timestamp means the slot can never be evaluated as fresh, so leaving it
-  // locked forever is the one outcome with no recovery.
-  if (Number.isNaN(startedAt)) {
-    return {
-      id: run.id,
-      reason: "run start time is unreadable, so it can never be judged current",
-    };
-  }
-  const age = now.getTime() - startedAt;
-  if (age <= input.ageMs) return null;
-  return {
-    id: run.id,
-    reason: `no progress for ${Math.round(age / 1000)}s`,
-  };
-}
-
-/** Flip a run to `running`. No-op when it is not in `pending`. */
-export async function markRunStarted(runId: string): Promise<void> {
+export async function releaseRun(runId: string, reason: string): Promise<void> {
   await db
     .update(monitorRuns)
-    .set({ status: "running" })
-    .where(and(eq(monitorRuns.id, runId), eq(monitorRuns.status, "pending")));
-}
-
-/**
- * Finish a run, which is what frees the slot.
- *
- * The status guard matters: a run that already completed must not be
- * re-completed by a late callback, or a second writer could overwrite a real
- * error message with a success one and a real cost with a zero.
- */
-export async function finishRun(
-  runId: string,
-  outcome: {
-    status: "completed" | "failed";
-    completedItems?: number | null;
-    costUsdMicros?: number | null;
-    chargedUsdMicros?: number | null;
-    errorMessage?: string | null;
-  },
-): Promise<boolean> {
-  const result = await db
-    .update(monitorRuns)
     .set({
-      status: outcome.status,
+      status: "failed",
       completedAt: new Date().toISOString(),
-      completedItems: outcome.completedItems ?? null,
-      costUsdMicros: outcome.costUsdMicros ?? null,
-      chargedUsdMicros: outcome.chargedUsdMicros ?? null,
-      errorMessage: outcome.errorMessage ?? null,
+      errorMessage: reason,
     })
     .where(
       and(
         eq(monitorRuns.id, runId),
         inArray(monitorRuns.status, [...ACTIVE_STATUSES]),
       ),
-    )
-    .returning({ id: monitorRuns.id });
-  return result.length > 0;
-}
-
-/** Force a run to `failed`, freeing the slot. Used by the stale-run reaper. */
-export async function failRunIfActive(
-  runId: string,
-  reason: string,
-): Promise<boolean> {
-  return finishRun(runId, { status: "failed", errorMessage: reason });
-}
-
-/** A project's runs, newest first. The evidence drawer's read. */
-export async function listRunsForProject(
-  projectId: string,
-  limit = 50,
-): Promise<Array<typeof monitorRuns.$inferSelect>> {
-  return db
-    .select()
-    .from(monitorRuns)
-    .where(eq(monitorRuns.projectId, projectId))
-    .orderBy(desc(monitorRuns.startedAt))
-    .limit(limit);
+    );
 }

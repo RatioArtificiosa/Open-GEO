@@ -1,3 +1,4 @@
+import type { SQL } from "drizzle-orm";
 import { getDatabaseProvider } from "./provider";
 import { d1Db } from "./d1/client";
 import { pgDb } from "./pg/client";
@@ -47,6 +48,61 @@ export async function runBatch(
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- d1 query builders are BatchItems; length checked above
   const batch = statements as unknown as [BatchStatement, ...BatchStatement[]];
   await d1Db.batch(batch);
+}
+
+/**
+ * Run one raw SQL statement against either backend, returning its rows.
+ *
+ * This exists because Drizzle's query builder cannot express a *partial* unique
+ * index as a conflict target, and that is not a rare shape here: it is how
+ * "one in-flight run per X" is enforced throughout this codebase.
+ *
+ * The two failures this replaces, both of which look correct in review:
+ *
+ * 1. `onConflictDoNothing({ target })` with no predicate. SQLite rejects the
+ *    statement outright — "ON CONFLICT clause does not match any PRIMARY KEY or
+ *    UNIQUE constraint" — so the **first** insert fails, not the second.
+ * 2. `onConflictDoNothing({ target, where })`. Drizzle renders `where` as the
+ *    INSERT's own filter, emitting `... DO NOTHING WHERE ...`, which is a syntax
+ *    error. There is no `targetWhere` option; reaching for it is the first
+ *    mistake that produces a compile error that *looks* like the right idea.
+ *
+ * SQLite's grammar is `ON CONFLICT (cols) WHERE predicate DO NOTHING`, and
+ * Postgres accepts the same form, so one statement serves both backends.
+ *
+ * Use this only where the builder genuinely cannot express the statement. It
+ * bypasses schema inference, so the column names are the caller's to keep
+ * correct — every such call site in this repo is covered by a test that runs it
+ * against a real database rather than a mock.
+ */
+export async function runRaw<T = Record<string, unknown>>(
+  statement: SQL,
+  /** Defaults to the active driver; tests pass their own. */
+  runner?: { execute: (q: SQL) => Promise<unknown> },
+): Promise<T[]> {
+  // Resolved per call, not at module load: `getDatabaseProvider()` reads
+  // `cloudflare:workers` env, and a test that mocks it after import would
+  // otherwise keep the branch it happened to take on first load.
+  const exec = runner ?? activeRunner();
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the driver returns its own row shape; T is the caller's claim about it
+  return (await exec.execute(statement)) as T[];
+}
+
+/**
+ * The dialect-appropriate driver.
+ *
+ * Not `db`: Drizzle's database object has no `execute`, only the drivers behind
+ * it do. That is why this function takes an optional runner — the alternative
+ * was reaching past a test's `vi.mock("@/db")`, which is what made the first
+ * version of the claim untestable.
+ */
+function activeRunner(): { execute: (q: SQL) => Promise<unknown> } {
+  if (getDatabaseProvider() === "postgres") {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg driver exposes drizzle's same execute surface
+    return pgDb as unknown as { execute: (q: SQL) => Promise<unknown> };
+  }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- d1 driver exposes drizzle's same execute surface
+  return d1Db as unknown as { execute: (q: SQL) => Promise<unknown> };
 }
 
 /**
