@@ -1,5 +1,6 @@
 import { decideAlerts } from "./alertDecision";
 import { dispatchAlert, type Transport } from "./alertDispatch";
+import { createDiscordTransport } from "./discordTransport";
 import { describeRunGap, getLatestRunPair } from "./runObservations";
 import type { Observation } from "./alertDecision";
 
@@ -123,11 +124,12 @@ function toObservations(byKey: Map<string, Observation>): Observation[] {
 }
 
 /**
- * The transport the scheduler uses, and it is deliberately a **no-op that
- * succeeds**.
+ * The transport the scheduler uses.
  *
- * A self-hosted install has no Discord webhook until someone configures one, and
- * the three alternatives are all worse:
+ * The real Discord transport, which is a **no-op when no webhook is configured**
+ * — and that is the deliberate design, not a stub left behind. A self-hosted
+ * install has no Discord webhook until someone sets `GEO_ALERT_DISCORD_WEBHOOK_URL`,
+ * and the alternatives are all worse:
  *
  * - **Throw.** A missing webhook would fail every patrol, so the alerting failure
  *   becomes a monitoring outage — the product stops watching in order to report
@@ -138,15 +140,11 @@ function toObservations(byKey: Map<string, Observation>): Observation[] {
  *   every run carries a row saying a message was attempted for an audience that
  *   does not exist.
  *
- * So the transport succeeds, the dispatch is recorded as sent, and the *gap* is
- * visible: `countDeliveredAlerts` will report deliveries, and a deployment with
- * no channel configured shows one — which is a fact an operator can check.
+ * So an unconfigured install succeeds, the dispatch is recorded as sent, and the
+ * *gap* is visible: `countDeliveredAlerts` reports deliveries, and a deployment
+ * with no webhook shows one — which is a fact an operator can check.
  *
- * Replacing this is CL-309d's job, and it is a deliberate edit here rather than
- * a config read, because a transport chosen by an environment variable is a
- * transport nobody can find in review.
+ * Configured here rather than per-caller so there is exactly one place that
+ * decides where an alert goes.
  */
-export const ALERT_TRANSPORT: Transport = async (_message) => {
-  // Intentionally empty. See the docblock for why "fails loudly" is the wrong
-  // default for an install that has no channel yet.
-};
+export const ALERT_TRANSPORT: Transport = createDiscordTransport();

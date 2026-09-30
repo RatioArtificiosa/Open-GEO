@@ -28,8 +28,9 @@ is a licence violation, not a style problem, and no amount of later repair makes
 "we almost shipped this" a good answer.
 
 **It re-encoded UTF-8 as Windows-1252.** 63 characters across 7 files — every
-em-dash and curly quote became three garbage characters (`—` → `â€"`). Verified
-against `HEAD`, which is clean.
+multi-byte punctuation mark became three garbage characters, because each of its
+UTF-8 bytes was read as a separate Windows-1252 character. Verified against
+`HEAD`, which is clean.
 
 **A blanket replace cannot do this job.** The name `openseo` appears in two
 unrelated roles: _our_ product name, and _upstream's_. Any search-and-replace

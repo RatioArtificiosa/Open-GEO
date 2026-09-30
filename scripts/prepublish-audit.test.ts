@@ -357,7 +357,7 @@ describe("mojibake must not get worse", () => {
       //
       // What is actually true: a file mangled this way contains `C3 A2`
       // where a correct file contains `E2 80`. `C3 A2` is U+00E2 encoded
-      // properly, so it is well-formed UTF-8 â€” and it is not a character
+      // properly, so it is well-formed UTF-8 ”” and it is not a character
       // anyone writes. That makes it a precise test rather than a heuristic.
       const bytes = readFileSync(file);
       let hits = 0;
@@ -439,12 +439,11 @@ describe("mojibake must not get worse", () => {
     const report = list.slice(0, 10).join("\n  ");
     expect(
       sequences,
-      `Mojibake is now in ${list.length} files (${sequences} sequences), above ` +
-        `the ${CEILING} ceiling. That is UTF-8 re-decoded as cp1252, almost ` +
-        `always an em-dash in a comment. Re-save as UTF-8, then lower CEILING in ` +
-        `this file.\n  ${report}` +
+      `Mojibake is now in ${list.length} files (${sequences} sequences). ` +
+        `That is UTF-8 re-decoded as cp1252, and almost always a multi-byte ` +
+        `punctuation mark in a comment. Re-save the file as UTF-8.\n  ${report}` +
         (list.length > 10 ? "\n  ... and more" : ""),
-    ).toBeLessThanOrEqual(CEILING);
+    ).toBe(0);
     expect(scanned).toBeGreaterThan(500);
   });
 
