@@ -1,4 +1,5 @@
 import { AlertTriangle, RefreshCw, SearchCheck } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { GeoVisibilityPanel } from "./GeoVisibilityPanel";
 import { GeoTargetForm } from "./GeoTargetForm";
 import { MentionsTrendPanel } from "./MentionsTrendPanel";
@@ -28,6 +29,22 @@ export function GeoPage({ projectId }: { projectId: string }) {
             What ChatGPT, Gemini, Perplexity and Google AI actually say about
             this brand — archived over time, one platform at a time.
             {data.freshness ? <> Last patrol {data.freshness}.</> : null}
+          </p>
+          {/*
+            The link to the evidence is placed **next to the claim it qualifies**,
+            not in a footer or a nav. Every number below is derived from stored
+            vendor calls, and this is where someone who wants to check one goes.
+            A link in a footer is a link nobody follows, and an evidence surface
+            nobody opens is not evidence.
+          */}
+          <p className="mt-1 text-sm">
+            <Link
+              to="/p/$projectId/geo/evidence"
+              params={{ projectId }}
+              className="link"
+            >
+              Where these numbers come from
+            </Link>
           </p>
         </header>
 

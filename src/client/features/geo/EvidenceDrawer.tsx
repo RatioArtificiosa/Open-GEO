@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { getGeoEvidence, listGeoEvidencedRuns } from "@/serverFunctions/geo";
 
 /**
@@ -206,15 +207,41 @@ export function EvidenceDrawerIndex({ projectId }: { projectId: string }) {
     <ul className="space-y-1">
       {data.map((run) => (
         <li key={run.snapshotId} className="text-sm">
-          <span className="font-mono">{run.snapshotId}</span>
+          {/*
+            A **link**, because the index's whole job is to be a way in. The
+            first version rendered the snapshot id as plain text beside a date,
+            so the drill-down route existed and nothing on the page pointed at
+            it: an index nobody can open is a list, not a way in. The label is
+            the run's date rather than its id, because a uuid is the join key
+            and not something a person recognises.
+          */}
+          <Link
+            to="/p/$projectId/geo/evidence/$snapshotId"
+            params={{ projectId, snapshotId: run.snapshotId }}
+            className="link"
+          >
+            {formatRunDate(run.capturedAt)}
+          </Link>
           <span className="ml-2 text-base-content/70">
-            {run.capturedAt} &middot; {run.calls} call
-            {run.calls === 1 ? "" : "s"}
+            {run.calls} call{run.calls === 1 ? "" : "s"}
           </span>
         </li>
       ))}
     </ul>
   );
+}
+
+/**
+ * The run's date, or the raw value when it is unreadable.
+ *
+ * An unparseable date is shown **as-is** rather than replaced with
+ * `Invalid Date`, because a visibly broken timestamp is a fact an operator can
+ * act on and a tidy placeholder is not.
+ */
+function formatRunDate(iso: string): string {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return iso;
+  return parsed.toISOString().replace("T", " ").slice(0, 16);
 }
 
 function formatUsd(value: number): string {
