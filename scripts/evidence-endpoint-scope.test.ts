@@ -29,12 +29,39 @@ function source(): string {
   return readFileSync(SERVER_FNS, "utf8");
 }
 
-function handlerBody(): string {
-  const all = source();
+/**
+ * The ordering rule, as a pure function.
+ *
+ * Hoisted so it can be shown a **failing** case. `gates-about-gates.test.ts`
+ * listed this file as having no negative control, and the cause was structural:
+ * the rule lived inline in the test and closed over a `readFileSync` of a fixed
+ * path, so there was no second input to feed it. A gate written that way cannot
+ * be shown failing, which means its passing says nothing about whether it
+ * detects anything.
+ *
+ * The `missing` branch is the load-bearing one: a handler with **neither** call
+ * must fail rather than pass on `check < read`, because `0 < 0` is false but
+ * `-1 < -1` is *also* false by accident, and a rule that returns true when it
+ * found nothing is a rule that approves a deleted endpoint.
+ */
+export function ownershipPrecedesReading(all: string): boolean {
+  const body = handlerBodyFrom(all);
+  const check = body.indexOf("ownsSnapshot");
+  const read = body.indexOf("getEvidenceForSnapshot");
+  if (check === -1 || read === -1) return false;
+  return check < read;
+}
+
+/** The `getGeoEvidence` handler's source, from a given file. */
+export function handlerBodyFrom(all: string): string {
   const start = all.indexOf("export const getGeoEvidence");
-  expect(start, "getGeoEvidence is missing").toBeGreaterThan(-1);
+  if (start === -1) return "";
   const end = all.indexOf("export const", start + 1);
   return all.slice(start, end === -1 ? all.length : end);
+}
+
+function handlerBody(): string {
+  return handlerBodyFrom(source());
 }
 
 describe("getGeoEvidence scoping", () => {
@@ -43,12 +70,50 @@ describe("getGeoEvidence scoping", () => {
     // version of the same thing: by then the evidence has already been fetched,
     // and the only thing left to do is decline to send it — which is a
     // different and more fragile design than not fetching it.
-    const body = handlerBody();
-    const check = body.indexOf("ownsSnapshot");
-    const read = body.indexOf("getEvidenceForSnapshot");
-    expect(check, "no ownership check in the handler").toBeGreaterThan(-1);
-    expect(read, "no drawer call in the handler").toBeGreaterThan(-1);
-    expect(check).toBeLessThan(read);
+    expect(ownershipPrecedesReading(source())).toBe(true);
+  });
+
+  it("fails when the ownership check is missing, not only when it is late", () => {
+    // **The negative control this gate did not have.** Its only verification was
+    // a hand-run script that deleted the check; a verification nobody can run is
+    // a comment about a verification.
+    //
+    // The two failure shapes are different bugs. A check that ran *after* the
+    // read is a fragile design; a check that is *absent* is a cross-project
+    // read. Both must fail this rule, and a version comparing two `indexOf`
+    // results without a presence guard would only catch the first.
+    const withoutCheck = [
+      "export const getGeoEvidence = createServerFn({ method: `POST` })",
+      "  .handler(async ({ data }) => {",
+      "    const drawer = await getEvidenceForSnapshot(data.snapshotId);",
+      "    return drawer;",
+      "  });",
+      "export const listGeoEvidencedRuns = createServerFn({ method: `POST` });",
+    ].join("\n");
+    expect(ownershipPrecedesReading(withoutCheck)).toBe(false);
+
+    // And the check that ran too late is caught too.
+    const tooLate = [
+      "export const getGeoEvidence = createServerFn({ method: `POST` })",
+      "  .handler(async ({ data, context }) => {",
+      "    const drawer = await getEvidenceForSnapshot(data.snapshotId);",
+      "    const owned = await GeoService.ownsSnapshot(",
+      "      context.projectId, data.snapshotId,",
+      "    );",
+      "    return owned ? drawer : null;",
+      "  });",
+      "export const listGeoEvidencedRuns = createServerFn({ method: `POST` });",
+    ].join("\n");
+    expect(ownershipPrecedesReading(tooLate)).toBe(false);
+  });
+
+  it("fails when the handler itself is gone", () => {
+    // An empty body has neither call, so a rule that only compared positions
+    // would report `false < false` as a *pass* and quietly approve a deleted
+    // endpoint. Absence has to be a failure.
+    expect(ownershipPrecedesReading("export const somethingElse = 1;")).toBe(
+      false,
+    );
   });
 
   it("scopes with the authorized project, never one from the request body", () => {

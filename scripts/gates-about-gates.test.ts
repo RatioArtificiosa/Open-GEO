@@ -128,9 +128,18 @@ function allTestFiles(): string[] {
 
 /** What counts as a negative control, stated as data so the rule is arguable. */
 const NEGATIVE_CONTROL = {
-  /** Asserts a FINDING — the scanner reported something. */
+  /**
+   * Asserts a FINDING — the scanner's verdict on a fixture.
+   *
+   * `toBe(false)` counts, and it is here because three versions of this rule
+   * missed the two most recent controls. A rule asked *"does this input violate
+   * the property?"* is demonstrated by asserting the answer is **no**, not yes;
+   * counting only the `true` shape reported `evidence-endpoint-scope` as blind
+   * after it had gained three controls — and the next pin was "updated" to match
+   * it, which is a survey learning to agree with itself.
+   */
   reportsFinding:
-    /toHaveLength\(\s*1\s*\)|toHaveLength\(greaterThan|\.toBe\(true\)|toEqual\(\[\s*\{/,
+    /toHaveLength\(\s*1\s*\)|toHaveLength\(greaterThan|\.toBe\((true|false)\)|toEqual\(\[\s*\{|not\.toBe\(true\)/,
   /** Asserts ABSENCE — the scanner found nothing on clean input. */
   reportsClean:
     /toHaveLength\(\s*0\s*\)|toEqual\(\[\]\)|not\.(toMatch|toContain)/,
@@ -287,9 +296,19 @@ describe("the gates about gates", () => {
     // - a gate appearing that is wrongly classified fails too, so the detector
     //   cannot quietly widen into reporting nonsense.
     //
-    // Pinned from observation on 2026-09-29. `acquisition-mode-gate` was on this
-    // list, which is how this file found it had **no** negative control at all:
-    // its only verification was a hand-run script. It now has four.
+    // Pinned from observation on 2026-09-30. Three gates were on this list and
+    // all three had **no** negative control at all, for the same structural
+    // reason: the rules closed over a `readFileSync` of a fixed path, so there
+    // was no second input to feed them and **no failing case could be written
+    // at all.** All three are hoisted into pure functions now.
+    //
+    // The pin moved twice while that work was in progress, and the second move
+    // was wrong: the detector had started counting only `toBe(true)` as a
+    // control, so two new controls using `toBe(false)` — a rule demonstrated by
+    // asserting it *rejects* — were invisible, and the list was updated to match
+    // the detector rather than the other way round. **A survey that is
+    // calibrated by editing its own answer to agree with itself is worse than no
+    // survey**, because the number it prints stops meaning anything.
     const blind = REPORT.filter((g) => g.negativeControls === 0).map(
       (g) => g.file,
     );
@@ -298,12 +317,6 @@ describe("the gates about gates", () => {
     // on, which is a failure mode that trains people to ignore failures.
     expect([...blind].sort()).toEqual(
       [
-        // Verified by a hand-run mutation that never became a test in the repo.
-        // The honest entry in this list: the check exists, the proof does not.
-        "scripts/evidence-endpoint-scope.test.ts",
-        // `claimSource` is a synthetic fixture the file defines and never feeds to
-        // an assertion, so its tests all assert absence over the real source.
-        "scripts/monitor-runs-agreement.test.ts",
         // A real gate comparing two schemas, with no negative control. Included
         // precisely because it is load-bearing: a parity test that stopped
         // comparing anything would pass, and nothing here would notice.

@@ -57,6 +57,37 @@ function claimSource(): string {
     .join("\n");
 }
 
+/**
+ * The rules, as pure functions over source text.
+ *
+ * Hoisted so they can be shown a **failing** case. `gates-about-gates.test.ts`
+ * lists this file as having no negative control, and the reason is structural:
+ * every rule below used to call `claimSource()`, which reads a fixed path, so
+ * there was no second input to feed. A gate written that way *cannot* be shown
+ * a failing case, so its passing says nothing about whether it detects anything.
+ */
+function conflictColumns(source: string): string[] | null {
+  const at = source.indexOf("ON CONFLICT (");
+  if (at === -1) return null;
+  return (source.slice(at, at + 200).split(")")[0] ?? "")
+    .replace("ON CONFLICT (", "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+}
+
+/** Where the partial predicate sits relative to the action keyword. */
+function predicatePosition(
+  source: string,
+): { where: number; doNothing: number } | null {
+  const at = source.indexOf("ON CONFLICT (");
+  if (at === -1) return null;
+  const clause = source.slice(at, at + 300);
+  return {
+    where: clause.indexOf("WHERE status IN"),
+    doNothing: clause.indexOf("DO NOTHING"),
+  };
+}
 /** The four columns that make a monitor's identity, in the order the index uses. */
 const IDENTITY_COLUMNS = [
   "projectId",
@@ -108,17 +139,9 @@ describe("monitor_runs: the index and the repository agree", () => {
     // asserting a literal. Asserting a literal only pins the repository to
     // itself — the exact mistake the first version of this file made, and the
     // one a drift guard exists to prevent.
-    const source = claimSource();
-    const at = source.indexOf("ON CONFLICT (");
-    expect(at).toBeGreaterThan(-1);
     // Split on commas, so the last column — which has no trailing comma — is
     // counted. The first version matched `/(\w+),/` and silently dropped it.
-    const claimed = (source.slice(at, at + 200).split(")")[0] ?? "")
-      .replace("ON CONFLICT (", "")
-      .split(",")
-      .map((part) => part.trim())
-      .filter((part) => part.length > 0);
-    expect(claimed).toEqual([...IDENTITY_SNAKE_CASE]);
+    expect(conflictColumns(claimSource())).toEqual([...IDENTITY_SNAKE_CASE]);
   });
 
   it("carries the partial-index predicate inside the conflict target", () => {
@@ -137,18 +160,15 @@ describe("monitor_runs: the index and the repository agree", () => {
     // the engine's grammar requires. That limit is the reason the patrol suite
     // runs its claim against a real in-memory SQLite — and this assertion exists
     // only to keep the two spellings from drifting apart.
-    const source = claimSource();
-    const at = source.indexOf("ON CONFLICT (");
-    expect(at).toBeGreaterThan(-1);
-    const clause = source.slice(at, at + 300);
     // Predicate before the action keyword: `... WHERE <pred> DO NOTHING`.
-    const whereAt = clause.indexOf("WHERE status IN");
-    const doAt = clause.indexOf("DO NOTHING");
-    expect(whereAt).toBeGreaterThan(-1);
-    expect(doAt).toBeGreaterThan(-1);
-    expect(whereAt).toBeLessThan(doAt);
+    const at = predicatePosition(claimSource());
+    expect(at).not.toBeNull();
+    if (at === null) return;
+    expect(at.where).toBeGreaterThan(-1);
+    expect(at.doNothing).toBeGreaterThan(-1);
+    expect(at.where).toBeLessThan(at.doNothing);
     // And it must be the same two statuses the index is scoped to.
-    expect(clause).toContain("'pending', 'running'");
+    expect(claimSource()).toContain("'pending', 'running'");
   });
 
   it("uses a targeted conflict, never an un-targeted one", () => {
@@ -205,5 +225,75 @@ describe("monitor_runs: the index and the repository agree", () => {
       expect(source).toContain("chargedUsdMicros");
       expect(source).not.toMatch(/real\("costUsd/);
     }
+  });
+});
+
+/**
+ * The negative controls this gate did not have.
+ *
+ * Every rule above once passed with the bug it was written for live in the tree —
+ * `gates-about-gates.test.ts` lists this file as blind for exactly that reason,
+ * and the reason was structural: the rules closed over `claimSource()`, which
+ * reads a fixed path, so **there was no second input to feed them.** A gate
+ * written that way cannot be shown a failing case, so a green run says only that
+ * nobody has broken the source, never that the check would notice.
+ *
+ * The rules are now pure functions over source text, and these are the cases
+ * that prove they still fail. They are the exact mutations that shipped.
+ */
+describe("the monitor_runs rules can still fail", () => {
+  it("sees a conflict target that dropped a column", () => {
+    // Removing `monitor_subject` from the conflict target. Postgres matches a
+    // unique index by its column list, so this would not resolve to the index
+    // and the second claim would raise.
+    const drifted = [
+      "    ON CONFLICT (project_id, monitor_type, platform)",
+      "      WHERE status IN ('pending', 'running')",
+      "      DO NOTHING",
+    ].join("\n");
+    expect(conflictColumns(drifted)).not.toEqual([...IDENTITY_SNAKE_CASE]);
+    expect(conflictColumns(drifted)).toEqual([
+      "project_id",
+      "monitor_type",
+      "platform",
+    ]);
+  });
+
+  it("sees the predicate placed after the action keyword", () => {
+    // SQLite's grammar is `ON CONFLICT (cols) WHERE <pred> DO NOTHING`. This
+    // order is a syntax error, and Drizzle's `onConflictDoNothing({ where })`
+    // produced exactly it — which is how two versions of this gate passed while
+    // the statement could not run at all.
+    const wrongOrder = [
+      "    ON CONFLICT (project_id, monitor_type, monitor_subject, platform)",
+      "      DO NOTHING",
+      "      WHERE status IN ('pending', 'running')",
+    ].join("\n");
+    const at = predicatePosition(wrongOrder);
+    expect(at).not.toBeNull();
+    if (at === null) return;
+    expect(at.where > at.doNothing).toBe(true);
+  });
+
+  it("sees a conflict clause with no predicate at all", () => {
+    // The original defect: `ON CONFLICT (cols) DO NOTHING`. SQLite rejects it
+    // with "ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE
+    // constraint" on the **first** insert, so the patrol would run zero times a
+    // night rather than merely losing its protection.
+    const at = predicatePosition(
+      [
+        "    ON CONFLICT (project_id, monitor_type, monitor_subject, platform)",
+        "      DO NOTHING",
+      ].join("\n"),
+    );
+    expect(at?.where).toBe(-1);
+  });
+
+  it("reports nothing rather than guessing when there is no conflict clause", () => {
+    // Null, not an empty array. An empty array would compare unequal to the four
+    // columns *by accident*, and a reader could not tell "no clause" from "a
+    // clause with no columns".
+    expect(conflictColumns("const x = 1;")).toBeNull();
+    expect(predicatePosition("const x = 1;")).toBeNull();
   });
 });
