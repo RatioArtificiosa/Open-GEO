@@ -211,6 +211,13 @@
       "when": 1790721671799,
       "tag": "0029_fantastic_magneto",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1790735632264,
+      "tag": "0030_hesitant_firelord",
+      "breakpoints": true
     }
   ]
 }
