@@ -8,6 +8,7 @@ import { ProjectRepository } from "@/server/features/projects/repositories/Proje
 import { SamSessionRepository } from "@/server/features/sam/SamSessionRepository";
 import { runScheduledRankChecks } from "@/server/features/rank-tracking/services/scheduledRankChecks";
 import { runDueGeoPatrols } from "@/server/features/geo/services/scheduledGeoPatrol";
+import { runQueueDrain } from "@/server/features/geo/services/queueDrainRunner";
 import { runScheduledGeoRetention } from "@/server/features/geo/services/scheduledGeoRetention";
 import { reconcileStaleAudits } from "@/server/features/audit/services/auditReconciler";
 import { getOrCreateOrganizationCustomer } from "@/server/billing/subscription";
@@ -255,6 +256,28 @@ export default {
       await withPgClient(() => runDueGeoPatrols());
     } catch (err) {
       console.error("[cron] GEO patrol failed:", err);
+    }
+
+    // The queue drain follows the patrol, and it is a *different clock*.
+    //
+    // The patrol posts and returns; this collects. The vendor documents **up to
+    // 72 hours** for a Standard task and decides for itself when one is ready, so
+    // collecting only when a patrol posts would sample a backlog and present the
+    // sample as a collection. So this is dispatched on **every** tick and gated
+    // internally by the queue's own age — a tick arriving 40 minutes after the
+    // last look does nothing and says why.
+    //
+    // It runs after the patrol for the obvious reason: a task posted a minute ago
+    // cannot be ready now, and looking first would only ever find yesterday's
+    // work. That is the wrong order for correctness but costs nothing either
+    // way, and after is the order that reads as intent.
+    //
+    // Isolated in its own try/catch like the rest: a vendor queue that is down
+    // must not stop the archive from filling.
+    try {
+      await withPgClient(() => runQueueDrain());
+    } catch (err) {
+      console.error("[cron] GEO queue drain failed:", err);
     }
 
     // Retention follows the patrol on the same tick: the sweep only deletes what
