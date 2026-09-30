@@ -218,6 +218,13 @@
       "when": 1790735632264,
       "tag": "0030_hesitant_firelord",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1790747653444,
+      "tag": "0031_solid_zuras",
+      "breakpoints": true
     }
   ]
 }
