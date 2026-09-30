@@ -225,6 +225,13 @@
       "when": 1790747653444,
       "tag": "0031_solid_zuras",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1790758018617,
+      "tag": "0032_aberrant_risque",
+      "breakpoints": true
     }
   ]
 }

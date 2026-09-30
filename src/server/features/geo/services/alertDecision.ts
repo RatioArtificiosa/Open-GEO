@@ -72,7 +72,7 @@ import { normaliseUrlForJoin } from "./urlIdentity";
  * Module-private: a consumer narrows the union by `kind` and never names this,
  * so exporting it would offer an import path nothing takes.
  */
-type Change =
+export type Change =
   | {
       kind: "mention_lost";
       /** The brand domain that stopped being mentioned. */
@@ -121,7 +121,7 @@ export type Observation = {
   citations: string[];
 };
 
-type AlertDecision =
+export type AlertDecision =
   | {
       /** Nothing worth interrupting anyone about. Not an error — the common case. */
       shouldAlert: false;

@@ -17,3 +17,4 @@ export * from "../geo.schema";
 export * from "../vendor-tasks.schema";
 export * from "../monitor-runs.schema";
 export * from "../geo-pending-tasks.schema";
+export * from "../alert-dispatches.schema";
