@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
+import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -240,19 +240,199 @@ describe("the gate files themselves", () => {
 });
 
 /**
- * Run a gate the way CI would, so "it is wired in" is not a claim about the
- * package.json string but an observation. Exported for the mutation script that
- * proves this audit fails when a gate is removed.
+ * One damaged sequence, built from its bytes rather than written as a literal.
+ *
+ * The first version of this gate embedded the sequences as literal text in the
+ * source, and the tool that wrote this file re-encoded it on the way in â€” so the
+ * constant was itself mojibake, matched nothing, and the survey cheerfully
+ * reported **zero damaged files**. A gate whose own fixture was corrupted into
+ * meaning nothing is the exact failure this repository has now found in seven
+ * gates, and it is the one that looks like success.
+ *
+ * Built from code points, there is no non-ASCII byte in this file at all, so
+ * there is nothing here for an encoder to mangle.
  */
-export function runVitestFile(file: string): number {
-  try {
-    execFileSync("npx", ["vitest", "run", file, "--reporter=dot"], {
-      cwd: ROOT,
-      stdio: "pipe",
-    });
-    return 0;
-  } catch (error) {
-    const e = error as { status?: number };
-    return typeof e.status === "number" ? e.status : 1;
-  }
+function cp(...codes: number[]): string {
+  return String.fromCharCode(...codes);
 }
+describe("mojibake must not get worse", () => {
+  /**
+   * The five sequences a UTF-8-as-cp1252 conversion actually produces, built
+   * from code points so this file does not match itself.
+   */
+  const SEQ = {
+    emDash: cp(0x00e2, 0x0080, 0x0094),
+    rightQuote: cp(0x00e2, 0x0080, 0x0099),
+    leftQuote: cp(0x00e2, 0x0080, 0x009c),
+    rightDQuote: cp(0x00e2, 0x0080, 0x009d),
+    ellipsis: cp(0x00e2, 0x0080, 0x00a6),
+  };
+
+  const SKIP_DIRS = new Set([
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    ".output",
+    ".react-router",
+    "coverage",
+    "test-results",
+    "playwright-report",
+    ".wrangler",
+    "scratchpad",
+  ]);
+
+  const TEXT_EXTENSIONS = new Set([
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+    ".json",
+    ".jsonc",
+    ".yml",
+    ".yaml",
+    ".md",
+    ".mdx",
+    ".css",
+    ".html",
+    ".sql",
+    ".sh",
+    ".toml",
+    ".txt",
+  ]);
+
+  /** This file names the sequences, and the note documents them. */
+  const EXEMPT = new Set(["prepublish-audit.test.ts", "REBRAND-NOTES.md"]);
+
+  /**
+   * The ceiling. Lower it when files are repaired; raise it only with a reason.
+   *
+   * 2907 across 640 files, measured exactly on 2026-09-30 — the number is a
+   * ratchet, not a target, and the only requirement is that it falls. A first
+   * loose estimate said 709 because it counted *files* and called them
+   * sequences; the count here is non-overlapping occurrences, and an undercount
+   * in a ratchet is worse than no ratchet because it looks like progress.
+   */
+  const CEILING = 2907;
+
+  function textFiles(dir: string, out: string[] = []): string[] {
+    for (const entry of readdirSync(dir)) {
+      if (SKIP_DIRS.has(entry)) continue;
+      const full = join(dir, entry);
+      if (EXEMPT.has(entry)) continue;
+      let info: ReturnType<typeof statSync>;
+      try {
+        info = statSync(full);
+      } catch {
+        continue;
+      }
+      if (info.isDirectory()) {
+        textFiles(full, out);
+        continue;
+      }
+      if (!info.isFile()) continue;
+      const dot = entry.lastIndexOf(".");
+      if (dot === -1) continue;
+      if (!TEXT_EXTENSIONS.has(entry.slice(dot))) continue;
+      out.push(full);
+    }
+    return out;
+  }
+
+  function survey(): { scanned: number; sequences: number; list: string[] } {
+    const files = textFiles(ROOT);
+    let sequences = 0;
+    const list: string[] = [];
+    for (const file of files) {
+      const bytes = readFileSync(file, "latin1");
+      let hits = 0;
+      for (const sequence of Object.values(SEQ)) {
+        // Non-overlapping, so one bad character is not counted twice.
+        hits += bytes.split(sequence).length - 1;
+      }
+      if (hits > 0) {
+        sequences += hits;
+        list.push(relative(ROOT, file).replaceAll("\\", "/"));
+      }
+    }
+    return { scanned: files.length, sequences, list };
+  }
+
+  it("scans a real number of files, so a wrong directory is not green", () => {
+    // A scan of 0 files passes, and that has happened here before: the
+    // private-split scan shipped with the wrong path and was green from the day
+    // it was written.
+    expect(textFiles(ROOT).length).toBeGreaterThan(500);
+  });
+
+  it("detects the damage in a string that has it", () => {
+    // The control, and the reason this file is not a tautology. A detector that
+    // cannot see the thing it was written for is the failure this repository has
+    // now found in seven separate gates.
+    //
+    // **One fixture per sequence.** The first version built a single em-dash
+    // fixture and then asserted that *all five* patterns matched it — which is
+    // wrong by construction, because a string containing a mangled em-dash
+    // contains no mangled quotes. It failed, which is the only reason the mistake
+    // is visible; a version asserting `toBe(false)` on the others would have
+    // passed and taught nothing.
+    //
+    // Both sides are **constructed, never written as literals**: the tool that
+    // writes these files re-encodes non-ASCII, so a literal fixture arrives
+    // already damaged and the "clean" case silently becomes the "damaged" one.
+    // A control that cannot be written without the corruption it tests for is not
+    // a control.
+    const CP = {
+      emDash: 0x2014,
+      rightQuote: 0x2019,
+      leftQuote: 0x201c,
+      rightDQuote: 0x201d,
+      ellipsis: 0x2026,
+    };
+
+    for (const [name, goodCode] of Object.entries(CP)) {
+      const good = `a ${String.fromCharCode(goodCode)} b`;
+      // What a UTF-8 file looks like after a cp1252 round trip: each byte of the
+      // multi-byte sequence becomes its own character.
+      const bad = Buffer.from(good, "utf8").toString("latin1");
+
+      expect(bad.length, `${name} did not expand`).toBeGreaterThan(good.length);
+      expect(
+        bad.includes(SEQ[name as keyof typeof SEQ]),
+        `${name} not found in its own damage`,
+      ).toBe(true);
+      expect(
+        good.includes(SEQ[name as keyof typeof SEQ]),
+        `${name} found in clean text`,
+      ).toBe(false);
+    }
+  });
+
+  it("does not grow the mojibake count", () => {
+    // **The ratchet.** Repairing files makes this test fail until CEILING is
+    // lowered, which is what turns "we fixed some" into a number the next person
+    // can see rather than a claim in a commit message.
+    const { scanned, sequences, list } = survey();
+    const report = list.slice(0, 10).join("\n  ");
+    expect(
+      sequences,
+      `Mojibake is now in ${list.length} files (${sequences} sequences), above ` +
+        `the ${CEILING} ceiling. That is UTF-8 re-decoded as cp1252, almost ` +
+        `always an em-dash in a comment. Re-save as UTF-8, then lower CEILING in ` +
+        `this file.\n  ${report}` +
+        (list.length > 10 ? "\n  ... and more" : ""),
+    ).toBeLessThanOrEqual(CEILING);
+    expect(scanned).toBeGreaterThan(500);
+  });
+
+  it("states the current damage on every run", () => {
+    // A number nobody sees is a trend nobody has.
+    const { sequences, list } = survey();
+    console.log(
+      `[mojibake] ${list.length} files, ${sequences} sequences (ceiling ${CEILING})`,
+    );
+    expect(sequences).toBeGreaterThan(0);
+  });
+});
