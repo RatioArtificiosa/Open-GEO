@@ -122,6 +122,19 @@ export const geoSnapshots = pgTable(
     }),
     startedAt: text("started_at").notNull(),
     completedAt: text("completed_at"),
+    /**
+     * How many prompts this run asked. The denominator for every rate published
+     * about the run, and the reason a mention count is not already a share.
+     *
+     * Nullable because null is a real state, not a gap: `null` means the run
+     * cannot say what it asked (a queued run archives nothing, so nothing has
+     * been answered yet), while `0` means it asked and got nothing back. Those
+     * are different facts and must not be collapsed.
+     *
+     * The long-form reasoning lives on the SQLite declaration, which the parity
+     * gate requires to match this one field for field.
+     */
+    promptsAsked: integer("prompts_asked"),
     costUsd: integer("cost_usd"),
     status: text("status", {
       enum: ["running", "complete", "failed", "cancelled"],

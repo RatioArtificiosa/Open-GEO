@@ -291,6 +291,13 @@ async function recordRun(input: {
   createdBy: "user" | "sam" | "mcp" | "schedule";
   answers: Parameters<typeof GeoAnswerRepository.insertAnswers>[0];
   costUsd?: number;
+  /**
+   * How many prompts this run asked, or null when the acquisition path cannot
+   * say. Written at insert rather than at completion, because the answers are
+   * what make the count meaningful and the run row is the only place the pair
+   * can be kept together.
+   */
+  promptsAsked?: number | null;
 }) {
   const snapshotId = crypto.randomUUID();
   const startedAt = new Date().toISOString();
@@ -303,6 +310,10 @@ async function recordRun(input: {
       startedAt,
       status: "running",
       createdBy: input.createdBy,
+      // `?? null` rather than a default of 0. A caller that omits this has not
+      // told us anything about the sample, and defaulting to 0 would state that
+      // no prompts were asked — which is a measurement, not an absence of one.
+      promptsAsked: input.promptsAsked ?? null,
     }),
   ]);
   await GeoAnswerRepository.insertAnswers(input.answers, snapshotId);

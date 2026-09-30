@@ -100,6 +100,16 @@ beforeAll(async () => {
   await client.executeMultiple(
     [
       `CREATE TABLE projects (id text PRIMARY KEY, name text, location_code integer, language_code text, created_at text, organization_id text, archived_at text);`,
+      // Only the alert-dispatch migration, because that is the only table this
+      // suite exercises. It deliberately does **not** build `geo_snapshots`, so
+      // applying 0055 here would `ALTER TABLE` a table that does not exist and
+      // the suite would fail for a reason that has nothing to do with dispatching
+      // an alert — which is exactly the shape of failure this project keeps
+      // having to unpick.
+      //
+      // The gate in `scripts/migration-coverage.test.ts` is why that is a
+      // decision and not an oversight: a harness that writes a table must apply
+      // the migrations altering it, and this one writes none of them.
       ...readFileSync("drizzle/0054_freezing_ultimo.sql", "utf8")
         .split("--> statement-breakpoint")
         .filter((statement) => !statement.includes("DROP TABLE")),

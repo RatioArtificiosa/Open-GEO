@@ -386,6 +386,13 @@
       "when": 1790758013752,
       "tag": "0054_freezing_ultimo",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "6",
+      "when": 1790793746403,
+      "tag": "0055_nosy_galactus",
+      "breakpoints": true
     }
   ]
 }

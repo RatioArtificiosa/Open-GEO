@@ -149,6 +149,33 @@ export const geoSnapshots = sqliteTable(
     }),
     startedAt: text("started_at").notNull(),
     completedAt: text("completed_at"),
+    /**
+     * **How many prompts this run asked — the denominator for every rate we
+     * publish about it.**
+     *
+     * A mention rate is `mentions / asked`, and `asked` is the term that decides
+     * whether a rate means anything. "Mentioned in 4 answers" and "mentioned in
+     * 4 of 40 answers" are the same sentence and different facts: 4/4 is perfect
+     * visibility on a sample too small to have meant it, and reporting it as 100%
+     * is the failure this product exists to prevent. Without this column the
+     * forecast had a numerator and no denominator, and the only way to produce a
+     * rate was to guess a sample — which *narrows* the confidence band and makes
+     * a weakly-measured run look like a well-measured one. The guess flatters the
+     * number, which is why it is not an acceptable fallback.
+     *
+     * Nullable, and null is a real state rather than a gap to fill:
+     *
+     * - `null` — the run cannot say what it asked. A **queued** run posts prompts
+     *   to a vendor queue and archives nothing, so at the moment the snapshot is
+     *   written no prompt has been answered; any number here would be a plan, not
+     *   a measurement.
+     * - `0` — the run asked and got nothing back. Distinct from null: zero is
+     *   measured absence, null is an absence of measurement.
+     *
+     * The two are not interchangeable and collapsing them is how a run that
+     * failed gets rendered as a run that found nothing.
+     */
+    promptsAsked: integer("prompts_asked"),
     /** Vendor cost in USD, so budget reporting reads from the archive. */
     costUsd: integer("cost_usd"),
     status: text("status", {

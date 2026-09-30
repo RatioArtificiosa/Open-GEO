@@ -1,0 +1,1 @@
+ALTER TABLE `geo_snapshots` ADD `prompts_asked` integer;

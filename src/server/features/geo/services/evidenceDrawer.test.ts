@@ -52,6 +52,9 @@ beforeAll(async () => {
       ...readFileSync("drizzle/0051_ordinary_sprite.sql", "utf8")
         .split("--> statement-breakpoint")
         .filter((statement) => !statement.includes("DROP TABLE")),
+      ...readFileSync("drizzle/0055_nosy_galactus.sql", "utf8")
+        .split("--> statement-breakpoint")
+        .filter((statement) => !statement.includes("DROP TABLE")),
     ].join("\n"),
   );
 

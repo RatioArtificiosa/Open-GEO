@@ -123,6 +123,14 @@ beforeAll(async () => {
       ...readFileSync("drizzle/0052_smart_the_hood.sql", "utf8")
         .split("--> statement-breakpoint")
         .filter((statement) => !statement.includes("DROP TABLE")),
+      // The run denominator. This test inserts into `geo_snapshots` directly, so
+      // without this the harness would build a table missing the column the
+      // schema selects and fail with `no such column` — which reads as a broken
+      // product rather than a stale fixture. `scripts/migration-coverage.test.ts`
+      // is what stops the next one being forgotten.
+      ...readFileSync("drizzle/0055_nosy_galactus.sql", "utf8")
+        .split("--> statement-breakpoint")
+        .filter((statement) => !statement.includes("DROP TABLE")),
     ].join("\n"),
   );
 

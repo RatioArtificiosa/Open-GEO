@@ -150,7 +150,7 @@ const NEGATIVE_CONTROL = {
 type Block = { name: string; body: string };
 
 /** Split a test file into its `it(...)` blocks. */
-function itBlocks(source: string): Block[] {
+export function itBlocks(source: string): Block[] {
   // Brace-counted rather than regex-matched, and that change is the whole
   // reason this detector works. The first version matched
   // `it("...", () => { ... });` with a non-greedy regex, which stops at the
@@ -161,14 +161,87 @@ function itBlocks(source: string): Block[] {
   // which is the one failure mode this file exists to prevent: a detector
   // confidently reporting the wrong thing.
   const blocks: Block[] = [];
-  const itPattern = /it\(\s*"([^"]+)"[\s\S]*?=>\s*\{/g;
+  /**
+   * A test's opening, anchored so it cannot match inside a string.
+   *
+   * The original pattern had no left boundary, so it matched the tail of any
+   * identifier ending in `it` — and every negative-control fixture in this
+   * repository contains quoted source, which is full of them. `split("\\\\")`
+   * is `it`, an open paren and a quote, which is the whole pattern. The survey
+   * then read *lines of a fixture* as test blocks, lost the real controls they
+   * were written near, and reported gates as blind while their controls passed.
+   *
+   * Requiring a non-identifier character before the `it` is the fix. A real
+   * call is preceded by whitespace, `(` or `{`; the tail of `split` is not.
+   */
+  const itPattern = /(?<![\w$])it\(\s*"([^"]+)"[\s\S]*?=>\s*\{/g;
   for (const match of source.matchAll(itPattern)) {
     const open = source.indexOf("{", match.index);
     if (open === -1) continue;
+    /**
+     * Brace-count, **skipping anything inside a string, a template or a
+     * comment.**
+     *
+     * The first two versions counted every brace, and a test that contains a
+     * fixture of *source code* desynchronises it: a `"` in a docstring ends the
+     * name-capture, and a `}` inside a quoted fixture closes the block early.
+     * Both happened here — `migration-coverage.test.ts` builds fixtures out of
+     * quoted source lines, so the splitter read a docstring as a test, swallowed
+     * the real negative-control block, and reported the file as blind **while
+     * its control was passing**.
+     *
+     * That is the failure this whole survey exists to prevent: a detector
+     * confidently reporting the wrong thing about a detector. A fixture
+     * containing source code is not an exotic case — it is what every negative
+     * control in this repository looks like — so a splitter that cannot survive
+     * one cannot survey the controls it is meant to count.
+     */
     let depth = 0;
     let end = source.length;
+    let quote: '"' | "'" | "`" | null = null;
+    let inLineComment = false;
+    let inBlockComment = false;
     for (let i = open; i < source.length; i += 1) {
       const char = source[i];
+      const next = source[i + 1];
+
+      if (inLineComment) {
+        if (char === "\n") inLineComment = false;
+        continue;
+      }
+      if (inBlockComment) {
+        if (char === "*" && next === "/") {
+          inBlockComment = false;
+          i += 1;
+        }
+        continue;
+      }
+      if (quote) {
+        // A backslash escapes the next character inside a string, which is how
+        // a `\"` inside a fixture does not end the literal.
+        if (char === "\\") {
+          i += 1;
+          continue;
+        }
+        if (char === quote) quote = null;
+        continue;
+      }
+
+      if (char === "/" && next === "/") {
+        inLineComment = true;
+        i += 1;
+        continue;
+      }
+      if (char === "/" && next === "*") {
+        inBlockComment = true;
+        i += 1;
+        continue;
+      }
+      if (char === '"' || char === "'" || char === "`") {
+        quote = char;
+        continue;
+      }
+
       if (char === "{") depth += 1;
       else if (char === "}") {
         depth -= 1;
@@ -203,13 +276,96 @@ type GateReport = {
  * fixtures would report both of them as blind — which is how this survey's first
  * two versions managed to be confidently wrong twice.
  */
+/**
+ * Blank out every string literal **and** every comment, keeping the code.
+ *
+ * Neither can be done with a regular expression, and both had to be fixed:
+ *
+ * - A fixture of *quoted source code* is full of quote characters that belong to
+ *   the data rather than to the enclosing literal, so the first version's three
+ *   chained regexes stripped the wrong spans.
+ * - A docstring that *explains* the fixture names the function it quotes. The
+ *   comment-blind version still reported `migration-coverage.test.ts` as blind
+ *   because the explanation above the control said `readFileSync`, which is
+ *   prose about the fixture and not a read of the repository.
+ *
+ * So this is a character scan, the same approach the block splitter uses,
+ * because the only thing that knows which quote opened a literal — and which
+ * characters are inside a comment — is the one that tracks state.
+ */
+export function stripStringsAndComments(source: string): string {
+  let out = "";
+  let quote: '"' | "'" | "`" | null = null;
+  let inLineComment = false;
+  let inBlockComment = false;
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i];
+    const next = source[i + 1];
+
+    if (inLineComment) {
+      if (char === "\n") {
+        inLineComment = false;
+        out += char;
+      }
+      continue;
+    }
+    if (inBlockComment) {
+      if (char === "*" && next === "/") {
+        inBlockComment = false;
+        i += 1;
+      }
+      continue;
+    }
+    if (quote) {
+      if (char === "\\") {
+        i += 1;
+        continue;
+      }
+      if (char === quote) {
+        out += char;
+        quote = null;
+        continue;
+      }
+      out += " ";
+      continue;
+    }
+    if (char === "/" && next === "/") {
+      inLineComment = true;
+      i += 1;
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      inBlockComment = true;
+      i += 1;
+      continue;
+    }
+    if (char === '"' || char === "'" || char === "`") {
+      quote = char;
+      out += char;
+      continue;
+    }
+    out += char;
+  }
+  return out;
+}
+
 function isNegativeControl(body: string): boolean {
   if (!NEGATIVE_CONTROL.reportsFinding.test(body)) return false;
 
   // A test that only reads the repository is asserting "nothing is wrong now",
   // which a scanner matching nothing at all would also satisfy.
+  //
+  // Matched against the block with its **string literals blanked**, because a
+  // negative control almost always *contains* a `readFileSync` as part of the
+  // fixture it feeds the rule. Scanning the raw text flagged
+  // `migration-coverage.test.ts` as blind on the grounds that its fixture
+  // mentioned `readFileSync` — the control was quoted source, not a read of the
+  // live repository, and the filter could not tell the difference.
+  const code = stripStringsAndComments(body);
   const readsRepository =
-    /readFileSync\(|readdirSync\(|patrolSource\(|source\(\)/.test(body);
+    /(?<![\w$])(?:readFileSync|readdirSync|patrolSource|source)\s*\(/.test(
+      code,
+    );
   if (readsRepository) return false;
 
   // Inline fixture: a literal, an array of lines, or a joined template.

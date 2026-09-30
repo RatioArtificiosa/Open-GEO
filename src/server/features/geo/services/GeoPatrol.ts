@@ -51,6 +51,12 @@ type PatrolRunResult = {
   answersArchived: number;
   /** Vendor cost in USD, summed from the task costs actually returned. */
   costUsd: number;
+  /**
+   * How many prompts this run asked, or null when the acquisition path cannot
+   * say. Not optional: every branch has to answer, because a branch that
+   * forgets is exactly how a run ends up with a denominator nobody chose.
+   */
+  promptsAsked: number | null;
   /** Human-readable notes for the run log. A platform we skipped belongs here. */
   notes: string[];
 };
@@ -237,6 +243,30 @@ async function runForTarget(
   // an *estimated* figure in a column a reader would take for a receipt.
   let costUsd = 0;
   let remaining = budget;
+  /**
+   * The number of prompts this run actually put to a model, which is the
+   * denominator every rate about it depends on.
+   *
+   * **Null, and the distinction is the whole point of the column.** The Live path
+   * calls `llm_mentions/search`, which takes a **domain** and returns only the
+   * prompts that mentioned the brand. The vendor chooses the prompt set and never
+   * discloses how many it asked — `limit` is a cap on *results*, not a count of
+   * questions, so a run that returns 4 mentions was asked some unknown number of
+   * prompts that is certainly not 4, and not 100 either.
+   *
+   * So for the Live path this stays **null**: we hold a numerator and a total we
+   * were never told. Writing `limit` here would be the most plausible wrong
+   * number available, and it is wrong in the flattering direction — a large
+   * assumed denominator makes a handful of mentions look like a small share
+   * rather than an unmeasurable one. An exact-sounding rate built on a
+   * `LIMIT` clause is a lie with an API shape to it.
+   *
+   * The queue path, which takes an explicit prompt and returns that prompt's
+   * answer, *does* know its denominator, and records it. That asymmetry is the
+   * honest state of the product today: we can forecast our own questions, and we
+   * cannot forecast the vendor's.
+   */
+  let promptsAsked: number | null = null;
 
   // The queue branch, taken before any Live call so a queued run does not also
   // pay for the Live path. It returns early with an empty archive on purpose:
@@ -263,6 +293,12 @@ async function runForTarget(
         snapshotId: null,
         answersArchived: 0,
         costUsd: 0,
+        // A measured zero, and the distinction from null is the whole point of
+        // the column: this run was asked to post prompts and posted none, which
+        // we know exactly. `null` means we cannot say what was asked, and turning
+        // a refusal into a zero would let a misconfigured caller read as a clean
+        // run that found nothing.
+        promptsAsked: 0,
         notes: [
           ...notes,
           "Queued mode needs an explicit prompt list. The Live path asks about a brand and reports whether it was mentioned; the queued path asks a question and returns an answer, so a target alone does not describe the work. Nothing was posted.",
@@ -302,6 +338,10 @@ async function runForTarget(
         snapshotId: null,
         answersArchived: 0,
         costUsd: 0,
+        // Zero, not null. The run asked nothing because there was nothing to
+        // ask, which is a measured zero rather than a measurement we failed to
+        // take — and the two render differently on a dashboard.
+        promptsAsked: 0,
         notes: [
           ...notes,
           "Nothing was posted: the capture plan had no prompts for this target.",
@@ -342,7 +382,20 @@ async function runForTarget(
     notes.push(queueNote({ posted, accepted, rejected }));
     // No snapshot, no answers: the run started work, and saying otherwise is the
     // failure this whole branch exists to avoid.
-    return { snapshotId: null, answersArchived: 0, costUsd, notes };
+    //
+    // `promptsAsked` is still reported because it is the one number the queued
+    // path genuinely knows — the number of questions it submitted — and it is
+    // what makes the drain's eventual answers a measurable series rather than a
+    // list of arrivals. The drain fills in `answersArchived`; this fills in the
+    // denominator. Neither is useful alone, and the gap between them is the
+    // coverage figure a reader needs.
+    return {
+      snapshotId: null,
+      answersArchived: 0,
+      costUsd,
+      promptsAsked: posted,
+      notes,
+    };
   }
 
   for (const platform of platforms) {
@@ -447,7 +500,18 @@ async function runForTarget(
   }
 
   if (inserts.length === 0) {
-    return { snapshotId: null, answersArchived: 0, costUsd, notes };
+    // Null rather than zero. The run *asked* the vendor and the vendor's
+    // question count is unknown, so even a run that came back empty has no
+    // denominator — writing 0 here would claim we asked nothing, and 0/0 as a
+    // "no visibility" reading is a statement about the world rather than about
+    // what we know.
+    return {
+      snapshotId: null,
+      answersArchived: 0,
+      costUsd,
+      promptsAsked,
+      notes,
+    };
   }
 
   const snapshot = await GeoService.recordRun({
@@ -457,12 +521,14 @@ async function runForTarget(
     createdBy: input.createdBy,
     answers: inserts,
     costUsd,
+    promptsAsked,
   });
 
   return {
     snapshotId: snapshot?.id ?? null,
     answersArchived: inserts.length,
     costUsd,
+    promptsAsked,
     notes,
   };
 }
@@ -485,6 +551,11 @@ async function run(input: PatrolInput): Promise<PatrolRunResult> {
       snapshotId: null,
       answersArchived: 0,
       costUsd: 0,
+      // Zero, and this one really is a measured zero: no targets means no
+      // questions were put to any model. It is not the same as "we asked and
+      // cannot say how many", and a project with no targets should read as
+      // *nothing was asked*, not as *the answer is unknown*.
+      promptsAsked: 0,
       notes: ["This project has no GEO targets configured."],
     };
   }
@@ -502,6 +573,11 @@ async function run(input: PatrolInput): Promise<PatrolRunResult> {
     snapshotId: null,
     answersArchived: 0,
     costUsd: 0,
+    // Starts null, not 0, for the same reason the sum below refuses: a project
+    // with no targets has asked nothing, which is a zero, and this counter is
+    // about what a *run* asked. It is seeded as "not yet known" and the zero case
+    // returns early above.
+    promptsAsked: null,
     notes: [],
   };
 
@@ -521,6 +597,25 @@ async function run(input: PatrolInput): Promise<PatrolRunResult> {
     combined.answersArchived += result.answersArchived;
     combined.costUsd += result.costUsd;
     combined.snapshotId ??= result.snapshotId;
+    /**
+     * Sums the denominators, **and refuses to turn a null into a zero.**
+     *
+     * The obvious one-liner — `combined.promptsAsked += result.promptsAsked` —
+     * is wrong in the direction that matters: `null + null` is `0` in JavaScript,
+     * so a project whose every target ran the Live path would report a combined
+     * denominator of zero, having asked an unknown number of questions zero
+     * times. That is the same fabricated denominator this column exists to
+     * prevent, arriving through an arithmetic operator rather than a guess.
+     *
+     * The rule: a run knows its total only if **every** target knew its own.
+     * One unknown makes the sum unknown, and a partial total is not a partial
+     * answer — it is a wrong one, because a reader cannot tell which kind they
+     * have.
+     */
+    combined.promptsAsked =
+      combined.promptsAsked === null || result.promptsAsked === null
+        ? null
+        : combined.promptsAsked + result.promptsAsked;
     for (const note of result.notes) {
       combined.notes.push(`${target.domain} — ${note}`);
     }
