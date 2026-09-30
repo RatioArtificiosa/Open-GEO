@@ -38,17 +38,24 @@
  * *second* charge. Matching is on the `task_post` segment rather than the whole
  * path, so an endpoint gaining sub-paths later stays covered.
  *
- * The terminator class includes a **quote** as well as `/` and end-of-input,
+ * The terminator class includes **quotes** as well as `/` and end-of-input,
  * because a path in real source is a string literal — `"/v3/serp/google/organic/
  * task_post"` — and the first version of this pattern only accepted `/` or the
  * end of the string, so it did not match a single actual call site. The detection
  * test caught that immediately, which is exactly the test that exists here.
  *
+ * A **backtick** is in that class for the same reason and was missing for the
+ * same length of time: a client that builds its path with a template literal —
+ * `` `${base(se)}/task_post` `` — has no `"` or `'` after the segment, so the
+ * pattern did not match and the gate reported no offender for a genuinely billed
+ * post. Both misses are the same lesson: a terminator class derived from one
+ * example of real source is a terminator class missing every other spelling.
+ *
  * `task_get` is deliberately absent: collection is free, and the existing
  * comments in `serp.ts` and `business.ts` are right that routing it through the
  * metering seam would charge twice for a task already paid for.
  */
-const BILLED_POST_PATTERNS: RegExp[] = [/\/task_post(?=[/"'\s,;)]|$)/];
+const BILLED_POST_PATTERNS: RegExp[] = [/\/task_post(?=[/"'`\s,;)]|$)/];
 
 /**
  * Does this text contain a call that creates a billed task?

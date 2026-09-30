@@ -53,7 +53,19 @@ export function scanSource(source: string): Offender[] {
   const lines = source.split("\n");
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? "";
-    if (!/dataforseoPost(?:Response)?\s*[<(]/.test(line)) continue;
+    // A call is `dataforseoPost(` possibly with a generic argument before the
+    // paren: `dataforseoPost<T>(`. Prettier wraps that argument onto its own
+    // lines, so `(` is usually **not** on the same line as the name — which is
+    // why this cannot be a single-line regex. The lookahead below asks only
+    // "is a call about to start here", and the existing depth-tracking window
+    // then finds its arguments.
+    //
+    // The original pattern was `dataforseoPost(?:Response)?\s*[<(]`, which
+    // matched neither the `<` nor a wrapped call. It therefore passed 6/6 on a
+    // *real* billed post that had lost its `NO_RETRY_BILLED_POST` — the exact
+    // CL-602b bug, undetected, in the one file written to detect it. Found by
+    // mutating the live call, not by reading the pattern.
+    if (!/dataforseoPost(?:Response)?\s*(?:<|[\s(])/.test(line)) continue;
 
     const window: string[] = [];
     let depth = 0;
@@ -113,6 +125,14 @@ describe("billed task posts", () => {
     // A sub-path under task_post stays covered, so an endpoint gaining one later
     // is not silently excluded.
     expect(createsBilledTask("/v3/x/task_post/advanced")).toBe(true);
+    // Every spelling a path can take in real source. The backtick was missing
+    // for as long as the double quote was, and it is the one the LLM Responses
+    // queue client actually uses — so the gate reported a clean build for a post
+    // that had lost its zero-retry opt-out.
+    expect(createsBilledTask("`${base(se)}/task_post`")).toBe(true);
+    expect(createsBilledTask("'/v3/x/task_post'")).toBe(true);
+    expect(createsBilledTask("/v3/x/task_post")).toBe(true);
+    expect(createsBilledTask("/v3/x/task_post,")).toBe(true);
     // Collection is free and must never be treated as a billed post.
     expect(
       createsBilledTask("/v3/serp/google/organic/task_get/advanced/1"),
@@ -143,6 +163,34 @@ describe("billed task posts", () => {
       "  tasks,",
       "  NO_RETRY_BILLED_POST,",
       ");",
+    ].join("\n");
+    expect(scanSource(withOptOut)).toHaveLength(0);
+  });
+
+  it("fires on a post written with an explicit generic type argument", async () => {
+    // The real defect this file had. A caller that parameterises the task type —
+    // `dataforseoPost<DataforseoTaskLike & { id?: string }>(` — was invisible to
+    // the scan, so dropping its `NO_RETRY_BILLED_POST` cost a doubled bill and
+    // the gate stayed green. Found by mutating the live call and observing six
+    // passing tests; a detector that has never been shown a positive is a
+    // detector of unknown coverage.
+    //
+    // The shape below is the one Prettier actually produces for the live client.
+    const withGeneric = [
+      "const response = await dataforseoPost<",
+      "  DataforseoTaskLike & { id?: string; data?: Record<string, unknown> }",
+      ">(`${base(se)}/task_post`, tasks.map(taskBody), NO_RETRY_BILLED_POST);",
+    ]
+      .join("\n")
+      .replace("NO_RETRY_BILLED_POST", "/* no opt-out */");
+    expect(scanSource(withGeneric)).toHaveLength(1);
+
+    // And the same call is clean once the opt-out is there — so the widened
+    // pattern did not simply start flagging every parameterised post.
+    const withOptOut = [
+      "const response = await dataforseoPost<",
+      "  DataforseoTaskLike & { id?: string; data?: Record<string, unknown> }",
+      ">(`${base(se)}/task_post`, tasks.map(taskBody), NO_RETRY_BILLED_POST);",
     ].join("\n");
     expect(scanSource(withOptOut)).toHaveLength(0);
   });
