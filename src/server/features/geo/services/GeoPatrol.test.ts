@@ -16,6 +16,7 @@ function spy() {
 const listTargets = spy();
 const mentionsSearch = spy();
 const recordRun = spy();
+const recordVendorTask = spy().mockResolvedValue(true);
 
 /** One archived answer, as the service received it. */
 type RecordedRun = {
@@ -72,6 +73,12 @@ vi.mock("@/server/features/geo/services/GeoService", () => ({
 }));
 vi.mock("@/server/lib/dataforseo/client", () => ({
   createDataforseoClient: () => ({ aiSearch: { mentionsSearch } }),
+}));
+// The evidence recorder writes through `@/db`, which reads `cloudflare:workers`
+// — a Workers-only module vitest cannot resolve. Mocked at the *service*, same as
+// the repositories above, so this suite never touches the database.
+vi.mock("@/server/features/geo/services/vendorTaskRecorder", () => ({
+  recordVendorTask,
 }));
 
 const { GeoPatrol } = await import("@/server/features/geo/services/GeoPatrol");
