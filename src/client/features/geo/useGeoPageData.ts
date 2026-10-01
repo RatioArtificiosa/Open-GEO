@@ -306,8 +306,46 @@ export function useGeoPageData(projectId: string) {
   );
 
   // `listRuns` is newest-first, so the head is the most recent patrol.
-  const lastRunAt = runs.data?.[0]?.startedAt ?? null;
+  const lastRun = runs.data?.[0] ?? null;
+  const lastRunAt = lastRun?.startedAt ?? null;
   const freshness = ageLabel(lastRunAt);
+
+  /**
+   * What the last run actually asked, as the reader's sentence.
+   *
+   * **`promptsAsked` was fetched on every page load and thrown away.** The run list
+   * existed solely to produce `startedAt`, so the denominator behind every rate this
+   * product publishes reached the client and was dropped at the boundary — 84
+   * references on the server, zero in the client. Found by
+   * `scripts/unread-response-fields.mjs`, which exists because `forecast.direction`
+   * had gone unnoticed the same way for five sessions.
+   *
+   * It matters most here, next to freshness. "Checked 2 hours ago" reads as
+   * *thorough*, and for a queued run it can mean one question was asked, or none:
+   * a queued run posts its prompts and archives nothing, so `promptsAsked` is null
+   * at the moment the snapshot is written. Without this sentence a reader concludes
+   * a monitoring run is keeping an eye on things when it may have asked one
+   * question, or — if the project had none — none at all.
+   *
+   * Three states, three sentences, because they are three different facts:
+   * - a number — "last run asked 12 questions";
+   * - `null` — the run cannot say, which is what a queued run reports;
+   * - no run at all.
+   */
+  const lastRunCoverage = ((): string | null => {
+    // `lastRun` is `?? null`, so the guard is against **null**, not `undefined` — the
+    // first version tested `=== undefined` and `tsc` rejected three dereferences.
+    // A guard against the wrong value is worse than no guard: it reads as a
+    // deliberate check and silently never fires.
+    if (lastRun === null) return null;
+    if (lastRun.promptsAsked === null) {
+      return "The last monitoring run could not say how many questions it asked.";
+    }
+    if (lastRun.promptsAsked === 0) {
+      return "The last monitoring run asked nothing.";
+    }
+    return `The last monitoring run asked ${lastRun.promptsAsked} question${lastRun.promptsAsked === 1 ? "" : "s"}.`;
+  })();
 
   return {
     domain,
@@ -325,6 +363,7 @@ export function useGeoPageData(projectId: string) {
 
     lastRunAt,
     freshness,
+    lastRunCoverage,
     runsError: geoErrorMessage(runs.error, "Could not load monitoring runs."),
 
     /**

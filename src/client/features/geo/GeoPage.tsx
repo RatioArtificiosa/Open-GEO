@@ -33,6 +33,26 @@ export function GeoPage({ projectId }: { projectId: string }) {
             {data.freshness ? <> Last patrol {data.freshness}.</> : null}
           </p>
           {/*
+            **The run's denominator, beside the run's timestamp.**
+            "Last patrol 2 hours ago" reads as *thorough*, and for a queued run it can
+            mean one question was asked — or none at all, because a queued run posts
+            its prompts and archives nothing, so the count is null at the moment the
+            snapshot is written. On its own the timestamp invites the conclusion that
+            monitoring is keeping an eye on things, which is the one conclusion this
+            page must not let a reader draw without evidence.
+
+            This is the field the server has always written (84 references) and the
+            client has never read. `scripts/unread-response-fields.mjs` found it, the
+            same way it found `forecast.direction` going unnoticed for five sessions.
+            Beside the freshness label rather than in a panel of its own, because
+            splitting one fact across two places is how the two drift apart.
+          */}
+          {data.lastRunCoverage ? (
+            <p className="text-xs text-base-content/60">
+              {data.lastRunCoverage}
+            </p>
+          ) : null}
+          {/*
             The link to the evidence is placed **next to the claim it qualifies**,
             not in a footer or a nav. Every number below is derived from stored
             vendor calls, and this is where someone who wants to check one goes.
