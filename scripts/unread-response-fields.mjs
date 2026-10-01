@@ -49,6 +49,22 @@
 // written on every snapshot, computed by the patrol, and read by no client. And
 // `aliases` on a monitored target, stored and never rendered. Both are honesty
 // fields, which is what makes them worth surfacing rather than deleting.
+//
+// ## Its remaining blind spot, and why it matters more than the noise
+//
+// **A field consumed on the server to derive another field reads as unread here.**
+// `getGeoEvidence` returns `requestBody` and `responseBody`, and no client touches
+// them — but `evidenceDrawer.ts` reads both to decide whether to emit a
+// `missing_request` or `truncated_response` **gap**, and the `gaps` array is what the
+// drawer actually shows. The bodies are read; the reading happens upstream of the
+// screen.
+//
+// So those three findings are **not** defects, and the honest response is to leave
+// them alone. What must not happen is a future session "fixing" them by deleting the
+// bodies from the response: that removes the evidence the drawer detects its own
+// gaps from, and the gap detection would quietly stop working with nothing failing.
+// This paragraph is the only thing standing between the next reader and that
+// deletion, which is why it lives here rather than in a commit message.
 import ts from "typescript";
 import path from "node:path";
 import process from "node:process";
