@@ -7,8 +7,8 @@
   "packageManager": "pnpm@10.30.1",
   "scripts": {
     "dev": "vite dev",
-    "dev:agents": "node -e \"require('fs').mkdirSync('.logs',{recursive:true})\" && portless run vite dev node scripts/tee-log.mjs .logs/dev-server.log",
-    "dev:agents:force": "node -e \"require('fs').mkdirSync('.logs',{recursive:true})\" && portless --force run vite dev node scripts/tee-log.mjs .logs/dev-server.log",
+    "dev:agents": "node scripts/dev-with-log.mjs .logs/dev-server.log portless run vite dev",
+    "dev:agents:force": "node scripts/dev-with-log.mjs .logs/dev-server.log portless --force run vite dev",
     "build": "vite build && tsc --noEmit",
     "lint": "oxlint . --type-aware",
     "lint:fix": "oxlint . --type-aware --fix",

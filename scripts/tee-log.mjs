@@ -14,7 +14,6 @@
 // because stdin is inherited rather than consumed.
 import { createWriteStream, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { pipeline } from "node:stream";
 
 const target = process.argv[2];
 if (!target) {
@@ -40,7 +39,23 @@ process.stdin.on("error", (error) => {
 process.stdin.pipe(file, { end: false });
 process.stdin.pipe(process.stdout);
 
-pipeline(process.stdout, process.stdout, () => {});
+/**
+ * Close the file when the input ends.
+ *
+ * `end: false` above is deliberate — a dev server holds stdin open, and closing
+ * the file on the first `end` would truncate a long-running log. But that leaves
+ * the case where stdin *does* end with nothing closing the file, and buffered data
+ * is lost when the process exits. So the end of input ends the file, and the
+ * process waits for the flush before exiting.
+ *
+ * The first version also had `pipeline(process.stdout, process.stdout)`, which is
+ * invalid — `process.stdout` is a writable stream, not a readable source — and
+ * either threw or did nothing at all. **Piping a stream into itself is the kind of
+ * line that reads as plumbing and is not.**
+ */
+process.stdin.on("end", () => {
+  file.end();
+});
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {

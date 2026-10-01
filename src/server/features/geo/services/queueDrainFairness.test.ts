@@ -171,6 +171,57 @@ describe("the drain's collection order", () => {
     }
   });
 
+  it("fills the cap for a project that is the only one with work", async () => {
+    // **The throughput half of the bug, and the one the fairness tests missed.**
+    // The round-based version alloted each project at most `perProject` rows *in
+    // total*, so a lone backlog of 300 drained at a tenth of the rate the old
+    // global limit allowed — pushing its tasks toward the 72-hour reaper, which is
+    // precisely the harm the fairness change existed to prevent. A fairness rule
+    // must not slow the common case down to help the rare one.
+    for (let i = 0; i < 300; i += 1) await addTask("big", i, 1);
+
+    const tasks = await listCollectableTasks(100);
+    expect(tasks).toHaveLength(100);
+    expect(new Set(tasks.map((t) => t.projectId))).toEqual(new Set(["big"]));
+  });
+
+  it("reaches a project whose id sorts after one with a very large backlog", async () => {
+    // The starvation half, with a backlog large enough that any fixed window would
+    // be filled by the first project alone. `aaa` has 500 rows and `zzz` has one; a
+    // query ordered by `project_id` with any window under 500 never returns `zzz`.
+    //
+    // Both projects are created here rather than in `beforeEach`, because
+    // `geo_pending_tasks.project_id` is a foreign key: inserting a task for a
+    // project that does not exist fails with `SQLITE_CONSTRAINT_FOREIGNKEY`, which
+    // reads as a schema problem rather than a missing fixture row.
+    for (const id of ["aaa", "zzz"]) {
+      await client.execute("INSERT INTO projects (id, name) VALUES (?,?)", [
+        id,
+        id,
+      ]);
+    }
+    await addTask("zzz", 0, 1);
+    for (let i = 0; i < 500; i += 1) await addTask("aaa", i, 1);
+
+    const tasks = await listCollectableTasks(100);
+    const seen = new Set(tasks.map((t) => t.projectId));
+    expect(seen.has("zzz")).toBe(true);
+    expect(seen.has("aaa")).toBe(true);
+    // Both projects are present, and **the cap is filled rather than dominated by
+    // one of them**: `aaa` has 500 pending tasks and gets roughly half the cap,
+    // not all of it. Asserting the share rather than a row index is the claim —
+    // the query orders by `round, posted_at`, so which row leads inside the first
+    // round is a detail of the sort, not the guarantee.
+    const byProject = new Map<string, number>();
+    for (const t of tasks) {
+      byProject.set(t.projectId, (byProject.get(t.projectId) ?? 0) + 1);
+    }
+    expect(byProject.get("zzz")).toBe(1);
+    // Round-robin means roughly equal, so `aaa` is near the cap minus `zzz`'s one,
+    // not 100 of its own.
+    expect(byProject.get("aaa")).toBe(99);
+  });
+
   it("still honours the cap, because fairness is not licence to bill more", async () => {
     // The cap is a **budget**, not a hint: every row here is one billed
     // `task_get`. Fairness cannot quietly raise what a customer pays, so the

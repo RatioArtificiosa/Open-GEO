@@ -374,163 +374,64 @@ export async function listCollectableTasks(limit = 100): Promise<
     postedAt: string;
   }>
 > {
-  const projects = await db
-    .selectDistinct({ projectId: geoPendingTasks.projectId })
+  /**
+   * One query, row-numbered per project.
+   *
+   * `ROW_NUMBER() OVER (PARTITION BY project_id ORDER BY posted_at)` gives every
+   * row its position *within its own project*, so ordering the result by that
+   * position walks the projects round by round. `LIMIT` then takes the first
+   * `limit` of that sequence, which is fair by construction: a project with one
+   * task appears in the first round whatever else is queued, and a project with
+   * the whole table to itself fills the cap rather than being held to a quota.
+   *
+   * ## Why the round-based version this replaced was wrong in two ways
+   *
+   * The first version looped in JavaScript, reading a window of rows per round and
+   * allotting each project `perProject`. It failed twice, and **both failures are
+   * the fairness bug wearing a different hat**:
+   *
+   * 1. **It capped throughput.** A project could take at most `perProject` rows
+   *    *in total*, so a single project with a hundred queued tasks drained at a
+   *    tenth of the rate the global limit used to allow — pushing its tasks toward
+   *    the 72-hour reaper, which is the harm the change was made to prevent. A
+   *    fairness rule must not slow the common case down to help the rare one.
+   * 2. **Starvation survived.** The window was ordered by `project_id`, so a
+   *    project with more than `window` rows filled every window and no other
+   *    project appeared at all — `expected [ 'p0' ] to include 'p1'`.
+   *
+   * It also cost up to ten queries per call. The window function makes the whole
+   * rule one statement, and the fairness becomes a property of the `ORDER BY`
+   * rather than of arithmetic spread across a loop.
+   */
+  const rows = await db
+    .select({
+      vendorTaskId: geoPendingTasks.vendorTaskId,
+      tag: geoPendingTasks.tag,
+      se: geoPendingTasks.se,
+      modelName: geoPendingTasks.modelName,
+      prompt: geoPendingTasks.prompt,
+      projectId: geoPendingTasks.projectId,
+      postedAt: geoPendingTasks.postedAt,
+      // The position within its own project. Selected rather than only ordered by,
+      // because the ordering has to *be* `rn` and the query has to be read to
+      // check it — an expression buried in `orderBy` is invisible at the call site.
+      round:
+        sql<number>`ROW_NUMBER() OVER (PARTITION BY ${geoPendingTasks.projectId} ORDER BY ${geoPendingTasks.postedAt} ASC)`.as(
+          "round",
+        ),
+    })
     .from(geoPendingTasks)
-    .where(eq(geoPendingTasks.status, "pending"));
+    .where(eq(geoPendingTasks.status, "pending"))
+    // Round first, then oldest within it. The secondary key matters: two projects'
+    // first rounds interleave oldest-first, so the log reads in time order rather
+    // than grouping by project.
+    .orderBy(sql`round`, geoPendingTasks.postedAt)
+    .limit(limit);
 
-  if (projects.length === 0) return [];
-
-  /**
-   * One project's share of the cap, per round.
-   *
-   * **`floor`, not `ceil`**, and the difference is the whole bug. With a hundred
-   * tasks and ten projects, `ceil(100/10)` is 10 and every project is allotted 10
-   * — which is only correct if the first project's rows happen to fill the query
-   * first. They do: the query is ordered by project id, so a single
-   * `limit = cap * 2` window is entirely consumed by the first few projects and
-   * the rest never appear. My first version had exactly this, and the test
-   * reported `expected [ 'p0' ] to include 'p1'`.
-   *
-   * So the share is a **floor** — never more than an even split — and the
-   * fairness guarantee comes from *rounds*, not from the size of a round. Each
-   * round gives every project `perProject` rows; a project with one task takes it
-   * and is finished, a project with a thousand takes `perProject` per round until
-   * the cap is spent. A project with exactly one task is therefore looked at in the
-   * very first pass whatever else is queued, which is the property that matters.
-   *
-   * The floor of 1 keeps a small cap from rounding to zero: with a cap of 10 and a
-   * hundred projects, `floor(10/100)` is 0, and a zero share is the original bug
-   * with more arithmetic around it.
-   *
-   * **And it is clamped by `limit` itself.** The first version did not clamp, so a
-   * caller asking for one task received ten — the queue-drain tests caught it with
-   * `expected 1 to be 10`. A `limit` is a request, not a starting point for a
-   * negotiation, and a budget that can be exceeded by rounding is not a budget.
-   */
-  const perProject = Math.max(
-    1,
-    Math.min(PER_PROJECT_ROUND, Math.floor(limit / projects.length), limit),
-  );
-
-  const collected = new Map<
-    string,
-    Array<{
-      vendorTaskId: string;
-      tag: string;
-      se: string;
-      modelName: string;
-      prompt: string;
-      projectId: string;
-      postedAt: string;
-    }>
-  >();
-
-  /**
-   * Rows taken so far, which is what `limit` bounds.
-   *
-   * **`collected.size` is the wrong counter** and it is the kind of mistake that
-   * looks right: `collected` is a `Map` keyed by project, so its size counts
-   // *projects*, and with two projects it reads 2 while 170 rows have been taken.
-   * The cap therefore never bound, and the queue-drain tests caught it with
-   * `expected 170 to be less than or equal to 20`.
-   */
-  let taken = 0;
-  /**
-   * Tasks already taken, by their vendor id.
-   *
-   * **The row identity has to be tracked, not just the per-project count.** Every
-   * round re-reads from the top of the table, so the same task is in the window
-   * again on the next round; without this the single task in the queue-drain
-   * fixtures was taken once per round and the tests reported
-   * `expected 1 to be 10`. Counting per project was not enough — a project with
-   * fewer tasks than its share would take the same rows repeatedly, because the
-   * per-project count is a *quota*, not a record of what has been seen.
-   */
-  const seen = new Set<string>();
-
-  for (let round = 0; round < perProject; round += 1) {
-    // The cap binds here, where it can be applied *fairly*. A `slice` on the merged
-    // result would be simpler and would reinstate the original bug, because the
-    // busy project's tasks are the oldest and win every position in that list.
-    if (taken >= limit) break;
-
-    const rows = await db
-      .select({
-        vendorTaskId: geoPendingTasks.vendorTaskId,
-        tag: geoPendingTasks.tag,
-        se: geoPendingTasks.se,
-        modelName: geoPendingTasks.modelName,
-        prompt: geoPendingTasks.prompt,
-        projectId: geoPendingTasks.projectId,
-        postedAt: geoPendingTasks.postedAt,
-      })
-      .from(geoPendingTasks)
-      .where(eq(geoPendingTasks.status, "pending"))
-      // By project, then oldest within it: the per-project split below relies on a
-      // project's rows arriving together, and this is also the order the run log
-      // reads best in.
-      .orderBy(geoPendingTasks.projectId, geoPendingTasks.postedAt)
-      // **One row per project per round, not a window of the whole table.** The
-      // first version read `limit * 2` rows ordered by project, which is
-      // self-defeating: the ordering means the first project's rows come first, so
-      // a busy project fills the *entire* window and every other project is
-      // invisible again — `expected [ 'p0' ] to include 'p1'`, the original bug
-      // with a fairness comment on top. The window has to be wide enough to reach
-      // the last project and no wider, so it grows with the project count and the
-      // per-project allowance together.
-      .limit(projects.length * perProject * (round + 1));
-
-    if (rows.length === 0) break;
-
-    // A project's existing rows are read from `collected` rather than from a
-    // per-round map, so the record of what it holds is **authoritative** rather
-    // than a parallel copy that can disagree with it.
-    //
-    // The first version seeded a fresh map each round, so a project's rows were
-    // re-taken every round: the one task in the queue-drain fixtures came back ten
-    // times and the tests reported `expected 1 to be 10`. A shadowed per-round
-    // counter is exactly the mistake that reads as correct in review.
-    for (const row of rows) {
-      if (taken >= limit) break;
-      if (seen.has(row.vendorTaskId)) continue;
-      const list = collected.get(row.projectId) ?? [];
-      if (list.length >= perProject) continue;
-      list.push(row);
-      collected.set(row.projectId, list);
-      seen.add(row.vendorTaskId);
-      taken += 1;
-    }
-  }
-
-  /**
-   * The cap is applied **during selection, never to the merged list.**
-   *
-   * Sorting the merged rows oldest-first and then `slice(0, limit)` looked fair and
-   * was the original bug: the busy project's tasks are the oldest, so they win
-   * every position in a merged list and the small project's single task is cut.
-   * The debug output made that obvious — every project appeared in the selection
-   * and then vanished from the result, which is not a shape a code read produces.
-   *
-   * So fairness is decided where each project is allotted its share, and `taken`
-   * is what bounds it. There is nothing left to slice off, and a `slice` here would
-   * undo the whole change.
-   */
-  const out = [...collected.values()].flat();
-  // Oldest first within the whole set, so the run log reads in time order.
-  out.sort((a, b) => a.postedAt.localeCompare(b.postedAt));
-  return out;
+  // `round` is an ordering key rather than a field of a queued task, so it is
+  // dropped rather than carried into the drain's own types.
+  return rows.map(({ round: _round, ...task }) => task);
 }
-
-/**
- * How many tasks one project may contribute per round.
- *
- * A constant rather than a division, deliberately. Fairness here means *a project
- * with one task is looked at today whatever else is queued* — it does not mean a
- * project with ten thousand gets a thousandth of a pass. A dynamic share computes
- * `0` for a hundred projects and reinstates the original starvation.
- */
-const PER_PROJECT_ROUND = 10;
 
 /**
  * How many of a project's captures came back, for a coverage fraction.
