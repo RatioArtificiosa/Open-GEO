@@ -574,6 +574,41 @@ describe("import casing matches the filesystem, because CI is Linux", () => {
   });
 });
 
+describe("every GEO query key names the project", () => {
+  // **A cache key that omits the project serves one project's data inside
+  // another.** Every GEO read goes through a server function that takes the project
+  // from the *authorized context* rather than the request body — which is the right
+  // design, and it means the response genuinely varies by project. A key that
+  // omits `projectId` then caches one project's numbers under another's name.
+  //
+  // The visibility forecast shipped exactly that: `[name, domain, platform]`, while
+  // every query in `useGeoPageData.ts` already carried the project. One brand can
+  // be monitored under several projects, so the panel rendered project A's forecast
+  // inside project B for up to `GEO_QUERY_STALE_TIME_MS` — with no error, no empty
+  // state, and numbers entirely plausible.
+  //
+  // A source scan, because the failure is a missing array element and there is no
+  // runtime symptom to assert on.
+  it("has no geo query key without projectId", () => {
+    const offenders: string[] = [];
+    for (const file of textFiles(ROOT)
+      .map((f) => relative(ROOT, f).replace(/\\/g, "/"))
+      .filter((f) => f.startsWith("src/client/") && /\.(ts|tsx)$/.test(f))) {
+      const text = readFileSync(join(ROOT, file), "utf8");
+      for (const m of text.matchAll(/queryKey:\s*\[([^\]]*)\]/g)) {
+        const key = m[1];
+        if (!/geo/i.test(key)) continue; // only the GEO surface is in scope
+        if (!/projectId/.test(key)) {
+          offenders.push(`${file}: queryKey: [${key.trim()}]`);
+        }
+      }
+    }
+    // The message names the file and the key, because "some key somewhere" is not
+    // an actionable failure.
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe("mojibake must not get worse", () => {
   // The five *sane* code points, used only to build a control fixture. The
   // matcher no longer needs a list of mangled forms: damage is now detected as a

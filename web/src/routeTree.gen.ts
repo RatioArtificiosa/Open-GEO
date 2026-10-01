@@ -27,7 +27,7 @@ import { Route as ApiDomainAgeCheckerRouteImport } from './routes/api/domain-age
 import { Route as ApiCompetitorKeywordFinderRouteImport } from './routes/api/competitor-keyword-finder'
 import { Route as ApiCompetitorAnalysisRouteImport } from './routes/api/competitor-analysis'
 import { Route as ApiBacklinkCheckRouteImport } from './routes/api/backlink-check'
-import { Route as MarketingWhyOpenseoRouteImport } from './routes/_marketing/why-opengeo'
+import { Route as MarketingWhyOpengeoRouteImport } from './routes/_marketing/why-opengeo'
 import { Route as MarketingWebsiteTrafficCheckerRouteImport } from './routes/_marketing/website-traffic-checker'
 import { Route as MarketingToolsRouteImport } from './routes/_marketing/tools'
 import { Route as MarketingTermsAndConditionsRouteImport } from './routes/_marketing/terms-and-conditions'
@@ -181,7 +181,7 @@ const ApiBacklinkCheckRoute = ApiBacklinkCheckRouteImport.update({
   path: '/api/backlink-check',
   getParentRoute: () => rootRouteImport,
 } as any)
-const MarketingWhyOpenseoRoute = MarketingWhyOpenseoRouteImport.update({
+const MarketingWhyOpengeoRoute = MarketingWhyOpengeoRouteImport.update({
   id: '/why-opengeo',
   path: '/why-opengeo',
   getParentRoute: () => MarketingRoute,
@@ -565,7 +565,7 @@ export interface FileRoutesByFullPath {
   '/terms-and-conditions': typeof MarketingTermsAndConditionsRoute
   '/tools': typeof MarketingToolsRoute
   '/website-traffic-checker': typeof MarketingWebsiteTrafficCheckerRoute
-  '/why-opengeo': typeof MarketingWhyOpenseoRoute
+  '/why-opengeo': typeof MarketingWhyOpengeoRoute
   '/api/backlink-check': typeof ApiBacklinkCheckRoute
   '/api/competitor-analysis': typeof ApiCompetitorAnalysisRoute
   '/api/competitor-keyword-finder': typeof ApiCompetitorKeywordFinderRoute
@@ -645,7 +645,7 @@ export interface FileRoutesByTo {
   '/terms-and-conditions': typeof MarketingTermsAndConditionsRoute
   '/tools': typeof MarketingToolsRoute
   '/website-traffic-checker': typeof MarketingWebsiteTrafficCheckerRoute
-  '/why-opengeo': typeof MarketingWhyOpenseoRoute
+  '/why-opengeo': typeof MarketingWhyOpengeoRoute
   '/api/backlink-check': typeof ApiBacklinkCheckRoute
   '/api/competitor-analysis': typeof ApiCompetitorAnalysisRoute
   '/api/competitor-keyword-finder': typeof ApiCompetitorKeywordFinderRoute
@@ -728,7 +728,7 @@ export interface FileRoutesById {
   '/_marketing/terms-and-conditions': typeof MarketingTermsAndConditionsRoute
   '/_marketing/tools': typeof MarketingToolsRoute
   '/_marketing/website-traffic-checker': typeof MarketingWebsiteTrafficCheckerRoute
-  '/_marketing/why-opengeo': typeof MarketingWhyOpenseoRoute
+  '/_marketing/why-opengeo': typeof MarketingWhyOpengeoRoute
   '/api/backlink-check': typeof ApiBacklinkCheckRoute
   '/api/competitor-analysis': typeof ApiCompetitorAnalysisRoute
   '/api/competitor-keyword-finder': typeof ApiCompetitorKeywordFinderRoute
@@ -1190,7 +1190,7 @@ declare module '@tanstack/react-router' {
       id: '/_marketing/why-opengeo'
       path: '/why-opengeo'
       fullPath: '/why-opengeo'
-      preLoaderRoute: typeof MarketingWhyOpenseoRouteImport
+      preLoaderRoute: typeof MarketingWhyOpengeoRouteImport
       parentRoute: typeof MarketingRoute
     }
     '/_marketing/website-traffic-checker': {
@@ -1641,7 +1641,7 @@ interface MarketingRouteChildren {
   MarketingTermsAndConditionsRoute: typeof MarketingTermsAndConditionsRoute
   MarketingToolsRoute: typeof MarketingToolsRoute
   MarketingWebsiteTrafficCheckerRoute: typeof MarketingWebsiteTrafficCheckerRoute
-  MarketingWhyOpenseoRoute: typeof MarketingWhyOpenseoRoute
+  MarketingWhyOpengeoRoute: typeof MarketingWhyOpengeoRoute
   MarketingIndexRoute: typeof MarketingIndexRoute
   MarketingFeaturesAiBrandVisibilityRoute: typeof MarketingFeaturesAiBrandVisibilityRoute
   MarketingFeaturesAiSearchPromptsRoute: typeof MarketingFeaturesAiSearchPromptsRoute
@@ -1707,7 +1707,7 @@ const MarketingRouteChildren: MarketingRouteChildren = {
   MarketingTermsAndConditionsRoute: MarketingTermsAndConditionsRoute,
   MarketingToolsRoute: MarketingToolsRoute,
   MarketingWebsiteTrafficCheckerRoute: MarketingWebsiteTrafficCheckerRoute,
-  MarketingWhyOpenseoRoute: MarketingWhyOpenseoRoute,
+  MarketingWhyOpengeoRoute: MarketingWhyOpengeoRoute,
   MarketingIndexRoute: MarketingIndexRoute,
   MarketingFeaturesAiBrandVisibilityRoute:
     MarketingFeaturesAiBrandVisibilityRoute,

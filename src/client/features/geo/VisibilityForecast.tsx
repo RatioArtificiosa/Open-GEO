@@ -37,14 +37,28 @@ type GeoPlatform = (typeof GEO_PLATFORMS)[number];
  * is never read from the request body.
  */
 export function VisibilityForecast({
+  projectId,
   domain,
   platform,
 }: {
+  projectId: string;
   domain: string;
   platform: GeoPlatform;
 }) {
   const { data, isPending, isError, error } = useQuery({
-    queryKey: ["geoVisibilityForecast", domain, platform],
+    // **`projectId` is part of the key, and it has to be.** The server function
+    // takes the project from the authorized context rather than the request, so
+    // the response depends on which project the user is looking at — while the key
+    // this replaces was `[name, domain, platform]`. One brand can be monitored
+    // under several projects, so opening project A and then project B with the
+    // same domain served **project A's cached forecast inside project B** for up to
+    // five minutes.
+    //
+    // Every other GEO query in `useGeoPageData.ts` already includes `projectId` for
+    // the same reason; this one panel was written without it. The number is wrong
+    // in a way nothing on the page can reveal, because the panel renders, the
+    // numbers are plausible, and there is no error anywhere.
+    queryKey: ["geoVisibilityForecast", projectId, domain, platform],
     queryFn: () => getGeoVisibilityForecast({ data: { domain, platform } }),
     // The same five minutes every other GEO read uses, and for the same reason:
     // a forecast is derived from runs that arrive **nightly**, so refetching it

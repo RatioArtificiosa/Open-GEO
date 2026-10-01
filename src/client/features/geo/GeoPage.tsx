@@ -192,6 +192,7 @@ export function GeoPage({ projectId }: { projectId: string }) {
                 return data.mentionSeries.map((entry) => (
                   <VisibilityForecast
                     key={entry.platform}
+                    projectId={projectId}
                     domain={domain}
                     platform={entry.platform}
                   />
