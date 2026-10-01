@@ -66,8 +66,23 @@ export function buildKeywordSearchKey(params: {
   mode: KeywordMode;
   clickstream: boolean;
 }) {
+  // **Two different separators, and the inner one is a control character.**
+  //
+  // This used to join the parsed keywords with `|`, the same character the outer
+  // join uses — so the key was built from an ambiguous alphabet. A search for the
+  // single keyword `a|b` and a search for the two keywords `a,b` produced the
+  // *same* string, and the second search was served the first one's cached
+  // results. `parseKeywordInput` splits on newline and comma only, so a `|` inside
+  // a keyword is entirely legal user input.
+  //
+  // The separator is `\u0001` rather than some other printable character for one
+  // reason: **no keyword can contain it.** It is a control character, so it cannot
+  // be typed, pasted, or produced by a split, which makes the collision
+  // unreachable rather than merely unlikely. Writing it as an escape keeps the
+  // byte out of the source file, so the control-character audit still reads zero
+  // forbidden bytes in this repository.
   return [
-    parseKeywordInput(params.keyword).join("|"),
+    parseKeywordInput(params.keyword).join("\u0001"),
     params.locationCode,
     params.resultLimit,
     params.mode,

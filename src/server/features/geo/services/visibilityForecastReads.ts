@@ -42,11 +42,13 @@ import {
  * answer it cannot read, it returns **null**, and null is counted as neither a
  * mention nor an absence.
  *
- * The existing alerting path (`runObservations.ts`) assumes
+ * The alerting path (`runObservations.ts`) used to assume
  * `answerText !== null` means mentioned, which is correct for `mentions_search`
- * and **wrong for `llm_responses`**. That file is only ever fed Live runs
- * today, so the defect is latent rather than live, and it is recorded here
- * because this reader is the first to mix the two.
+ * and **wrong for `llm_responses`**. It now calls the same `mentionFromAnswer`
+ * this reader does, so there is one rule about what a body of text means and not
+ * two — and that matters more now than when the comment was written, because the
+ * queued path (`llm_responses`) is the one that *has* text to read at all, and a
+ * second opinion about it would be a second answer to the same question.
  */
 
 /** One run's worth of forecast input. */
@@ -100,34 +102,34 @@ const DEFAULT_RUN_LIMIT = 24;
 /**
  * Why there is nothing to forecast.
  *
- * **Both acquisition paths are currently silent, not just the Live one.** The
- * original wording blamed only the live path, because at the time that was the
- * only one understood to lack a denominator. Tracing the queued path showed
- * otherwise:
+ * ## What is true today, and what changed
  *
- * - `GeoPatrol` computes `promptsAsked: posted` for the queued branch and
- *   returns it — but returns `snapshotId: null`, because a queued run posts
- *   prompts and archives nothing. Nothing persists the count.
- * - `queueDrainRunner` later calls `settleCollectedTask` **without** a
- *   `snapshotId`, so the answers land in `geo_answers` attached to no snapshot
- *   at all, and no `prompts_asked` is ever written.
+ * The queued path **does** record a denominator. `queueDrainRunner` writes one
+ * snapshot per collected answer with `prompts_asked: 1`, and the note below used
+ * to say the opposite — that queued runs "do have a denominator, but nothing
+ * records it yet". That was true when this was written and **stopped being true
+ * when the drain was made to archive**, so a reader chasing the sentence would
+ * have been sent to fix something already fixed.
  *
- * So today *no* run carries a denominator and the forecast is permanently
- * refused. Naming only the live path would send an operator to fix the wrong
- * path: the live path **cannot** be fixed (the vendor does not disclose its
- * prompt-set size), while the queued path **can**, and is the one worth doing.
+ * So the honest split is now:
  *
- * That ordering matters. A reader who is told "this is what the vendor will not
- * tell us" concludes there is nothing to do; a reader told the queued path is
- * ours to fix learns that the number is reachable.
+ * - **Live runs cannot know their denominator.** The vendor picks the prompts and
+ *   does not disclose how many, so this is not ours to fix and saying otherwise
+ *   would send an operator after something unreachable.
+ * - **Queued runs do.** One answer is one prompt asked, so `prompts_asked` is 1 and
+ *   the forecast is computable — at the cost of one observation per run, which is
+ *   why the direction floor is expressed in weeks (see `MIN_PROMPTS_FOR_DIRECTION`).
+ *
+ * A reader told the first concludes there is nothing to do; a reader told the
+ * second learns the number is reachable. Both halves have to be true at once,
+ * which is why this is a paragraph and not a clause.
  */
 const NOTE_NO_RUNS =
   "No run has recorded how many prompts it asked, so there is nothing to " +
-  "forecast yet. This is not only a vendor limitation: a run collected through " +
-  "the live path cannot know its own denominator, because the vendor picks the " +
-  "prompts and never discloses how many. Queued runs ask our own explicit " +
-  "prompts and so do have a denominator — but nothing records it yet, which is " +
-  "ours to fix rather than theirs.";
+  "forecast yet. A run collected through the live path can never know its own " +
+  "denominator, because the vendor picks the prompts and does not disclose how " +
+  "many — so that path is not ours to fix. A queued run does record one, because " +
+  "we choose the prompt, so if you are seeing this your runs were all live.";
 
 const NOTE_PARTIAL = (usable: number, total: number, cropped?: number) =>
   `Forecasted from ${usable} of ${total} runs` +

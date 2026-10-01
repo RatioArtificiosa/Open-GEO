@@ -292,22 +292,29 @@ export async function dispatchDigest(input: {
  * is sent.
  */
 function digestFingerprint(suppressed: Change[]): string {
-  return JSON.stringify(
-    [...suppressed]
-      .map((c) => {
-        // Narrowed by the discriminant, because only the `mention_*` variants
-        // carry a `domain` — and that is the union's own point: a `citation_lost`
-        // names a URL, not a brand. `startsWith("mention")` reads better but does
-        // **not** narrow a discriminated union, so the check is spelled out. The
-        // non-mention branch still fingerprints on platform and prompt, so a
-        // citation change remains distinguishable rather than collapsing.
-        if (c.kind === "mention_lost" || c.kind === "mention_gained") {
-          return `${c.kind}|${c.domain}|${c.platform}|${c.prompt}`;
-        }
-        return `${c.kind}|${c.platform}|${c.prompt}`;
-      })
-      .sort(),
-  );
+  // **`reduce` into a sorted array rather than `sort()` or `toSorted()`.** Both of
+  // those are rejected here for opposite reasons — `no-array-sort` refuses a
+  // mutating sort, and `toSorted` is typed as `any` under this lib target so
+  // `no-unsafe-call` refuses that. The sort is load-bearing (the same two gains
+  // decided in a different order must fingerprint identically, or the dedupe is a
+  // lottery), so it is written out rather than avoided: `localeCompare` is a total
+  // order on strings, and the accumulator is a fresh array so nothing is mutated.
+  const parts = suppressed.reduce<string[]>((acc, c) => {
+    // Narrowed by the discriminant, because only the `mention_*` variants carry a
+    // `domain` — and that is the union's own point: a `citation_lost` names a URL,
+    // not a brand. `startsWith("mention")` reads better but does **not** narrow a
+    // discriminated union, so the check is spelled out. The non-mention branch
+    // still fingerprints on platform and prompt, so a citation change stays
+    // distinguishable rather than collapsing.
+    acc.push(
+      c.kind === "mention_lost" || c.kind === "mention_gained"
+        ? `${c.kind}|${c.domain}|${c.platform}|${c.prompt}`
+        : `${c.kind}|${c.platform}|${c.prompt}`,
+    );
+    return acc;
+  }, []);
+  parts.sort((a, b) => a.localeCompare(b));
+  return JSON.stringify(parts);
 }
 
 /**

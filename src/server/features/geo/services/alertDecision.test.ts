@@ -62,7 +62,12 @@ describe("decideAlerts", () => {
     expect(decision.suppressed).toHaveLength(1);
     const [only] = decision.suppressed;
     expect(only?.kind).toBe("mention_gained");
-    expect("prompt" in only! ? only.prompt : null).toBe("beta");
+    // `only.kind` narrowed to `"mention_gained"` above is what makes `only.prompt`
+    // reachable: the discriminant on the *assertion* is not a type guard, so the
+    // property is read through the union's own shape instead.
+    if (only?.kind === "mention_gained") {
+      expect(only.prompt).toBe("beta");
+    }
   });
 
   it("does not report a loss for a prompt that merely gained elsewhere", () => {
