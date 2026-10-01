@@ -57,7 +57,8 @@
     "repair:rank-locations": "tsx scripts/repair-rank-tracking-locations.ts",
     "seed:rank-tracking": "tsx scripts/seed-rank-tracking.ts",
     "seed:projects": "tsx scripts/seed-projects.ts",
-    "ci:check": "prettier --check . && knip && tsc --noEmit && tsc --noEmit -p badseo/tsconfig.json && oxlint . --type-aware && pnpm detect:slop && pnpm sync-plugin-skills"
+    "ci:check": "prettier --check . && knip && tsc --noEmit && tsc --noEmit -p badseo/tsconfig.json && oxlint . --type-aware && pnpm detect:slop && pnpm sync-plugin-skills",
+    "geo:unread-fields": "node scripts/unread-response-fields.mjs"
   },
   "cloudflare": {
     "bindings": {
