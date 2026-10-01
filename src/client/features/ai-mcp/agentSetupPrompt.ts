@@ -1,4 +1,4 @@
-import installerSkill from "../../../../.agents/skills/setup-opengeo/SKILL.md?raw";
+import installerSkill from "../../../../.agents/skills/setup-OpenGeo/SKILL.md?raw";
 import updatePrompt from "./agentUpdatePrompt.md?raw";
 
 export const agentUpdatePrompt = updatePrompt.trim();

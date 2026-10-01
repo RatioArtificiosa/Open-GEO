@@ -394,6 +394,156 @@ describe("the gate files themselves", () => {
   });
 });
 
+describe("import casing matches the filesystem, because CI is Linux", () => {
+  // **This is why the pipeline was red on 30 consecutive runs.**
+  //
+  // Two `?raw` imports named their target in a different case than the file on
+  // disk:
+  //
+  //   import ... from ".../.agents/skills/setup-opengeo/SKILL.md?raw"
+  //   import ... from "@/server/features/sam/opengeo-fact-sheet.md?raw"
+  //
+  // while the tracked files are `setup-OpenGeo/SKILL.md` and
+  // `OpenGeo-fact-sheet.md`. **Windows resolves either casing**, so the build
+  // worked here and `knip` was clean locally. Linux is case-sensitive, so on CI
+  // both imports were unresolvable — and because `knip` is the second step of
+  // `ci:check`, nothing after it ran, ever.
+  //
+  // Nothing about the failure pointed at casing. It said "Unresolved imports",
+  // which reads as a missing file, and the obvious response — add the file — is
+  // exactly wrong when the file is present under a different name.
+  //
+  // So the rule is pinned here: **every relative or aliased import must match a
+  // tracked path exactly, byte for byte, including case.** A test rather than a
+  // lint rule, because the failure mode is a platform difference that only a test
+  // comparing against git's own index can see.
+  it("matches every local import to a tracked path exactly", () => {
+    // **`git ls-files` must run against the repository this test is scanning, and
+    // with `-C` so the working directory is not the question.** `REPO_ROOT` in
+    // this module is the *outermost* git repository, which is the parent of
+    // `Open-GEO` — so a bare `git ls-files` lists the parent's tracked files, and
+    // not one path under `src/` ever matches. That is why the first version of
+    // this test passed with the casing bug still present: it was comparing the
+    // import against an index that did not contain it, in either direction.
+    //
+    // The two repositories are separate: the parent's `.git/info/exclude` omits
+    // `Open-GEO/` entirely, so no path in this tree appears in the parent's index.
+    // Naming the directory explicitly is the only correct form.
+    const tracked = new Set(
+      execFileSync("git", ["-C", ROOT, "ls-files"], {
+        encoding: "utf8",
+        maxBuffer: 1e9,
+      })
+        .split("\n")
+        .filter(Boolean)
+        .map((f) => f.replace(/\\/g, "/")),
+    );
+    // A control: the index is not empty, or every rule below is vacuous.
+    expect(tracked.size).toBeGreaterThan(100);
+
+    // **The case-folded set, and this is the part that makes the rule work on
+    // Windows.** `git ls-files` reports the path as it exists *on disk*, and a
+    // Windows checkout holds whatever casing the last write left behind — so after
+    // fixing an import to the committed casing, `ls-files` can still report the
+    // old one and the mismatch becomes invisible. The first version of this test
+    // passed with the bug reintroduced, which is the exact failure a gate exists
+    // to prevent.
+    //
+    // So the two spellings are compared as a *pair*: an import resolves only if it
+    // matches a tracked path exactly, and the reported offender names the
+    // case-folded sibling so the reader is told the real problem rather than
+    // "file not found".
+    const caseFolded = new Map<string, string[]>();
+    for (const t of tracked) {
+      const key = t.toLowerCase();
+      const list = caseFolded.get(key) ?? [];
+      list.push(t);
+      caseFolded.set(key, list);
+    }
+
+    // **The walk starts at `ROOT`, not `REPO_ROOT`, and that distinction is the
+    // gate.** `REPO_ROOT` is the *outermost* git repository, which is the parent
+    // of `Open-GEO`; the parent excludes `Open-GEO/` through its
+    // `.git/info/exclude`, so walking from there finds **no** `src/` at all and
+    // the offender list is empty because nothing was scanned.
+    //
+    // The encoding rules deliberately scan `REPO_ROOT`, because the damaged
+    // documents this repository found live in the parent and a scan that stopped
+    // at the nested root would never have seen them. **Those two jobs need
+    // different roots and the difference is the whole bug**, which is why the
+    // control above asserts the scanned set actually contains the file that
+    // motivated the rule.
+    const files = textFiles(ROOT)
+      .map((f) => relative(ROOT, f).replace(/\\/g, "/"))
+      .filter((f) => f.startsWith("src/") || f.startsWith("scripts/"))
+      .filter((f) => f.endsWith(".ts") || f.endsWith(".tsx"));
+
+    // A control on the control: the file that motivated this rule must be among
+    // the files scanned. If it is not, `offenders` is empty for the wrong reason
+    // and the test is decorative — which is the failure this whole repository
+    // keeps finding, and the reason the first two versions of this gate passed
+    // with the real bug still in the source.
+    expect(
+      files.some((f) => f.endsWith("ai-mcp/agentSetupPrompt.ts")),
+    ).toBe(true);
+
+    const offenders: string[] = [];
+    for (const rel of files) {
+      const text = readFileSync(join(ROOT, rel), "utf8");
+      for (const m of text.matchAll(/from\s+["']([^"']+)["']/g)) {
+        // `?raw` is a Vite feature, not part of the path. Everything after the `?`
+        // is a bundler query and has to be stripped before the file is looked up.
+        const clean = m[1].split("?")[0];
+
+        // **The candidate list has to include the extension.** A TypeScript
+        // import names `./agentUpdatePrompt`, not `./agentUpdatePrompt.ts`, so
+        // comparing the specifier directly against `git ls-files` marks *every*
+        // relative import in the repository as untracked. The first version of
+        // this test did exactly that and therefore passed with the real bug still
+        // present, because it was reading a different list than it had built.
+        // A gate that cannot fail is the thing this repository keeps finding.
+        const base = clean.startsWith("@/")
+          ? "src/" + clean.slice(2)
+          : clean.startsWith(".")
+            ? join(dirname(rel), clean).replace(/\\/g, "/")
+            : null;
+        if (base === null) continue; // a package specifier; not ours to resolve
+
+        const candidates = [
+          base,
+          base + ".ts",
+          base + ".tsx",
+          base + ".md",
+          base + ".json",
+          join(base, "index.ts").replace(/\\/g, "/"),
+          join(base, "index.tsx").replace(/\\/g, "/"),
+        ];
+        if (candidates.some((c) => tracked.has(c))) continue;
+        // No exact match. A case-folded hit is the interesting case, because it is
+        // the bug that Windows hides and Linux CI reports — so the message says
+        // so rather than "file not found", which sends the reader looking for a
+        // missing file instead of a differently-cased one.
+        let reported: string | null = null;
+        for (const c of candidates) {
+          const s = caseFolded.get(c.toLowerCase());
+          if (s) {
+            reported =
+              rel +
+              " imports " +
+              c +
+              " but the tracked path is " +
+              s[0] +
+              " (CASE MISMATCH)";
+            break;
+          }
+        }
+        offenders.push(reported ?? rel + " imports " + candidates[0] + " which is not tracked");
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe("mojibake must not get worse", () => {
   // The five *sane* code points, used only to build a control fixture. The
   // matcher no longer needs a list of mangled forms: damage is now detected as a

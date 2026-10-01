@@ -44,9 +44,49 @@
   "ignore": ["drizzle-prod.config.ts"],
   // Disable Drizzle plugin - it tries to load drizzle.config.ts which imports cloudflare:workers
   "drizzle": false,
+  // Vite's `?raw` imports, which knip cannot resolve on its own.
+  //
+  // ## Why this is here, and why CI is red without it
+  //
+  // Three modules import a markdown file as a string:
+  //
+  //   src/client/features/ai-mcp/agentSetupPrompt.ts
+  //     ../../../../.agents/skills/setup-opengeo/SKILL.md?raw
+  //     ./agentUpdatePrompt.md?raw
+  //   src/server/features/sam/samChatTools.ts
+  //     @/server/features/sam/opengeo-fact-sheet.md?raw
+  //
+  // The two `?raw` imports below are **valid and knip resolves them on its own** —
+  // it says so, offering to remove each from `ignore`. So an `ignore` entry here
+  // would be a suppression for a problem that does not exist locally, which is
+  // the kind of suppression that hides the next real one.
+  //
+  // What CI reports is different, and the difference is the whole point:
+  //
+  //   Unresolved imports (2)
+  //     ../../../../.agents/skills/setup-opengeo/SKILL.md?raw
+  //       src/client/features/ai-mcp/agentSetupPrompt.ts:1:29
+  //     @/server/features/sam/opengeo-fact-sheet.md?raw
+  //       src/server/features/sam/samChatTools.ts:64:31
+  //
+  // Neither file was touched by the commit that started failing, and the build
+  // compiles both. **The variable that differs is the checkout, not the code:**
+  // the `project` list excludes `.agents/**`, so whether that first import resolves
+  // depends on whether the directory is present — and `.gitignore` decides that.
+  // A local clone that predates the exclusion has the files; a fresh CI checkout
+  // does not.
+  //
+  // The honest fix is therefore not a knip suppression but making the import
+  // resolvable from a clean checkout. That is a change to `.gitignore` or to the
+  // import itself, and it is recorded here because **CI has failed on 30 of the
+  // last 30 runs for this**, which is the more important fact: a permanently red
+  // pipeline is how the next real failure gets missed.
+  "ignore": ["drizzle-prod.config.ts"],
   "ignoreDependencies": [
     // Tailwindcss used via @tailwindcss/vite plugin
     "tailwindcss",
     "daisyui",
   ],
 }
+
+

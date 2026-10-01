@@ -61,7 +61,7 @@ import {
 import { whoamiTool } from "@/server/mcp/tools/whoami";
 import { discoverSiteUrls, readPages, readSite } from "@/server/lib/scrape";
 import { capToolOutput } from "@/server/features/sam/samToolOutput";
-import openSeoFactSheet from "@/server/features/sam/opengeo-fact-sheet.md?raw";
+import openSeoFactSheet from "@/server/features/sam/OpenGeo-fact-sheet.md?raw";
 
 // Enough pages for SAM to work out what a business does, sells, and positions
 // against on its own.
