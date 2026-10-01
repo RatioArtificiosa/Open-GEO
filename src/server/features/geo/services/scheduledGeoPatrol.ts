@@ -8,6 +8,7 @@ import {
   projects,
 } from "@/db/schema";
 import { GeoPatrol } from "@/server/features/geo/services/GeoPatrol";
+import { geoAnswerUnitCostUsd } from "@/shared/dataforseo-pricing";
 import {
   alertOnRunChange,
   ALERT_TRANSPORT,
@@ -252,6 +253,23 @@ async function runDuePatrols(
           customer,
           createdBy: "schedule",
           platforms: ["chat_gpt", "google_ai_overview"] as GeoPlatform[],
+          /**
+           * The price and the cap, both from the price book rather than literals.
+           *
+           * The price is read live so a vendor price change keeps this a real cap —
+           * a literal here stops bounding anything the day it drifts from the
+           * vendor's page.
+           *
+           * The cap is `null`, and that is a **decision**, not an omission: the
+           * product has no per-project spend setting yet, so inventing a ceiling
+           * would refuse runs on a number nobody chose. `null` is reported on the
+           * run log as "bounded by its answer limit only", which is honest, and it
+           * is the gap a future pricing plan has to close. The alternative —
+           * omitting both fields — is the same behaviour with no way for an operator
+           * to discover it.
+           */
+          unitCostUsd: geoAnswerUnitCostUsd(),
+          budgetUsd: null,
           // Passed only when it is `queued`, so a live run's call is byte-identical
           // to the one that shipped — `mode: "live"` would be the same behaviour
           // with one more field to reason about at every call site.

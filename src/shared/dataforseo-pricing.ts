@@ -83,6 +83,22 @@ export const DFS_AI_OPTIMIZATION = {
   },
 } as const;
 
+/**
+ * The price of one GEO answer, from this price book rather than a literal at the
+ * call site.
+ *
+ * A patrol's spend cap is only a cap while it tracks the real price. A caller that
+ * hard-codes `$0.0012` is correct until the vendor moves, and then the cap silently
+ * stops being one — with nothing in any log, because the arithmetic is unchanged
+ * and its input is a constant nobody reviews.
+ *
+ * So the price is read from the same table the pricing slider reads, and the two
+ * cannot disagree. This is the whole argument for keeping prices as data.
+ */
+export function geoAnswerUnitCostUsd(queue: DfsQueue = "standard"): number {
+  return DFS_AI_OPTIMIZATION.llmScraper[queue].perRequest ?? 0;
+}
+
 // ---------------------------------------------------------------------------
 // SERP
 // ---------------------------------------------------------------------------

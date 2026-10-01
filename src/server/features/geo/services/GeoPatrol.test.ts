@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { geoAnswerUnitCostUsd } from "@/shared/dataforseo-pricing";
 
 /**
  * The patrol's reporting rules.
@@ -215,6 +216,7 @@ describe("GeoPatrol in queued mode", () => {
     const result = await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,
+      unitCostUsd: geoAnswerUnitCostUsd(),
       createdBy: "schedule",
       mode: "queued",
       platforms: ["chat_gpt"],
@@ -244,6 +246,7 @@ describe("GeoPatrol in queued mode", () => {
     const result = await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,
+      unitCostUsd: geoAnswerUnitCostUsd(),
       createdBy: "schedule",
       mode: "queued",
       platforms: ["chat_gpt"],
@@ -271,6 +274,7 @@ describe("GeoPatrol in queued mode", () => {
     const result = await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,
+      unitCostUsd: geoAnswerUnitCostUsd(),
       createdBy: "schedule",
       mode: "queued",
       platforms: ["chat_gpt"],
@@ -289,6 +293,7 @@ describe("GeoPatrol", () => {
     const result = await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,
+      unitCostUsd: geoAnswerUnitCostUsd(),
       createdBy: "schedule",
     });
     expect(result.answersArchived).toBe(0);
@@ -301,6 +306,7 @@ describe("GeoPatrol", () => {
     const result = await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,
+      unitCostUsd: geoAnswerUnitCostUsd(),
       createdBy: "schedule",
       platforms: ["chat_gpt"],
     });
@@ -320,6 +326,7 @@ describe("GeoPatrol", () => {
     await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,
+      unitCostUsd: geoAnswerUnitCostUsd(),
       createdBy: "schedule",
       platforms: ["chat_gpt"],
     });
@@ -343,6 +350,7 @@ describe("GeoPatrol", () => {
     await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,
+      unitCostUsd: geoAnswerUnitCostUsd(),
       createdBy: "schedule",
       platforms: ["chat_gpt"],
     });
@@ -364,6 +372,7 @@ describe("GeoPatrol", () => {
     await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,
+      unitCostUsd: geoAnswerUnitCostUsd(),
       createdBy: "schedule",
       platforms: ["google_ai_overview"],
     });
@@ -378,6 +387,7 @@ describe("GeoPatrol", () => {
     await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,
+      unitCostUsd: geoAnswerUnitCostUsd(),
       createdBy: "schedule",
       platforms: ["chat_gpt"],
     });
@@ -389,6 +399,7 @@ describe("GeoPatrol", () => {
     const result = await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,
+      unitCostUsd: geoAnswerUnitCostUsd(),
       createdBy: "schedule",
       platforms: ["perplexity"],
     });
@@ -398,9 +409,18 @@ describe("GeoPatrol", () => {
     // such job runs. What matters now is that the platform is named, that the
     // absence is stated, and that nothing claims to cover it — so the assertion
     // pins all three rather than one phrase that a later edit could reword.
-    expect(result.notes[0]).toContain("perplexity");
-    expect(result.notes[0]).toMatch(/is not collected/i);
-    expect(result.notes[0]).not.toMatch(/is collected by/i);
+    //
+    // **Searched rather than read at `notes[0]`.** The spend-cap check prepends its
+    // own note, so position 0 is no longer the platform note — and an assertion
+    // pinned to an index fails on an unrelated addition, which teaches whoever
+    // reads the failure to distrust it. The claim under test is "a note exists that
+    // says this", not "this note happens to be first".
+    const platformNote = result.notes.find((note) =>
+      note.includes("perplexity"),
+    );
+    expect(platformNote).toBeDefined();
+    expect(platformNote).toMatch(/is not collected/i);
+    expect(platformNote).not.toMatch(/is collected by/i);
   });
 
   it("queries ChatGPT at US/en and records that it did", async () => {
@@ -413,6 +433,7 @@ describe("GeoPatrol", () => {
     const result = await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,
+      unitCostUsd: geoAnswerUnitCostUsd(),
       createdBy: "schedule",
       platforms: ["chat_gpt"],
     });
@@ -427,6 +448,7 @@ describe("GeoPatrol", () => {
     const result = await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,
+      unitCostUsd: geoAnswerUnitCostUsd(),
       createdBy: "schedule",
       platforms: ["chat_gpt"],
     });
@@ -444,6 +466,7 @@ describe("GeoPatrol", () => {
     const result = await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,
+      unitCostUsd: geoAnswerUnitCostUsd(),
       createdBy: "schedule",
       platforms: ["chat_gpt", "google_ai_overview"],
     });
@@ -456,12 +479,67 @@ describe("GeoPatrol", () => {
     const result = await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,
+      unitCostUsd: geoAnswerUnitCostUsd(),
       createdBy: "schedule",
       platforms: ["chat_gpt", "google_ai_overview"],
       maxAnswers: 2,
     });
     expect(result.answersArchived).toBe(2);
     expect(result.notes.join(" ")).toMatch(/cap/);
+  });
+
+  it("refuses a run whose cost is above the spend cap, before calling the vendor", async () => {
+    // **The money cap, which the volume cap above cannot express.** 500 expensive
+    // keywords and 500 cheap ones differ by an order of magnitude, so a cap on
+    // answer *count* permits a bill nobody agreed to, and the customer finds out on
+    // an invoice.
+    //
+    // The vendor assertion is the load-bearing one: a cap checked after the calls
+    // would have already spent the money, so a refusal that arrives too late is not
+    // a refusal.
+    //
+    // **The cap is a tenth of a cent, not a cent.** The first version used `$0.01`,
+    // which is $0.0036 of expected spend for three answers at $0.0012 each — so the
+    // run was correctly *allowed* and the test failed with `expected "vi.fn()" to not
+    // be called`. The product was right and the test was not: a cap that generous
+    // cannot exercise a refusal, and writing a test that passes for the wrong reason
+    // is worse than writing none.
+    reset([mentionItem(), mentionItem(), mentionItem()]);
+    const result = await GeoPatrol.run({
+      projectId: "p1",
+      customer: CUSTOMER,
+      unitCostUsd: geoAnswerUnitCostUsd(),
+      createdBy: "schedule",
+      platforms: ["chat_gpt"],
+      budgetUsd: 0.0001,
+      maxAnswers: 3,
+    });
+
+    expect(mentionsSearch).not.toHaveBeenCalled();
+    expect(result.answersArchived).toBe(0);
+    expect(result.notes.join(" ")).toMatch(/would cost about/);
+    expect(result.notes.join(" ")).toMatch(/spend cap/i);
+    // A declined run asked nothing, which is `null` rather than zero — zero would
+    // claim it asked three questions and got no answers.
+    expect(result.promptsAsked).toBeNull();
+  });
+
+  it("says a run had no spend cap, rather than running silently unbounded", async () => {
+    // `budgetUsd: null` means no ceiling, and it is allowed — the product has no
+    // per-project spend setting yet. But "allowed" must not mean "invisible", or an
+    // operator cannot tell an uncapped run from a capped one.
+    reset([mentionItem()]);
+    const result = await GeoPatrol.run({
+      projectId: "p1",
+      customer: CUSTOMER,
+      unitCostUsd: geoAnswerUnitCostUsd(),
+      createdBy: "schedule",
+      platforms: ["chat_gpt"],
+      budgetUsd: null,
+    });
+
+    expect(result.answersArchived).toBe(1);
+    expect(result.notes.join(" ")).toMatch(/no spend cap/i);
   });
 
   it("does not record a cost it cannot see", async () => {
@@ -471,6 +549,7 @@ describe("GeoPatrol", () => {
     const result = await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,
+      unitCostUsd: geoAnswerUnitCostUsd(),
       createdBy: "schedule",
       platforms: ["chat_gpt"],
     });
@@ -486,6 +565,7 @@ describe("GeoPatrol", () => {
     const result = await GeoPatrol.run({
       projectId: "p1",
       customer: CUSTOMER,
+      unitCostUsd: geoAnswerUnitCostUsd(),
       createdBy: "schedule",
       platforms: ["chat_gpt"],
     });
