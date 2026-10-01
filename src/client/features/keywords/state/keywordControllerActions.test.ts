@@ -17,12 +17,14 @@ import type {
  * than left to a reader to reason about.
  */
 describe("buildKeywordSearchKey", () => {
-  // The real types, not literals I invented: `ResultLimit` is 150 | 300 | 500 and
-  // the mode is `auto` or a named source. The first version of this file used
-  // `10` and `"phrase"`, which is how a test ends up asserting behaviour against
-  // values the product can never produce.
+  // The real types, not literals I invented. `ResultLimit` is 150 | 300 | 500 and
+  // `KeywordSource` is `related` | `suggestions` | `ideas`. The first version of
+  // this file used `10`, `"phrase"` and a cast to `"google"`, which is how a test
+  // ends up asserting behaviour against values the product can never produce —
+  // and `no-unsafe-type-assertion` caught the cast, because `KeywordSource` is a
+  // closed union and "google" is not one of its members.
   const LIMIT = 150 satisfies ResultLimit;
-  const SOURCE = "google" as KeywordSource;
+  const SOURCE: KeywordSource = "suggestions";
   const base = {
     locationCode: 2840,
     resultLimit: LIMIT,
@@ -70,7 +72,11 @@ describe("buildKeywordSearchKey", () => {
       keyword: "x",
       locationCode: 2826,
     });
-    const c = buildKeywordSearchKey({ ...base, keyword: "x", clickstream: true });
+    const c = buildKeywordSearchKey({
+      ...base,
+      keyword: "x",
+      clickstream: true,
+    });
     const d = buildKeywordSearchKey({ ...base, keyword: "x", mode: SOURCE });
 
     expect(new Set([a, b, c, d]).size).toBe(4);

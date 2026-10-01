@@ -1,7 +1,15 @@
 import { readFileSync } from "node:fs";
 import { createClient, type Client } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import type { readForecastInput as ReadForecastInput } from "@/server/features/geo/services/visibilityForecastReads";
 
@@ -95,7 +103,15 @@ beforeEach(async () => {
   });
   await client.execute({
     sql: "INSERT INTO geo_targets (id, project_id, name, domain, location_code, language_code, created_at) VALUES (?,?,?,?,?,?,?)",
-    args: [ACME, PROJECT, "acme.com", "acme.com", 2840, "en", "2026-01-01 00:00:00"],
+    args: [
+      ACME,
+      PROJECT,
+      "acme.com",
+      "acme.com",
+      2840,
+      "en",
+      "2026-01-01 00:00:00",
+    ],
   });
 });
 

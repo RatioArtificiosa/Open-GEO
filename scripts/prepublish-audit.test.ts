@@ -57,32 +57,59 @@ const ROOT = process.cwd();
  * `allowed_mentions`, `acquisition-mode-gate`, `billed-tasks-gate`. Every one
  * was invisible in an editor and in `git diff`.
  *
- * A gate that cannot see the file it is protecting is not a gate, so the walk is
- * given a chance to reach **the outermost** checkout rather than the nearest one.
+ * A gate that cannot see the file it is protecting is not a gate — so the walk can
+ * be pointed above this checkout. It used to do that **automatically**, taking the
+ * outermost `.git` it could find, and that was a mistake in the other direction:
+ * a developer whose `$HOME` is itself a dotfiles repository resolves to `$HOME`,
+ * and the scan walks their whole home directory.
  *
  * `G:\opengeo` and `G:\opengeo\Open-GEO` are **two independent repositories**, and
- * the parent excludes the child outright (`.git/info/exclude`: `Open-GEO/`).
- * Walking up for the *nearest* `.git` therefore finds Open-GEO's own and changes
- * nothing — which is exactly what the first version of this did, and it was
- * verified: the scan still reported the parent documents invisible. So the walk
- * continues while a further `.git` exists *above* the one found, and the
- * outermost is used.
+ * the parent excludes the child outright (`.git/info/exclude`: `Open-GEO/`), so
+ * this file's own contents are not in the parent's index and vice versa. The
+ * nested tree is scanned either way, because it is inside the nearest root.
  *
- * Degrading gracefully: if no parent `.git` exists — a standalone clone — the
- * nearest is used, so the gate is never weaker than it was.
+ * So: **the nearest `.git` by default, and the outer root only when asked for**
+ * with `PREPUBLISH_AUDIT_ROOT`. Both halves matter. The nearest root keeps the
+ * gate pointed at this project; the override is what lets a deliberate run reach
+ * the parent's documents, which is where the damage above was found — reached on
+ * purpose, recorded in the run, rather than by a heuristic that happened to work on
+ * one machine and misfired on another.
+ *
+ * Degrading gracefully: if no `.git` is found at all, `ROOT` is used, so the gate
+ * is never weaker than it was.
  */
 const REPO_ROOT = (() => {
+  // **Opt-in override, because the default had to change.**
+  //
+  // This used to walk five levels up and keep the **outermost** directory holding
+  // a `.git`, on the reasoning that the damaged documents this gate finds live in
+  // the parent of this checkout. That is true, and it is also unbounded in
+  // practice: a developer with a dotfiles repository at `$HOME` resolves
+  // `REPO_ROOT` to `$HOME`, and the scan then walks their entire home directory —
+  // slow, and failing on files that have nothing to do with this project.
+  //
+  // **A gate that can be pointed at the wrong tree is a gate whose result nobody
+  // trusts**, which is worse than a narrower one. So the nearest `.git` is the
+  // default, and the outer root — the one layout that genuinely needs it — is
+  // requested explicitly:
+  //
+  //     PREPUBLISH_AUDIT_ROOT=/path/to/outer pnpm vitest run scripts/prepublish-audit
+  //
+  // The nearest root still covers the nested `Open-GEO/` tree, which is where the
+  // control characters found in this session actually were. The parent's own
+  // documents are scanned by a run configured with the override, not by accident.
+  const override = process.env.PREPUBLISH_AUDIT_ROOT;
+  if (override) return override;
   let dir = ROOT;
-  let outermost = ROOT;
   // Bounded: a checkout cannot nest many repositories deep, and an unbounded walk
   // that found nothing would climb to the filesystem root.
   for (let i = 0; i < 5; i += 1) {
-    if (existsSync(join(dir, ".git"))) outermost = dir;
+    if (existsSync(join(dir, ".git"))) return dir;
     const parent = dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
-  return outermost;
+  return ROOT;
 })();
 
 /**

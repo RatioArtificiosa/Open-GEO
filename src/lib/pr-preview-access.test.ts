@@ -83,6 +83,28 @@ printf '%s|%s' "$first" "$second"`,
 
 const shellIsUsable = shellRunsTheScriptFaithfully();
 
+/**
+ * A silent skip is a deleted test, and **in CI it is worse than that.**
+ *
+ * This suite is the only test of the step that keeps a *public* preview from
+ * being shared with the wrong Access header. `describe.skipIf(!shellIsUsable)`
+ * turns any probe failure into a green skip, and the plausible causes are all
+ * environmental: a bash change on the runner image, a spawn timeout under load, a
+ * changed probe string. None of them is a reason to stop testing the guard — they
+ * are reasons the *probe* broke, and a green skip reports neither.
+ *
+ * The skip is right on a developer machine without a usable bash — that is what it
+ * was written for. In CI it is a hole in the pipeline, so **the probe has to
+ * pass there** and a failure is reported as a failure.
+ */
+if (!shellIsUsable && process.env.CI) {
+  throw new Error(
+    "bash cannot run the pr-preview Access script faithfully on CI, so the suite guarding " +
+      "public preview access cannot be skipped silently. Fix the probe or the script; do not " +
+      "remove the assertion.",
+  );
+}
+
 describe.skipIf(!shellIsUsable)("preview Access verification", () => {
   it.each([
     { responses: [access], status: 0, retries: 0 },
