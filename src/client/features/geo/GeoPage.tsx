@@ -2,6 +2,7 @@ import { AlertTriangle, RefreshCw, SearchCheck } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { GeoVisibilityPanel } from "./GeoVisibilityPanel";
 import { GeoTargetForm } from "./GeoTargetForm";
+import { GeoAcquisitionSettings } from "./GeoAcquisitionSettings";
 import { MentionsTrendPanel } from "./MentionsTrendPanel";
 import { VisibilityForecast } from "./VisibilityForecast";
 import { NewLostPanel, TopCitedPanel, MetricFootnote } from "./LivePanels";
@@ -51,6 +52,14 @@ export function GeoPage({ projectId }: { projectId: string }) {
 
         <section className="rounded-xl border border-base-300 bg-base-100 p-4">
           <GeoTargetForm projectId={projectId} onChanged={data.refetch} />
+        </section>
+
+        {/* Mounted, not merely written: three prompt-set server functions existed
+            with schemas, tests and no caller, which is the same "correct, tested,
+            never invoked" shape this repository keeps finding. A component nobody
+            renders is that defect wearing a different hat. */}
+        <section className="rounded-xl border border-base-300 bg-base-100 p-4">
+          <GeoAcquisitionSettings projectId={projectId} />
         </section>
 
         {data.isLoading ? <GeoLoadingState /> : null}

@@ -63,6 +63,15 @@ type DueTarget = {
   projectId: string;
   domain: string;
   organizationId: string;
+  /**
+   * The project's acquisition preference, or `null` for "never expressed".
+   *
+   * Resolved to `"live"` at the call site rather than here, because `null` and
+   * `"live"` are the same decision and the *reason* they are the same is worth
+   * keeping in one place: a column added to a table that has rows should not
+   * pretend every row chose something.
+   */
+  geoAcquisitionMode: "live" | "queued" | null;
 };
 
 /**
@@ -97,6 +106,10 @@ async function listDueTargets(now: Date): Promise<DueTarget[]> {
       projectId: geoTargets.projectId,
       domain: geoTargets.domain,
       organizationId: projects.organizationId,
+      // Read here rather than in a second query: the join to `projects` already
+      // exists for the archive filter, and a per-project lookup would be one
+      // round trip per project for one nullable column.
+      geoAcquisitionMode: projects.geoAcquisitionMode,
     })
     .from(geoTargets)
     .innerJoin(projects, eq(geoTargets.projectId, projects.id))
@@ -221,11 +234,28 @@ async function runDuePatrols(
           projectId,
         };
 
+        /**
+         * The project's chosen acquisition path, and the only place in production
+         * that decides it.
+         *
+         * **`?? "live"`, and that fallback is the safety property.** A project
+         * that has never chosen — every project that existed before this column —
+         * keeps the behaviour it has always had, which is the Live path that
+         * archives within the run. The queue is opt-in, and the cost of a mistake
+         * here is bounded: an opted-in project whose prompts were deleted posts
+         * nothing and says so, rather than falling back to something else.
+         */
+        const mode = targets[0]?.geoAcquisitionMode ?? "live";
+
         const run = await GeoPatrol.run({
           projectId,
           customer,
           createdBy: "schedule",
           platforms: ["chat_gpt", "google_ai_overview"] as GeoPlatform[],
+          // Passed only when it is `queued`, so a live run's call is byte-identical
+          // to the one that shipped — `mode: "live"` would be the same behaviour
+          // with one more field to reason about at every call site.
+          ...(mode === "queued" ? { mode: "queued" as const } : {}),
         });
 
         result.projectsVisited += 1;

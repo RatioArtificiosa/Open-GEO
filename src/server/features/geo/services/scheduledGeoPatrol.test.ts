@@ -150,10 +150,41 @@ afterAll(() => {
   client.close();
 });
 
-async function addProject(id: string, org: string, archivedAt: string | null) {
+async function addProject(
+  id: string,
+  org: string,
+  archivedAt: string | null,
+  /**
+   * The acquisition preference, defaulting to `null` — which is what every
+   * project that predates the column holds, and the case that must keep behaving
+   * exactly as it did.
+   */
+  geoAcquisitionMode: "live" | "queued" | null = null,
+) {
   await client.execute({
-    sql: "INSERT INTO projects (id, name, location_code, language_code, created_at, organization_id, archived_at) VALUES (?,?,?,?,?,?,?)",
-    args: [id, id, 2840, "en", "2026-01-01 00:00:00", org, archivedAt],
+    sql: "INSERT INTO projects (id, name, location_code, language_code, created_at, organization_id, archived_at, geo_acquisition_mode) VALUES (?,?,?,?,?,?,?,?)",
+    args: [
+      id,
+      id,
+      2840,
+      "en",
+      "2026-01-01 00:00:00",
+      org,
+      archivedAt,
+      geoAcquisitionMode,
+    ],
+  });
+}
+
+/** The `mode` the scheduler passed to the patrol, per call. */
+function patrolModes(): Array<string | undefined> {
+  return patrolRun.mock.calls.map((call) => {
+    const first: unknown = call[0];
+    if (typeof first !== "object" || first === null) return undefined;
+    // `Reflect.get` is typed `any`, so the value is narrowed by hand rather than
+    // asserted — the rule is right that an `any` reaching a typed array is a hole.
+    const mode: unknown = Reflect.get(first, "mode");
+    return typeof mode === "string" ? mode : undefined;
   });
 }
 
@@ -258,6 +289,56 @@ describe("ScheduledGeoPatrol", () => {
     const result = await ScheduledGeoPatrol.runDuePatrols({ now: NOW });
     expect(result.projectsVisited).toBe(1);
     expect(patrolRun).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a project that never chose on the live path", async () => {
+    // **The safety property, and the most important assertion in this file.**
+    // Every project that existed before `geo_acquisition_mode` was added holds
+    // `null` in that column. If `null` did not resolve to live, deploying this
+    // would have silently moved every existing customer onto a queue that is up to
+    // 72 hours slow and collects differently — with no error and no way to tell
+    // from the run log.
+    await addTarget("t1", "p1", "acme.com");
+    await ScheduledGeoPatrol.runDuePatrols({ now: NOW });
+    // The mode is not merely "not queued" — it is *absent*, so the patrol call is
+    // byte-identical to the one that shipped.
+    expect(patrolModes()).toEqual([undefined]);
+  });
+
+  it("keeps a project that chose live on the live path", async () => {
+    await addProject("p_live", "org_1", null, "live");
+    await addTarget("t_live", "p_live", "acme.com");
+    await ScheduledGeoPatrol.runDuePatrols({ now: NOW });
+    expect(patrolModes()).toEqual([undefined]);
+  });
+
+  it("uses the queued path for a project that chose it", async () => {
+    // The wiring under test. Before this, `mode` was never passed by anything in
+    // production, so the queued branch was unreachable however the column was set.
+    await addProject("p_q", "org_1", null, "queued");
+    await addTarget("t_q", "p_q", "acme.com");
+    await ScheduledGeoPatrol.runDuePatrols({ now: NOW });
+    expect(patrolModes()).toEqual(["queued"]);
+  });
+
+  it("uses the queued path for every brand of a queued project", async () => {
+    // The mode is a *project* setting and the patrol calls `GeoPatrol.run` **once
+    // per project**, passing every target and letting the patrol loop internally.
+    // So a three-brand project produces one call that covers three brands — the
+    // assertion is that the call is queued, not that there are three of them. The
+    // first version of this test expected three calls, which would have meant
+    // asking for a per-target loop the code does not have and does not need.
+    await addProject("p_q2", "org_1", null, "queued");
+    await addTarget("t_a", "p_q2", "a.example.com");
+    await addTarget("t_b", "p_q2", "b.example.com");
+    await addTarget("t_c", "p_q2", "c.example.com");
+    await ScheduledGeoPatrol.runDuePatrols({ now: NOW });
+    expect(patrolRun).toHaveBeenCalledTimes(1);
+    expect(patrolModes()).toEqual(["queued"]);
+    // And the three brands went to the patrol, so the mode is not deciding to
+    // cover only one of them.
+    const first: unknown = patrolRun.mock.calls[0]?.[0];
+    expect(typeof first === "object" && first !== null).toBe(true);
   });
 
   it("skips a target already patrolled inside the last day", async () => {

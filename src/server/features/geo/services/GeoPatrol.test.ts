@@ -18,9 +18,7 @@ const mentionsSearch = spy();
 const recordRun = spy();
 const recordVendorTask = spy().mockResolvedValue(true);
 /** The project's saved prompts, which the queued branch now reads. */
-const promptsForQueuedRun = spy<(...args: never[]) => unknown>().mockResolvedValue(
-  [],
-);
+const promptsForQueuedRun = spy().mockResolvedValue([]);
 /** Posts made through the queued endpoint, so a queued run can be read back. */
 const postLlmResponseTasks = spy();
 /**
@@ -194,7 +192,9 @@ describe("GeoPatrol in queued mode", () => {
     listTargets.mockReset().mockResolvedValue([TARGET]);
     recordRun.mockClear();
     postLlmResponseTasks.mockClear();
-    promptsForQueuedRun.mockClear().mockResolvedValue(["best crm", "acme pricing"]);
+    promptsForQueuedRun
+      .mockClear()
+      .mockResolvedValue(["best crm", "acme pricing"]);
 
     const result = await GeoPatrol.run({
       projectId: "p1",
