@@ -307,6 +307,12 @@ async function recordRun(input: {
       id: snapshotId,
       projectId: input.projectId,
       promptSetId: input.promptSetId ?? null,
+      // **Accepted and then dropped** until CL-501e added the column. `GeoPatrol`
+      // has always passed the target it is measuring, so the brand identity was
+      // threaded all the way here and discarded — and the alerting reader then
+      // compared a run against "the previous run in this project", which in a
+      // multi-brand project is a *different brand's* run.
+      targetId: input.targetId ?? null,
       startedAt,
       status: "running",
       createdBy: input.createdBy,
@@ -316,13 +322,42 @@ async function recordRun(input: {
       promptsAsked: input.promptsAsked ?? null,
     }),
   ]);
-  await GeoAnswerRepository.insertAnswers(input.answers, snapshotId);
-  await runBatch((tx) => [
-    GeoRunRepository.completeSnapshot(tx, snapshotId, {
-      status: "complete",
-      costUsd: input.costUsd,
-    }),
-  ]);
+
+  /**
+   * The snapshot is marked `failed` if archiving throws, so an interrupted run
+   * cannot sit at `running` forever.
+   *
+   * This is three awaited steps, and until now only the last one recorded the
+   * outcome. A throw in the middle — a vendor payload the parser refuses, a
+   * foreign-key failure, a dropped connection — left the row at `running`
+   * permanently, and `running` is invisible to both consumers: the alerting
+   * reader filters to `complete`, and the forecast reads whatever runs it finds.
+   *
+   * So the failure was invisible twice over. Nobody was told the run had failed,
+   * and the runs *around* it were compared as though this one had never been
+   * attempted — which is a gap in the history that no query can explain, because
+   * the row that would explain it is sitting in the table saying `running`.
+   *
+   * Best-effort by design: if the cleanup write itself fails there is nothing
+   * useful left to do, and swallowing is better than replacing the original error
+   * with a less useful one.
+   */
+  try {
+    await GeoAnswerRepository.insertAnswers(input.answers, snapshotId);
+    await runBatch((tx) => [
+      GeoRunRepository.completeSnapshot(tx, snapshotId, {
+        status: "complete",
+        costUsd: input.costUsd,
+      }),
+    ]);
+  } catch (error) {
+    await runBatch((tx) => [
+      GeoRunRepository.completeSnapshot(tx, snapshotId, { status: "failed" }),
+    ]).catch(() => {
+      // Deliberately swallowed — see above.
+    });
+    throw error;
+  }
 
   return GeoRunRepository.getSnapshot(input.projectId, snapshotId);
 }

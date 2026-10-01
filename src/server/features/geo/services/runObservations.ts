@@ -1,7 +1,13 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 import { db } from "@/db";
-import { geoAnswers, geoSnapshotAnswers, geoSnapshots } from "@/db/schema";
-import { normaliseUrlForJoin } from "./urlIdentity";
+import {
+  geoAnswerCitations,
+  geoAnswers,
+  geoSnapshotAnswers,
+  geoSnapshots,
+} from "@/db/schema";
+import { loadDomainsForTargets, observationKey } from "./observationIdentity";
+import { mentionFromAnswer } from "./mentionFromAnswer";
 import type { Observation } from "./alertDecision";
 
 /**
@@ -46,45 +52,142 @@ type RunObservations = {
   keys: Set<string>;
 };
 
-function keyFor(platform: string, prompt: string): string {
-  return `${platform}|${normaliseUrlForJoin(prompt) ?? prompt.trim()}`;
-}
-
 /** Read one run's answers into the comparison shape. */
 async function readRunObservations(
   snapshotId: string,
 ): Promise<RunObservations> {
   const rows = await db
     .select({
+      id: geoAnswers.id,
       platform: geoAnswers.platform,
       prompt: geoAnswers.prompt,
       answerText: geoAnswers.answerText,
+      source: geoAnswers.source,
+      targetId: geoAnswers.targetId,
+      projectId: geoAnswers.projectId,
       vendorTaskId: geoAnswers.vendorTaskId,
     })
     .from(geoSnapshotAnswers)
     .innerJoin(geoAnswers, eq(geoAnswers.id, geoSnapshotAnswers.answerId))
     .where(eq(geoSnapshotAnswers.snapshotId, snapshotId));
 
+  // The brand each answer is about, resolved from its own `target_id`.
+  //
+  // **This is the whole reason mention alerts could never fire.** Every
+  // observation carried `domain: null`, and `decideAlerts` refuses any comparison
+  // whose domain is null (`alertDecision.ts:204`) because a "mention lost" has to
+  // name the brand that lost it. So the decision layer was silently discarding
+  // every mention change and only citation changes could ever survive.
+  //
+  // The earlier comment here claimed "the domain is filled in by the caller which
+  // knows it". No caller did. `alertRunner` is handed a `projectId`, and the
+  // patrol runs every target in a project as one snapshot, so there is no single
+  // domain to pass in — the answer row is the only place that knows.
+  //
+  // Resolved in one query for the whole run rather than per row. The project is
+  // taken from the rows themselves rather than from the caller: an answer is not
+  // readable across projects, so reading targets by the *caller's* project would
+  // be exactly the cross-project flaw the forecast reader had.
+  const projectId = rows[0]?.projectId;
+  const domainByTarget =
+    projectId === undefined
+      ? new Map<string, string>()
+      : await loadDomainsForTargets(
+          projectId,
+          new Set(
+            rows
+              .map((r) => r.targetId)
+              .filter((id): id is string => id !== null),
+          ),
+        );
+
   const byKey = new Map<string, Observation>();
+  // The pages each answer cited, in one query for the whole run.
+  //
+  // **This was hardcoded to `[]` for the life of the alerting chain**, which made
+  // `decideAlerts`' citation diffing unreachable: it loops over
+  // `before.citations`, so an empty list means zero citation changes, ever. The
+  // decision layer was complete, correct and tested against hand-built
+  // observations — and the reader it was fed by could never produce one. That is
+  // the same shape as the `domain: null` defect: a working decision with an
+  // unreachable input, and no error anywhere.
+  //
+  // Citations live in their own table rather than on `geo_answers`, because the
+  // composite primary key de-duplicates by URL per answer — re-running a prompt
+  // cannot inflate a count, which is what makes every share-of-voice number
+  // correct. That de-duplication is preserved here by relying on the table rather
+  // than re-deriving a set.
+  const citationRows = await db
+    .select({
+      answerId: geoAnswerCitations.answerId,
+      url: geoAnswerCitations.url,
+    })
+    .from(geoAnswerCitations)
+    .innerJoin(geoAnswers, eq(geoAnswers.id, geoAnswerCitations.answerId))
+    .innerJoin(
+      geoSnapshotAnswers,
+      eq(geoSnapshotAnswers.answerId, geoAnswers.id),
+    )
+    .where(eq(geoSnapshotAnswers.snapshotId, snapshotId));
+
+  const citationsByAnswer = new Map<string, string[]>();
+  for (const c of citationRows) {
+    const existing = citationsByAnswer.get(c.answerId);
+    if (existing) existing.push(c.url);
+    else citationsByAnswer.set(c.answerId, [c.url]);
+  }
+
   for (const row of rows) {
-    const key = keyFor(row.platform, row.prompt);
-    // A duplicate key would mean two rows for one prompt on one platform, and
-    // last-wins would silently pick one. The first is kept and the run still
-    // reports what it found — the ambiguity is visible in the row count rather
-    // than in a decision nobody can trace.
+    const domain =
+      row.targetId === null ? null : (domainByTarget.get(row.targetId) ?? null);
+    const key = observationKey({
+      domain,
+      platform: row.platform,
+      prompt: row.prompt,
+    });
+    // A duplicate key would mean two rows for one prompt on one platform **for the
+    // same brand**, and last-wins would silently pick one. The brand is part of
+    // the key because two targets in one project are asked the same prompt: keying
+    // on prompt alone would discard one brand's answer entirely and report the
+    // other's as if it were both.
+    //
+    // A genuine duplicate within one brand is still dropped, first-wins, and the
+    // run still reports what it found — the ambiguity shows up in the row count
+    // rather than in a decision nobody can trace.
     if (byKey.has(key)) continue;
+    // **The mention judgement is delegated, not re-derived.**
+    //
+    // The first version read `mentioned` as `row.answerText === null ? null :
+    // true`, which is wrong in *both* directions at once:
+    //
+    // - A `llm_responses` row is an answer to a prompt we asked, stored whether
+    //   or not the brand appears in it. Treating its mere existence as a mention
+    //   reports 100% visibility forever, which looks like a triumph.
+    // - A `mentions_search` row is a hit *because the vendor returned it*, and
+    //   carries no body. `answerText === null` therefore marked every Live hit as
+    //   **unobservable** — so the one source that is genuinely a mention was the
+    //   one source that could never fire an alert.
+    //
+    // `mentionFromAnswer` is the single rule for this question, it is pure, and it
+    // is tested. Two copies of "was the brand named" is how the forecast and the
+    // alerting path came to disagree.
+    //
+    // The brand is passed rather than left blank, so a queued answer can be read
+    // for real instead of being refused for want of a domain. Without it every
+    // queued answer was permanently unobservable and only Live runs could ever
+    // produce an alert.
+    const mention = mentionFromAnswer({
+      source: row.source,
+      answerText: row.answerText,
+      domain: domain ?? "",
+    });
     byKey.set(key, {
       platform: row.platform,
       prompt: row.prompt,
-      // The brand being watched is not on the answer row; the alert subject is
-      // the *change*, and the domain is filled in by the caller which knows it.
-      domain: null,
-      // `mentions_search` rows carry no body by design. `null` here means "we
-      // did not observe an answer", and the decision layer treats that as
-      // unobservable rather than as an absence.
-      mentioned: row.answerText === null ? null : true,
+      domain,
+      mentioned: mention.mentioned,
       sentiment: null,
-      citations: [],
+      citations: citationsByAnswer.get(row.id) ?? [],
     });
   }
 
@@ -109,33 +212,149 @@ type RunPair = {
 };
 
 /**
- * The two most recent completed runs, newest first.
+ * The run the caller just finished, and the one before it.
  *
- * **`previous` is the run *before* the current one, not the previous patrol.**
- * The 24-hour cadence filter means a tick often pats nothing (that is the
- * CL-150 fix working as intended), so "the last run before this snapshot" can be
- * a week old. Comparing across a week and reporting it as news would be the
- * alerting equivalent of a diff that never says how far apart the two answers
- * are — so the gap is carried, not smoothed over.
+ * **`currentId` is the snapshot the caller names**, not "the newest one in the
+ * table". The first version ignored it and re-derived the pair from `projectId`
+ * alone, which is wrong whenever two runs can finish out of order: the alert
+ * would be decided about a *different* run than the one that had just finished,
+ * and the run that actually triggered it would never be compared. The caller
+ * knows which run it just did; the question is only what to compare it against.
+ *
+ * **`previous` is the run *before* that one, not the previous patrol.** The
+ * 24-hour cadence filter means a tick often pats nothing (that is the CL-150 fix
+ * working as intended), so "the run before this snapshot" can be a week old.
+ * Comparing across a week and reporting it as news would be the alerting
+ * equivalent of a diff that never says how far apart the two answers are — so
+ * the gap is carried, not smoothed over.
+ *
+ * **Only `complete` runs are eligible for either side.** A `failed` or
+ * `running` snapshot archives partial or nothing, so diffing against one
+ * manufactures changes out of an outage. The docstring claimed "completed" while
+ * the query filtered nothing, so a failed run could become the baseline for every
+ * later comparison.
+ *
+ * **A snapshot covers exactly one brand, not every target in the project.** This
+ * paragraph used to assert the opposite, and it was wrong: `runForTarget` writes
+ * one snapshot per target, so a three-brand patrol writes three. Brand-level
+ * pairing therefore happens here, in the lookup, and not only in the answer key.
+ *
+ * ## Why the brand is part of the lookup, and not just the answer key
+ *
+ * A three-brand patrol writes three snapshots that all share a `startedAt` down to
+ * the millisecond. The first version asked for "the newest completed run in this
+ * project that started before X", and the answer was routinely *a different
+ * brand's run*.
+ *
+ * That is worse than it sounds. A probe against the real schema showed an
+ * `acme.com` run pairing with `s1_globex`, and because both sides of the pair
+ * carry their own `domain`, the brand-scoped key in `decideAlerts` matched **no
+ * rows at all**: the alert reported nothing rather than reporting the wrong brand.
+ * Incomplete rather than wrong, but only by accident of the key widening rather
+ * than by design.
+ *
+ * So both queries below filter on `target_id`. A snapshot whose `target_id` is
+ * null — every run written before CL-501e — is therefore not eligible to be a
+ * baseline, which means existing projects report "no baseline" rather than
+ * comparing across brands. **That is a one-time suppression of alerts, and it is
+ * the safe direction:** an alert naming the wrong brand is something a customer
+ * acts on.
  */
 export async function getLatestRunPair(
   projectId: string,
+  currentId?: string,
 ): Promise<RunPair | null> {
-  const recent = await db
+  if (currentId === undefined) {
+    // No snapshot named — the first-run/no-baseline case. There is nothing to
+    // compare and nothing to report, and inventing a "current" from whatever
+    // happens to be newest would compare against an unrelated run.
+    return null;
+  }
+
+  // The caller's run, and **the brand it belongs to**. The brand is read here
+  // rather than taken as a parameter because it is a property of the run, not a
+  // claim about it: a caller cannot ask for a different brand's comparison, and
+  // there is no way to pair two runs of different brands by passing the wrong one.
+  const [current] = await db
+    .select({
+      startedAt: geoSnapshots.startedAt,
+      targetId: geoSnapshots.targetId,
+    })
+    .from(geoSnapshots)
+    .where(
+      and(
+        eq(geoSnapshots.id, currentId),
+        eq(geoSnapshots.projectId, projectId),
+        eq(geoSnapshots.status, "complete"),
+      ),
+    )
+    .limit(1);
+  // Not `complete`, or not in this project — so there is no finished baseline and
+  // nothing to compare. This is the branch that stops a `failed` or `running`
+  // snapshot from being alerted on, and it is checked here rather than by
+  // filtering it out of a list, because "there is no such run" and "the run is not
+  // finished" are both `null` and neither is a comparison.
+  if (!current) return null;
+
+  // **An unattributed run has no baseline**, and this is a decision rather than an
+  // omission.
+  //
+  // `target_id` is null for every run written before CL-501e. It is tempting to
+  // backfill it by joining through the run's answers — `geo_answers.target_id`
+  // exists, and that is exactly how the forecast reader resolves a brand. The
+  // reasons not to, in order of weight:
+  //
+  // 1. **A run's answers can name more than one brand.** `GeoPatrol` writes one
+  //    snapshot per target, but a run whose answers were deleted leaves no way to
+  //    tell which brand it measured. Backfilling such a row would be a brand
+  //    attribution nobody had, and it would then become the *baseline* for a real
+  //    run — so a fabricated brand could drive a live "you lost this mention"
+  //    alert. That is the cross-brand diff wearing a different hat.
+  // 2. **The cost is one cycle of silence, not a wrong number.** A project
+  //    established before CL-501e alerts again as soon as it has two attributed
+  //    runs — one from the next patrol. Nothing is permanently lost, because
+  //    history accumulates rather than expires.
+  // 3. **A migration cannot express the guard cleanly on both dialects.** "Every
+  //    answer agrees on one target" is a correlated subquery whose semantics differ
+  //    between SQLite and Postgres, and a backfill that is subtly different per
+  //    dialect is worse than none.
+  //
+  // So the honest state is `null` and a sentence that says so. If a deployment
+  // ever needs its history back, the fix is a *deliberate* backfill written
+  // against one dialect and verified on both — not a silent one.
+  if (current.targetId === null) return null;
+
+  // Then the newest *finished* run **of the same brand** that started strictly
+  // before it.
+  //
+  // **The comparison lives in SQL, not in a JavaScript array.** The previous
+  // version loaded every snapshot the project had ever written and then picked
+  // the neighbouring element, which was correct and unbounded: a project patrolled
+  // daily for two years has ~700 snapshots per brand, and the whole table was
+  // read to choose one row. Worse, the in-memory version silently depended on
+  // `currentId` being present in that list, so `LIMIT 2` — the obvious way to bound
+  // it — reintroduced the bug this was fixed for: when the caller's run was not
+  // among the newest two, the pair became "some other run vs the newest". A
+  // `WHERE started_at < ?` is both bounded and exactly the intended question, and
+  // no bound can make it wrong.
+  const [previous] = await db
     .select({ id: geoSnapshots.id })
     .from(geoSnapshots)
-    .where(eq(geoSnapshots.projectId, projectId))
+    .where(
+      and(
+        eq(geoSnapshots.projectId, projectId),
+        eq(geoSnapshots.status, "complete"),
+        eq(geoSnapshots.targetId, current.targetId),
+        lt(geoSnapshots.startedAt, current.startedAt),
+      ),
+    )
     .orderBy(desc(geoSnapshots.startedAt))
-    .limit(2);
-
-  const currentId = recent[0]?.id;
-  if (currentId === undefined) return null;
-  const previousId = recent[1]?.id;
+    .limit(1);
 
   return {
     current: await readRunObservations(currentId),
     previous:
-      previousId === undefined ? null : await readRunObservations(previousId),
+      previous === undefined ? null : await readRunObservations(previous.id),
   };
 }
 

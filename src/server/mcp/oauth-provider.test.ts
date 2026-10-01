@@ -178,39 +178,59 @@ describe("OpenGeo OAuth provider configuration", () => {
     mocks.purges.length = 0;
   });
 
-  it("binds tokens and protected-resource metadata to the canonical MCP URL", async () => {
-    const { createOpenSeoOAuthProvider } = await import("./oauth-provider");
-    const provider = createOpenSeoOAuthProvider(() => new Response("app"));
+  // These two each pull `./oauth-provider` in with a dynamic `import()`, which is
+  // what lets the `vi.mock` factories above be in place before the module loads.
+  // The transform is fast in isolation but not under the full parallel suite: this
+  // file was the last remaining red in a full run purely because the import alone
+  // can exceed vitest's 5s default when 12 workers are competing for CPU.
+  //
+  // The timeout is raised rather than the import hoisted, because hoisting it would
+  // load the module before the mocks are registered — which fails in a far more
+  // confusing way (`undefined.prepare`, or a mock that silently does not apply)
+  //  than a slow test ever does.
+  const IMPORT_UNDER_LOAD_MS = 30_000;
 
-    await dispatch(provider, new Request("https://app.opengeo.so/health"));
+  it(
+    "binds tokens and protected-resource metadata to the canonical MCP URL",
+    async () => {
+      const { createOpenSeoOAuthProvider } = await import("./oauth-provider");
+      const provider = createOpenSeoOAuthProvider(() => new Response("app"));
 
-    expect(mocks.options).toHaveLength(1);
-    expect(mocks.options[0]?.resourceMetadata).toEqual({
-      resource: "https://app.opengeo.so/mcp",
-      scopes_supported: ["mcp"],
-      resource_name: "OpenGeo MCP",
-    });
-    expect(mocks.options[0]?.scopesSupported).toEqual([
-      "offline_access",
-      "mcp",
-    ]);
-    expect(mocks.options[0]?.clientRegistrationTTL).toBe(60 * 60 * 24 * 365);
-  });
+      await dispatch(provider, new Request("https://app.opengeo.so/health"));
 
-  it("purges OAuth KV data without needing a prior request", async () => {
-    const { createOpenSeoOAuthProvider } = await import("./oauth-provider");
-    const provider = createOpenSeoOAuthProvider(() => new Response("app"));
+      expect(mocks.options).toHaveLength(1);
+      expect(mocks.options[0]?.resourceMetadata).toEqual({
+        resource: "https://app.opengeo.so/mcp",
+        scopes_supported: ["mcp"],
+        resource_name: "OpenGeo MCP",
+      });
+      expect(mocks.options[0]?.scopesSupported).toEqual([
+        "offline_access",
+        "mcp",
+      ]);
+      expect(mocks.options[0]?.clientRegistrationTTL).toBe(60 * 60 * 24 * 365);
+    },
+    IMPORT_UNDER_LOAD_MS,
+  );
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mocked provider does not read its KV-backed environment
-    const result = await provider.purgeExpiredData({} as never);
+  it(
+    "purges OAuth KV data without needing a prior request",
+    async () => {
+      const { createOpenSeoOAuthProvider } = await import("./oauth-provider");
+      const provider = createOpenSeoOAuthProvider(() => new Response("app"));
 
-    expect(result.done).toBe(true);
-    expect(mocks.purges).toHaveLength(1);
-    // The lazily built provider still pins the hosted resource.
-    expect(mocks.options[0]?.resourceMetadata).toMatchObject({
-      resource: "https://app.opengeo.so/mcp",
-    });
-  });
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mocked provider does not read its KV-backed environment
+      const result = await provider.purgeExpiredData({} as never);
+
+      expect(result.done).toBe(true);
+      expect(mocks.purges).toHaveLength(1);
+      // The lazily built provider still pins the hosted resource.
+      expect(mocks.options[0]?.resourceMetadata).toMatchObject({
+        resource: "https://app.opengeo.so/mcp",
+      });
+    },
+    IMPORT_UNDER_LOAD_MS,
+  );
 
   it("rejects token exchanges that drop the required MCP scope", async () => {
     const { OAuthError } = await import("@cloudflare/workers-oauth-provider");

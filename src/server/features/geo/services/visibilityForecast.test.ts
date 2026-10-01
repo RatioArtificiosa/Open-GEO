@@ -171,6 +171,37 @@ describe("forecastVisibility", () => {
     expect(result.direction.basedOnWeeks).toBe(1);
   });
 
+  it("counts a queued run's same-week answers as one week, not five", () => {
+    // **The queued path against the direction floor.** A queued run asking five
+    // prompts archives five snapshots with `prompts_asked: 1`, and the answers can
+    // all land in the same week. If each counted as its own week, a project would
+    // reach the "enough history" floor on its very first collection and be told
+    // it has five weeks of data from a single day of measurement — and then be
+    // shown a slope through five single-sample weeks.
+    //
+    // `countDistinctWeeks` already gets this right with a `Set`, and its comment
+    // already gives the reason ("two runs on the same Tuesday would count as two
+    // weeks") — which is *this* defect, arrived at from the Live path. So this is
+    // the queued instance of a rule that was correct for a reason nobody had
+    // connected to it. Asserting it costs one test and makes the link explicit.
+    const wednesday = "2026-01-07";
+    const queued = [0, 1, 2, 3, 4].map((i) => ({
+      platform: "chat_gpt",
+      mentions: i % 2,
+      promptsAsked: 1,
+      date: wednesday,
+    }));
+
+    const result = forecastVisibility(queued);
+
+    // One week of history, so no direction — which is the correct reading: five
+    // single-sample snapshots from one day are not a trajectory.
+    expect(result.direction.basedOnWeeks).toBe(1);
+    expect(result.direction.perWeek).toBeNull();
+    expect(result.direction.confidence).toBe("none");
+    expect(result.direction.reading).toMatch(/Only 1 week of history/);
+  });
+
   it("always carries what it does not claim", () => {
     // So a caller cannot render the rate without the caveat, because the caveat
     // is what stops someone acting on a sample of twelve as a market share.

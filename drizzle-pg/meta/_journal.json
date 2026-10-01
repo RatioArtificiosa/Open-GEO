@@ -239,6 +239,13 @@
       "when": 1790793751046,
       "tag": "0033_jittery_landau",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790880000000,
+      "tag": "0034_geo_snapshot_target",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { GeoService } from "@/server/features/geo/services/GeoService";
+import { forecastForStoredSeries } from "@/server/features/geo/services/visibilityForecastReads";
 import {
   getNewLostSeries,
   getTopCitedPages,
@@ -25,6 +26,7 @@ import {
   getGeoRunSchema,
   getGeoShareOfVoiceSchema,
   getGeoVisibilitySchema,
+  getGeoVisibilityForecastSchema,
   listGeoAnswerHistorySchema,
   listGeoPromptSetsSchema,
   listGeoRunsSchema,
@@ -229,6 +231,32 @@ export const listGeoEvidencedRuns = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) =>
     listEvidencedSnapshots(context.projectId, data.limit ?? 50),
+  );
+
+/**
+ * The visibility forecast for one brand on one platform.
+ *
+ * `projectId` comes from the authorized context and never from `data`, so a
+ * caller cannot ask for another organisation's forecast by putting a different
+ * id in the request body. The `domain` is validated to be a host-shaped string
+ * and is then resolved *within* the authorized project, which is what makes a
+ * cross-project read impossible rather than merely discouraged.
+ *
+ * The refusal travels in the payload rather than as a thrown error. "We have
+ * runs and none of them says how many prompts it asked" is the most likely
+ * response today, and a throw would leave the panel blank with no explanation —
+ * which reads as a broken product rather than a measurement that has not
+ * happened yet.
+ */
+export const getGeoVisibilityForecast = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getGeoVisibilityForecastSchema)
+  .handler(async ({ data, context }) =>
+    forecastForStoredSeries({
+      projectId: context.projectId,
+      domain: data.domain,
+      platform: data.platform,
+    }),
   );
 
 // --- AI demand -------------------------------------------------------------

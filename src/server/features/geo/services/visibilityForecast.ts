@@ -50,6 +50,25 @@ type Confidence = "none" | "low" | "moderate" | "high";
  * proportion's interval spans more than half its own range, at which a trend
  * drawn through it is describing sampling noise. Derived in `confidenceFor` so
  * the two cannot drift apart.
+ *
+ * ## Why the queued path needs this floor more than anything else
+ *
+ * The unit here is a **week**, and the queued path archives **one snapshot per
+ * answer** (`prompts_asked: 1`). A queued run asking five prompts therefore
+ * contributes one week of history per answer that arrives, and a week of history
+ * is *one* sample.
+ *
+ * So a queued project cannot reach this floor for many weeks — which is exactly
+ * the right outcome, and worth stating rather than discovering. The floor is what
+ * stops the panel drawing a line through eight single-sample weeks and calling it
+ * a trajectory; without it, a queued project would receive a confident-looking
+ * slope built from the fact that its answers happened to arrive in that order.
+ *
+ * The consequence is that **the forecast's direction is effectively a Live-path
+ * feature**, and the queued path's contribution is the current rate and the
+ * alerting diff. That is a real limitation of the design rather than a defect in
+ * it, and it is the kind of thing a reader should be told by the product instead
+ * of discovered in a support ticket.
  */
 export const MIN_PROMPTS_FOR_DIRECTION = 8;
 

@@ -1,0 +1,62 @@
+# Normalise line endings in the repository, not on each machine.
+#
+# ## Why this file exists
+#
+# `core.autocrlf=true` is set on this Windows checkout and there was **no
+# `.gitattributes`**, so git converted every committed LF to CRLF on checkout.
+# Prettier's default `endOfLine` is `"lf"`, so `prettier --check .` — the *first*
+# step of `ci:check` — reported **47 of 47 flagged text files as unformatted** on
+# a machine where not one of them was.
+#
+# The consequence is a repository that cannot pass its own CI on Windows or
+# macOS, and that produces a 47-file diff the moment someone formats on the wrong
+# platform. Both directions are bad, and the cause is the same: **line endings
+# were a property of the checkout rather than of the repository.**
+#
+# `text=auto` plus `core.eol=lf` below is the standard pairing. The `* text=auto`
+# lets git detect text vs binary; the `[eol]` block pins the working-tree form for
+# the file types where a CRLF is never wanted.
+#
+# ## The rule that matters most
+#
+# `*.bat` and `*.cmd` are pinned to CRLF because **Windows will not run a batch
+# file with LF line endings** — it fails with a syntax error on the first line.
+# The mirror image is `*.sh`, pinned to LF because a CRLF in a shell script makes
+# the shebang line `#!/bin/sh\r`, which the kernel does not recognise, and the
+# script is executed as a shell command instead of a script. Both are silent
+# failures on the *other* platform, which is precisely why they are written down
+# here rather than left to each developer's editor.
+* text=auto eol=lf
+
+# Windows batch: must be CRLF or Windows cannot execute it at all.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Shell scripts: must be LF, or the shebang carries a stray CR and the kernel
+# refuses to run it.
+*.sh text eol=lf
+
+# These are read by tools that are line-ending sensitive and where a CRLF has
+# caused a real failure in this repository: a JSON manifest compared byte-wise,
+# and the SQL migrations whose `--> statement-breakpoint` markers must match.
+*.json text eol=lf
+*.jsonc text eol=lf
+*.sql text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Binary. Never converted, whatever the platform.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.mp4 binary
+*.zip binary
+*.gz binary

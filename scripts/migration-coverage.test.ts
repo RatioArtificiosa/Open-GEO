@@ -181,7 +181,17 @@ describe("the migrations a repository test applies", () => {
       }
     }
     expect(behind).toEqual([]);
-  });
+    // **This survey reads every test file in the repository and every migration on
+    // disk**, which is the most expensive thing in the suite — about four seconds
+    // alone, and it exceeded vitest's 5s default on roughly one full run in three
+    // under a full parallel suite. Every *other* run passed, which is the worst
+    // possible shape: a gate that is usually green and occasionally not, because a
+    // reader has no way to tell a slow disk from a stale fixture.
+    //
+    // The cost is genuine work rather than a slow assertion, so the honest fix is a
+    // budget that matches it — the same reasoning as `oauth-provider.test.ts` and
+    // `runDenominator.test.ts`.
+  }, 60_000);
 
   it("recognises a harness left behind by a new migration", () => {
     /**

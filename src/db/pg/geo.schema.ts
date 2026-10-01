@@ -120,6 +120,21 @@ export const geoSnapshots = pgTable(
     promptSetId: text("prompt_set_id").references(() => geoPromptSets.id, {
       onDelete: "set null",
     }),
+    /**
+     * Which brand this run measured. Nullable: every run written before this
+     * column existed is null, and no backfill was attempted — a snapshot's brand
+     * can only be inferred from answers that may since have been deleted.
+     *
+     * `GeoPatrol.run` writes one snapshot per target, and without this the
+     * alerting reader compared a run against "the previous run in the project",
+     * which in a multi-brand project is a different brand's run.
+     *
+     * The long-form reasoning lives on the SQLite declaration, which the parity
+     * gate requires to match this one field for field.
+     */
+    targetId: text("target_id").references(() => geoTargets.id, {
+      onDelete: "cascade",
+    }),
     startedAt: text("started_at").notNull(),
     completedAt: text("completed_at"),
     /**
@@ -148,6 +163,12 @@ export const geoSnapshots = pgTable(
   (table) => [
     index("geo_snapshots_project_started_idx").on(
       table.projectId,
+      table.startedAt,
+    ),
+    // One brand's runs, newest first — the alerting reader's exact access pattern.
+    index("geo_snapshots_project_target_started_idx").on(
+      table.projectId,
+      table.targetId,
       table.startedAt,
     ),
   ],

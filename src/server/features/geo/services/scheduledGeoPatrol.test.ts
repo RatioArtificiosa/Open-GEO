@@ -129,6 +129,11 @@ beforeAll(async () => {
       // product rather than a stale fixture. `scripts/migration-coverage.test.ts`
       // is what stops the next one being forgotten.
       ...readFileSync("drizzle/0055_nosy_galactus.sql", "utf8")
+        // 0056 adds geo_snapshots.target_id, which the alerting reader filters on.
+        .split("--> statement-breakpoint")
+        .filter((statement) => !statement.includes("DROP TABLE")),
+      // 0056 adds geo_snapshots.target_id, which the alerting reader filters on.
+      ...readFileSync("drizzle/0056_geo_snapshot_target.sql", "utf8")
         .split("--> statement-breakpoint")
         .filter((statement) => !statement.includes("DROP TABLE")),
     ].join("\n"),

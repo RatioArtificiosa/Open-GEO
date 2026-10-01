@@ -10,6 +10,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import type { runBatch } from "@/db/runBatch";
 import { geoPrompts, geoPromptSets, geoTargets } from "@/db/schema";
+import { normaliseDomain } from "@/server/features/geo/domain";
 
 /** The write handle `runBatch` hands its callback. */
 export type GeoTx = Parameters<Parameters<typeof runBatch>[0]>[0];
@@ -214,25 +215,26 @@ function insertPrompts(
  *
  * Returns null rather than throwing: a service asking about an unmonitored
  * domain decides how to phrase that, and a NOT_FOUND stack is not a sentence.
+ *
+ * **Both sides are normalised through the one shared function.** This used to
+ * inline a second copy that stripped a scheme and a `www.` from the *argument*
+ * only, and never touched the stored `row.domain`. So a target saved as
+ * `acme.com/about` — a path a paste can easily include — never matched anything,
+ * and the caller was told the brand was not monitored when it plainly was. That is
+ * the exact failure `normaliseDomain`'s own docstring describes, committed in the
+ * one function whose job is to prevent it.
+ *
+ * Normalising both sides also makes the comparison order-independent, which the
+ * inline version was not: it compared the raw stored value first and only then
+ * tried the stripped argument.
  */
 async function getTargetByDomain(
   projectId: string,
   domain: string,
 ): Promise<GeoTargetRow | null> {
-  const wanted = domain.trim().toLowerCase();
+  const wanted = normaliseDomain(domain);
   const targets = await listTargets(projectId);
-  return (
-    targets.find(
-      (row) =>
-        (row.domain === wanted ||
-          row.domain ===
-            wanted
-              .replace(/^https?:\/\//, "")
-              .replace(/^www\./, "")
-              .split("/")[0]) ??
-        "",
-    ) ?? null
-  );
+  return targets.find((row) => normaliseDomain(row.domain) === wanted) ?? null;
 }
 
 export const GeoSetupRepository = {

@@ -95,7 +95,32 @@ export const getGeoCitationGapTool = {
           `Citation gap unavailable for ${result.platform}.`,
           result.reason,
           "",
-          "For Google AI Overviews, use get_geo_ai_mode_query to see which pages it DID cite.",
+          // **This used to name a tool that does not exist.** It said to use the
+          // AI Mode query tool to see what the platform *did* cite — and there is
+          // no such tool, because the AI Mode monitor has no runner at all: the
+          // planner is tested and uncalled, and the only two functions that touch
+          // the `ai_mode_snapshots` table are declared and never invoked.
+          //
+          // An agent reading the old text would call a tool that is not
+          // registered, get a protocol error, and report that the tool was broken
+          // — so the cost of the sentence was not confusion but a **false bug
+          // report against our own server**.
+          //
+          // The first repair named a different tool that does not exist either.
+          // The registered set is `get_geo_citation_gap`, `get_geo_runs`,
+          // `get_geo_visibility`, `get_geo_visibility_forecast` and
+          // `get_geo_answer_history`, and replacing one invented name with another
+          // would have been the same defect wearing a different word. So the
+          // sentence now names **no tool** and states the absence, which cannot be
+          // wrong — and it cannot spell the old name either, because
+          // `scripts/acquisition-mode-gate.test.ts` scans this file and would flag
+          // the comment for containing it.
+          //
+          // The same false claim was fixed in `GeoPatrol`'s run-log note, where it
+          // said a platform "is collected by the AI Mode monitor". **A claim about
+          // a capability has to be true in every surface that makes it**, and
+          // there were two.
+          "We do not collect Google AI Overview citations, so no tool reports which pages it cited. What we do hold is in get_geo_visibility_forecast and get_geo_answer_history.",
         ].join("\n"),
         meta: buildProjectMeta(
           context,

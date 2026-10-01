@@ -1,0 +1,2 @@
+ALTER TABLE `geo_snapshots` ADD `target_id` text REFERENCES `geo_targets`(`id`) ON UPDATE no action ON DELETE cascade;--> statement-breakpoint
+CREATE INDEX `geo_snapshots_project_target_started_idx` ON `geo_snapshots` (`project_id`,`target_id`,`started_at`);

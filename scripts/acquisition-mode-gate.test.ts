@@ -1,5 +1,19 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+
+/** Every `.ts` under `dir`, recursively. */
+function listFiles(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...listFiles(full));
+    else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")) {
+      out.push(full);
+    }
+  }
+  return out;
+}
 
 /**
  * The queue must not become the default by accident.
@@ -153,5 +167,125 @@ describe("the patrol's acquisition mode", () => {
     // is the only place a reader learns the archive will be empty for now.
     const source = patrolSource();
     expect(source).toMatch(/queueNote|not now|stays empty/i);
+  });
+});
+
+describe("the note for a platform nothing collects", () => {
+  it("never claims a collector that does not run", () => {
+    // **The sixth instance of this codebase's favourite bug**, and the one that
+    // reached a customer-visible string.
+    //
+    // Both acquisition paths used to say that an uncollected platform *"is
+    // collected by the AI Mode monitor"*. There is no such monitor: `planAiModeCaptures`
+    // has tests and no caller, `fetchAiModeAnswer` is reached only through the SDK
+    // meter's method reference, and `tryBeginRun` is used solely by the patrol for
+    // `llm_mentions`. So the run log told a reader their gap was being handled.
+    //
+    // This asserts the *absence of the claim* rather than the presence of a
+    // replacement, because the claim is the defect: any future note that invents a
+    // collector fails here even if the sentence is beautifully worded.
+    const source = patrolSource();
+    expect(source).not.toMatch(/AI Mode monitor/i);
+    expect(source).not.toMatch(/is collected by/i);
+  });
+
+  it("names no collector, and says the gap is real rather than a delay", () => {
+    // The replacement has to carry information, not just avoid a lie. A reader
+    // needs to know whether to wait — and the answer is always no.
+    //
+    // Read from the source rather than imported: this file is a pure source scan
+    // by design, and importing `GeoPatrol` drags in `cloudflare:workers` through
+    // the billing module, which no Node-side test can resolve. The first version
+    // of this test tried it and failed with `Cannot find package
+    // 'cloudflare:workers'` — a scan that has to boot the worker is no longer a
+    // scan.
+    const source = patrolSource();
+    expect(source).toMatch(/is not collected/i);
+    expect(source).toMatch(/real rather than a delay/i);
+    // The platform name is interpolated, not hard-coded per platform — one
+    // function, so `gemini` and `perplexity` get the same sentence.
+    expect(source).toMatch(/\$\{platform\} is not collected/);
+  });
+
+  it("is one sentence for both paths, so they cannot drift apart", () => {
+    // The two notes were separate strings and one of them was the false one. A
+    // shared function makes a second copy a decision rather than an oversight.
+    const source = patrolSource();
+    // Declared once. Not exported: the gate reads the source, and an export with
+    // no importer is what `knip` exists to refuse — the first version exported it
+    // for this test's benefit and knip correctly rejected it.
+    expect(
+      source.match(/function uncollectedPlatformNote/g) ?? [],
+    ).toHaveLength(1);
+    // And called from both branches: the queued `llm_responses` loop and the Live
+    // `llm_mentions` loop.
+    expect(
+      source.match(/notes\.push\(uncollectedPlatformNote\(/g) ?? [],
+    ).toHaveLength(2);
+  });
+});
+
+describe("MCP tool text names only tools that exist", () => {
+  // **The defect this gate exists for lived in a tool's response text, not in
+  // code.** `get_geo_citation_gap` told the caller to use the AI Mode query tool
+  // to see what a platform *did* cite. There is no such tool, because the AI Mode
+  // monitor has no runner — so an agent reading that sentence would call an
+  // unregistered tool, get a protocol error, and report our own server as broken.
+  //
+  // The repair nearly repeated it: the first fix pointed at a different tool that
+  // **also does not exist.** Replacing one invented name with another is the same
+  // defect wearing a different word, and nothing caught it — no test read that
+  // string, because the string was prose in a return value. This gate is what
+  // catches it.
+  //
+  // Note what that first fix teaches, twice over. It was wrong, **and this file's
+  // own comment naming the wrong tool is itself flagged by the rule below** — a
+  // gate that scans sources cannot have its sources quote the thing they must not
+  // contain. So neither this comment nor the tool's comment may spell the invented
+  // name. Both describe it instead. That is the same constraint the encoding gate
+  // imposes, and it is a property of source-scanning gates in general: **the rule
+  // covers your prose as well as your code**, which is usually the right answer and
+  // occasionally just inconvenient.
+  //
+  // Scoped to `get_geo*` on purpose. A general "every backticked identifier is a
+  // real symbol" rule would flag every schema field, option name and file path in
+  // the tool prose, and a gate that cries wolf is a gate that gets deleted.
+  it("names no unregistered tool in the MCP sources", () => {
+    const registered = new Set<string>();
+    for (const file of listFiles("src/server/mcp")) {
+      const text = readFileSync(file, "utf8");
+      for (const m of text.matchAll(/name:\s*"(get_geo[a-z_]*)"/g)) {
+        registered.add(m[1]);
+      }
+    }
+    // A control: the set is not empty, or every rule below is vacuous.
+    expect(registered.size).toBeGreaterThan(0);
+
+    const offenders: Array<{ file: string; name: string }> = [];
+    for (const file of listFiles("src/server/mcp")) {
+      const text = readFileSync(file, "utf8");
+      for (const m of text.matchAll(/`(get_geo[a-z_]*)`/g)) {
+        if (!registered.has(m[1])) {
+          offenders.push({ file, name: m[1] });
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("catches an invented name, and does not flag a real one", () => {
+    // **The negative control this rule needs**, and the reason the test above can
+    // be trusted. A rule that returns nothing for a description naming a tool that
+    // does not exist is a rule that returns nothing for every description.
+    const registered = new Set(["get_geo_visibility"]);
+    const unknownIn = (source: string) =>
+      [...source.matchAll(/`(get_geo[a-z_]*)`/g)]
+        .map((m) => m[1])
+        .filter((n) => !registered.has(n));
+
+    expect(
+      unknownIn("Call `get_geo_ai_mode_query` to see what it cited."),
+    ).toEqual(["get_geo_ai_mode_query"]);
+    expect(unknownIn("See `get_geo_visibility` for the rate.")).toEqual([]);
   });
 });

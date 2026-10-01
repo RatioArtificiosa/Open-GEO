@@ -1,4 +1,4 @@
-import { and, eq, lt, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { geoPendingTasks } from "@/db/schema";
 // Imported from the schema module rather than the barrel because the barrel
@@ -230,6 +230,49 @@ export async function readQueueState(
 }
 
 /**
+ * When the queue was last *worked on*, from the queue's own rows.
+ *
+ * ## Why this exists
+ *
+ * `isDrainDue` is documented as a 24-hour gate, and `runQueueDrain` accepts a
+ * `lastLookedAt` for it — but **nothing in production ever passed one**, so
+ * `isDrainDue` was always handed `null` and always returned `true`. The gate was
+ * a rule that could never fire, which is the same shape as a feature that is built,
+ * tested and mounted nowhere: `queueDrainSchedule.test.ts` passes five cases
+ * against the pure function while the real caller bypassed it entirely.
+ *
+ * It mattered only lightly while the drain *discarded* what it collected — a
+ * wasted look was a few vendor calls against an empty queue. It matters now that
+ * the drain **archives**, because the cron runs every five minutes: 288 passes a
+ * day, each re-reading the queue and re-reporting "collected 0" in the log.
+ *
+ * ## Why the answer comes from the rows rather than a new column
+ *
+ * A persisted `last_looked_at` would need a migration on both dialects, and it
+ * would need to be written by the drain — meaning a crash between "looked" and
+ * "recorded the look" silently skips a whole day of collection. Reading it from
+ * the queue's own rows is **self-describing and self-healing**:
+ *
+ * - A queue with nothing in it has never been looked at and is always due, which
+ *   is exactly right — the moment something is posted, the next tick collects it.
+ * - A queue with settled work says when it was last touched.
+ *
+ * The trade-off is that a queue whose tasks all *expired* reports its last look as
+ * whenever they were posted, so it stays due for a while and reaps nothing. That is
+ * cheap and harmless; the alternative — a column that can silently skip a day — is
+ * not.
+ */
+export async function readLastLookedAt(): Promise<string | null> {
+  const [row] = await db
+    .select({ completedAt: geoPendingTasks.completedAt })
+    .from(geoPendingTasks)
+    .where(isNotNull(geoPendingTasks.completedAt))
+    .orderBy(desc(geoPendingTasks.completedAt))
+    .limit(1);
+  return row?.completedAt ?? null;
+}
+
+/**
  * Settle a collected task.
  *
  * `status` guarded on `pending`, so a second delivery of the same task — which
@@ -286,7 +329,36 @@ export async function settleFailedTask(input: {
   return result.length > 0;
 }
 
-/** Tasks ready for collection, oldest first so a backlog drains in order. */
+/**
+ * Tasks ready for collection, oldest first so a backlog drains in order.
+ *
+ * ## The starvation this shape allows, and why it is recorded rather than fixed
+ *
+ * The query is **global and oldest-first with a `limit`**, and those two facts
+ * combine into a fairness problem: a project with 200 outstanding tasks fills
+ * every slot, so a *new* task posted by a different project waits behind all 200 —
+ * and because the cadence gate now means one pass a day, it can wait a long time.
+ * The vendor's ceiling is 72 hours, so a task starved past three days is reaped
+ * before it is ever looked at.
+ *
+ * The alternatives are worse than the limitation, which is why it is recorded
+ * instead of patched:
+ *
+ * - **Raising the limit** costs one `task_get` vendor call per extra row, and the
+ *   cost is per call rather than per pass — so a larger backlog makes the bill
+ *   larger rather than the latency smaller.
+ * - **Round-robin per project** is the correct shape and is genuinely more work: it
+ *   needs a second query to find the projects with pending work, a per-project
+ *   budget, and an argument about what the budget should be. That is a design
+ *   decision with a cost attached, not a bug fix.
+ *
+ * So the shape stays, and this comment says plainly what it costs. **The queued
+ * path is dormant anyway** — nothing in production passes `mode: "queued"` — so
+ * today the queue holds whatever a manual or future caller posted. When it is
+ * switched on, this is the first thing to revisit, and it should be revisited
+ * *with* the per-project budget rather than after a customer reports a missing
+ * answer.
+ */
 export async function listCollectableTasks(limit = 100): Promise<
   Array<{
     vendorTaskId: string;

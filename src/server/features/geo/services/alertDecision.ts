@@ -180,13 +180,30 @@ export function decideAlerts(input: {
     return { shouldAlert: false, suppressed: [] };
   }
 
-  const byKey = new Map(
-    previous.map((o) => [`${o.platform}|${normaliseUrlForJoin(o.prompt)}`, o]),
-  );
+  // The identity of a comparison is **brand + platform + prompt**, and the brand is
+  // part of it now that observations actually carry one.
+  //
+  // It used to be `platform|prompt` alone. A project monitoring two brands runs
+  // the *same* prompt set against both, so `acme.com` and `globex.com` produced
+  // two observations under one key, the second discarded by `readRunObservations`
+  // as a duplicate. The surviving observation was compared against whichever
+  // brand the previous run happened to keep — so a change in one brand could be
+  // reported as a change in the other. A "you lost this mention" alert is
+  // something a customer acts on, and acting on the wrong brand is worse than
+  // getting no alert at all.
+  //
+  // `null` is kept in the key rather than collapsed to a placeholder: two
+  // observations with no domain genuinely cannot be attributed, and stringifying
+  // them to the same value would recreate the collision for exactly the rows that
+  // cannot be resolved.
+  const keyOf = (o: Observation) =>
+    `${o.domain ?? ""}|${o.platform}|${normaliseUrlForJoin(o.prompt)}`;
+
+  const byKey = new Map(previous.map((o) => [keyOf(o), o]));
 
   const changes: Change[] = [];
   for (const now of current) {
-    const key = `${now.platform}|${normaliseUrlForJoin(now.prompt)}`;
+    const key = keyOf(now);
     const before = byKey.get(key);
     if (before === undefined) continue;
 
@@ -202,6 +219,16 @@ export function decideAlerts(input: {
     // is right to refuse it.
     const domain = now.domain;
     if (domain === null || before.domain === null) continue;
+
+    // **This guard also governs citations, which carry no domain of their own.**
+    // The citation diff below runs on `now.platform` and `now.prompt`, and reads
+    // nothing from `domain` — so on its own it would happily report a lost URL for
+    // an observation it cannot attribute to a brand. Skipping it here is right: a
+    // "you lost this citation" alert has to name the brand that lost it, and one
+    // attached to an unattributable answer is a page the customer cannot act on.
+    //
+    // Worth stating because the two are easy to read as independent. They are not:
+    // attribution is a precondition for every change below, not just mentions.
 
     // Whether the brand was mentioned, not whether two domain strings match.
     // `domain` is the brand being watched, so a "change" in it is a change in

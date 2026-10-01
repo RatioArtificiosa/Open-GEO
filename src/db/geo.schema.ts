@@ -147,6 +147,30 @@ export const geoSnapshots = sqliteTable(
     promptSetId: text("prompt_set_id").references(() => geoPromptSets.id, {
       onDelete: "set null",
     }),
+    /**
+     * **Which brand this run measured.**
+     *
+     * Nullable, and the reasoning is the same shape as `prompts_asked`: null is a
+     * real state rather than a gap. Every run written before this column existed
+     * is null, and **no backfill was attempted** — a snapshot's brand can be
+     * inferred by joining through its answers, but only for a snapshot whose
+     * answers still exist, so a backfill would fabricate a brand attribution for
+     * exactly the runs we can least vouch for. Null says "we do not know", which
+     * is the truth.
+     *
+     * It is the relationship the code has always assumed: `GeoPatrol.run` calls
+     * `runForTarget` once per target and each writes its own snapshot, and
+     * `GeoService.recordRun` already accepted a `targetId` and dropped it here.
+     * Without the column the alerting reader compared a run against "the previous
+     * run in this project", which in a multi-brand project is **a different
+     * brand's run**.
+     *
+     * Cascade on delete, matching `geo_answers.target_id`: a deleted target's runs
+     * go with it rather than becoming unattributed rows a reader might still see.
+     */
+    targetId: text("target_id").references(() => geoTargets.id, {
+      onDelete: "cascade",
+    }),
     startedAt: text("started_at").notNull(),
     completedAt: text("completed_at"),
     /**
@@ -190,6 +214,13 @@ export const geoSnapshots = sqliteTable(
   (table) => [
     index("geo_snapshots_project_started_idx").on(
       table.projectId,
+      table.startedAt,
+    ),
+    // The alerting reader's exact access pattern: one brand's runs, newest first,
+    // so the index leads with the project, then the brand, then time.
+    index("geo_snapshots_project_target_started_idx").on(
+      table.projectId,
+      table.targetId,
       table.startedAt,
     ),
   ],

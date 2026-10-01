@@ -1,113 +1,66 @@
-import { createClient, type Client } from "@libsql/client";
-import { drizzle } from "drizzle-orm/libsql";
-import { readFileSync } from "node:fs";
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
-
-vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type {
   alertOnRunChange,
   ALERT_TRANSPORT,
 } from "@/server/features/geo/services/alertRunner";
-// Imported dynamically, and that is load-bearing rather than incidental.
-// `runObservations` reads `@/db` at module load, and a static import of it here
-// would build that reference *before* `vi.doMock("@/db", ...)` runs in
-// `beforeAll` — so the module under test would hold a real (unconfigured)
-// client and every query failed on `undefined.prepare`. The same file's
-// `alertOnRunChange` is therefore pulled in after the mock, in `beforeAll`.
 import type { describeRunGap } from "@/server/features/geo/services/runObservations";
-
-let describeGap: typeof describeRunGap;
+import {
+  T1,
+  T2,
+  T8,
+  answer,
+  closeAlertFixture,
+  installAlertFixture,
+  resetAlertFixture,
+  snapshot,
+} from "./alertFixture";
 
 /**
- * A finished run reaching an alert decision.
+ * The decisions an alerting chain makes by **not** speaking, plus the gap it
+ * reports alongside them.
  *
- * The properties that matter are the three *non-alert* outcomes. An alerting
- * chain is judged almost entirely on what it does not say: a system that alerts
- * when it has no baseline, or when the run archived nothing, will be muted
- * within a week, and then the real one goes unread too.
+ * ## Why this file is smaller than it was
+ *
+ * The tests about *which run* an alert covers, and *whose answers* it compares,
+ * moved to `alertBrandScoping.test.ts`. They are a coherent subject — "about what"
+ * rather than "whether" — and keeping them here pushed this file past the
+ * project's 400-line limit.
+ *
+ * The database harness moved with them into `alertFixture.ts`, shared by both
+ * suites. **Two copies of a harness drift**: the second omits a migration, its
+ * suite fails with `no such column`, and the error blames the schema rather than
+ * the fixture — the exact confusion `scripts/migration-coverage.test.ts` exists to
+ * prevent.
+ *
+ * What is left is what this file was originally written for, and it is still the
+ * more valuable of the two: **what the chain does when it has nothing to say.**
+ * An alerting chain is judged almost entirely on that. A system that alerts when
+ * it has no baseline, or when the run archived nothing, will be muted within a
+ * week — and then the real alert goes unread too.
  */
-let client: Client;
-let runAlerts: typeof alertOnRunChange;
+
+let describeGap: typeof describeRunGap;
 let transport: typeof ALERT_TRANSPORT;
+let runAlerts: typeof alertOnRunChange;
 
-const T1 = new Date("2026-10-01T00:00:00.000Z");
-const T2 = new Date("2026-10-02T00:00:00.000Z");
-const T8 = new Date("2026-10-08T00:00:00.000Z");
-
+/**
+ * **The fixture is installed before the module under test is imported**, and that
+ * ordering is load-bearing rather than stylistic: both modules read `@/db` at
+ * import time, so an import that ran first would capture a real unconfigured
+ * client and every query would fail on `undefined.prepare`.
+ */
 beforeAll(async () => {
-  client = createClient({ url: "file::memory:" });
-  const testDb = drizzle(client);
-  vi.doMock("@/db", () => ({ db: testDb }));
-
-  await client.executeMultiple(
-    [
-      `CREATE TABLE projects (id text PRIMARY KEY, name text, location_code integer, language_code text, created_at text, organization_id text, archived_at text);`,
-      ...readFileSync("drizzle/0048_opengeo_geo.sql", "utf8")
-        .split("--> statement-breakpoint")
-        .filter((statement) => !statement.includes("DROP TABLE")),
-      ...readFileSync("drizzle/0054_freezing_ultimo.sql", "utf8")
-        .split("--> statement-breakpoint")
-        .filter((statement) => !statement.includes("DROP TABLE")),
-      ...readFileSync("drizzle/0055_nosy_galactus.sql", "utf8")
-        .split("--> statement-breakpoint")
-        .filter((statement) => !statement.includes("DROP TABLE")),
-    ].join("\n"),
-  );
-
+  await installAlertFixture();
   const mod = await import("@/server/features/geo/services/alertRunner");
   runAlerts = mod.alertOnRunChange;
   transport = mod.ALERT_TRANSPORT;
-  const observations =
-    await import("@/server/features/geo/services/runObservations");
-  describeGap = observations.describeRunGap;
+  describeGap = (await import("@/server/features/geo/services/runObservations"))
+    .describeRunGap;
 });
 
-afterAll(async () => {
-  client.close();
-});
-
-beforeEach(async () => {
-  await client.executeMultiple(
-    "DELETE FROM geo_alert_dispatches; DELETE FROM geo_snapshot_answers; DELETE FROM geo_answers; DELETE FROM geo_snapshots; DELETE FROM geo_targets; DELETE FROM projects;",
-  );
-  await client.execute("INSERT INTO projects (id, name) VALUES ('p1', 'Acme')");
-});
-
-async function snapshot(id: string, at: Date): Promise<void> {
-  await client.execute({
-    sql: `INSERT INTO geo_snapshots (id, project_id, started_at, status, created_by)
-          VALUES (?, 'p1', ?, 'complete', 'schedule')`,
-    args: [id, at.toISOString()],
-  });
-}
-
-/** An answer row. `null` text is the *normal* mentions_search shape. */
-async function answer(
-  id: string,
-  snapshotId: string,
-  prompt: string,
-  text: string | null,
-): Promise<void> {
-  await client.execute({
-    sql: `INSERT INTO geo_answers
-            (id, project_id, prompt, answer_text, platform, source, location_code, language_code, answered_at, created_at)
-          VALUES (?, 'p1', ?, ?, 'chat_gpt', 'mentions_search', 2840, 'en', ?, ?)`,
-    args: [id, prompt, text, T2.toISOString(), T2.toISOString()],
-  });
-  await client.execute({
-    sql: "INSERT INTO geo_snapshot_answers (snapshot_id, answer_id) VALUES (?, ?)",
-    args: [snapshotId, id],
-  });
-}
+beforeEach(resetAlertFixture);
+afterAll(closeAlertFixture);
 
 describe("alertOnRunChange", () => {
   it("says nothing when the run archived nothing", async () => {
@@ -127,6 +80,101 @@ describe("alertOnRunChange", () => {
 
     expect(result.outcome).toBe("not_applicable");
     expect(sent).toEqual([]);
+  });
+
+  it("delivers a gained mention, which used to be classified and then dropped", async () => {
+    // **The ninth instance of this codebase's favourite bug, and the one a
+    // customer would have felt.** `decideAlerts` puts every `mention_gained` in
+    // `suppressed` — deliberately, on the reasoning that a gain is not worth an
+    // interruption. `buildDigest` formats them. **Nothing called `buildDigest`**, so
+    // a brand that started being mentioned produced no message of any kind.
+    //
+    // The design rationale is sound and worth keeping: a channel carrying only
+    // losses gets muted. What was missing was the delivery, and the two tests below
+    // assert it end to end — through the runner, into a transport, not against the
+    // formatter.
+    //
+    // The mention rule matches the **domain** in the body, and the fixture's
+    // auto-created target is `<id>.example.com` — so the gain has to be written
+    // with `t1.example.com` in it. `alertFixture.ts` documents this trap in a
+    // paragraph of its own, having already cost two multi-brand tests an hour, and
+    // this test walked straight into it.
+    //
+    // `targetId` is the second half of the same trap, and it is the half that
+    // actually mattered here. `answer` defaults it to `null`, and an unattributed
+    // observation is **skipped by the decision layer** — so no pair ever formed and
+    // no gain was ever possible, whatever the text said. `snapshot` sets a target
+    // on the run; the answers have to name the same one.
+    //
+    // `source: "llm_responses"` on both answers is the third: the default is
+    // `mentions_search`, and a row from that source *is* a mention by definition,
+    // so it can never read as `mentioned: false` and no gain is detectable.
+    //
+    // All three produced `expected [] to have a length of 1` while the product was
+    // in fact correct. **A fixture that cannot represent the case makes the test
+    // indistinguishable from a broken dispatcher.**
+    await snapshot("s1", T1);
+    await answer("a1", "s1", "best crm", "Nobody in particular.", {
+      source: "llm_responses",
+      targetId: "t1",
+    });
+    await snapshot("s2", T2);
+    await answer("a2", "s2", "best crm", "t1.example.com is a leader.", {
+      source: "llm_responses",
+      targetId: "t1",
+    });
+
+    const sent: string[] = [];
+    const result = await runAlerts({
+      projectId: "p1",
+      snapshotId: "s2",
+      transport: async (m) => {
+        sent.push(m.subject);
+      },
+    });
+
+    // The gain is a *digest*, not an interruption, so there is no "mention lost"
+    // and no alert body — but something must have been sent, because before this
+    // fix nothing was and the whole chain was silent about good news.
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatch(/good change|what changed/i);
+    // And it is the roll-up, not a loss.
+    expect(sent[0]).not.toMatch(/lost/i);
+    expect(result.outcome).toBe("dispatched");
+  });
+
+  it("sends one roll-up per week, not one per run", async () => {
+    // The digest is keyed on the week, so a second run inside the same week must
+    // not post the same good news twice. Without that, a daily patrol with one
+    // unchanged gain would post seven identical messages — which is how a roll-up
+    // becomes the interruption it was designed to avoid.
+    await snapshot("s1", T1);
+    await answer("a1", "s1", "best crm", "Nobody.", {
+      source: "llm_responses",
+      targetId: "t1",
+    });
+    await snapshot("s2", T2);
+    await answer("a2", "s2", "best crm", "t1.example.com is a leader.", {
+      source: "llm_responses",
+      targetId: "t1",
+    });
+    await snapshot("s3", T8);
+    await answer("a3", "s3", "best crm", "t1.example.com is a leader.", {
+      source: "llm_responses",
+      targetId: "t1",
+    });
+
+    const sent: string[] = [];
+    const collect = async (m: { subject: string }) => {
+      sent.push(m.subject);
+    };
+
+    await runAlerts({ projectId: "p1", snapshotId: "s2", transport: collect });
+    await runAlerts({ projectId: "p1", snapshotId: "s3", transport: collect });
+
+    // Three runs: the first is a baseline, the second gains and posts the roll-up,
+    // the third changes nothing at all.
+    expect(sent).toHaveLength(1);
   });
 
   it("says nothing on the first run, because that is a baseline and not news", async () => {
@@ -171,13 +219,13 @@ describe("alertOnRunChange", () => {
     }
   });
 
-  it("alerts when a prompt that had an answer now has none", async () => {
+  it("does not read a vanished body as a lost mention", async () => {
+    // A pending row has no body. A body appearing or vanishing between runs is
+    // the observable change, and a *pending* row is excluded by the decision
+    // layer rather than being read as "the model stopped mentioning us".
     await snapshot("s1", T1);
     await answer("a1", "s1", "best crm", "Acme leads.");
     await snapshot("s2", T2);
-    // The pending shape: no body. A body appearing or vanishing between runs is
-    // the observable change, and a *pending* row is excluded by the decision
-    // layer rather than being read as "the model stopped mentioning us".
     await answer("a2", "s2", "best crm", null);
     const sent: string[] = [];
 

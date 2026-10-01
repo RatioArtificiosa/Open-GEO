@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { GeoService } from "@/server/features/geo/services/GeoService";
 import { GeoSetupRepository } from "@/server/features/geo/repositories/GeoSetupRepository";
+import { forecastForStoredSeries } from "@/server/features/geo/services/visibilityForecastReads";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
@@ -194,6 +195,149 @@ export const getGeoVisibilityTool = {
         })),
         caveat:
           "Per-platform figures only. Google AI Overviews and ChatGPT compute ai_search_volume differently and must never be combined.",
+      },
+    });
+  }),
+};
+
+// ---------------------------------------------------------------------------
+// get_geo_visibility_forecast
+// ---------------------------------------------------------------------------
+
+const visibilityForecastInputSchema = {
+  projectId: projectIdSchema,
+  domain: geoDomainSchema,
+  platform: geoPlatformSchema,
+} as const;
+
+type VisibilityForecastArgs = z.infer<
+  z.ZodObject<typeof visibilityForecastInputSchema>
+>;
+
+/**
+ * The forecast, with its **sample size as the headline**.
+ *
+ * ## Why this is a tool and not an extension of `get_geo_visibility`
+ *
+ * A mention rate is `mentions / asked`, and the denominator is what makes it
+ * readable: 4 of 8 and 4 of 400 are the same sentence and completely different
+ * facts. So the tool's description leads with the sample, and its `text` renders
+ * the count *above* the rate — an agent that reads only the first two lines gets
+ * the honest version.
+ *
+ * ## Why the refusal is returned, not thrown
+ *
+ * The common case today is "no run recorded how many prompts it asked", because
+ * the Live path **cannot know**: the vendor picks the prompt set and never
+ * discloses its size. That is a sentence worth saying. A thrown error would reach
+ * the agent as a failure with no explanation, which reads as "the product is
+ * broken" rather than "this has not been measured yet" — and an agent that cannot
+ * tell those apart will retry or invent a number.
+ */
+export const getGeoVisibilityForecastTool = {
+  name: "get_geo_visibility_forecast",
+  config: {
+    title: "Get AI visibility forecast",
+    description:
+      "What share of prompts asked about this brand mention it, and how confident is that? Every answer leads with the sample size, because a rate without it is not interpretable: 4 of 8 prompts and 4 of 400 are the same sentence and different facts. May decline to give a rate, with a reason, when no stored run recorded how many prompts it asked — which is the normal state of runs collected through the live vendor path. One figure per platform, never combined. Follow with get_geo_citation_gap for WHY a brand is absent.",
+    inputSchema: visibilityForecastInputSchema,
+    outputSchema: z
+      .object({
+        ...metaOnlyOutputFields,
+        domain: z.string().optional(),
+        platform: z.string().optional(),
+        basedOn: z.number().optional(),
+        rate: z.number().nullable().optional(),
+        confidence: z.string().optional(),
+        note: z.string().nullable().optional(),
+      })
+      .passthrough(),
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+  },
+  handler: withMcpProjectAuth(async (args: VisibilityForecastArgs, context) => {
+    const { series, forecast } = await forecastForStoredSeries({
+      projectId: args.projectId,
+      domain: args.domain,
+      platform: args.platform,
+    });
+    const current = forecast.current[0];
+
+    const text: string[] = [`Target: ${series.domain} on ${series.platform}`];
+
+    if (current && current.basedOn > 0 && current.rate !== null) {
+      // Sample size first, deliberately. Every other figure in this file puts the
+      // number first; here the number is close to meaningless without the count
+      // behind it, and an agent quoting "12%" without "of 8 prompts" has been
+      // told something false.
+      text.push(
+        `Based on ${current.basedOn} prompts: ${Math.round(current.rate * 100)}% mentioned the brand.`,
+      );
+      if (current.low !== null && current.high !== null) {
+        text.push(
+          `Between ${Math.round(current.low * 100)}% and ${Math.round(current.high * 100)}% at this sample size — that spread is the measurement, not decoration.`,
+        );
+      }
+      text.push(
+        current.confidence === "none"
+          ? "Confidence: none. Too few prompts for a rate to mean anything yet."
+          : `Confidence: ${current.confidence}. More runs will narrow this.`,
+      );
+    } else {
+      text.push(
+        "No stored run has recorded how many prompts it asked, so there is no rate to give. A mention count without a sample size would look measured and be guessed, so this tool does not report one.",
+      );
+    }
+
+    if (series.note) text.push(series.note);
+
+    // Cropping is reported as **numbers**, not only inside the note's prose, so an
+    // agent can act on it. "Forecasted from 8 of 8 runs" reads like the brand has
+    // eight runs of history; it may have two hundred, and the window simply stopped
+    // reading. Acting on that — "visibility has been flat for eight runs" — is a
+    // conclusion drawn from a limit.
+    if (series.windowed.totalRunsInProject !== null) {
+      const cropped =
+        series.windowed.totalRunsInProject - series.windowed.considered;
+      text.push(
+        `Look-back window: read the ${series.windowed.considered} most recent ` +
+          `run(s); ${cropped} older run(s) were not read.`,
+      );
+    }
+
+    const skipped =
+      series.skipped.unknownDenominator +
+      series.skipped.noText +
+      series.skipped.noAnswers;
+    if (skipped > 0) {
+      text.push(
+        `${skipped} run(s) are not included, and the reasons differ: some did not record a denominator, some have answers that have not come back yet, and some archived nothing for ${series.platform}.`,
+      );
+    }
+
+    text.push(forecast.doesNotClaim);
+
+    return mcpResponse({
+      text: text.join("\n"),
+      meta: buildProjectMeta(
+        context,
+        args.projectId,
+        `/p/${args.projectId}/geo`,
+        { domain: series.domain },
+      ),
+      structuredContent: {
+        domain: series.domain,
+        platform: series.platform,
+        basedOn: current?.basedOn ?? 0,
+        rate: current?.rate ?? null,
+        confidence: current?.confidence ?? "none",
+        note: series.note,
+        skipped: series.skipped,
+        caveat:
+          "A mention rate is only interpretable with its denominator. A rate reported without the prompt count is not a measurement.",
       },
     });
   }),

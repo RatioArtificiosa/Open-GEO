@@ -39,6 +39,7 @@ import { createProjectTool } from "@/server/mcp/tools/create-project";
 import { listProjectsTool } from "@/server/mcp/tools/list-projects";
 import {
   getGeoAnswerHistoryTool,
+  getGeoVisibilityForecastTool,
   getGeoVisibilityTool,
   listGeoTargetsTool,
 } from "@/server/mcp/tools/geo-read-tools";
@@ -203,6 +204,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getSerpResultsTool);
   register(listGeoTargetsTool);
   register(getGeoVisibilityTool);
+  register(getGeoVisibilityForecastTool);
   register(getGeoCitationGapTool);
   register(getGeoAnswerHistoryTool);
   register(getGeoRunsTool);

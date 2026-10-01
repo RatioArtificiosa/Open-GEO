@@ -6,11 +6,31 @@ import { z } from "zod";
 // caller.
 
 /**
- * The AI platforms we store answers for. Mirrors the schema enum.
+ * The AI platforms this product's domain vocabulary can name.
  *
- * Not re-exported as a type: the server functions and the repositories each
- * declare the union they need, and `knip` enforces that we do not publish a
- * second copy of this list that could drift from the schema.
+ * ## Not the same list as "what we collect", and the difference is load-bearing
+ *
+ * This used to read *"the AI platforms we store answers for"*, which was **false
+ * for two of the four**: `gemini` and `perplexity` are nameable here, and nothing
+ * in the product collects either. `PLATFORM_TO_VENDOR` in `GeoPatrol` carries only
+ * `chat_gpt` and `google_ai_overview` because those are the two the vendor's
+ * `llm_mentions` / `llm_responses` endpoints serve; `tryBeginRun` is used only by
+ * the mentions patrol, and the mode monitor that once claimed to cover the rest
+ * has no runner. The UI is honest about the same limit — `TRACKED_PLATFORMS` in
+ * `useGeoPageData` is the two that are collected, and a request for another is
+ * reported rather than sent.
+ *
+ * **So the list is the vocabulary, not a promise, and it is deliberately not
+ * trimmed to the collected set.** These values are the enum on
+ * `geo_answers.platform` and in the Postgres mirror; a stored answer must be
+ * nameable after the collector that produced it is switched off, and a schema that
+ * forgets a platform it once accepted cannot read its own history. Trimming the
+ * list to today's capability would make the data model a deployment manifest, and
+ * the next migration would have to widen it again with a different question.
+ *
+ * What is *not* acceptable is a comment claiming coverage. The claim was wrong, a
+ * run-log note repeated it to a customer, and `scripts/acquisition-mode-gate.test.ts`
+ * now asserts the false sentence can never come back.
  */
 export const GEO_PLATFORMS = [
   "chat_gpt",
@@ -158,6 +178,19 @@ export const listGeoRunsSchema = z.object({
 
 export const getGeoRunSchema = z.object({
   snapshotId: z.string().uuid(),
+});
+
+/**
+ * The visibility forecast's inputs.
+ *
+ * `domain` is the *monitored brand*, not a project, because a project can track
+ * several and a rate about the wrong brand is worse than no rate. `platform` is
+ * required rather than defaulted: two platforms compute visibility differently,
+ * so a single blended rate would be a number that means nothing.
+ */
+export const getGeoVisibilityForecastSchema = z.object({
+  domain: z.string().min(1).max(253),
+  platform: geoPlatformSchema,
 });
 
 export const getGeoShareOfVoiceSchema = z.object({

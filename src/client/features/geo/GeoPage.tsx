@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { GeoVisibilityPanel } from "./GeoVisibilityPanel";
 import { GeoTargetForm } from "./GeoTargetForm";
 import { MentionsTrendPanel } from "./MentionsTrendPanel";
+import { VisibilityForecast } from "./VisibilityForecast";
 import { NewLostPanel, TopCitedPanel, MetricFootnote } from "./LivePanels";
 import { ScoreRing } from "./ScoreRing";
 import { useGeoPageData } from "./useGeoPageData";
@@ -173,6 +174,29 @@ export function GeoPage({ projectId }: { projectId: string }) {
                   />
                 ))}
               </div>
+
+              {/*
+                The forecast sits with the series it explains, and only once a
+                brand exists — a rate about no brand is not a rate. It is one
+                panel per platform rather than one blended figure, for the same
+                reason the series above is: the platforms compute visibility
+                differently, so a single number would mean nothing.
+              */}
+              {(() => {
+                // Captured into a local so the null-narrowing survives into the
+                // callback. Reading `data.domain` inside the closure would widen
+                // back to `string | null`, and the cast needed to silence that is
+                // exactly the kind of assertion that hides a real null later.
+                const domain = data.domain;
+                if (!domain) return null;
+                return data.mentionSeries.map((entry) => (
+                  <VisibilityForecast
+                    key={entry.platform}
+                    domain={domain}
+                    platform={entry.platform}
+                  />
+                ));
+              })()}
             </section>
 
             <section

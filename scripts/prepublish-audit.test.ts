@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, dirname, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -38,6 +38,161 @@ import { describe, expect, it } from "vitest";
  */
 
 const ROOT = process.cwd();
+
+/**
+ * The repository root, which is **not** the same directory as `ROOT`.
+ *
+ * `G:\opengeo` is the git repository; `G:\opengeo\Open-GEO` is a nested working
+ * tree inside it, with its own `.git`. Every gate in this file walks `ROOT`, so
+ * the repository's own documents — `OPENGEO_CHECKLIST.md`,
+ * `OPENGEO_MASTER_REFERENCE.md`, `docs/**` — have never been scanned by any of
+ * them.
+ *
+ * That is not hypothetical. **`OPENGEO_CHECKLIST.md` was carrying 20 corrupted
+ * characters while both encoding gates reported "0 files, 0 sequences" on every
+ * run**, because the file is outside their walk: two NUL bytes where a digit `0`
+ * belonged, two `null`s that had lost their leading `n`, and fourteen control
+ * bytes (BEL, BS, FF) sitting exactly where the first letter of an identifier
+ * belonged — `atRiskUsd`, `ai_mention_history`, `failed`, `fetch`,
+ * `allowed_mentions`, `acquisition-mode-gate`, `billed-tasks-gate`. Every one
+ * was invisible in an editor and in `git diff`.
+ *
+ * A gate that cannot see the file it is protecting is not a gate, so the walk is
+ * given a chance to reach **the outermost** checkout rather than the nearest one.
+ *
+ * `G:\opengeo` and `G:\opengeo\Open-GEO` are **two independent repositories**, and
+ * the parent excludes the child outright (`.git/info/exclude`: `Open-GEO/`).
+ * Walking up for the *nearest* `.git` therefore finds Open-GEO's own and changes
+ * nothing — which is exactly what the first version of this did, and it was
+ * verified: the scan still reported the parent documents invisible. So the walk
+ * continues while a further `.git` exists *above* the one found, and the
+ * outermost is used.
+ *
+ * Degrading gracefully: if no parent `.git` exists — a standalone clone — the
+ * nearest is used, so the gate is never weaker than it was.
+ */
+const REPO_ROOT = (() => {
+  let dir = ROOT;
+  let outermost = ROOT;
+  // Bounded: a checkout cannot nest many repositories deep, and an unbounded walk
+  // that found nothing would climb to the filesystem root.
+  for (let i = 0; i < 5; i += 1) {
+    if (existsSync(join(dir, ".git"))) outermost = dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return outermost;
+})();
+
+/**
+ * Directories to skip, expressed by name, applied at **every** level.
+ *
+ * The nested `Open-GEO/` tree is *not* skipped: it is source, and the control
+ * characters found in it this session were a live bug. Only the vendored and
+ * generated directories are skipped.
+ */
+const SKIP_DIRS = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  "build",
+  ".output",
+  ".react-router",
+  "coverage",
+  "test-results",
+  "playwright-report",
+  ".wrangler",
+  "scratchpad",
+  ".agents",
+  ".claude",
+  ".commandcode",
+  ".alchemy",
+  /**
+   * `open-seo/` is an **upstream clone with its own `.git`**, kept as a reference
+   * for comparison. It is not this project's source and its defects are not ours
+   * to fix — and it has one: a `0x01` inside a cache-key separator in
+   * `keywordControllerActions.ts`, the same corruption that was fixed in
+   * Open-GEO's own copy.
+   *
+   * Skipped for the same reason `node_modules` is: a vendored tree has its own
+   * gates, and a failing assertion about someone else's checkout is noise that
+   * trains people to ignore this one.
+   */
+  "open-seo",
+  "web",
+  "badseo",
+]);
+
+const TEXT_EXTENSIONS = new Set([
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  ".json",
+  ".jsonc",
+  ".yml",
+  ".yaml",
+  ".md",
+  ".mdx",
+  ".css",
+  ".html",
+  ".sql",
+  ".sh",
+  ".toml",
+  ".txt",
+]);
+
+/**
+ * Files that legitimately contain the byte sequences this gate looks for.
+ *
+ * Both entries *quote the damage they describe*, which is what makes them exempt
+ * rather than merely inconvenient:
+ *
+ * - `prepublish-audit.test.ts` names the byte values it searches for.
+ * - `observations-and-memories.md` is the project's ledger, and its row 6 records
+ *   the incident in which 174 files were double-encoded — quoting `â€¦` for `…`
+ *   as the evidence. That is a file *correctly containing* mojibake, and the
+ *   detector read its own historical record as a fresh finding.
+ *
+ * The first version of the widened gate failed on that file with a confident
+ * "1 file, 1 sequence" and the ledger's own wording as the quoted damage. It is
+ * the same failure as every other detector in this repository reporting the wrong
+ * thing confidently: the rule cannot distinguish *damage* from *a quotation of
+ * damage*, and the honest answer to that is a named exemption rather than a
+ * looser rule — a looser rule would have to be loose enough to miss real damage.
+ */
+const EXEMPT = new Set([
+  "prepublish-audit.test.ts",
+  "REBRAND-NOTES.md",
+  "observations-and-memories.md",
+]);
+
+function textFiles(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    if (SKIP_DIRS.has(entry)) continue;
+    const full = join(dir, entry);
+    if (EXEMPT.has(entry)) continue;
+    let info: ReturnType<typeof statSync>;
+    try {
+      info = statSync(full);
+    } catch {
+      continue;
+    }
+    if (info.isDirectory()) {
+      textFiles(full, out);
+      continue;
+    }
+    if (!info.isFile()) continue;
+    const dot = entry.lastIndexOf(".");
+    if (dot === -1) continue;
+    if (!TEXT_EXTENSIONS.has(entry.slice(dot))) continue;
+    out.push(full);
+  }
+  return out;
+}
 
 type Enforcement =
   /** A test fails the build when the clause is violated. */
@@ -252,44 +407,6 @@ describe("mojibake must not get worse", () => {
     ellipsis: 0x2026,
   };
 
-  const SKIP_DIRS = new Set([
-    "node_modules",
-    ".git",
-    "dist",
-    "build",
-    ".output",
-    ".react-router",
-    "coverage",
-    "test-results",
-    "playwright-report",
-    ".wrangler",
-    "scratchpad",
-  ]);
-
-  const TEXT_EXTENSIONS = new Set([
-    ".ts",
-    ".tsx",
-    ".js",
-    ".jsx",
-    ".mjs",
-    ".cjs",
-    ".json",
-    ".jsonc",
-    ".yml",
-    ".yaml",
-    ".md",
-    ".mdx",
-    ".css",
-    ".html",
-    ".sql",
-    ".sh",
-    ".toml",
-    ".txt",
-  ]);
-
-  /** This file names the sequences, and the note documents them. */
-  const EXEMPT = new Set(["prepublish-audit.test.ts", "REBRAND-NOTES.md"]);
-
   /**
    * The ceiling. Lower it when files are repaired; raise it only with a reason.
    *
@@ -304,32 +421,8 @@ describe("mojibake must not get worse", () => {
   // *errors*, not a debt to be paid down.
   const CEILING = 0;
 
-  function textFiles(dir: string, out: string[] = []): string[] {
-    for (const entry of readdirSync(dir)) {
-      if (SKIP_DIRS.has(entry)) continue;
-      const full = join(dir, entry);
-      if (EXEMPT.has(entry)) continue;
-      let info: ReturnType<typeof statSync>;
-      try {
-        info = statSync(full);
-      } catch {
-        continue;
-      }
-      if (info.isDirectory()) {
-        textFiles(full, out);
-        continue;
-      }
-      if (!info.isFile()) continue;
-      const dot = entry.lastIndexOf(".");
-      if (dot === -1) continue;
-      if (!TEXT_EXTENSIONS.has(entry.slice(dot))) continue;
-      out.push(full);
-    }
-    return out;
-  }
-
   function survey(): { scanned: number; sequences: number; list: string[] } {
-    const files = textFiles(ROOT);
+    const files = textFiles(REPO_ROOT);
     let sequences = 0;
     const list: string[] = [];
     for (const file of files) {
@@ -366,7 +459,7 @@ describe("mojibake must not get worse", () => {
       }
       if (hits > 0) {
         sequences += hits;
-        list.push(relative(ROOT, file).replaceAll("\\", "/"));
+        list.push(relative(REPO_ROOT, file).replaceAll("\\", "/"));
       }
     }
     return { scanned: files.length, sequences, list };
@@ -376,7 +469,7 @@ describe("mojibake must not get worse", () => {
     // A scan of 0 files passes, and that has happened here before: the
     // private-split scan shipped with the wrong path and was green from the day
     // it was written.
-    expect(textFiles(ROOT).length).toBeGreaterThan(500);
+    expect(textFiles(REPO_ROOT).length).toBeGreaterThan(500);
   });
 
   it("detects damage, and does not flag a correct file", () => {
@@ -466,5 +559,161 @@ describe("mojibake must not get worse", () => {
     // healthy repository look diseased, and a reader trusts the number over
     // the tool that produced it.
     expect(sequences).toBe(0);
+    // **A budget, because this survey reads every file in the repository** — and
+    // that is now more expensive than before this session: the encoding gate was
+    // widened to the outermost repository root, which added the parent's
+    // documents, and the checklist grew by three ledger entries.
+    //
+    // It failed once under the full parallel suite and passed every other time,
+    // which is the worst shape a gate can have: a reader who sees it red has no
+    // way to tell a slow disk from a corrupted file. The cost is genuine work, so
+    // the honest fix is a budget that matches it — the same reasoning as
+    // `migration-coverage.test.ts`, which scans the same tree.
+  }, 60_000);
+});
+
+/**
+ * Control characters that no text file has any business containing.
+ *
+ * ## Why this is a separate rule and not part of the mojibake check
+ *
+ * The mojibake detector looks for `C3 A2` — the byte pair of a *properly encoded*
+ * U+00E2, which is what a cp1252 round trip produces. That is one specific way
+ * for a file to be damaged, and it is a good detector for it.
+ *
+ * **`OPENGEO_CHECKLIST.md` was damaged in a completely different way while the
+ * mojibake gate reported "0 files, 0 sequences" every single run.** Two NUL bytes
+ * had replaced two digit zeros, and two `null`s had lost their leading `n` to a
+ * stray line feed — so the sentence stating the project's core rule read
+ *
+ *   "...**0 and <LF>ull are kept apart everywhere... because <LF>ull + null is 0**"
+ *
+ * A NUL is not double-encoded UTF-8, and a misplaced line feed is not either, so
+ * the existing rule could not see them by construction. The damage was invisible
+ * in `git diff` and invisible in most viewers, and it had been committed.
+ *
+ * The lesson is the one this file already keeps finding: **a detector only
+ * recognises the shapes it has seen.** Two damage classes were present and only
+ * one had a rule.
+ *
+ * ## What is and is not flagged
+ *
+ * Tab (09), line feed (0A) and carriage return (0D) are legal in text files and
+ * are *not* flagged — the checklist uses hard line breaks inside paragraphs, and
+ * the `.ts` files use tabs for indentation. Everything else in the C0 range, plus
+ * DEL (7F) and the C1 range, is damage: it is invisible, it is never authored on
+ * purpose, and it silently replaces a character, which is exactly the failure that
+ * cost four characters here.
+ *
+ * NUL is reported separately from the rest because it is the byte that broke a
+ * whole source file earlier in this session — a `.ts` collapsed to one line with
+ * no newlines, unrecoverable without `git checkout`.
+ */
+describe("control characters", () => {
+  /** Bytes allowed to appear in a text file. */
+  const ALLOWED = new Set([0x09, 0x0a, 0x0d]);
+
+  /**
+   * The rule, and the mistake that shaped it.
+   *
+   * **The first version also flagged 0x80-0x9F, the C1 range, and reported
+   * 8612 findings in a repository it had just declared healthy.** Those bytes are
+   * not control characters in a UTF-8 file: they are the **continuation bytes** of
+   * every multibyte character — the `80 94` of an em-dash, the `9C` of an opening
+   * curly quote. Flagging them flags the punctuation this codebase is written
+   * with, which is how a detector ends up reporting 8612 problems that are all
+   * correct text.
+   *
+   * So the rule is C0-minus-the-three-legal-bytes, plus DEL (0x7F). The C1 range
+   * is only a control range in a *decoded* string, and a decoded string is exactly
+   * what this must not use — the same class of error the mojibake detector made
+   * when it decoded as latin1 and matched a legitimate byte.
+   *
+   * Reading the bytes is not incidental. A NUL is invisible in every viewer and in
+   * `git diff`, and it is the byte that destroyed a whole `.ts` file earlier in
+   * this session.
+   */
+  function forbiddenCount(buf: Buffer): number {
+    let n = 0;
+    for (const byte of buf) {
+      const forbidden = (byte < 0x20 && !ALLOWED.has(byte)) || byte === 0x7f;
+      if (forbidden) n += 1;
+    }
+    return n;
+  }
+
+  function controlSurvey(): {
+    scanned: number;
+    nul: number;
+    other: number;
+    list: string[];
+  } {
+    const files = textFiles(REPO_ROOT);
+    let nul = 0;
+    let other = 0;
+    const list: string[] = [];
+    for (const file of files) {
+      const hits = forbiddenCount(readFileSync(file));
+      if (hits === 0) continue;
+      const bytes = readFileSync(file);
+      const nulHere = [...bytes].filter((b) => b === 0).length;
+      nul += nulHere;
+      other += hits - nulHere;
+      list.push(relative(REPO_ROOT, file).replaceAll("\\", "/"));
+    }
+    return { scanned: files.length, nul, other, list };
+  }
+
+  it("sees the damage it was written for, and leaves a correct file alone", () => {
+    // The control. Without it this rule is a tautology, and this repository has
+    // now found that failure mode in eight gates.
+    //
+    // **Built from the rule's own vocabulary:** a NUL byte and a C1 byte, which
+    // are exactly what the repaired checklist contained. The mojibake control
+    // above had to invert its mechanism twice before it worked; this one states
+    // the damage directly because the mechanism *is* the byte value.
+    const withNul = Buffer.from("0 and null are kept apart", "utf8");
+    withNul[8] = 0x00;
+    expect(forbiddenCount(withNul)).toBe(1);
+    expect(forbiddenCount(withNul.slice(0, 8))).toBe(0);
+
+    // The three legal ones must never be flagged, or every indented source file
+    // and every hard-wrapped paragraph in the checklist fails.
+    for (const legal of [0x09, 0x0a, 0x0d]) {
+      expect(forbiddenCount(Buffer.from([legal]))).toBe(0);
+    }
+
+    // A C1 byte is *not* forbidden, and the control says so explicitly: the first
+    // version of this rule flagged 0x80-0x9F and reported 8612 findings that were
+    // all the continuation bytes of correct punctuation. A control that only
+    // proves the detector can fire is half a control.
+    expect(forbiddenCount(Buffer.from([0x9b]))).toBe(0);
+    expect(forbiddenCount(Buffer.from([0x80]))).toBe(0);
+    // DEL is, and nothing else in the high range is.
+    expect(forbiddenCount(Buffer.from([0x7f]))).toBe(1);
+  });
+
+  it("finds no forbidden control characters in the repository", () => {
+    const { scanned, nul, other, list } = controlSurvey();
+    const report = list.slice(0, 10).join("\n  ");
+    expect(
+      nul + other,
+      `Forbidden control characters in ${list.length} files ` +
+        `(${nul} NUL, ${other} other).\n  ${report}` +
+        (list.length > 10 ? "\n  ... and more" : "") +
+        `\n\nA NUL byte means a source file has been truncated or its ` +
+        `newlines destroyed — that is a real corruption, not a warning. ` +
+        `\`git checkout -- <file>\` restores it. A stray 0x0A inside a word means ` +
+        `a line feed was written where a character belongs.`,
+    ).toBe(0);
+    expect(scanned).toBeGreaterThan(500);
+  });
+
+  it("states the control-character damage on every run", () => {
+    // The number has to be visible, or "it was green" is the only evidence anyone
+    // has — and a gate that is silent can be as wrong as one that is red.
+    const { nul, other } = controlSurvey();
+    console.log(`[control-chars] ${nul} NUL, ${other} other forbidden`);
+    expect(nul + other).toBe(0);
   });
 });

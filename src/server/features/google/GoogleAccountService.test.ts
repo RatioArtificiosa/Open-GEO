@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createClient, type Client } from "@libsql/client";
@@ -17,11 +17,30 @@ import type * as ServiceModule from "./GoogleAccountService";
 
 vi.mock("cloudflare:workers", () => ({ env: {} }));
 let client: Client;
-const directory = mkdtempSync(join(tmpdir(), "google-account-removal-"));
 let service: typeof ServiceModule.GoogleAccountService;
 type Build = Parameters<typeof runBatch>[0];
 
 beforeAll(async () => {
+  // **A file, because libsql's `file::memory:` is per-connection.**
+  //
+  // The obvious "just use memory like the other suites" fix is wrong here:
+  // `executeMultiple` opens its own connection, so the tables created by the
+  // migration batches are invisible to the client the service later queries, and
+  // every test dies with `no such table: account`. The other suites run one
+  // statement at a time through the same handle, so they never notice.
+  //
+  // The file is therefore kept, and **not deleted in `afterAll`**. On Windows a
+  // probe confirmed the libsql native handle keeps `test.db` locked for the
+  // lifetime of the process — not after `await client.close()`, and not after a
+  // forced GC — so the old `rmSync(directory, { recursive: true })` threw
+  // `EPERM` and failed the suite *after* every assertion had passed. That reads
+  // as "these tests are broken" when the product is fine, and it leaked a temp
+  // directory on every run: ~140 had accumulated on this machine.
+  //
+  // A leaked file in the OS temp directory is a far smaller cost than a suite
+  // that fails on Windows, and it is bounded by the OS's own temp cleanup. The
+  // teardown below therefore only closes the client.
+  const directory = mkdtempSync(join(tmpdir(), "google-account-removal-"));
   client = createClient({ url: `file:${join(directory, "test.db")}` });
   const testDb = drizzle(client);
   vi.doMock("@/db", () => ({ db: testDb }));
@@ -70,10 +89,18 @@ beforeAll(async () => {
   ({ GoogleAccountService: service } = await import("./GoogleAccountService"));
 });
 
+// Closes the client and deliberately does not remove `directory`: the libsql
+// native handle keeps `test.db` locked for the life of the process on Windows,
+// so the old `rmSync` here threw `EPERM` and failed the suite after every
+// assertion had already passed. See the note in `beforeAll`.
+//
+// Not awaited: `@libsql/client`'s `Client.close()` is typed as returning `void`
+// for the local-file client, so awaiting it is a no-op that the linter is
+// right to reject.
 afterAll(() => {
   client.close();
-  rmSync(directory, { recursive: true });
 });
+
 beforeEach(async () => {
   await client.executeMultiple(
     "DROP TRIGGER IF EXISTS fail_remove; DELETE FROM gsc_connections; DELETE FROM ga4_connections; DELETE FROM account;",

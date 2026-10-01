@@ -67,7 +67,7 @@ export function buildKeywordSearchKey(params: {
   clickstream: boolean;
 }) {
   return [
-    parseKeywordInput(params.keyword).join(""),
+    parseKeywordInput(params.keyword).join("|"),
     params.locationCode,
     params.resultLimit,
     params.mode,

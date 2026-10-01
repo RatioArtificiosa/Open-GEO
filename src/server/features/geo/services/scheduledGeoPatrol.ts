@@ -249,6 +249,10 @@ async function runDuePatrols(
         const alert = await alertOnRunChange({
           projectId,
           snapshotId: run.snapshotId,
+          // Every brand the patrol measured. Without this only the first target's
+          // snapshot was ever decided, so a multi-brand project reported on one
+          // brand and said nothing about the others.
+          snapshotIds: run.snapshotIds,
           transport: ALERT_TRANSPORT,
         }).catch((alertError: unknown) => ({
           outcome: "not_applicable" as const,
@@ -262,9 +266,21 @@ async function runDuePatrols(
           alert.outcome !== "not_applicable" &&
           alert.outcome !== "no_baseline"
         ) {
+          // **One line per brand that alerted.** A multi-brand patrol can produce
+          // several, and logging only `alert.result` names whichever came first —
+          // so a run where two brands lost mentions reads in the log like one did.
+          // The count is stated as well as the list so a reader can tell "one
+          // brand" from "two brands" without counting lines.
+          const brands = alert.perBrand ?? [alert];
           console.log(
-            `[geo-patrol] ${projectId} — alert ${alert.result.outcome}` +
-              (alert.result.detail === null ? "" : `: ${alert.result.detail}`),
+            `[geo-patrol] ${projectId} — alert on ${brands.length} brand(s): ` +
+              brands
+                .map(
+                  (b) =>
+                    b.result.outcome +
+                    (b.result.detail === null ? "" : `: ${b.result.detail}`),
+                )
+                .join("; "),
           );
         }
       } finally {

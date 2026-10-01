@@ -24,6 +24,16 @@ const getVisibility = vi.fn();
 const getCitationGap = vi.fn();
 const listAnswerHistory = vi.fn();
 const listRuns = vi.fn();
+const forecastForStoredSeries = vi.fn();
+
+/**
+ * The forecast reader reaches `@/db`, so it is mocked like `GeoService` above:
+ * these suites are about the *wording* a tool hands an agent, and a tool that
+ * cannot say what it does not know is the thing being tested.
+ */
+vi.mock("@/server/features/geo/services/visibilityForecastReads", () => ({
+  forecastForStoredSeries,
+}));
 
 vi.mock("@/server/features/geo/repositories/GeoSetupRepository", () => ({
   GeoSetupRepository: { listTargets },
@@ -67,8 +77,12 @@ vi.mock("@/server/mcp/project-auth", () => ({
   requireProjectAccess: vi.fn(),
 }));
 
-const { getGeoAnswerHistoryTool, getGeoVisibilityTool, listGeoTargetsTool } =
-  await import("@/server/mcp/tools/geo-read-tools");
+const {
+  getGeoAnswerHistoryTool,
+  getGeoVisibilityForecastTool,
+  getGeoVisibilityTool,
+  listGeoTargetsTool,
+} = await import("@/server/mcp/tools/geo-read-tools");
 const { getGeoCitationGapTool, getGeoRunsTool } =
   await import("@/server/mcp/tools/geo-diagnostic-tools");
 
@@ -306,6 +320,167 @@ describe("get_geo_runs", () => {
   });
 });
 
+/**
+ * A forecast payload shaped like the reader's, with the rate measurable.
+ *
+ * At module scope rather than inside the `describe`: `consistent-function-scoping`
+ * is right that it captures nothing from there, and a fixture declared inside a
+ * describe reads as though it did.
+ */
+function measurableForecast(overrides?: {
+  rate?: number | null;
+  basedOn?: number;
+  skipped?: { unknownDenominator: number; noText: number; noAnswers: number };
+  note?: string | null;
+  /** Null means the look-back window covered every run. */
+  totalRunsInProject?: number | null;
+}): unknown {
+  const rate = overrides?.rate === undefined ? 0.25 : overrides.rate;
+  const basedOn = overrides?.basedOn ?? 8;
+  // The window reads one "run" per observation here, so `considered` lines up with
+  // the array length rather than being a second number to keep in step.
+  const observations = Array.from({ length: basedOn === 0 ? 1 : basedOn });
+  return {
+    series: {
+      domain: "acme.com",
+      platform: "chat_gpt",
+      observations,
+      windowed: {
+        considered: observations.length,
+        totalRunsInProject: overrides?.totalRunsInProject ?? null,
+      },
+      skipped: overrides?.skipped ?? {
+        unknownDenominator: 0,
+        noText: 0,
+        noAnswers: 0,
+      },
+      note: overrides?.note ?? null,
+    },
+    forecast: {
+      current: [
+        {
+          platform: "chat_gpt",
+          rate,
+          low: rate === null ? null : 0.06,
+          high: rate === null ? null : 0.61,
+          basedOn,
+          confidence: basedOn === 0 ? "none" : "low",
+        },
+      ],
+      direction: { perWeek: null, confidence: "none", basedOnWeeks: 0 },
+      doesNotClaim: "This is not a market share.",
+    },
+  };
+}
+
+describe("get_geo_visibility_forecast", () => {
+  beforeEach(() => {
+    forecastForStoredSeries.mockReset();
+  });
+
+  it("leads with the sample size, not the percentage", async () => {
+    // **The whole point of the tool.** An agent reading only the first line must
+    // not come away with "25%". 4 of 8 prompts and 4 of 400 are the same sentence
+    // and different facts, and a percentage alone invites quoting the flattering
+    // half of that.
+    forecastForStoredSeries.mockResolvedValue(measurableForecast());
+    const result = await callTool(getGeoVisibilityForecastTool, {
+      projectId: "p1",
+      domain: "acme.com",
+      platform: "chat_gpt",
+    });
+
+    const text = textOf(result);
+    expect(text).toMatch(/Based on 8 prompts/);
+    // Order asserted, not just presence: the count has to come first, or a
+    // reader who stops early is misled about what the number means.
+    expect(text.indexOf("Based on 8 prompts")).toBeLessThan(
+      text.indexOf("25%"),
+    );
+    // And the interval is present, because at n=8 the spread *is* the measurement.
+    expect(text).toMatch(/Between 6% and 61%/);
+  });
+
+  it("says it cannot give a rate when no run recorded a denominator", async () => {
+    // The common case: the Live path cannot know how many prompts the vendor
+    // asked. This must be a sentence, not an error and not a bare null — an agent
+    // that sees a failure will retry, and one that sees a number will use it.
+    forecastForStoredSeries.mockResolvedValue(
+      measurableForecast({
+        rate: null,
+        basedOn: 0,
+        skipped: { unknownDenominator: 4, noText: 0, noAnswers: 0 },
+        note: "No run has recorded how many prompts it asked, so there is nothing to forecast.",
+      }),
+    );
+
+    const result = await callTool(getGeoVisibilityForecastTool, {
+      projectId: "p1",
+      domain: "acme.com",
+      platform: "chat_gpt",
+    });
+
+    const text = textOf(result);
+    expect(text).toMatch(/no rate to give/i);
+    // It must not have produced a percentage either.
+    expect(text).not.toMatch(/\d+%/);
+    // And it explains the excluded runs, which is what a reader asks next.
+    expect(text).toMatch(/4 run\(s\) are not included/);
+  });
+
+  it("states the look-back window, so an agent does not read a limit as a history", async () => {
+    // The forecast reads a bounded window. An agent told "forecasted from 8 of 8
+    // runs" reasonably concludes the brand has eight runs of history — when it has
+    // two hundred, and the window simply stopped reading. Acting on that
+    // ("visibility has been flat for eight runs") is a conclusion drawn from a
+    // limit, so the count has to be in the payload as a number.
+    forecastForStoredSeries.mockResolvedValue(
+      measurableForecast({ totalRunsInProject: 40 }),
+    );
+    const result = await callTool(getGeoVisibilityForecastTool, {
+      projectId: "p1",
+      domain: "acme.com",
+      platform: "chat_gpt",
+    });
+
+    expect(textOf(result)).toMatch(
+      /read the 8 most recent run\(s\); 32 older run\(s\) were not read/,
+    );
+  });
+
+  it("says nothing about a window when it covered the whole archive", async () => {
+    // The common case for a young project. A window clause here would be noise,
+    // and noise in a tool description is what makes agents skip reading it.
+    forecastForStoredSeries.mockResolvedValue(measurableForecast());
+    const result = await callTool(getGeoVisibilityForecastTool, {
+      projectId: "p1",
+      domain: "acme.com",
+      platform: "chat_gpt",
+    });
+
+    expect(textOf(result)).not.toMatch(/look-back window/i);
+  });
+
+  it("reads through the authorized project rather than a target id", async () => {
+    // The tool takes a domain and resolves the target server-side. It must not
+    // look the target up itself and pass an id, because that would be a second
+    // identity the auth wrapper cannot see.
+    forecastForStoredSeries.mockResolvedValue(measurableForecast());
+    await callTool(getGeoVisibilityForecastTool, {
+      projectId: "p1",
+      domain: "acme.com",
+      platform: "chat_gpt",
+    });
+
+    expect(forecastForStoredSeries).toHaveBeenCalledWith({
+      projectId: "p1",
+      domain: "acme.com",
+      platform: "chat_gpt",
+    });
+    expect(listTargets).not.toHaveBeenCalled();
+  });
+});
+
 describe("tool annotations", () => {
   it("marks every GEO tool read-only, because they only read the archive", () => {
     // None of these spend vendor credits, so an agent should never hesitate to
@@ -313,6 +488,7 @@ describe("tool annotations", () => {
     for (const tool of [
       listGeoTargetsTool,
       getGeoVisibilityTool,
+      getGeoVisibilityForecastTool,
       getGeoCitationGapTool,
       getGeoAnswerHistoryTool,
       getGeoRunsTool,

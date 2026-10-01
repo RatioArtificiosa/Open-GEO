@@ -259,7 +259,13 @@ describe("GeoPatrol", () => {
     });
     expect(mentionsSearch).not.toHaveBeenCalled();
     expect(result.answersArchived).toBe(0);
-    expect(result.notes[0]).toMatch(/not served by llm_mentions/);
+    // **The note used to end by claiming another job would collect it**, and no
+    // such job runs. What matters now is that the platform is named, that the
+    // absence is stated, and that nothing claims to cover it — so the assertion
+    // pins all three rather than one phrase that a later edit could reword.
+    expect(result.notes[0]).toContain("perplexity");
+    expect(result.notes[0]).toMatch(/is not collected/i);
+    expect(result.notes[0]).not.toMatch(/is collected by/i);
   });
 
   it("queries ChatGPT at US/en and records that it did", async () => {

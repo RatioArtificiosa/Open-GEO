@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { ZodType } from "zod";
 
 /**
  * The GEO server-function surface.
@@ -17,14 +18,33 @@ type ServerFn = {
   handler: ServerFnHandler;
 };
 
+/**
+ * Every schema any entry point declared, in declaration order.
+ *
+ * The mock used to **discard its `.validator()` argument**, so no schema in this
+ * file was ever parsed by anything: a validator that rejected nothing, or one
+ * missing entirely, would have passed this suite. Since these schemas are the wire
+ * contract — the only place a malformed `domain` or a `platform` outside the
+ * closed set is caught — recording them is what makes them inspectable.
+ *
+ * Kept as a list rather than keyed by function name on purpose: `createServerFn` is
+ * invoked *before* the `const` it is assigned to exists, so the name is not
+ * readable from inside the mock. The first attempt tried to thread it through a
+ * mutable holder and would have recorded every schema under an empty key.
+ */
+const declaredSchemas: unknown[] = [];
+
 const serverFnMock = vi.fn((options: { method?: string } = {}) => ({
   middleware: () => ({
-    validator: () => ({
-      handler: (handler: ServerFnHandler) => ({
-        __isServerFn: true,
-        options,
-        handler,
-      }),
+    validator: (schema: unknown) => ({
+      handler: (handler: ServerFnHandler) => {
+        declaredSchemas.push(schema);
+        return {
+          __isServerFn: true,
+          options,
+          handler,
+        };
+      },
     }),
   }),
 }));
@@ -87,6 +107,14 @@ vi.mock("@/server/features/geo/services/evidenceDrawer", () => ({
   listEvidencedSnapshots: vi.fn(),
 }));
 
+// The visibility forecast's read module, for the same reason as `evidenceDrawer`:
+// it joins snapshots against answers and reaches `@/db`, so importing
+// `@/serverFunctions/geo` without a mock builds a real database handle and both
+// tests here fail on `undefined.prepare` rather than on the thing they check.
+vi.mock("@/server/features/geo/services/visibilityForecastReads", () => ({
+  forecastForStoredSeries: vi.fn(),
+}));
+
 // The paid-plan gate for the metered reads reaches `@/server/billing`, which
 // imports `cloudflare:workers` — a Workers-only module vitest cannot resolve.
 // Same reason every other tool test mocks it.
@@ -95,6 +123,31 @@ vi.mock("cloudflare:workers", () => ({ env: {} }));
 function isServerFn(value: unknown): value is ServerFn {
   if (typeof value !== "object" || value === null) return false;
   return Reflect.get(value, "__isServerFn") === true;
+}
+
+/**
+ * A declared schema's fields, or null when it is not a Zod object.
+ *
+ * Two prior attempts are recorded here because each failed in an instructive way:
+ * `Object.entries(value).find(([k]) => k === "shape")` returned null for **every**
+ * schema, because in Zod 4 `shape` lives on `_def` rather than as an own
+ * property; and Zod 4 has no `z.isObjectSchema` to ask.
+ *
+ * So the brand is read directly: every Zod 4 schema carries `_zod`, and a plain
+ * object does not. That single check is enough to tell a real validator from a
+ * forgotten `.validator(...)`, which is the whole question here — and it is a
+ * *check*, not a cast, so it cannot assert the answer it is looking for.
+ */
+function shapeOf(value: unknown): Record<string, ZodType> | null {
+  if (typeof value !== "object" || value === null) return null;
+  const brand: unknown = Reflect.get(value, "_zod");
+  if (brand === undefined) return null;
+  const def: unknown = Reflect.get(value, "_def");
+  if (typeof def !== "object" || def === null) return null;
+  const shape: unknown = Reflect.get(def, "shape");
+  if (typeof shape !== "object" || shape === null) return null;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Zod's `_def.shape` is a plain record of its fields
+  return shape as Record<string, ZodType>;
 }
 
 /** Read a string property without going through `any` (Reflect.get returns any). */
@@ -128,6 +181,7 @@ const EXPECTED = [
   "getGeoRun",
   "getGeoShareOfVoice",
   "getGeoVisibility",
+  "getGeoVisibilityForecast",
   "listGeoAnswerHistory",
   "listGeoEvidencedRuns",
   "listGeoPromptSets",
@@ -137,6 +191,65 @@ const EXPECTED = [
 ];
 
 describe("GEO server functions", () => {
+  it("refuses to treat a non-Zod validator as a schema", async () => {
+    // The control for the test below, and the reason it is not a tautology.
+    //
+    // Without this, a `shapeOf` that returned the fields of *anything* would let
+    // every schema in the surface test pass while proving nothing. Two prior
+    // attempts did exactly that: `Object.entries` found no `shape` on a real Zod 4
+    // schema and the guard returned null for all of them, which the surface test
+    // did not notice because it never looked.
+    //
+    // The module is imported first, because `declaredSchemas` is filled when
+    // `serverFunctions/geo` is *loaded* — the schemas are declared at module scope,
+    // not when a test asks for them.
+    await loadServerFns();
+
+    expect(shapeOf({})).toBeNull();
+    expect(shapeOf({ shape: { domain: "not a zod field" } })).toBeNull();
+    expect(shapeOf(null)).toBeNull();
+    expect(shapeOf("not an object")).toBeNull();
+    // And it accepts a real one, so the null cases above are discriminating rather
+    // than the guard simply always failing.
+    expect(shapeOf(declaredSchemas[0])).not.toBeNull();
+  });
+
+  it("gives every entry point a schema that actually validates", async () => {
+    // The mock previously threw the schema away, so this is the first thing in
+    // the file that ever *looks* at one. Three properties, each catching a
+    // different mistake:
+    //
+    // - every entry point declared one at all, so a forgotten
+    //   `.validator(...)` is caught rather than shipping a body contract of
+    //   "whatever arrives";
+    // - each is a Zod schema, so `.validator({})` or a plain object is caught;
+    // - each **rejects** a `projectId`, which is the guarantee the test below
+    //   depends on. The schemas deliberately omit `projectId`, and a Zod object
+    //   strips unknown keys — so a body claiming another project cannot reach a
+    //   handler at all. A validator that accepted it would make that test pass for
+    //   the wrong reason.
+    await loadServerFns();
+    expect(declaredSchemas.length).toBe(EXPECTED.length);
+
+    for (const schema of declaredSchemas) {
+      // Each is a real Zod schema, and each is checked through a **type guard** rather
+      // than a cast: the mock recorded an `unknown`, and asserting it *is* a Zod
+      // schema would assert the very thing this test exists to check. The guard
+      // asks instead.
+      const shape = shapeOf(schema);
+      expect(shape).not.toBeNull();
+      if (shape === null) continue;
+
+      // And none of them declares `projectId`. The wire contract is that a body
+      // cannot name its own project: a Zod object strips undeclared keys, so a
+      // hostile `projectId` cannot reach the handler at all. If a schema ever
+      // grew that field, the guarantee the test below depends on would be gone —
+      // and it would go quietly, because stripping and ignoring look identical
+      // from the handler.
+      expect(Object.keys(shape)).not.toContain("projectId");
+    }
+  });
+
   it("exports the full surface", async () => {
     const fns = await loadServerFns();
     expect(new Set(fns.map(([name]) => name))).toEqual(new Set(EXPECTED));

@@ -32,7 +32,15 @@ import {
  *    the person reading it.
  */
 
-const GEO_QUERY_STALE_TIME_MS = 5 * 60 * 1000;
+/**
+ * How long a GEO read stays fresh.
+ *
+ * Exported rather than private because `VisibilityForecast` reads the same
+ * archive and must use the same window: runs arrive **nightly**, so a shorter one
+ * spends round trips to return identical numbers, and a longer one would show a
+ * reader a rate that predates the run that produced it.
+ */
+export const GEO_QUERY_STALE_TIME_MS = 5 * 60 * 1000;
 
 /**
  * The platforms the `llm_mentions` family actually serves.

@@ -74,6 +74,21 @@ const answer = () => ({
   answer: { ...ANSWER.answer, id: `a${++answerSeq}` },
 });
 
+/**
+ * Each test gets a **fresh module registry and a fresh database**.
+ *
+ * `vi.resetModules()` plus a dynamic `await import` per test is genuinely
+ * expensive — it re-transforms `GeoService` and everything it pulls in, four
+ * times over — and that cost is only paid here because the reset is *necessary*:
+ * without it the first import is cached and every later test writes through the
+ * first test's database handle while reading through its own. The symptom was
+ * baffling and is documented below.
+ *
+ * So the hook is given a realistic budget rather than being restructured. At
+ * vitest's 10s default this suite was the last red in a full parallel run —
+ * failing on `Hook timed out` while every assertion passed in isolation, which is
+ * the same load-dependent flake fixed in `oauth-provider.test.ts`.
+ */
 beforeEach(async () => {
   client = createClient({ url: "file::memory:" });
   const testDb = drizzle(client);
@@ -113,6 +128,11 @@ beforeEach(async () => {
       // column is the point: a test that hand-writes the DDL proves nothing
       // about whether the generated migration matches the schema.
       ...readFileSync("drizzle/0055_nosy_galactus.sql", "utf8")
+        // 0056 adds geo_snapshots.target_id, which the alerting reader filters on.
+        .split("--> statement-breakpoint")
+        .filter((statement) => !statement.includes("DROP TABLE")),
+      // 0056 adds geo_snapshots.target_id, which the alerting reader filters on.
+      ...readFileSync("drizzle/0056_geo_snapshot_target.sql", "utf8")
         .split("--> statement-breakpoint")
         .filter((statement) => !statement.includes("DROP TABLE")),
     ].join("\n"),
@@ -146,10 +166,50 @@ beforeEach(async () => {
 
   const service = await import("./GeoService");
   GeoService = service.GeoService;
-});
+}, 60_000);
 
 const recordRun = (input: Parameters<typeof GeoService.recordRun>[0]) =>
   GeoService.recordRun(input);
+
+/**
+ * Read the brand a run recorded, distinguishing "no brand" from "no such run".
+ *
+ * Same shape as `promptsAskedOf` and for the same reason: `?? null` would turn a
+ * missing row into a null column, and an assertion of `toBeNull()` would then
+ * report a **missing snapshot** as **an unattributed run** — two different facts
+ * that send you to two different files.
+ */
+const targetIdOf = async (snapshotId: string): Promise<string | null> => {
+  const result = await client.execute({
+    sql: "SELECT id, target_id, typeof(target_id) AS kind FROM geo_snapshots WHERE id = ?",
+    args: [snapshotId],
+  });
+  const row = result.rows[0];
+  if (row === undefined) {
+    const present = await client.execute("SELECT id FROM geo_snapshots");
+    throw new Error(
+      `no snapshot row with id ${snapshotId}; rows present: ` +
+        JSON.stringify(present.rows.map((r) => r.id)),
+    );
+  }
+  return row.kind === "null" ? null : readString(row.target_id);
+};
+
+/**
+ * Read a driver value as text, refusing rather than coercing.
+ *
+ * libsql types a column as `unknown`, so `String(value)` is the escape hatch that
+ * produces `[object Object]` if the column is ever not what it claims. The
+ * pattern here — the same one `normaliseDomain` and `mentionFromAnswer` use — is
+ * to check the type and fail loudly: a target id that is not a string is a schema
+ * problem, and a test that reports `[object Object]` as a target id would hide it.
+ */
+function readString(value: unknown): string {
+  if (typeof value !== "string") {
+    throw new Error(`expected a string column, received ${typeof value}`);
+  }
+  return value;
+}
 
 /**
  * Read the column back, distinguishing a stored `0` from a stored null.
@@ -220,6 +280,49 @@ describe("the prompts a run asked", () => {
     expect(await promptsAskedOf(snapshot!.id)).toBeNull();
   });
 
+  it("marks the snapshot failed when archiving throws, rather than leaving it running", async () => {
+    // `recordRun` is three awaited steps — insert the snapshot as `running`,
+    // archive the answers, then complete it — and only the last one recorded the
+    // outcome. A throw in the middle left the row at `running` forever.
+    //
+    // That is invisible twice over. The alerting reader filters to `complete`, so
+    // the run is not compared; and the runs *around* it are compared as though it
+    // had never been attempted, which is a gap in the history no query can explain
+    // because the row explaining it says `running`.
+    //
+    // A foreign key is used to force the throw: it fails inside the driver's own
+    // batch, so this exercises the real failure path rather than a mocked one.
+    const before = await client.execute("SELECT id FROM geo_snapshots");
+    expect(before.rows.length).toBe(0);
+
+    await expect(
+      recordRun({
+        projectId: "p1",
+        createdBy: "schedule",
+        answers: [
+          {
+            answer: {
+              ...ANSWER.answer,
+              id: `a${++answerSeq}`,
+              // `geo_answers.target_id` references `geo_targets`, and no such
+              // target exists — so the insert fails on the foreign key.
+              targetId: "t_missing",
+            },
+          },
+        ],
+        promptsAsked: 5,
+      }),
+    ).rejects.toThrow();
+
+    // The snapshot is still there, and it now says `failed`. Deleting it instead
+    // would lose the evidence that a run was attempted at all.
+    const after = await client.execute(
+      "SELECT id, status FROM geo_snapshots ORDER BY started_at",
+    );
+    expect(after.rows).toHaveLength(1);
+    expect(after.rows[0]?.status).toBe("failed");
+  });
+
   it("keeps zero and null apart", async () => {
     // "Asked and got nothing" and "cannot say what was asked" are different
     // facts. A chart that renders both as 0 says a run found nothing when it
@@ -243,5 +346,37 @@ describe("the prompts a run asked", () => {
     });
     expect(await promptsAskedOf(measured!.id)).toBe(0);
     expect(await promptsAskedOf(unknown!.id)).toBeNull();
+  });
+});
+
+describe("the brand a run measured", () => {
+  // CL-501e. `recordRun` accepted a `targetId` and threw it away, because the
+  // column did not exist — the brand was threaded all the way from `GeoPatrol`
+  // to the insert and discarded there. The alerting reader then had no way to
+  // tell whose run it was reading, and compared a run against "the previous run
+  // in the project", which in a multi-brand project is a different brand's run.
+
+  it("stores the brand when the caller knows it", async () => {
+    const snapshot = await recordRun({
+      projectId: "p1",
+      createdBy: "schedule",
+      targetId: "t1",
+      answers: [answer()],
+    });
+    expect(await targetIdOf(snapshot!.id)).toBe("t1");
+  });
+
+  it("stores null when the caller does not say, rather than guessing", async () => {
+    // Null is the honest state: a queued run archives no snapshot at all, and a
+    // run recorded before this column existed has no brand we can vouch for. A
+    // fabricated brand would be worse than none, because the alerting reader
+    // treats an unattributed run as "no comparison" rather than "compare with
+    // whatever ran before".
+    const snapshot = await recordRun({
+      projectId: "p1",
+      createdBy: "schedule",
+      answers: [answer()],
+    });
+    expect(await targetIdOf(snapshot!.id)).toBeNull();
   });
 });

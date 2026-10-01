@@ -1,5 +1,5 @@
 import { decideAlerts } from "./alertDecision";
-import { dispatchAlert, type Transport } from "./alertDispatch";
+import { dispatchAlert, dispatchDigest, type Transport } from "./alertDispatch";
 import { createDiscordTransport } from "./discordTransport";
 import { describeRunGap, getLatestRunPair } from "./runObservations";
 import type { Observation } from "./alertDecision";
@@ -35,6 +35,15 @@ export async function alertOnRunChange(input: {
   projectId: string;
   /** Null when the run archived nothing. */
   snapshotId: string | null;
+  /**
+   * Every snapshot the run wrote, one per brand.
+   *
+   * Optional, and the scalar `snapshotId` is still honoured, because the two
+   * together are what the scheduler passes: `snapshotId` is the first (the run
+   * log reads it) and this is the full set. A caller that passes only the scalar
+   * gets the single-snapshot behaviour it had before CL-501e.
+   */
+  snapshotIds?: readonly string[];
   transport: Transport;
   /** Shown in the message; falls back to the id rather than to "your project". */
   projectName?: string;
@@ -48,11 +57,92 @@ export async function alertOnRunChange(input: {
     };
   }
 
-  const pair = await getLatestRunPair(input.projectId);
+  // Decide every snapshot the run produced, one brand at a time.
+  //
+  // **A multi-brand patrol writes one snapshot per target**, so a project that
+  // monitors three brands alerts on three independent histories. Deciding only
+  // the first meant two brands were never reported at all — the gap CL-501e
+  // closes. Each is decided separately because they share nothing: different
+  // domains, different answers, and a cross-brand pair would match no rows at all
+  // now that the comparison key carries the domain.
+  const snapshots = dedupe([input.snapshotId, ...(input.snapshotIds ?? [])]);
+  if (snapshots.length === 0) {
+    return {
+      outcome: "not_applicable",
+      reason:
+        "The run archived nothing, so there is no new answer to compare and no change to report.",
+    };
+  }
+
+  const outcomes: AlertOutcome[] = [];
+  for (const snapshotId of snapshots) {
+    outcomes.push(
+      await decideOneSnapshot({ ...input, snapshotId, snapshotIds: undefined }),
+    );
+  }
+
+  // One summary for the caller. A per-brand list is kept so a caller *can* show
+  // which brands changed, but the headline stays the strongest outcome, because a
+  // patrol log that reads "nothing to report" when one brand lost a mention is the
+  // silent-failure shape this whole chain exists to avoid.
+  const dispatched = outcomes.filter(
+    (o): o is Extract<AlertOutcome, { outcome: "dispatched" }> =>
+      o.outcome === "dispatched",
+  );
+  const inapplicable = outcomes.find((o) => o.outcome === "not_applicable");
+  const noBaseline = outcomes.find((o) => o.outcome === "no_baseline");
+  if (dispatched.length > 0) {
+    return {
+      outcome: "dispatched",
+      // The first is the primary; `perBrand` is there for a caller that wants to
+      // name every brand in the run log.
+      result: dispatched[0].result,
+      gap: dispatched[0].gap,
+      perBrand: dispatched,
+    };
+  }
+  if (noBaseline !== undefined) return noBaseline;
+  return (
+    inapplicable ?? {
+      outcome: "not_applicable",
+      reason: "Nothing to report for any brand in this run.",
+    }
+  );
+}
+
+/** First occurrence wins, so `snapshotId` leads the list. */
+function dedupe(ids: ReadonlyArray<string | null>): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const id of ids) {
+    if (id === null || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+/** The single-snapshot decision, unchanged from before the per-brand split. */
+async function decideOneSnapshot(
+  input: Parameters<typeof alertOnRunChange>[0] & { snapshotId: string },
+): Promise<AlertOutcome> {
+  // The snapshot the run just produced, not "whatever is newest in the table".
+  // The caller knows which run finished; re-deriving it here would decide the
+  // alert about a different run whenever two finish out of order.
+  //
+  // **One brand at a time.** A patrol writes one snapshot per target, so this is
+  // called once per brand and each call is scoped to that brand's history by
+  // `getLatestRunPair` (which reads the snapshot's own `target_id`). The previous
+  // version compared "this brand's run" against "the previous run of the whole
+  // project", which in a multi-brand project put two different brands on either
+  // side of one diff — and because the comparison key carries the domain, that
+  // matched no rows and the alert said nothing at all.
+  const pair = await getLatestRunPair(input.projectId, input.snapshotId);
   if (pair === null) {
     return {
       outcome: "not_applicable",
-      reason: "No snapshot was found for this project.",
+      reason:
+        "No completed run was found to compare this one against, so there is no change to report.",
     };
   }
   if (pair.previous === null) {
@@ -92,11 +182,62 @@ export async function alertOnRunChange(input: {
     now: input.now,
   });
 
+  /**
+   * The roll-up, dispatched alongside the alert.
+   *
+   * `decideAlerts` splits its changes in two: the ones worth interrupting for, and
+   * `suppressed` — which is **every gained mention**. Those were formatted by
+   * `buildDigest` and then thrown away, because nothing called it. So a brand that
+   * started being mentioned got no message at all, and the rationale in
+   * `buildDigest` — *a channel that carries only losses gets muted* — described a
+   * design nothing implemented.
+   *
+   * Dispatched here rather than on a weekly timer because the runner is the only
+   * place a decision exists, and because a digest keyed on the week is naturally
+   * at-least-once: the first run of a week to produce a gain sends it, and every
+   * later run that week is a `duplicate` the duplicate check refuses.
+   *
+   * **Failures are swallowed**, and that is deliberate rather than lazy. The
+   * interruption has already been sent at this point, so a roll-up that could not
+   * be delivered must not turn a successful alert into a failed run — and the
+   * recorded `failed` row means the next tick retries it.
+   */
+  if (decision.suppressed.length > 0) {
+    const weekOf = weekStartOf(pair.current.startedAt);
+    await dispatchDigest({
+      projectId: input.projectId,
+      runId: pair.current.snapshotId,
+      projectName: input.projectName ?? input.projectId,
+      suppressed: decision.suppressed,
+      weekOf,
+      transport: input.transport,
+      now: input.now,
+    }).catch((digestError: unknown) => {
+      console.error(
+        `[geo-alerts] weekly roll-up failed and was swallowed so the alert could finish: ${
+          digestError instanceof Error
+            ? digestError.message
+            : String(digestError)
+        }`,
+      );
+    });
+  }
+
   return {
     outcome: "dispatched",
     result,
     gap,
   };
+}
+
+/** The Monday of the week containing an ISO instant, as a date. */
+function weekStartOf(iso: string): string {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return `week-of-${iso}`;
+  const day = parsed.getUTCDay();
+  // Sunday is the last day of its week, not the first.
+  parsed.setUTCDate(parsed.getUTCDate() - (day === 0 ? 6 : day - 1));
+  return parsed.toISOString().slice(0, 10);
 }
 
 /**
@@ -116,6 +257,20 @@ type AlertOutcome =
       result: Awaited<ReturnType<typeof dispatchAlert>>;
       /** How far apart the two runs were, or null when close enough to omit. */
       gap: string | null;
+      /**
+       * Every brand that produced an alert in this run, in the order the patrol
+       * wrote them.
+       *
+       * Present because a multi-brand run can legitimately alert on more than
+       * one, and a caller logging the outcome needs to say *which* — a single
+       * "alert sent" line would hide the other two brands from the run log, which
+       * is the same incompleteness the scalar `snapshotId` had.
+       */
+      perBrand?: Array<{
+        outcome: "dispatched";
+        result: Awaited<ReturnType<typeof dispatchAlert>>;
+        gap: string | null;
+      }>;
     };
 
 /** The decision layer takes a list; the reader gives a keyed map. */

@@ -48,6 +48,21 @@ import type { BillingCustomerContext } from "@/server/billing/subscription";
 /** What one patrol run produced. */
 type PatrolRunResult = {
   snapshotId: string | null;
+  /**
+   * **Every** snapshot the run wrote, one per target.
+   *
+   * `snapshotId` is the first of these and is kept because the run log and
+   * `alertOnRunChange`'s primary path read it. It is **not** enough on its own:
+   * `GeoPatrol.run` calls `runForTarget` once per target, so a three-brand
+   * patrol writes three snapshots and returning only the first meant two brands
+   * were never alerted on at all.
+   *
+   * Kept as a list rather than replacing the scalar, because a scalar that
+   * silently means "the first one" is what caused the gap; a caller that reads
+   * `snapshotId` can still tell it is the first, and one that wants every brand
+   * reads this.
+   */
+  snapshotIds: string[];
   answersArchived: number;
   /** Vendor cost in USD, summed from the task costs actually returned. */
   costUsd: number;
@@ -114,7 +129,50 @@ const DEFAULT_MAX_ANSWERS = 500;
  */
 const QUEUE_DEFAULT_MODEL = "gpt-5";
 
-/** llm_mentions only serves these two platforms. */
+/**
+ * The run-log sentence for a platform nothing collects.
+ *
+ * One function for both acquisition paths, because the two notes were separate
+ * strings that could disagree about the same platform — and the queued one had
+ * drifted into **naming a collector that does not exist**. It said the platform was
+ * handled by a mode monitor, and no such monitor runs: `planAiModeCaptures` has
+ * tests and no caller, `fetchAiModeAnswer` is reached only through the SDK meter's
+ * method reference, and `tryBeginRun` is used solely by this patrol.
+ *
+ * The sentence has to be true, and the truth is also the more useful thing to tell
+ * a reader: this platform is not collected, and nothing else is collecting it
+ * either. A reader who believes a monitor has it stops looking; a reader told the
+ * gap is real knows to escalate it.
+ *
+ * `scripts/acquisition-mode-gate.test.ts` asserts this text by reading the file —
+ * **including that the old claim is absent from it** — so a note that names a
+ * monitor has to argue with a test rather than with a reviewer's memory. The gate
+ * is a source scan by design and cannot import this module (it would drag in
+ * `cloudflare:workers` through the billing module), and the first version tried to
+ * and failed with `Cannot find package 'cloudflare:workers'`. A scan that has to
+ * boot the worker is no longer a scan.
+ *
+ * Not exported: the gate reads the source rather than the function, and an export
+ * with no importer is exactly what `knip` exists to refuse. The first version
+ * exported it for the gate's benefit and was told so.
+ */
+function uncollectedPlatformNote(platform: string): string {
+  return (
+    `${platform} is not collected. The llm_mentions and llm_responses ` +
+    `endpoints serve ChatGPT and Google only, and no other job in this ` +
+    `product collects ${platform} — so a run that included it will always ` +
+    `report a gap there, and the gap is real rather than a delay.`
+  );
+}
+
+/**
+ * The platforms each vendor endpoint serves, mapped from ours.
+ *
+ * `llm_mentions` and `llm_responses` are ChatGPT and Google only, which is why
+ * `gemini` and `perplexity` are in the product's vocabulary but not here. A
+ * platform absent from this map is one nothing collects, and both paths say so
+ * with `uncollectedPlatformNote` rather than inventing a collector.
+ */
 const PLATFORM_TO_VENDOR: Partial<Record<GeoPlatform, LlmPlatform>> = {
   chat_gpt: "chat_gpt",
   google_ai_overview: "google",
@@ -291,6 +349,7 @@ async function runForTarget(
     if (prompts.length === 0) {
       return {
         snapshotId: null,
+        snapshotIds: [],
         answersArchived: 0,
         costUsd: 0,
         // A measured zero, and the distinction from null is the whole point of
@@ -316,9 +375,7 @@ async function runForTarget(
       }
       const vendorPlatform = PLATFORM_TO_VENDOR[platform];
       if (!vendorPlatform) {
-        notes.push(
-          `${platform} is not served by llm_responses (ChatGPT and Google only); it is collected by the AI Mode monitor.`,
-        );
+        notes.push(uncollectedPlatformNote(platform));
         continue;
       }
       for (const prompt of prompts) {
@@ -336,6 +393,7 @@ async function runForTarget(
     if (candidates.length === 0) {
       return {
         snapshotId: null,
+        snapshotIds: [],
         answersArchived: 0,
         costUsd: 0,
         // Zero, not null. The run asked nothing because there was nothing to
@@ -391,6 +449,7 @@ async function runForTarget(
     // coverage figure a reader needs.
     return {
       snapshotId: null,
+      snapshotIds: [],
       answersArchived: 0,
       costUsd,
       promptsAsked: posted,
@@ -408,9 +467,25 @@ async function runForTarget(
 
     const vendorPlatform = PLATFORM_TO_VENDOR[platform];
     if (!vendorPlatform) {
-      notes.push(
-        `${platform} is not served by llm_mentions (ChatGPT and Google only); it is collected by the AI Mode monitor.`,
-      );
+      // **The note no longer names a collector, because there is not one.**
+      //
+      // This used to tell the reader the platform was handled elsewhere, and it
+      // was not. `planAiModeCaptures` has tests and no caller, `fetchAiModeAnswer`
+      // is reached only through the SDK meter's method reference, and
+      // `tryBeginRun` is used solely by this patrol for `llm_mentions`. So the
+      // sentence named a sixth kind of thing this codebase has now found six
+      // times: **a capability that is built, tested, and never invoked.** The
+      // planner's tests pass because they exercise the planner; nothing exercises
+      // a runner, because there isn't one.
+      //
+      // The honest sentence says what is true, which is also what a reader needs:
+      // this platform is not collected, and no other job is collecting it either.
+      // A reader who believes a monitor has it will stop looking; a reader told
+      // "nothing collects this" will know the absence is real.
+      //
+      // `uncollectedPlatformNote` is shared by the queued branch so both paths
+      // cannot drift apart, and the gate asserts the false claim never comes back.
+      notes.push(uncollectedPlatformNote(platform));
       continue;
     }
 
@@ -507,6 +582,7 @@ async function runForTarget(
     // what we know.
     return {
       snapshotId: null,
+      snapshotIds: [],
       answersArchived: 0,
       costUsd,
       promptsAsked,
@@ -526,6 +602,7 @@ async function runForTarget(
 
   return {
     snapshotId: snapshot?.id ?? null,
+    snapshotIds: snapshot ? [snapshot.id] : [],
     answersArchived: inserts.length,
     costUsd,
     promptsAsked,
@@ -549,6 +626,7 @@ async function run(input: PatrolInput): Promise<PatrolRunResult> {
   if (targets.length === 0) {
     return {
       snapshotId: null,
+      snapshotIds: [],
       answersArchived: 0,
       costUsd: 0,
       // Zero, and this one really is a measured zero: no targets means no
@@ -571,6 +649,7 @@ async function run(input: PatrolInput): Promise<PatrolRunResult> {
 
   const combined: PatrolRunResult = {
     snapshotId: null,
+    snapshotIds: [],
     answersArchived: 0,
     costUsd: 0,
     // Starts null, not 0, for the same reason the sum below refuses: a project
@@ -597,6 +676,10 @@ async function run(input: PatrolInput): Promise<PatrolRunResult> {
     combined.answersArchived += result.answersArchived;
     combined.costUsd += result.costUsd;
     combined.snapshotId ??= result.snapshotId;
+    // Every target's snapshot, so alerting can decide each brand on its own. The
+    // `??=` above keeps only the first, which is why a multi-brand project
+    // alerted about one brand and stayed silent about the rest.
+    combined.snapshotIds.push(...result.snapshotIds);
     /**
      * Sums the denominators, **and refuses to turn a null into a zero.**
      *

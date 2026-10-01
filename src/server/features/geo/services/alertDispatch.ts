@@ -1,8 +1,13 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { geoAlertDispatches } from "@/db/schema";
-import { buildMessage, fingerprint, type AlertMessage } from "./alertMessage";
-import type { AlertDecision } from "./alertDecision";
+import {
+  buildDigest,
+  buildMessage,
+  fingerprint,
+  type AlertMessage,
+} from "./alertMessage";
+import type { AlertDecision, Change } from "./alertDecision";
 
 /**
  * Dispatching an alert, once.
@@ -132,6 +137,120 @@ export async function dispatchAlert(input: {
 
   const recorded = await recordDispatch(
     { ...input, print, message, status: "sent" },
+    now,
+  );
+  return { outcome: "sent", detail: null, recorded };
+}
+
+/**
+ * Dispatch the weekly roll-up of everything that was *not* sent individually.
+ *
+ * ## Why this exists, and it is the ninth instance of one shape
+ *
+ * `buildDigest` has existed, has a docstring explaining that a **gained** mention
+ * belongs here rather than in an interruption, and has tests. **Nothing called it.**
+ * `dispatchAlert` builds its message with `buildMessage` and nothing else, so every
+ * `mention_gained` was classified by `decideAlerts`, formatted, tested — and
+ * discarded. A customer whose brand started being mentioned was never told, and
+ * the design rationale in `buildDigest`'s own docstring was a description of
+ * intended behaviour that nothing implemented.
+ *
+ * That is the same defect as the evidence drawer nobody opened, the cadence gate
+ * nobody passed an argument to, and the AI Mode monitor a run-log note claimed
+ * existed — a component that is built, tested, and never invoked — and it is the
+ * most consequential of them, because it is the only one a customer would have
+ * noticed as a **missing good thing** rather than a missing error.
+ *
+ * ## It reuses the same at-least-once machinery, deliberately
+ *
+ * Same duplicate check, same `sent`/`failed` semantics, same reason they exist: a
+ * failed send must not be recorded as a success, or a transient webhook outage
+ * becomes a permanently lost roll-up. The fingerprint is keyed on the **week**
+ * rather than the run, because a digest covers a week and must not be re-sent by a
+ * second run inside it — which is exactly the `alertDispatch.test.ts` case where
+ * a gain is recorded and then a second run re-decides the same prompt.
+ */
+export async function dispatchDigest(input: {
+  projectId: string;
+  runId: string;
+  projectName: string;
+  suppressed: Change[];
+  weekOf: string;
+  transport: Transport;
+  now?: Date;
+}): Promise<DispatchResult> {
+  const message = buildDigest({
+    suppressed: input.suppressed,
+    weekOf: input.weekOf,
+    projectName: input.projectName,
+  });
+  // The same rule as `buildMessage`: a digest with no entries is a post with no
+  // content, and posting it teaches the reader to scroll past the ones that
+  // matter. No row, no send, no trace.
+  if (message === null) {
+    return {
+      outcome: "nothing_to_send",
+      detail: null,
+      recorded: false,
+    };
+  }
+
+  const now = input.now ?? new Date();
+  // Week-scoped, not run-scoped. The digest is *about* the week, so two runs in
+  // the same week must not produce two roll-ups of the same gain.
+  const print = `digest:${input.projectId}:${input.weekOf}`;
+
+  const alreadySent = await db
+    .select({ fingerprint: geoAlertDispatches.fingerprint })
+    .from(geoAlertDispatches)
+    .where(
+      and(
+        eq(geoAlertDispatches.projectId, input.projectId),
+        eq(geoAlertDispatches.fingerprint, print),
+        eq(geoAlertDispatches.status, "sent"),
+      ),
+    )
+    .limit(1);
+  if (alreadySent.length > 0) {
+    return {
+      outcome: "duplicate",
+      detail:
+        "This week's roll-up was already delivered. Suppressed rather than sent twice.",
+      recorded: false,
+    };
+  }
+
+  try {
+    await input.transport(message);
+  } catch (error) {
+    await recordDispatch(
+      {
+        projectId: input.projectId,
+        runId: input.runId,
+        projectName: input.projectName,
+        print,
+        message,
+        status: "failed",
+      },
+      now,
+      error,
+    );
+    return {
+      outcome: "failed",
+      detail: `The channel refused the roll-up: ${describeError(error)}. It will be retried, because a failed send is not a sent one.`,
+      recorded: true,
+    };
+  }
+
+  const recorded = await recordDispatch(
+    {
+      projectId: input.projectId,
+      runId: input.runId,
+      projectName: input.projectName,
+      print,
+      message,
+      status: "sent",
+    },
     now,
   );
   return { outcome: "sent", detail: null, recorded };
