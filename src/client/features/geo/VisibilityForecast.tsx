@@ -149,6 +149,47 @@ export function VisibilityForecast({
         <p className="mt-3 text-xs text-base-content/60">{series.note}</p>
       ) : null}
 
+      {/**
+       * The direction, and the reason there may not be one.
+       *
+       * **This block did not exist, and `direction` was computed server-side and
+       * never rendered** — the same defect class the reachability gate hunts, one
+       * layer in: both ends were present, so nothing was "unreachable", and the field
+       * was simply dropped on the way to the screen.
+       *
+       * The consequence was specific and bad for exactly the customers this product
+       * is for. A **queued** project produces one answer a week, so it cannot reach
+       * the 8-week floor for months — and the panel rendered a current rate with no
+       * direction and no explanation. A reader could reasonably conclude the trend
+       * was flat, or that we had stopped watching. The server's `reading` already
+       * said "we need 8 before a weekly change means anything more than sampling
+       * noise, and we would rather say so than draw a line through it" — and nobody
+       * was reading it.
+       *
+       * So the sentence is the reader's, verbatim, rather than a second one written
+       * here. A refusal restated at the call site is two texts to keep in step, and
+       * this repo has already been bitten by that: the panel's own short version
+       * above blamed the vendor when the cause was ours.
+       */}
+      <div className="mt-3">
+        <p className="text-xs font-medium text-base-content/70">Direction</p>
+        {forecast.direction.perWeek === null ? (
+          <p className="text-xs text-base-content/60">
+            {forecast.direction.reading}
+          </p>
+        ) : (
+          <>
+            <p className="text-lg font-semibold">
+              {forecast.direction.perWeek >= 0 ? "+" : ""}
+              {Math.round(forecast.direction.perWeek * 100)} points per week
+            </p>
+            <p className="text-xs text-base-content/60">
+              {forecast.direction.reading}
+            </p>
+          </>
+        )}
+      </div>
+
       <p className="mt-3 text-xs text-base-content/50">
         {forecast.doesNotClaim}
       </p>
