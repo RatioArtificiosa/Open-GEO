@@ -483,9 +483,9 @@ describe("import casing matches the filesystem, because CI is Linux", () => {
     // and the test is decorative — which is the failure this whole repository
     // keeps finding, and the reason the first two versions of this gate passed
     // with the real bug still in the source.
-    expect(
-      files.some((f) => f.endsWith("ai-mcp/agentSetupPrompt.ts")),
-    ).toBe(true);
+    expect(files.some((f) => f.endsWith("ai-mcp/agentSetupPrompt.ts"))).toBe(
+      true,
+    );
 
     const offenders: string[] = [];
     for (const rel of files) {
@@ -537,7 +537,10 @@ describe("import casing matches the filesystem, because CI is Linux", () => {
             break;
           }
         }
-        offenders.push(reported ?? rel + " imports " + candidates[0] + " which is not tracked");
+        offenders.push(
+          reported ??
+            rel + " imports " + candidates[0] + " which is not tracked",
+        );
       }
     }
     expect(offenders).toEqual([]);
