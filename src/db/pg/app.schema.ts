@@ -69,6 +69,14 @@ export const projects = pgTable(
     // onboarding and reused by every project-scoped data call.
     locationCode: integer("location_code").notNull().default(2840),
     languageCode: text("language_code").notNull().default("en"),
+    /**
+     * How this project's GEO runs acquire answers. **Null means live** — see the
+     * SQLite mirror in `app.schema.ts` for why the column is nullable rather than
+     * a not-null default, and why the queue is opt-in per project.
+     */
+    geoAcquisitionMode: text("geo_acquisition_mode", {
+      enum: ["live", "queued"],
+    }),
     createdAt: timestampColumn("created_at").notNull().default(isoNow),
     // Soft delete: archived projects are hidden everywhere but their data
     // (keywords, rank tracking, audits) is preserved.

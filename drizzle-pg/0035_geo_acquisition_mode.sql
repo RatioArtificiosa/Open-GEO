@@ -1,0 +1,1 @@
+ALTER TABLE "projects" ADD COLUMN "geo_acquisition_mode" text;

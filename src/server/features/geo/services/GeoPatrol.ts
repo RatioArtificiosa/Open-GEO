@@ -345,7 +345,26 @@ async function runForTarget(
   // like the Live one and is not — a mention count rendered where a share of
   // voice is expected.
   if (input.mode === "queued") {
-    const prompts = input.queuePrompts ?? [];
+    // **The prompts come from the project, not from the caller.** This branch was
+    // built, tested and dormant for exactly one reason: it required
+    // `input.queuePrompts` and nothing in production ever supplied one. The
+    // questions a queued run asks were always meant to be *ours* — that is the
+    // whole difference between the two paths, and it is the only reason the queued
+    // path can compute a denominator the Live one cannot.
+    //
+    // A caller may still pass them explicitly, and that path is kept: a caller with
+    // prompts in hand (a test, a future importer) should not have to write them to
+    // the database first. But the default is now the project's saved set, so the
+    // branch is reachable.
+    //
+    // **Per project, not per target**, and that is deliberate: the prompt set is
+    // the project's, so a three-brand project asks the same three questions of each
+    // brand and gets three comparable answers. The tag carries the brand, so the
+    // archive can tell them apart — which is the same reason `observationKey`
+    // includes the domain.
+    const prompts =
+      input.queuePrompts ??
+      (await GeoService.promptsForQueuedRun(input.projectId));
     if (prompts.length === 0) {
       return {
         snapshotId: null,
@@ -360,7 +379,10 @@ async function runForTarget(
         promptsAsked: 0,
         notes: [
           ...notes,
-          "Queued mode needs an explicit prompt list. The Live path asks about a brand and reports whether it was mentioned; the queued path asks a question and returns an answer, so a target alone does not describe the work. Nothing was posted.",
+          // **The note says what to do**, because a refusal that does not is a
+          // support ticket. This project has no saved prompts, so there is nothing
+          // to ask — and the one action that fixes it is named.
+          "Queued mode asks questions and returns answers, so it needs prompts to ask, and this project has none saved. Add a prompt set in GEO settings, or switch this project back to the live path, which asks about a brand and reports whether it was mentioned. Nothing was posted.",
         ],
       };
     }
@@ -694,11 +716,21 @@ async function run(input: PatrolInput): Promise<PatrolRunResult> {
      * One unknown makes the sum unknown, and a partial total is not a partial
      * answer — it is a wrong one, because a reader cannot tell which kind they
      * have.
+     *
+     * **The `=== null` test is "this is still the seed", not "this target knew
+     * nothing."** The first version read it the second way and left the sum
+     * permanently `null`, so a *single-brand* queued project — the most common
+     * shape there is — reported `promptsAsked: null` after posting two prompts
+     * successfully. The note said "Queued 2 prompts" and the denominator said we
+     * did not know, in the same result object. A count of targets is what
+     * distinguishes the two cases.
      */
     combined.promptsAsked =
-      combined.promptsAsked === null || result.promptsAsked === null
-        ? null
-        : combined.promptsAsked + result.promptsAsked;
+      combined.promptsAsked === null
+        ? result.promptsAsked
+        : result.promptsAsked === null
+          ? null
+          : combined.promptsAsked + result.promptsAsked;
     for (const note of result.notes) {
       combined.notes.push(`${target.domain} — ${note}`);
     }

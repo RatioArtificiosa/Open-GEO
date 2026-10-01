@@ -55,6 +55,24 @@ export const projects = sqliteTable(
     // onboarding and reused by every project-scoped data call.
     locationCode: integer("location_code").notNull().default(2840),
     languageCode: text("language_code").notNull().default("en"),
+    /**
+     * How this project's GEO runs acquire answers: ask now, or post to the
+     * Standard queue and archive when they arrive.
+     *
+     * **Null means live**, and that is the whole point of making it nullable: a
+     * column added to a table that has rows should not rewrite every one of them,
+     * and `null` reads as "this project has expressed no preference" rather than
+     * as a value someone chose. The read side resolves it with
+     * `?? "live"`, so the only two real states are live and queued.
+     *
+     * The queue is ~30% cheaper and up to **72 hours** slow, which is a
+     * trade-off a project owner has to make for themselves and not one this
+     * product makes on their behalf. Defaulting it on would change what every
+     * existing customer sees on the day it deployed.
+     */
+    geoAcquisitionMode: text("geo_acquisition_mode", {
+      enum: ["live", "queued"],
+    }),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(current_timestamp)`),

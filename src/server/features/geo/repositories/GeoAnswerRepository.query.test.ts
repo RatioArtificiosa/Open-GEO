@@ -62,6 +62,9 @@ beforeAll(async () => {
       ...readFileSync("drizzle/0048_opengeo_geo.sql", "utf8")
         .split("--> statement-breakpoint")
         .filter((statement) => !statement.includes("DROP TABLE")),
+      // `0057` alters `projects`, and this harness creates that table by hand
+      // above — so without it the schema is a column behind the code's.
+      readFileSync("drizzle/0057_geo_acquisition_mode.sql", "utf8"),
     ].join("\n"),
   );
 

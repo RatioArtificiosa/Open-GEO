@@ -48,6 +48,7 @@ beforeAll(async () => {
       ...readFileSync("drizzle/0042_project_memory.sql", "utf8")
         .split("--> statement-breakpoint")
         .filter((statement) => !statement.includes("DROP TABLE")),
+      readFileSync("drizzle/0057_geo_acquisition_mode.sql", "utf8"),
     ].join("\n"),
   );
 

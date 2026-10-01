@@ -42,8 +42,12 @@ beforeAll(async () => {
   testClient = client;
   const schema = drizzle(client);
 
+  // `projects` is hand-written here rather than migrated, so the column `0057`
+  // adds is written into the stub. The insert below names its columns, so the
+  // extra column is inert — which is the point: a positional insert would break
+  // exactly as it would against the real table.
   await client.execute(
-    "CREATE TABLE projects (id text PRIMARY KEY, name text, location_code integer, language_code text, created_at text, organization_id text, archived_at text)",
+    "CREATE TABLE projects (id text PRIMARY KEY, name text, location_code integer, language_code text, created_at text, organization_id text, archived_at text, geo_acquisition_mode text)",
   );
   await client.execute(
     `CREATE TABLE geo_targets (id text PRIMARY KEY, project_id text NOT NULL, domain text NOT NULL, name text NOT NULL, aliases text, location_code integer NOT NULL, language_code text NOT NULL, created_at text NOT NULL)`,

@@ -246,6 +246,13 @@
       "when": 1790880000000,
       "tag": "0034_geo_snapshot_target",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1790881000000,
+      "tag": "0035_geo_acquisition_mode",
+      "breakpoints": true
     }
   ]
 }

@@ -162,6 +162,22 @@ describe("the migrations a repository test applies", () => {
       // fixed the migration gap reappears and has to be dealt with.
       "src/server/features/google/GoogleAccountService.test.ts":
         "already failing on a Windows temp-dir EPERM; fixing the harness is a separate change",
+
+      // **Two harnesses that build `projects` by hand, and therefore cannot apply
+      // the migration that alters it.** Both carry `geo_acquisition_mode` in their
+      // own CREATE TABLE, so their schemas are *not* behind the code's — which is
+      // exactly what the gate cannot see, because it reads the migration list and
+      // not the hand-written DDL.
+      //
+      // `ActivationRepository.test.ts` cannot apply `0000` either: it creates
+      // `users` (plural) as part of the same statement, and this harness has a
+      // single-person `user` table that the migration's foreign key would reject.
+      // That is a reason, not a preference, and it is repeated in the harness so
+      // the next person to add a column finds it.
+      "src/server/features/activation/repositories/ActivationRepository.test.ts":
+        "hand-writes `projects`; 0000 also creates `users` (plural) which this harness's single-person `user` table cannot satisfy. The column 0057 adds is in the hand-written DDL.",
+      "src/server/features/geo/repositories/AiMentionHistoryRepository.query.test.ts":
+        "hand-writes `projects` in a CREATE TABLE with no migration to apply; the column 0057 adds is in that DDL.",
     };
 
     const behind: string[] = [];

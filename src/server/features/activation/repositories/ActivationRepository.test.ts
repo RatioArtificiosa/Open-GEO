@@ -34,17 +34,35 @@ beforeEach(() => {
   state.database.exec(`
     PRAGMA foreign_keys = ON;
     CREATE TABLE user (id text PRIMARY KEY);
-    CREATE TABLE projects (id text PRIMARY KEY);
     CREATE TABLE member (id text PRIMARY KEY, organization_id text NOT NULL);
     CREATE TABLE invitation (id text PRIMARY KEY, organization_id text NOT NULL, status text NOT NULL, expires_at integer NOT NULL);
     CREATE TABLE project_activation_state (project_id text PRIMARY KEY, mcp_card_dismissed_at text);
+    CREATE TABLE projects (id text PRIMARY KEY, geo_acquisition_mode text);
     INSERT INTO user VALUES ('alice'), ('bob');
-    INSERT INTO projects VALUES ('project-a'), ('project-b');
     INSERT INTO member VALUES ('member-a', 'org-a');
   `);
   state.database.exec(
     readFileSync("drizzle/0046_plain_the_watchers.sql", "utf8"),
   );
+  // **`projects` is hand-written above rather than migrated, and that is the
+  // deliberate choice this comment exists to defend.**
+  //
+  // The obvious alternative — apply `0000`, which creates the table — does not
+  // work here: `0000` creates `users` (plural) as well as `projects`, and this
+  // harness has a single-person `user` table that the migration's foreign key
+  // would not satisfy. So the stub stands, and the stub carries the column
+  // `0057` adds, so a positional `INSERT INTO projects VALUES (...)` breaks here
+  // exactly as it would in production.
+  //
+  // `scripts/migration-coverage.test.ts` reports a harness like this as stale,
+  // and the report is correct: the table *is* hand-built rather than migrated.
+  // The gate cannot tell a lazy harness from one with a reason, so the reason is
+  // written down here instead of argued with the gate — which is why `0057` is
+  // deliberately **not** applied above: the stub already has the column, and
+  // applying it as well fails with `duplicate column name`.
+  state.database.exec(`
+    INSERT INTO projects (id) VALUES ('project-a'), ('project-b');
+  `);
 });
 
 describe("checklist persistence", () => {

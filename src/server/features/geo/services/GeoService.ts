@@ -121,6 +121,60 @@ async function listPromptSets(projectId: string) {
   );
 }
 
+/**
+ * The prompts a queued run would ask, or `[]` when the project has none.
+ *
+ * ## Why this function exists at all
+ *
+ * The queued acquisition path was built, tested, and **dormant**: `GeoPatrol`
+ * refuses a queued run without an explicit prompt list, and nothing in production
+ * ever supplied one. Everything else about the path works — the planner, the
+ * budget, the drain, the archiving, the alerting — so the gap was exactly this:
+ * *read the prompts a project already saved and hand them over.*
+ *
+ * ## Which set, and why it is not "the latest"
+ *
+ * A project can hold several prompt sets (`geo_prompt_sets` has no uniqueness
+ * beyond project+name). Picking the newest by `created_at` would be a silent
+ * choice with a real consequence: a project that saved "competitor comparison" in
+ * March and "brand terms" in June would have its March set chosen, and a run would
+ * post questions the owner retired. Picking "the first" has the same defect in the
+ * other direction.
+ *
+ * So the rule is **every prompt in every set, in set order then position order** —
+ * a queued run asks what the project has actually configured, and the answer is
+ * visible in the run log as a count. `position` is preserved because a curated
+ * order is information: it is the order the owner built, and the vendor is not told
+ * the difference, but the archive records which answer belongs to which question.
+ *
+ * Duplicates are dropped, and the count is logged by the caller, because asking
+ * the same question twice in one run costs money and returns a second copy of an
+ * answer we already have.
+ */
+async function promptsForQueuedRun(projectId: string): Promise<string[]> {
+  const sets = await GeoSetupRepository.listPromptSets(projectId);
+  if (sets.length === 0) return [];
+  const ordered = await Promise.all(
+    sets.map((set) => GeoSetupRepository.listPrompts(projectId, set.id)),
+  );
+  const seen = new Set<string>();
+  const out: string[] = [];
+  // `listPrompts` returns whole `geo_prompts` rows, so the question itself is
+  // the `prompt` field and the rest of the row — intent, position, the set it
+  // belongs to — is not read here. That is deliberate: the run asks questions, and
+  // the intent is a classification the recommender caches for its own use.
+  for (const row of ordered.flat()) {
+    const trimmed = row.prompt.trim();
+    // A blank prompt is not a question. `createPromptSet` requires at least one
+    // entry but does not require it to have text, so an empty one reaches here and
+    // would be posted as a question with no words in it.
+    if (trimmed.length === 0 || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
+
 /** Create a prompt set and its prompts in one atomic batch. */
 async function createPromptSet(input: {
   projectId: string;
@@ -528,6 +582,7 @@ export const GeoService = {
   upsertTarget,
   deleteTarget,
   listPromptSets,
+  promptsForQueuedRun,
   createPromptSet,
   deletePromptSet,
   getVisibility,
