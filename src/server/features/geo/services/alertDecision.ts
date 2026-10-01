@@ -1,4 +1,5 @@
 import { normaliseUrlForJoin } from "./urlIdentity";
+import { observationKey } from "./observationKey";
 
 /**
  * Deciding what is worth interrupting someone about.
@@ -196,8 +197,32 @@ export function decideAlerts(input: {
   // observations with no domain genuinely cannot be attributed, and stringifying
   // them to the same value would recreate the collision for exactly the rows that
   // cannot be resolved.
+  //
+  // **`observationKey`, not a second copy of it.** This used to be
+  // `${o.domain}|${o.platform}|${normaliseUrlForJoin(o.prompt)}` — a URL
+  // normaliser applied to a *prompt*. `normaliseUrlForJoin` returns `null` for
+  // anything that is not a URL, and a prose prompt like `best crm` is not a URL,
+  // so the template literal stringified the `null` and **every prose prompt for one
+  // brand and platform collapsed onto the key `acme.com|chat_gpt|null`.**
+  //
+  // The consequences are all silent and all bad: `byKey` kept one previous
+  // observation per brand and platform, every current observation was compared
+  // against that single baseline, a mention of prompt A against no mention of
+  // prompt B produced a false "mention lost" naming B, and real changes on the
+  // other prompts were discarded. **The existing tests could not see it because
+  // every fixture used one prompt per brand.**
+  //
+  // `observationKey` carries the fallback this was missing — `?? prompt.trim()` —
+  // and lives in its own module precisely so the reader and the decision layer
+  // cannot hold two identities. Two copies of an identity is how they come to
+  // disagree, and the disagreement is a confident wrong answer rather than an
+  // error.
   const keyOf = (o: Observation) =>
-    `${o.domain ?? ""}|${o.platform}|${normaliseUrlForJoin(o.prompt)}`;
+    observationKey({
+      domain: o.domain,
+      platform: o.platform,
+      prompt: o.prompt,
+    });
 
   const byKey = new Map(previous.map((o) => [keyOf(o), o]));
 

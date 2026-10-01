@@ -213,8 +213,30 @@ export async function readForecastInput(input: {
   // handled where it is counted rather than here: `noAnswers` absorbs any run with
   // no answers of *this* brand on *this* platform, whether it archived nothing at
   // all or archived only another brand's.
+  // **`.selectDistinct`, and that is load-bearing.** The joins above fan out to
+  // one row *per answer*, and a Live snapshot can hold up to 100 of them
+  // (`limit: Math.min(remaining, 100)` in `GeoPatrol`). The previous version
+  // applied `.limit(24)` to that fanned-out row set, so **24 rows could be a
+  // single run** — and the forecast then read one run while reporting that it had
+  // read twenty-four.
+  //
+  // The lie was not confined to the reading. The cropping note compares
+  // `total >= limit`, and `total` counts distinct snapshots, so with one run
+  // selected the check was false and **the note never reported that older runs
+  // had been dropped** — the one case where the reader most needs to know.
+  //
+  // The existing fixtures use one answer per run, so they could not see it: one
+  // answer is one row is one run, and the fan-out never appears.
+  //
+  // **`selectDistinct` on `id` alone, and not on a pair.** `recentRuns` is consumed
+  // by `inArray(geoSnapshots.id, recentRuns)`, and SQLite rejects a subquery that
+  // returns two columns — `sub-select returns 2 columns - expected 1`, which is
+  // what the first attempt did by selecting `id` and `startedAt` together. So the
+  // dedup has to come from the *selection*, and the ordering column has to come
+  // from somewhere else: `geo_snapshots.startedAt` is already in the `order by`,
+  // and every consumer of this subquery only wants the id.
   const recentRuns = db
-    .select({ id: geoSnapshots.id })
+    .selectDistinct({ id: geoSnapshots.id })
     .from(geoSnapshots)
     .leftJoin(
       geoSnapshotAnswers,

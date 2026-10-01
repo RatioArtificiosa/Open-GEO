@@ -6,7 +6,8 @@ import {
   geoSnapshotAnswers,
   geoSnapshots,
 } from "@/db/schema";
-import { loadDomainsForTargets, observationKey } from "./observationIdentity";
+import { loadDomainsForTargets } from "./observationIdentity";
+import { observationKey } from "./observationKey";
 import { mentionFromAnswer } from "./mentionFromAnswer";
 import type { Observation } from "./alertDecision";
 

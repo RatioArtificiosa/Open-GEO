@@ -26,6 +26,66 @@ function obs(overrides: Partial<Observation> = {}): Observation {
 }
 
 describe("decideAlerts", () => {
+  it("keeps two prompts on one brand apart, which is the whole point of the key", () => {
+    // **The gap in this file, found by CodeRabbit and confirmed by the symptom.**
+    //
+    // `keyOf` was
+    //   `${o.domain}|${o.platform}|${normaliseUrlForJoin(o.prompt)}`
+    // — a **URL** normaliser applied to a **prompt**. `normaliseUrlForJoin` returns
+    // `null` for anything that is not a URL, and `best crm software` is not a URL,
+    // so the template literal stringified the `null` and **every prompt for one
+    // brand and platform collapsed onto `acme.com|chat_gpt|null`.**
+    //
+    // Every test above passes with exactly one prompt, so none of them could see
+    // it. The consequence is the worst kind: `byKey` kept one previous
+    // observation, every current observation was compared against that single
+    // baseline, a mention of prompt A against no mention of prompt B produced a
+    // **false "mention lost" naming B**, and real changes on every other prompt
+    // were silently discarded.
+    //
+    // So this is the first test here with more than one prompt, and it is here
+    // rather than in `alertRunner` because the defect is entirely in this layer.
+    const decision = decideAlerts({
+      previous: [
+        obs({ prompt: "alpha", mentioned: true }),
+        obs({ prompt: "beta", mentioned: false }),
+      ],
+      current: [
+        obs({ prompt: "alpha", mentioned: true }),
+        obs({ prompt: "beta", mentioned: true }),
+      ],
+    });
+
+    // No alert: alpha did not change, and beta's gain is a gain — not a loss.
+    expect(decision.shouldAlert).toBe(false);
+    // And beta is the only thing reported, named correctly.
+    expect(decision.suppressed).toHaveLength(1);
+    const [only] = decision.suppressed;
+    expect(only?.kind).toBe("mention_gained");
+    expect("prompt" in only! ? only.prompt : null).toBe("beta");
+  });
+
+  it("does not report a loss for a prompt that merely gained elsewhere", () => {
+    // The false-positive half, stated directly. Alpha is mentioned both times and
+    // beta is not; with the collapsed key, beta's absence was compared against
+    // alpha's presence and produced a "mention lost" for alpha — naming a prompt
+    // that had not changed at all, for a customer to act on.
+    const decision = decideAlerts({
+      previous: [obs({ prompt: "alpha", mentioned: true })],
+      current: [
+        obs({ prompt: "alpha", mentioned: true }),
+        obs({ prompt: "beta", mentioned: false }),
+      ],
+    });
+    // `alerts` is only present when `shouldAlert` is true — the decision is a
+    // union, not a bag of optionals, precisely so a caller cannot read alerts off
+    // a decision that has none. The assertion is therefore that the decision
+    // carries **no alerts at all**, which is the claim: with the collapsed key
+    // this would be a `mention_lost`.
+    expect(decision.shouldAlert).toBe(false);
+    expect(decision.suppressed).toEqual([]);
+  });
+
   it("stays silent when nothing changed", () => {
     const decision = decideAlerts({ previous: [obs()], current: [obs()] });
     expect(decision.shouldAlert).toBe(false);

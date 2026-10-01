@@ -1,40 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { geoTargets } from "@/db/schema";
-import { normaliseUrlForJoin } from "./urlIdentity";
-
-/**
- * The identity of an observation: which brand, on which platform, asked which
- * question.
- *
- * ## Why the brand is part of it
- *
- * The patrol asks **every target in the project the same prompt set**, so two
- * brands produce two answers for one prompt on one platform. Keying on
- * `platform|prompt` alone made those collide: the second brand's row was
- * discarded as a duplicate, and the survivor was compared against whichever
- * brand the previous run happened to keep — so a change in one brand could be
- * reported as a change in the other. A "you lost this mention" alert is something
- * a customer acts on, and acting on the wrong brand is worse than no alert.
- *
- * This lives apart from the reader because **both** sides of a comparison need it:
- * the reader keys what it reads, and `alertDecision` keys what it diffs. Two
- * copies of an identity is how they come to disagree, and the disagreement is
- * silent — a diff that matches the wrong row produces a confident wrong answer.
- *
- * A `null` domain stays distinguishable in the key rather than collapsing to a
- * placeholder: two observations with no domain genuinely cannot be attributed, and
- * stringifying them alike would recreate the collision for exactly the rows that
- * cannot be resolved.
- */
-export function observationKey(input: {
-  domain: string | null;
-  platform: string;
-  prompt: string;
-}): string {
-  const normalised = normaliseUrlForJoin(input.prompt) ?? input.prompt.trim();
-  return `${input.domain ?? ""}|${input.platform}|${normalised}`;
-}
 
 /**
  * The domains for a set of targets, in one query.
@@ -46,6 +12,19 @@ export function observationKey(input: {
  *
  * An empty set short-circuits before the query rather than issuing a pointless
  * `IN ()`.
+ *
+ * ## What used to be here, and why it moved
+ *
+ * `observationKey` sat in this file, which meant the *identity* of an observation
+ * and the *lookup* of its brand shipped together — and therefore with `@/db`
+ * attached. `alertDecision` needs the key and has no business touching a
+ * connection, so importing it from here made `alertDecision.test.ts` fail to load
+ * under vitest's `node` environment (`Cannot find package 'cloudflare:workers'`).
+ *
+ * The key now lives in `observationKey.ts`, which imports nothing but a pure URL
+ * helper. **The split is by dependency, not by size**: one function needs a
+ * string, the other needs a connection, and anything that imports one should not
+ * inherit the cost of the other.
  */
 export async function loadDomainsForTargets(
   projectId: string,

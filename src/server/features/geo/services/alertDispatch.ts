@@ -165,10 +165,11 @@ export async function dispatchAlert(input: {
  *
  * Same duplicate check, same `sent`/`failed` semantics, same reason they exist: a
  * failed send must not be recorded as a success, or a transient webhook outage
- * becomes a permanently lost roll-up. The fingerprint is keyed on the **week**
- * rather than the run, because a digest covers a week and must not be re-sent by a
- * second run inside it — which is exactly the `alertDispatch.test.ts` case where
- * a gain is recorded and then a second run re-decides the same prompt.
+ * becomes a permanently lost roll-up.
+ *
+ * The fingerprint is keyed on the **content** of the suppressed changes, and the
+ * reasoning is below at the `print` — because the first version keyed it on the
+ * week and that silently dropped every gain after the first.
  */
 export async function dispatchDigest(input: {
   projectId: string;
@@ -196,9 +197,29 @@ export async function dispatchDigest(input: {
   }
 
   const now = input.now ?? new Date();
-  // Week-scoped, not run-scoped. The digest is *about* the week, so two runs in
-  // the same week must not produce two roll-ups of the same gain.
-  const print = `digest:${input.projectId}:${input.weekOf}`;
+  /**
+   * Content-scoped, **not** week-scoped.
+   *
+   * The first version of this was `digest:${projectId}:${weekOf}`, on the
+   * reasoning that a digest is "about" a week and therefore one per week is
+   * right. That is wrong, and wrong in the direction that loses data: the message
+   * contains only *this call's* gains, so after the first send the fingerprint
+   * matches and **every later gain that week is suppressed as a duplicate.**
+   *
+   * Three cases all lose:
+   * - a multi-brand patrol decides one snapshot per brand, so brand 2's gains in
+   *   the same run are recorded as duplicates and never delivered;
+   * - the queue drain alerts once per archived answer, so only the first queued
+   *   gain of the week arrives;
+   * - a gain found on Tuesday is dropped because something else went out Monday.
+   *
+   * The property worth keeping is narrower than "one per week": **the same gain
+   * is not delivered twice.** Keying on the changes themselves states exactly
+   * that, so a genuinely new gain sends and a re-decided one does not. Sorting
+   * before hashing is what makes it stable — the same two gains decided in a
+   * different order must fingerprint identically, or the dedupe is a lottery.
+   */
+  const print = `digest:${input.projectId}:${digestFingerprint(input.suppressed)}`;
 
   const alreadySent = await db
     .select({ fingerprint: geoAlertDispatches.fingerprint })
@@ -254,6 +275,39 @@ export async function dispatchDigest(input: {
     now,
   );
   return { outcome: "sent", detail: null, recorded };
+}
+
+/**
+ * A stable fingerprint for a set of suppressed changes.
+ *
+ * **Sorted, and that is the whole point.** `JSON.stringify` over the array as
+ * received would fingerprint the same two gains differently depending on the
+ * order they were decided in, so the duplicate check would fire at random. The
+ * sort makes the identity a property of the *set*, which is what "the same gain
+ * delivered twice" actually means.
+ *
+ * `weekOf` is deliberately **not** part of it. The gain is the same fact whoever
+ * notices it, so a gain re-decided in the following week is the same gain and is
+ * correctly suppressed — and a *different* gain that week is a different fact and
+ * is sent.
+ */
+function digestFingerprint(suppressed: Change[]): string {
+  return JSON.stringify(
+    [...suppressed]
+      .map((c) => {
+        // Narrowed by the discriminant, because only the `mention_*` variants
+        // carry a `domain` — and that is the union's own point: a `citation_lost`
+        // names a URL, not a brand. `startsWith("mention")` reads better but does
+        // **not** narrow a discriminated union, so the check is spelled out. The
+        // non-mention branch still fingerprints on platform and prompt, so a
+        // citation change remains distinguishable rather than collapsing.
+        if (c.kind === "mention_lost" || c.kind === "mention_gained") {
+          return `${c.kind}|${c.domain}|${c.platform}|${c.prompt}`;
+        }
+        return `${c.kind}|${c.platform}|${c.prompt}`;
+      })
+      .sort(),
+  );
 }
 
 /**

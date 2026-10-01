@@ -143,23 +143,57 @@ describe("alertOnRunChange", () => {
     expect(result.outcome).toBe("dispatched");
   });
 
-  it("sends one roll-up per week, not one per run", async () => {
-    // The digest is keyed on the week, so a second run inside the same week must
-    // not post the same good news twice. Without that, a daily patrol with one
-    // unchanged gain would post seven identical messages — which is how a roll-up
-    // becomes the interruption it was designed to avoid.
+  it("delivers a second, different gain, and suppresses only a repeat", async () => {
+    // **This is the test the previous one was not.** The old test was named
+    // "sends one roll-up per week" but its two fixtures are in **different ISO
+    // weeks** (2026-10-02 is a Friday, 2026-10-08 the following Thursday), so it
+    // passed whether or not the week was in the fingerprint at all. It was not
+    // testing the thing its name claimed.
+    //
+    // The bug it should have caught: the fingerprint was `digest:project:week`,
+    // and the message carries only *this call's* gains — so after the first send
+    // every later gain that week matched and was recorded as a duplicate and
+    // **never delivered.** Three cases all lost: the second brand of a multi-brand
+    // patrol, the second queued answer of the week, and any gain found after an
+    // unrelated gain had already gone out.
+    //
+    // So both halves are asserted here, and they pull in opposite directions,
+    // which is what makes the pair worth having: **a new gain is delivered, a
+    // repeated gain is not.**
+    // **Every run's rows are written before any alert is decided.** The first
+    // version of this fixture inserted the gamma baseline into `s1` *after*
+    // `s2` had already been alerted on, so gamma's "previous" answer did not
+    // exist while `s3` was decided either, and there was no gain to report. The
+    // test was wrong in a way that looked exactly like the product being wrong:
+    // `expected [...] to have a length of 2 but got 1`.
+    //
+    // So: three runs written in full, then three decisions. `s1` is all
+    // unmentioned. `s2` gains **alpha only**. `s3` keeps alpha and adds **beta**.
+    //
+    // The crucial detail is that **`s2` must not also gain beta**, or `s3` has
+    // nothing new to report and the digest correctly stays silent. I got this
+    // wrong twice: first by writing the beta baseline after `s2` was decided, then
+    // by having `s2` gain both prompts — in both cases the test said "1 message"
+    // and looked like a product bug. A gain is a *change against a previous run*,
+    // and a prompt already gained last run is not gained again.
     await snapshot("s1", T1);
-    await answer("a1", "s1", "best crm", "Nobody.", {
-      source: "llm_responses",
-      targetId: "t1",
-    });
+    for (const p of ["alpha", "beta"]) {
+      await answer(`a-${p}`, "s1", p, "Nobody.", {
+        source: "llm_responses",
+        targetId: "t1",
+      });
+    }
     await snapshot("s2", T2);
-    await answer("a2", "s2", "best crm", "t1.example.com is a leader.", {
+    // **Beta must have a row in `s2` too, unmentioned.** Without it there is no
+    // pair for beta at all, so `s3` has nothing to diff and the digest correctly
+    // stays silent — which is what I saw and misread as a product bug. A gain is a
+    // change between two *observations*; a prompt that appears for the first time
+    // in the current run is not a change, it is a new prompt.
+    await answer("b1", "s2", "alpha", "t1.example.com leads.", {
       source: "llm_responses",
       targetId: "t1",
     });
-    await snapshot("s3", T8);
-    await answer("a3", "s3", "best crm", "t1.example.com is a leader.", {
+    await answer("b2", "s2", "beta", "Nobody.", {
       source: "llm_responses",
       targetId: "t1",
     });
@@ -170,11 +204,43 @@ describe("alertOnRunChange", () => {
     };
 
     await runAlerts({ projectId: "p1", snapshotId: "s2", transport: collect });
+    // One gain, one roll-up.
+    expect(sent).toHaveLength(1);
+
+    // **Same ISO week.** `T2` is Friday 2026-10-02 and `T8` is Thursday the
+    // following week, so using `T8` here would let a week-scoped fingerprint pass
+    // — which is exactly what the previous version of this test did, and why it
+    // never caught the defect it was named for. `s3` is a Tuesday, three days
+    // after `s2` and inside the same Monday-bounded week.
+    const s3At = new Date("2026-10-06T00:00:00.000Z");
+    await snapshot("s3", s3At);
+    for (const p of ["alpha", "beta"]) {
+      await answer(`c-${p}`, "s3", p, "t1.example.com leads.", {
+        source: "llm_responses",
+        targetId: "t1",
+      });
+    }
     await runAlerts({ projectId: "p1", snapshotId: "s3", transport: collect });
 
-    // Three runs: the first is a baseline, the second gains and posts the roll-up,
-    // the third changes nothing at all.
-    expect(sent).toHaveLength(1);
+    // Exactly one more message: beta's new gain. With a week-scoped fingerprint
+    // this stays at 1, and beta is never reported.
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toMatch(/good change|what changed/i);
+
+    // And a fourth run where beta is *not* mentioned but was before is a LOSS,
+    // which is an interruption, not a digest — so the roll-up count must not move.
+    await snapshot("s4", new Date("2026-10-15T00:00:00.000Z"));
+    await answer("d1", "s4", "alpha", "t1.example.com leads.", {
+      source: "llm_responses",
+      targetId: "t1",
+    });
+    await answer("d2", "s4", "beta", "Nobody.", {
+      source: "llm_responses",
+      targetId: "t1",
+    });
+    await runAlerts({ projectId: "p1", snapshotId: "s4", transport: collect });
+    expect(sent).toHaveLength(3);
+    expect(sent[2]).toMatch(/lost/i);
   });
 
   it("says nothing on the first run, because that is a baseline and not news", async () => {
