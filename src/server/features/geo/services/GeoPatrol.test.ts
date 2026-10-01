@@ -19,8 +19,16 @@ const recordRun = spy();
 const recordVendorTask = spy().mockResolvedValue(true);
 /** The project's saved prompts, which the queued branch now reads. */
 const promptsForQueuedRun = spy().mockResolvedValue([]);
-/** Posts made through the queued endpoint, so a queued run can be read back. */
-const postLlmResponseTasks = spy();
+/**
+ * The size of every batch the queue was asked to post, in order.
+ *
+ * A plain array rather than a `vi.fn()`: the shared `spy()` helper types its
+ * parameters `never[]` so a test can *read* recorded arguments back without
+ * touching `any`, and that correctly rejects a call carrying an argument. The
+ * first version passed the input to the spy, `tsc` rejected it on Linux, and
+ * `knip` — which does not type-check — stayed green locally.
+ */
+const postedBatches: number[] = [];
 /**
  * Its response shape matters, and getting it wrong produces a failure that looks
  * exactly like the bug under test: `postBatch` reads `response.data` for the
@@ -99,11 +107,19 @@ vi.mock("@/server/lib/dataforseo/client", () => ({
 // The queued endpoint posts through the shared client module rather than the SDK
 // client, and without this the branch reads the real one and posts nothing.
 vi.mock("@/server/lib/dataforseo/llm-responses-queue", () => ({
-  // Wrapped rather than replaced, so the test can still count the calls — and the
-  // response accepts whatever was posted, so `accepted` equals the batch size and
-  // the run reports the prompts it actually submitted.
+  // The response accepts whatever was posted, so `accepted` equals the batch size
+  // and the run reports the prompts it actually submitted.
+  //
+  // **Counted, not recorded through the shared `spy()`.** That helper types its
+  // parameters `never[]` so a test can *read* recorded arguments back without
+  // touching `any` — and `never[]` rejects a call with an argument, which is
+  // correct for its purpose and wrong for this one. The first version passed the
+  // input to the spy and `tsc` rejected it on Linux while the file had already
+  // been committed; `knip` does not type-check, so it stayed green here.
+  // A gate that runs a different check than the pipeline is not a substitute for
+  // the pipeline, and `tsc` is in `ci:check` while knip is not a type checker.
   postLlmResponseTasks: (input: { tasks: unknown[] }) => {
-    postLlmResponseTasks(input);
+    postedBatches.push(input.tasks.length);
     return Promise.resolve(acceptedResponse(input.tasks.length));
   },
 }));
@@ -191,7 +207,7 @@ describe("GeoPatrol in queued mode", () => {
   it("asks the project's saved prompts when the caller supplies none", async () => {
     listTargets.mockReset().mockResolvedValue([TARGET]);
     recordRun.mockClear();
-    postLlmResponseTasks.mockClear();
+    postedBatches.length = 0;
     promptsForQueuedRun
       .mockClear()
       .mockResolvedValue(["best crm", "acme pricing"]);
@@ -208,7 +224,7 @@ describe("GeoPatrol in queued mode", () => {
     expect(promptsForQueuedRun).toHaveBeenCalledWith("p1");
     // And something was posted — the assertion that matters, because before the
     // fix this returned `promptsAsked: 0` with a note and no vendor call.
-    expect(postLlmResponseTasks).toHaveBeenCalled();
+    expect(postedBatches.length).toBeGreaterThan(0);
     expect(result.promptsAsked).toBeGreaterThan(0);
     expect(result.answersArchived).toBe(0);
     // A queued run posts and returns; it archives nothing, and the archive fills
@@ -222,7 +238,7 @@ describe("GeoPatrol in queued mode", () => {
     // repository has found a dozen of the "correct, tested, unreachable" kind.
     // The note has to answer: what do I do?
     listTargets.mockReset().mockResolvedValue([TARGET]);
-    postLlmResponseTasks.mockClear();
+    postedBatches.length = 0;
     promptsForQueuedRun.mockClear().mockResolvedValue([]);
 
     const result = await GeoPatrol.run({
@@ -233,7 +249,7 @@ describe("GeoPatrol in queued mode", () => {
       platforms: ["chat_gpt"],
     });
 
-    expect(postLlmResponseTasks).not.toHaveBeenCalled();
+    expect(postedBatches).toEqual([]);
     expect(result.promptsAsked).toBe(0);
     expect(result.snapshotId).toBeNull();
     const note = result.notes.join(" ");
@@ -249,7 +265,7 @@ describe("GeoPatrol in queued mode", () => {
     // project is never read when the caller knows better.
     listTargets.mockReset().mockResolvedValue([TARGET]);
     recordRun.mockClear();
-    postLlmResponseTasks.mockClear();
+    postedBatches.length = 0;
     promptsForQueuedRun.mockClear().mockResolvedValue(["from the project"]);
 
     const result = await GeoPatrol.run({
@@ -262,7 +278,7 @@ describe("GeoPatrol in queued mode", () => {
     });
 
     expect(promptsForQueuedRun).not.toHaveBeenCalled();
-    expect(postLlmResponseTasks).toHaveBeenCalled();
+    expect(postedBatches.length).toBeGreaterThan(0);
     expect(result.promptsAsked).toBeGreaterThan(0);
   });
 });
