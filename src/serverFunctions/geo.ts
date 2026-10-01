@@ -364,6 +364,40 @@ export const getGeoCitationProfile = createServerFn({ method: "POST" })
     }),
   );
 
+/**
+ * The earn-the-citation list: which domains the AI answers cite, and whether our
+ * link graph can reach any of them.
+ *
+ * **The inverse of a DR tool, and that is the whole product claim.** AI engines
+ * cite low-authority long-tail domains — the proposal names two it saw in the
+ * *documented vendor response* — so ranking them by authority puts every domain
+ * the models actually use at the bottom.
+ *
+ * Archive reads only, so it costs nothing, and it carries the caveat its own
+ * module always returns: this is **reachability, not authority**. We have no
+ * Domain Rating and no traffic estimate; what we have is how many of your pages
+ * link to a domain.
+ */
+export const getGeoCitationGraph = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(
+    z.object({
+      domain: z.string().min(1).max(2048),
+      limit: z.number().int().min(1).max(200).optional(),
+    }),
+  )
+  .handler(async ({ data, context }) =>
+    GeoService.getCitationGraph({
+      ...data,
+      // **The context last, not `...data` last.** Zod objects ignore unknown keys by
+      // default, so a `projectId` inside the request body survives validation and a
+      // `...data` spread would overwrite the authorized project with the caller's.
+      // That is a cross-project read reachable by anyone who can call this. The
+      // order here is the whole defence and it looks completely natural backwards.
+      projectId: context.projectId,
+    }),
+  );
+
 // --- ETV series ------------------------------------------------------------
 
 const etvSeriesSchema = z.object({

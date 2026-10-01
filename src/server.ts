@@ -8,6 +8,7 @@ import { ProjectRepository } from "@/server/features/projects/repositories/Proje
 import { SamSessionRepository } from "@/server/features/sam/SamSessionRepository";
 import { runScheduledRankChecks } from "@/server/features/rank-tracking/services/scheduledRankChecks";
 import { runDueGeoPatrols } from "@/server/features/geo/services/scheduledGeoPatrol";
+import { runDueAiModeCaptures } from "@/server/features/geo/services/scheduledAiModeCapture";
 import { runQueueDrain } from "@/server/features/geo/services/queueDrainRunner";
 import { runScheduledGeoRetention } from "@/server/features/geo/services/scheduledGeoRetention";
 import { reconcileStaleAudits } from "@/server/features/audit/services/auditReconciler";
@@ -278,6 +279,25 @@ export default {
       await withPgClient(() => runQueueDrain());
     } catch (err) {
       console.error("[cron] GEO queue drain failed:", err);
+    }
+
+    // The AI Mode capture is a **billable** step, so unlike everything above it is
+    // not dispatched unconditionally in spirit: the handler reads the watch list
+    // first, and a project with no prompts costs nothing to discover.
+    //
+    // It runs after the patrol and the drain on purpose — both of those are cheap
+    // and both must not be blocked by this one, so an AI Mode vendor failure must
+    // not stop the archive filling. Its own run log is what keeps a 5-minute tick
+    // from billing twice.
+    try {
+      const aiMode = await withPgClient(() => runDueAiModeCaptures());
+      if (aiMode.projectsVisited > 0) {
+        console.log(
+          `[cron] AI Mode: ${aiMode.captured} captured, ${aiMode.failed} failed, ~$${aiMode.costUsd.toFixed(4)} across ${aiMode.projectsVisited} project(s)`,
+        );
+      }
+    } catch (err) {
+      console.error("[cron] AI Mode capture failed:", err);
     }
 
     // Retention follows the patrol on the same tick: the sweep only deletes what

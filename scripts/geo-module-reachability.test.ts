@@ -201,7 +201,9 @@ function productionImportersOf(
   consumers: Map<string, Set<string>>,
   target: string,
 ): string[] {
-  return [...(consumers.get(target) ?? [])].filter((f) => !/\.test\.tsx?$/.test(f));
+  return [...(consumers.get(target) ?? [])].filter(
+    (f) => !/\.test\.tsx?$/.test(f),
+  );
 }
 
 /**
@@ -261,12 +263,14 @@ describe("a GEO module must be reachable from production", () => {
     expect(importersOf(patrol)).toContain(
       "src/server/features/geo/services/scheduledGeoPatrol.ts",
     );
-    // The module I just wrote must read as dead, or the gate is inverted. This is
-    // the case the gate exists for, checked against real code rather than a
-    // synthetic control that passed while the real resolution was wrong.
+    // **The module written for this change must now be live.** It was dead when this
+    // control was written — that is exactly what the gate found — so the assertion
+    // is inverted as the work lands. Leaving it asserting `[]` would mean the
+    // control can only ever pass while the defect persists, which is a control that
+    // rewards the bug.
     expect(
       importersOf(join(ROOT, GEO_ROOT, "services/aiModeMonitor.ts")),
-    ).toEqual([]);
+    ).toContain("src/server/features/geo/services/scheduledAiModeCapture.ts");
   });
 
   it("rejects a module whose only importer is its own test", () => {
@@ -318,9 +322,9 @@ describe("a GEO module must be reachable from production", () => {
   it("exempts nothing without saying why", () => {
     // An exemption with an empty reason is the same as no exemption with extra
     // steps, and it is how this defect was documented nine times over.
-    const unexplained = EXEMPT.filter(
-      (e) => e.reason.trim().length < 10,
-    ).map((e) => e.module);
+    const unexplained = EXEMPT.filter((e) => e.reason.trim().length < 10).map(
+      (e) => e.module,
+    );
     expect(unexplained).toEqual([]);
   });
 });

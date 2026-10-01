@@ -488,22 +488,22 @@ describe("GeoPatrol", () => {
     expect(result.notes.join(" ")).toMatch(/cap/);
   });
 
-  it("refuses a run whose cost is above the spend cap, before calling the vendor", async () => {
-    // **The money cap, which the volume cap above cannot express.** 500 expensive
-    // keywords and 500 cheap ones differ by an order of magnitude, so a cap on
-    // answer *count* permits a bill nobody agreed to, and the customer finds out on
-    // an invoice.
-    //
-    // The vendor assertion is the load-bearing one: a cap checked after the calls
-    // would have already spent the money, so a refusal that arrives too late is not
-    // a refusal.
-    //
-    // **The cap is a tenth of a cent, not a cent.** The first version used `$0.01`,
-    // which is $0.0036 of expected spend for three answers at $0.0012 each — so the
-    // run was correctly *allowed* and the test failed with `expected "vi.fn()" to not
-    // be called`. The product was right and the test was not: a cap that generous
-    // cannot exercise a refusal, and writing a test that passes for the wrong reason
-    // is worse than writing none.
+  it("refuses a run above the spend cap, before calling the vendor", async () => {
+    /**
+     * The vendor assertion is the load-bearing one: a cap checked *after* the calls
+     * would already have spent the money, so a refusal that arrives too late is not
+     * a refusal.
+     *
+     * The wording and the arithmetic are unit-tested in `patrolSpendGate.test.ts`.
+     * This one test stays here because it is the only assertion that needs the
+     * vendor, and the harness that mocks the vendor correctly exists in this file —
+     * a copy of it drifted and reported a product bug that was in the copy.
+     *
+     * **The cap is a tenth of a cent, not a cent.** The first version used `$0.01`,
+     * which is $0.0036 of expected spend for three answers at $0.0012 each, so the
+     * run was correctly *allowed* and this failed. A cap that generous cannot
+     * exercise a refusal.
+     */
     reset([mentionItem(), mentionItem(), mentionItem()]);
     const result = await GeoPatrol.run({
       projectId: "p1",
@@ -517,29 +517,9 @@ describe("GeoPatrol", () => {
 
     expect(mentionsSearch).not.toHaveBeenCalled();
     expect(result.answersArchived).toBe(0);
-    expect(result.notes.join(" ")).toMatch(/would cost about/);
-    expect(result.notes.join(" ")).toMatch(/spend cap/i);
     // A declined run asked nothing, which is `null` rather than zero — zero would
     // claim it asked three questions and got no answers.
     expect(result.promptsAsked).toBeNull();
-  });
-
-  it("says a run had no spend cap, rather than running silently unbounded", async () => {
-    // `budgetUsd: null` means no ceiling, and it is allowed — the product has no
-    // per-project spend setting yet. But "allowed" must not mean "invisible", or an
-    // operator cannot tell an uncapped run from a capped one.
-    reset([mentionItem()]);
-    const result = await GeoPatrol.run({
-      projectId: "p1",
-      customer: CUSTOMER,
-      unitCostUsd: geoAnswerUnitCostUsd(),
-      createdBy: "schedule",
-      platforms: ["chat_gpt"],
-      budgetUsd: null,
-    });
-
-    expect(result.answersArchived).toBe(1);
-    expect(result.notes.join(" ")).toMatch(/no spend cap/i);
   });
 
   it("does not record a cost it cannot see", async () => {

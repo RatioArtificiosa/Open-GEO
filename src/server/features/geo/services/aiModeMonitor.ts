@@ -52,13 +52,22 @@ export type AiModeNightResult = {
   /** Captures that could not be fetched, by keyword. */
   failed: Array<{ keyword: string; reason: string }>;
   /** The diff for each captured keyword that had a previous capture to compare. */
-  changes: Array<{ keyword: string; diff: ReturnType<typeof diffAnswers> | null }>;
+  changes: Array<{
+    keyword: string;
+    diff: ReturnType<typeof diffAnswers> | null;
+  }>;
   estimatedCostUsd: number;
   summary: string;
 };
 
-/** The vendor call, injectable so a test can fail it without a network. */
-export type AiModeFetcher = typeof fetchAiModeAnswer;
+/**
+ * The vendor call, injectable so a test can fail it without a network.
+ *
+ * Not exported: the only caller that substitutes it is a test inside this module's
+ * own suite, and an exported alias nothing imports is a claim about the API that
+ * is not true.
+ */
+type AiModeFetcher = typeof fetchAiModeAnswer;
 
 export async function runAiModeMonitor(input: {
   projectId: string;
@@ -157,7 +166,7 @@ export async function runAiModeMonitor(input: {
       continue;
     }
 
-spent += admitted.estimatedCostUsd;
+    spent += admitted.estimatedCostUsd;
 
     /**
      * The references that will become citation rows, held before the insert so the
@@ -238,7 +247,11 @@ spent += admitted.estimatedCostUsd;
 
   if (captured > 0 || failed.length > 0) {
     const record = input.recordRun ?? writeRunRecord;
-    await record({ projectId: input.projectId, runId, startedAt: now.toISOString() });
+    await record({
+      projectId: input.projectId,
+      runId,
+      startedAt: now.toISOString(),
+    });
   }
 
   return {

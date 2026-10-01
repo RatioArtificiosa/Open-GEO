@@ -34,6 +34,7 @@ import {
   getMentionHistory,
 } from "@/server/features/geo/services/geoSeriesReads";
 import { GeoRetentionRepository } from "@/server/features/geo/repositories/GeoRetentionRepository";
+import { getCitationGraph as buildCitationGraphFor } from "@/server/features/geo/services/geoCitationGraph";
 
 /** Normalise a brand to a bare lowercase host, so "HTTPS://WWW.Acme.com/x" and
  * "acme.com" resolve to the same monitored target. */
@@ -458,6 +459,21 @@ async function getCitationProfile(input: {
   );
 }
 
+/**
+ * The earn-the-citation list.
+ *
+ * A thin delegation: the assembly lives in `geoCitationGraph` because it is
+ * reachability reporting rather than a read of one table, and inlining it here put
+ * this file over the 400-line rule.
+ */
+async function getCitationGraph(input: {
+  projectId: string;
+  domain: string;
+  limit?: number;
+}) {
+  return buildCitationGraphFor(input);
+}
+
 function normaliseKeyword(keyword: string): string {
   return keyword.trim().toLowerCase();
 }
@@ -503,5 +519,6 @@ export const GeoService = {
   getEtvSeries,
   getMentionHistory,
   getCitationProfile,
+  getCitationGraph,
   purgeExpiredAnswers,
 } as const;

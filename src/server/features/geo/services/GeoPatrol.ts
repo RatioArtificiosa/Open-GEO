@@ -14,7 +14,7 @@ import {
   type QueueCandidate,
 } from "@/server/features/geo/services/queuePlanner";
 import { recordVendorTask } from "@/server/features/geo/services/vendorTaskRecorder";
-import { decidePatrolSpend } from "@/server/features/geo/services/patrolSpend";
+import { checkRunSpend } from "@/server/features/geo/services/patrolSpendGate";
 import { GeoSetupRepository } from "@/server/features/geo/repositories/GeoSetupRepository";
 import type { GeoAnswerInsert } from "@/server/features/geo/repositories/GeoAnswerRepository";
 import { platformSupportsRetrieval } from "@/server/features/geo/repositories/GeoSetupRepository";
@@ -98,24 +98,17 @@ type PatrolInput = {
    */
   maxAnswers?: number;
   /**
-   * The run's **spend** cap in USD, and the one that actually protects a customer.
+   * The run's **spend** cap in USD — the cap that actually protects a customer,
+   * because `maxAnswers` bounds volume rather than money. `null` means no cap was
+   * set, which is reported on the run rather than treated as unlimited.
    *
-   * `maxAnswers` bounds volume; this bounds money, and the two are not
-   * interchangeable — 500 expensive keywords and 500 cheap ones differ by an order
-   * of magnitude, so a volume cap on its own permits a bill nobody agreed to.
-   *
-   * **`null` means no cap was set**, which is reported as a note on the run rather
-   * than treated as unlimited: a run with no ceiling is worth saying out loud even
-   * when it is the normal case for a small plan. Callers should pass their plan's
-   * real figure rather than omit it.
+   * `patrolSpendGate` explains the volume/money distinction in full.
    */
   budgetUsd?: number | null;
   /**
-   * The vendor's price for one answer, in USD, from the pricing book.
-   *
-   * Supplied rather than imported as a constant because the price is the vendor's
-   * to change: a cap computed against a literal silently stops being a cap the day
-   * `llm-models.ts` is updated, and nothing would say so.
+   * The vendor's price for one answer, from the pricing book — **required**, so
+   * every caller supplies the real price rather than letting the cap default to
+   * something. See `geoAnswerUnitCostUsd`.
    */
   unitCostUsd: number;
   /**
@@ -691,14 +684,8 @@ async function run(input: PatrolInput): Promise<PatrolRunResult> {
   const maxAnswers = input.maxAnswers ?? DEFAULT_MAX_ANSWERS;
   const perTarget = Math.max(1, Math.floor(maxAnswers / targets.length));
 
-  /**
-   * The money check, **before** the client is built and before any prompt is
-   * resolved, so a run that cannot be funded never spends anything finding out.
-   *
-   * Placed here rather than inside `runForTarget` because the cap is a property of
-   * the *run*: a per-target check would let N targets each pass a check meant for
-   * the whole, which is the same arithmetic mistake `maxAnswers` is divided across.
-   */
+  // Before any prompt is resolved, and for the *run* rather than each target: a
+  // per-target check would let N targets each pass a check meant for the whole.
   const spend = checkRunSpend({
     answers: perTarget * targets.length,
     budgetUsd: input.budgetUsd ?? null,
@@ -723,21 +710,14 @@ async function run(input: PatrolInput): Promise<PatrolRunResult> {
    *
    * A refusal returns a result shaped like any other run rather than throwing: the
    * caller is a cron, and a thrown error there reads as a failed job rather than as
-   * "this run was correctly declined". **`promptsAsked` stays `null`**, which is the
-   * state that column's docstring names for a run that cannot say what it asked —
-   * a declined run asked nothing, and a zero would claim it asked and got nothing.
+   * "this run was correctly declined". **`promptsAsked` stays `null`** — a declined
+   * run asked nothing, and a zero would claim it asked and got nothing.
    */
   if (!spend.allowed) {
     combined.notes.push(spend.note);
     return combined;
   }
-  if (input.budgetUsd === null || input.budgetUsd === undefined) {
-    // The no-cap case is allowed, but it is not silent: a run with no ceiling is
-    // worth naming on the run log where an operator will actually see it.
-    combined.notes.push(
-      "No spend cap was set for this run, so it is bounded by its answer limit only.",
-    );
-  }
+  combined.notes.push(...spend.notes);
 
   for (const target of targets) {
     const result = await runForTarget(
@@ -794,44 +774,6 @@ async function run(input: PatrolInput): Promise<PatrolRunResult> {
   }
 
   return combined;
-}
-
-/**
- * What a run will spend, refused if it will not fit.
- *
- * **`maxAnswers` is a volume cap and the two are not interchangeable.** 500
- * expensive keywords and 500 cheap ones differ by an order of magnitude, so the
- * volume cap alone permits a bill nobody agreed to — and the customer finds out on
- * an invoice. `decidePatrolSpend` is the money cap, checked here, **before any
- * vendor call**, so a run that cannot be funded never spends anything discovering
- * that.
- *
- * It refuses rather than truncating, deliberately: a cap that silently drops half
- * the prompts produces a report covering fewer questions than the customer asked
- * about, and the gap is invisible because the archive just looks thinner. Refusing
- * means the customer chooses between a bigger cap and a smaller prompt set.
- *
- * `unitCostUsd` comes from the caller's own pricing, never a literal here — the
- * vendor's price is the vendor's to change, and a cap computed against a constant
- * silently stops being a cap the day the price moves.
- */
-function checkRunSpend(input: {
-  answers: number;
-  budgetUsd: number | null;
-  unitCostUsd: number;
-}): { allowed: true } | { allowed: false; note: string } {
-  const decision = decidePatrolSpend({
-    answers: input.answers,
-    budgetUsd: input.budgetUsd,
-    unitCostUsd: input.unitCostUsd,
-  });
-  if (decision.allowed) {
-    return { allowed: true };
-  }
-  return {
-    allowed: false,
-    note: `Not run: this patrol would cost about $${decision.estimatedUsd.toFixed(2)} and the run's spend cap is $${(input.budgetUsd ?? 0).toFixed(2)}. ${decision.reason}`,
-  };
 }
 
 export const GeoPatrol = { run } as const;
