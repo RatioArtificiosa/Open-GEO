@@ -609,6 +609,108 @@ describe("every GEO query key names the project", () => {
   });
 });
 
+describe("scripts run on every platform the product supports", () => {
+  /**
+   * The product ships to Windows, macOS and Linux, and `pnpm` picks the shell:
+   * `cmd` on Windows, `sh` elsewhere. **A script written for one shell cannot
+   * complete on the other**, and the script that suffers most is `ci:check` itself
+   * — the command every developer runs before pushing.
+   *
+   * This was not hypothetical. `ci:check` ended with
+   * `test -z "$(git status --porcelain -- plugins/opengeo/skills)"`, and `cmd` has
+   * neither a `test` builtin nor command substitution. It passed on CI because CI
+   * runs ubuntu, and it could not run at all on a Windows machine — which is where
+   * the problem was found.
+   */
+  it("has no POSIX-only construct in any package.json script", () => {
+    // `test` is matched as a *command* rather than a bare word, so
+    // `playwright test` and `vitest test` — arguments, not builtins — are not
+    // flagged. That distinction is the difference between a rule and a nuisance.
+    //
+    // Single quotes are deliberately **not** in the list: `cmd` does not treat `'`
+    // as a quote character, but a script that only *contains* one still runs
+    // there, and flagging them sent the first repair round in a loop.
+    const POSIX_ONLY: Array<{ rule: string; re: RegExp }> = [
+      { rule: "the test builtin", re: /(?:^|[\s(;&|])test\s+-[a-zA-Z]/ },
+      { rule: "command substitution", re: /\$\(/ },
+      { rule: "backtick substitution", re: /`[^`]+`/ },
+      { rule: "export", re: /(?:^|[\s;&|])export\s/ },
+      { rule: "source", re: /(?:^|[\s;&|])source\s/ },
+      { rule: "bash -c", re: /bash\s+-c/ },
+      {
+        rule: "mkdir/rm/mv/cp with a flag",
+        re: /(?:^|[\s;&|])(?:mkdir|rm|mv|cp)\s+-/,
+      },
+      { rule: "chmod", re: /(?:^|[\s;&|])chmod\s/ },
+      { rule: "grep/sed/awk", re: /(?:^|[\s;&|])(?:grep|sed|awk)\s/ },
+      { rule: "xargs", re: /(?:^|[\s;&|])xargs\b/ },
+      { rule: "a heredoc", re: /<<\s*['"]?\w/ },
+      { rule: "a brace range", re: /\{\d+\.\.\d+\}/ },
+      { rule: "pwd", re: /(?:^|[\s;&|])pwd\b/ },
+      {
+        rule: "which / command -v",
+        re: /(?:^|[\s;&|])(?:which|command\s+-v)\b/,
+      },
+      { rule: "an env VAR= prefix", re: /(?:^|[\s;&|])env\s+[A-Z_]+=/ },
+    ];
+
+    const pkg = JSON.parse(
+      readFileSync(join(ROOT, "package.json"), "utf8"),
+    ) as { scripts?: Record<string, string> };
+    const scripts = Object.entries(pkg.scripts ?? {});
+
+    // A control: the rule has to be able to fail, or it is decoration. The
+    // detector is exercised on a source known to be POSIX-only, and the *same*
+    // patterns are asserted against a script known to be portable.
+    const CONTROL_POSIX = 'test -z "$(git status --porcelain)"';
+    expect(
+      POSIX_ONLY.filter((r) => r.re.test(CONTROL_POSIX)).length,
+    ).toBeGreaterThan(0);
+    const CONTROL_PORTABLE =
+      "node -e \"require('fs').mkdirSync('.logs',{recursive:true})\" && vitest run";
+    expect(POSIX_ONLY.filter((r) => r.re.test(CONTROL_PORTABLE)).length).toBe(
+      0,
+    );
+
+    const offenders: string[] = [];
+    for (const [name, script] of scripts) {
+      for (const { rule, re } of POSIX_ONLY) {
+        if (re.test(script)) {
+          offenders.push(`${name} uses ${rule}: ${script}`);
+          break;
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps every shell script on LF with a shebang", () => {
+    // A CRLF shebang is `#!/bin/sh\r`, which the kernel does not recognise: the
+    // file is not executed as a script at all. It fails on Linux and macOS and
+    // works on Windows, which is the worst direction — the bug appears only where
+    // the script is supposed to be running.
+    //
+    // `.gitattributes` already pins `*.sh` to LF, so this asserts the property
+    // rather than trusting the mechanism, because a file added with `git add -f`
+    // bypasses attributes and a `.bat` pinned to CRLF is the mirror image.
+    const offenders: string[] = [];
+    for (const file of textFiles(ROOT)
+      .map((f) => relative(ROOT, f).replace(/\\/g, "/"))
+      .filter((f) => /\.(sh|mjs|js)$/.test(f))) {
+      const bytes = readFileSync(join(ROOT, file));
+      if (bytes.includes(0x0d)) {
+        offenders.push(`${file} contains a CR byte`);
+        continue;
+      }
+      if (file.endsWith(".sh")) {
+        const first = bytes.slice(0, 2).toString("utf8");
+        if (first !== "#!") offenders.push(`${file} has no shebang`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe("mojibake must not get worse", () => {
   // The five *sane* code points, used only to build a control fixture. The
   // matcher no longer needs a list of mangled forms: damage is now detected as a
