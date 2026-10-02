@@ -9,6 +9,7 @@ import { SamSessionRepository } from "@/server/features/sam/SamSessionRepository
 import { runScheduledRankChecks } from "@/server/features/rank-tracking/services/scheduledRankChecks";
 import { runDueGeoPatrols } from "@/server/features/geo/services/scheduledGeoPatrol";
 import { runDueAiModeCaptures } from "@/server/features/geo/services/scheduledAiModeCapture";
+import { runDueAiKeywordCaptures } from "@/server/features/geo/services/scheduledAiKeywordCapture";
 import { runQueueDrain } from "@/server/features/geo/services/queueDrainRunner";
 import { runScheduledGeoRetention } from "@/server/features/geo/services/scheduledGeoRetention";
 import { reconcileStaleAudits } from "@/server/features/audit/services/auditReconciler";
@@ -298,6 +299,39 @@ export default {
       }
     } catch (err) {
       console.error("[cron] AI Mode capture failed:", err);
+    }
+
+    // AI keyword demand, for the same reasons and with the same ordering: a
+    // **billable** step, after the cheap work that must not be blocked by it.
+    //
+    // **Monthly data on a five-minute tick**, so its own report is what stops a
+    // repeat: `capturedAt` moves forward each night, but the vendor returns the
+    // same history every time, so a second tick in the same window would pay for
+    // rows that already exist. The guard is the run log rather than a date
+    // comparison because "we ran tonight" and "the data is current" are different
+    // claims and only the first is true on every tick.
+    try {
+      const aiKeywords = await withPgClient(() => runDueAiKeywordCaptures());
+      if (aiKeywords.projectsVisited > 0) {
+        console.log(
+          `[cron] AI keywords: ${aiKeywords.rowsStored} monthly row(s) from ${aiKeywords.keywordsAsked} keyword(s) in ${aiKeywords.callsMade} call(s), vendor $${aiKeywords.actualCostUsd.toFixed(4)} (est. $${aiKeywords.estimatedCostUsd.toFixed(4)}) across ${aiKeywords.projectsVisited} project(s)` +
+            // **Dropped work is named, never silently omitted.** "we captured
+            // everything" and "we captured what we could afford" are different
+            // claims and only one is safe to repeat from a log.
+            (aiKeywords.droppedForBudget > 0
+              ? `, ${aiKeywords.droppedForBudget} dropped for budget`
+              : ""),
+        );
+      }
+      // One line per failure: the night failed for this project, and a reader of
+      // the log needs to know which one rather than only how many.
+      for (const failure of aiKeywords.failures) {
+        console.error(
+          `[cron] AI keyword capture failed for project ${failure.projectId}: ${failure.reason}`,
+        );
+      }
+    } catch (err) {
+      console.error("[cron] AI keyword capture failed:", err);
     }
 
     // Retention follows the patrol on the same tick: the sweep only deletes what
