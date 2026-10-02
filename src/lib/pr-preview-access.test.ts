@@ -56,6 +56,27 @@ const access = "302 https://example.cloudflareaccess.com/cdn-cgi/access/login";
  * all still test it. Skipping beats deleting: this script is what stops a public
  * preview from being shared, and that guarantee should be tested everywhere it
  * *can* be tested.
+ *
+ * ## What this shell actually cannot do, measured rather than assumed
+ *
+ * A change made this probe pass on a shell where the suite still could not run — **eight of
+ * the eleven tests failed the moment the skip was lifted**, and the reason is worth
+ * recording because it is the same fault one level down:
+ *
+ * ```
+ * bash -c "<prelude with a curl() function>\n<body>"
+ *   status: null — killed by the timeout      override took effect: false
+ * bash  (same text on stdin)
+ *   status: null — killed by the timeout      override took effect: false
+ * ```
+ *
+ * **So `spawnSync` cannot deliver a function override to bash on this shell.** The fixture's
+ * `curl()` never runs, the real `curl` is called instead, it hangs on DNS, and every counter
+ * in the script stays at zero — which is exactly `expected 1 to be +0`.
+ *
+ * The probe was therefore **right**, and the skip is doing its job. Worth stating because the
+ * obvious-looking conclusion was the opposite one: the probe returns `false` on a shell that
+ * cannot run the script, which is precisely what it is for.
  */
 function shellRunsTheScriptFaithfully(): boolean {
   const probe = spawnSync(
