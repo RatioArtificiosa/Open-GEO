@@ -181,7 +181,25 @@ const MARKDOWN_ENTITY = new Set([
   "sup",
 ]);
 
-const SURFACE = ["src/routes/", "src/client/"];
+/**
+ * The roots that count as a **reader**.
+ *
+ * **`src/server/mcp` belongs here, and leaving it out was this tool's worst blind
+ * spot** — the third, after prop indirection and destructuring, and the only one
+ * that produced a genuinely wrong verdict.
+ *
+ * `getVisibility` fetches `recent` — up to 200 archived answers per platform — and
+ * `get_geo_visibility` in `src/server/mcp/tools/geo-read-tools.ts` reads it **twice**,
+ * once for the prose line "N archived answer(s)" and once for the structured
+ * `archivedAnswers` field. The tool called it unread, which would have invited
+ * "fixing" a working field by deleting the query behind it.
+ *
+ * The reasoning that was wrong: an MCP tool is not a *person*, so it was left out as
+ * a surface. But a field with no reader is dead whether the reader is a browser or an
+ * agent — and **an agent is a reader with a bill attached**, which is the same
+ * reasoning that made `targetId` look unread, in the opposite direction.
+ */
+const SURFACE = ["src/routes/", "src/client/", "src/server/mcp/"];
 
 const config = ts.readConfigFile(
   path.join(ROOT, "tsconfig.json"),
