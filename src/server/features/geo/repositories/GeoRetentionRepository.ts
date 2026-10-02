@@ -9,7 +9,7 @@
  * the audit trail — "we ran this on the 3rd and it cost $0.94" — and that has
  * to stay answerable after the answer text ages out.
  */
-import { and, eq, isNotNull, isNull, lt, lte, or } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lt, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   aiModeSnapshotCitations,
@@ -20,6 +20,15 @@ import {
 } from "@/db/schema";
 
 const DEFAULT_RETENTION_DAYS = 180;
+
+/**
+ * How many snapshot ids go into one `IN (...)` clause.
+ *
+ * **D1 allows 100 bound parameters per statement.** 90 leaves headroom rather than
+ * sitting exactly on the limit — a cap with no margin is a cap that fails on the
+ * first statement that also binds something else.
+ */
+const CITATION_DELETE_CHUNK = 90;
 
 /**
  * Resolve the retention window, defaulting to half a year.
@@ -200,13 +209,69 @@ async function countRetainedAnswers(
 /** The citation rows an AI Mode purge leaves behind, cleaned explicitly. */
 async function deleteAiModeCitationsFor(snapshotIds: string[]): Promise<void> {
   if (snapshotIds.length === 0) return;
-  await db
-    .delete(aiModeSnapshotCitations)
-    .where(
-      and(
-        ...snapshotIds.map((id) => eq(aiModeSnapshotCitations.snapshotId, id)),
-      ),
-    );
+
+  /**
+   * **`inArray`, chunked — and both halves are load-bearing.**
+   *
+   * The previous version was `and(...snapshotIds.map(eq))`, which is wrong twice:
+   *
+   * 1. **One id renders `AND ()`**, which is not valid SQL — and **one expired snapshot
+   *    is the common case**, not the edge case. The zero case returned early; the one
+   *    case did not.
+   * 2. **One bound parameter per id**, against **D1's 100-parameter cap**. A project
+   *    with 200 expired snapshots produced a statement D1 rejects — *after* the ids were
+   *    read, so the sweep had done its work and then threw.
+   *
+   * `inArray` fixes the first and is the right shape for the second. The **chunking is
+   * what the cap actually requires**: `inArray` still binds one parameter per element,
+   * so an unchunked `inArray` fixes defect 1 and leaves defect 2 untouched.
+   *
+   * **This had no caller until this session**, so both defects were latent rather than
+   * observed — which is the usual relationship between an orphan and a live bug.
+   */
+  /**
+   * **`inArray`, chunked — and the chunking is the load-bearing half.**
+   *
+   * The previous version was `and(...snapshotIds.map(eq))`, which binds **one parameter
+   * per id**. D1 allows 100 per statement, so a project with 200 expired snapshots
+   * produced a statement D1 rejects — *after* the ids were read, so the sweep had done
+   * its work and then threw.
+   *
+   * **Measured, because the obvious worry was the wrong one.** Drizzle *elides* the
+   * wrapper for a single predicate, so one id — the common case — was always valid SQL:
+   *
+   * ```
+   * ONE id    and(...) -> where "snapshot_id" = ?
+   * TWO ids   and(...) -> where ("snapshot_id" = ? and "snapshot_id" = ?)
+   * ```
+   *
+   * **And the zero case is the one worth naming**, because it is not a syntax error:
+   *
+   * ```
+   * ZERO ids  and()    -> delete from "ai_mode_snapshot_citations"    ← no WHERE
+   * ```
+   *
+   * So the `length === 0` early return above is the **only** thing standing between an
+   * empty id list and a full-table delete. It is correct — but the safety is invisible
+   * at the delete, resting entirely on a guard one line above.
+   *
+   * `inArray` removes that branch rather than relying on the guard: it renders
+   * `where 1 = 0` for an empty list, which deletes nothing. **The early return stays
+   * because skipping the round trip is worth more than the branch is worth.**
+   *
+   * **The chunking is what the parameter cap actually requires** — `inArray` still
+   * binds one parameter per element, so an unchunked `inArray` would fix nothing.
+   */
+  for (
+    let start = 0;
+    start < snapshotIds.length;
+    start += CITATION_DELETE_CHUNK
+  ) {
+    const chunk = snapshotIds.slice(start, start + CITATION_DELETE_CHUNK);
+    await db
+      .delete(aiModeSnapshotCitations)
+      .where(inArray(aiModeSnapshotCitations.snapshotId, chunk));
+  }
 }
 
 export const GeoRetentionRepository = {

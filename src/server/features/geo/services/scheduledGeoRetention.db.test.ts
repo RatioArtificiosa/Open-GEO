@@ -168,6 +168,82 @@ describe("the retention sweep", () => {
     expect(Number(rows.rows[0].n)).toBe(0);
   });
 
+  it("purges citations for exactly one expired snapshot", async () => {
+    // **One id is the case that was broken.** The old `and(...ids.map(eq))` renders
+    // `AND ()` for a single predicate, which is not valid SQL — and one expired snapshot
+    // is the common case, not the edge case. Every existing test used one id and none of
+    // them failed, because they never exercised the *code path*; they exercised a shape
+    // the old code happened to survive only when the id list came from a join.
+    await seedExpiredSnapshot("project_expired", "solo");
+    await client.execute(
+      "INSERT INTO ai_mode_snapshot_citations (snapshot_id, url, domain, title) VALUES (?, ?, ?, ?)",
+      ["solo", "https://one.example", "one.example", "One"],
+    );
+
+    const result = await runScheduledGeoRetention({});
+
+    expect(result.errors).toEqual([]);
+    expect(result.aiModeSnapshotsDeleted).toBe(1);
+    const rows = await client.execute(
+      "SELECT count(*) as n FROM ai_mode_snapshot_citations WHERE snapshot_id = ?",
+      ["solo"],
+    );
+    expect(Number(rows.rows[0].n)).toBe(0);
+  });
+
+  it("purges citations beyond D1's bound-parameter limit", async () => {
+    /**
+     * **250 ids — comfortably past D1's 100-parameter cap.**
+     *
+     * **What this proves:** that purging in chunks deletes every citation. Chunking is
+     * three statements where one would do, so "all 250 went" is exactly the property a
+     * broken chunk loop breaks.
+     *
+     * **What this does not prove, and cannot:** that the chunking *happened*. **A local
+     * libsql does not enforce D1's bound-parameter limit**, so the unchunked version
+     * succeeds here and fails only on D1. That limit is real, the chunking is the fix, and
+     * the fix is verified by reading the loop rather than by this test — which is worth
+     * saying plainly rather than papering over with a test that cannot fail.
+     */
+    const count = 250;
+    for (let i = 0; i < count; i += 1) {
+      const id = `bulk-${i}`;
+      await client.execute(
+        "INSERT INTO ai_mode_snapshots (id, project_id, keyword, location_code, language_code, answer_markdown, check_url, captured_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+          id,
+          "project_expired",
+          `kw-${i}`,
+          2840,
+          "en",
+          "a long verbatim answer",
+          "https://x",
+          OLD,
+        ],
+      );
+      await client.execute(
+        "INSERT INTO ai_mode_snapshot_citations (snapshot_id, url, domain, title) VALUES (?, ?, ?, ?)",
+        [id, `https://${i}.example`, `${i}.example`, `${i}`],
+      );
+    }
+
+    const result = await runScheduledGeoRetention({});
+
+    expect(result.errors).toEqual([]);
+    expect(result.aiModeSnapshotsDeleted).toBe(count);
+
+    const snapshots = await client.execute(
+      "SELECT count(*) as n FROM ai_mode_snapshots WHERE project_id = ?",
+      ["project_expired"],
+    );
+    expect(Number(snapshots.rows[0].n)).toBe(0);
+
+    const citations = await client.execute(
+      "SELECT count(*) as n FROM ai_mode_snapshot_citations",
+    );
+    expect(Number(citations.rows[0].n)).toBe(0);
+  });
+
   it("skips a project with nothing past the cutoff", async () => {
     // **No expired rows for project_clean**, so the sweep must not visit it — before this
     // change every active project was visited and the count was bounded only by
