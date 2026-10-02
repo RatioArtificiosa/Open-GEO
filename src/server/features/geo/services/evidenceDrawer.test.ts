@@ -227,9 +227,9 @@ describe("evidence drawer", () => {
     // for the bucketing. The first version asserted the array directly and failed
     // with `expected [ { answerId: 'a1', …(2) } ]` — the product was right and the
     // assertion was asking about the join key rather than the finding.
-    expect(
-      (answer?.retrievedNotCited ?? []).map((r) => r.url),
-    ).toEqual(["https://g2.com/compare/acme"]);
+    expect((answer?.retrievedNotCited ?? []).map((r) => r.url)).toEqual([
+      "https://g2.com/compare/acme",
+    ]);
     // The model's own reasoning, in the order it asked. Mapped for the same
     // reason as the gap above: the rows carry `answerId` for the bucketing, and
     // the finding is the order of the queries.

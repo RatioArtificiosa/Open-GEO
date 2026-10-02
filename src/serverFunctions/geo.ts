@@ -6,6 +6,7 @@ import {
   getNewLostSeries,
   getTopCitedPages,
 } from "@/server/features/geo/services/geoLiveReads";
+import { getAnswerDiff } from "@/server/features/geo/services/answerDiffReads";
 import { GEO_PLATFORMS } from "@/types/schemas/geo";
 import {
   getEvidenceForSnapshot,
@@ -151,6 +152,38 @@ export const listGeoAnswerHistory = createServerFn({ method: "POST" })
   .validator(listGeoAnswerHistorySchema)
   .handler(async ({ data, context }) =>
     GeoService.listAnswerHistory({ ...data, projectId: context.projectId }),
+  );
+
+/**
+ * What changed about one answer between two captures.
+ *
+ * **The one output this product cannot ship without, and the one no competitor can
+ * copy.** Everybody can ask a model a question right now; nobody else can show you
+ * the seventh answer. So this is a *pair* comparison the caller names, never a
+ * default to "the latest two" — a default would silently change the question
+ * whenever a capture lands between render and click.
+ *
+ * `projectId` comes from the authorized context and never from `data`, and the
+ * domain is resolved *within* that project, so a cross-project read is impossible
+ * rather than merely discouraged.
+ *
+ * The refusal travels in the payload: `diff` is null and `noDiffReason` says why,
+ * because "only one capture exists" is the normal state for a project on its first
+ * night and a throw would leave the panel blank with no explanation.
+ */
+export const getGeoAnswerDiff = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(
+    z.object({
+      domain: z.string().min(1).max(2048),
+      prompt: z.string().min(1).max(700),
+      platform: z.enum(GEO_PLATFORMS),
+      /** Which capture to compare *backwards* from. Omitted means the newest. */
+      afterId: z.string().uuid().optional(),
+    }),
+  )
+  .handler(async ({ data, context }) =>
+    getAnswerDiff({ ...data, projectId: context.projectId }),
   );
 
 // --- Runs ------------------------------------------------------------------

@@ -97,6 +97,16 @@ vi.mock("@/server/features/geo/services/geoLiveReads", () => ({
   getTopCitedPages: vi.fn(),
 }));
 
+// The answer-diff reader reaches `@/db` for the same reason the evidence drawer's
+// does, so it needs the same mock. **Without it the "never takes projectId from the
+// request body" test fails on `undefined.prepare`** — an error about the database
+// raised by a test about the handler's spread order, which is the least diagnosable
+// kind: the failure names neither the handler nor the cause. Mocked at the module,
+// so importing `@/serverFunctions/geo` never builds a database handle.
+vi.mock("@/server/features/geo/services/answerDiffReads", () => ({
+  getAnswerDiff: vi.fn(),
+}));
+
 // The evidence drawer's reads live in their own module and reach `@/db`, which
 // has no client outside a Worker. Without this mock, importing
 // `@/serverFunctions/geo` builds a real (unconfigured) database handle and the
@@ -172,6 +182,7 @@ const EXPECTED = [
   "deleteGeoTarget",
   "getGeoAiKeywordHistory",
   "getGeoAnswer",
+  "getGeoAnswerDiff",
   "getGeoCitationGap",
   "getGeoCitationGraph",
   "getGeoCitationProfile",
