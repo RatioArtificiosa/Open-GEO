@@ -84,6 +84,29 @@ const AI_KEYWORD_UNIT_COST_USD = 0.002;
 /**
  * A **placeholder pending the pricing plan**, and named as one.
  *
+ * **What the alternatives actually cost**, because a placeholder nobody can judge is a
+ * placeholder nobody can overrule:
+ *
+ * | tracked domains | this ceiling | `null`, the patrol's answer |
+ * |---|---|---|
+ * | 25 | $0.05 | $0.05 |
+ * | 1,000 | $2.00 | $2.00 |
+ * | 5,000 | $0.05 | **$10.00** |
+ *
+ * **So `null` is not the neutral choice it looks like.** In `patrolSpend.ts` a `null`
+ * budget means *"no budget"* - the decision returns `allowed: true` with no ceiling - so
+ * adopting it here would mean one customer with 5,000 brands spends $10.00 a night with
+ * nothing refusing it. The main patrol can pass `null` safely because it is bounded by
+ * `maxAnswers`; **this capture is bounded only by how many domains a customer tracks.**
+ *
+ * **And the ceiling's own denominator is an unverified placeholder** ($0.002 a call, so 2500 calls
+ * fit). A ceiling computed from an unverified price is a guess with a unit.
+ *
+ * **What a decision needs:** whether `$5` is right, and what bounds one project whose tracked
+ * count exceeds what the ceiling affords. Today nothing does - `limitProjects` counts
+ * *projects*, not domains, so a single large customer is unbounded within the ceiling's own
+ * terms.
+ *
  * `$5` buys 2500 keyword calls, and the unit price above is **itself an unverified
  * placeholder** — so the product of two guesses is not a budget anyone chose.
  *

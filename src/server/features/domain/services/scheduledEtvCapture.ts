@@ -84,6 +84,29 @@ const LABS_UNIT_COST_USD = DFS_LABS.standard.perRequest;
 /**
  * A **placeholder pending the pricing plan**, and named as one.
  *
+ * **What the alternatives actually cost**, because a placeholder nobody can judge is a
+ * placeholder nobody can overrule:
+ *
+ * | tracked domains | this ceiling | `null`, the patrol's answer |
+ * |---|---|---|
+ * | 25 | $0.30 | $0.30 |
+ * | 1,000 | $12.00 | $12.00 |
+ * | 5,000 | $0.30 | **$60.00** |
+ *
+ * **So `null` is not the neutral choice it looks like.** In `patrolSpend.ts` a `null`
+ * budget means *"no budget"* - the decision returns `allowed: true` with no ceiling - so
+ * adopting it here would mean one customer with 5,000 brands spends $60.00 a night with
+ * nothing refusing it. The main patrol can pass `null` safely because it is bounded by
+ * `maxAnswers`; **this capture is bounded only by how many domains a customer tracks.**
+ *
+ * **And the ceiling's own denominator is read from the price book** ($0.012 a call, so 416 calls
+ * fit). A ceiling computed from an unverified price is a guess with a unit.
+ *
+ * **What a decision needs:** whether `$5` is right, and what bounds one project whose tracked
+ * count exceeds what the ceiling affords. Today nothing does - `limitProjects` counts
+ * *projects*, not domains, so a single large customer is unbounded within the ceiling's own
+ * terms.
+ *
  * `$5` buys 416 Labs calls, which is a plausible night for a few hundred tracked
  * domains — but plausible is not chosen, and the difference decides what happens when
  * the number is wrong: a chosen ceiling that is too low silently drops coverage, while a
