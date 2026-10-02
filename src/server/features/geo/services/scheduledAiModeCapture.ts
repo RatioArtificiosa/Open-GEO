@@ -28,10 +28,15 @@
  * happened on Thursday — which is the entire product. So the **cadence** is nightly
  * and the **budget** is what bounds cost.
  */
-import { eq } from "drizzle-orm";
+import { eq, max, sql } from "drizzle-orm";
 import type { CaptureCostReport } from "@/server/features/geo/services/captureReport";
 import { db } from "@/db";
-import { geoPrompts, geoPromptSets, geoTargets } from "@/db/schema";
+import {
+  aiModeSnapshots,
+  geoPrompts,
+  geoPromptSets,
+  geoTargets,
+} from "@/db/schema";
 import { runAiModeMonitor, type AiModeNightResult } from "./aiModeMonitor";
 import type { WatchedPrompt } from "./aiModeSchedule";
 
@@ -86,6 +91,27 @@ type Watcher = {
  * ranks above everything, because we have no baseline for it. That is the correct
  * ordering for a cold start and it needs no fabricated data.
  */
+/**
+ * When each **project** was last asked, at all.
+ *
+ * **This capture had no rotation of any kind, so the same 25 projects won every night.**
+ * The other four captures all rotated *something* — the problem was that it was one
+ * level below the cap. This one had no `orderBy` at all, so `watchers.slice(0, 25)` took
+ * whatever order the database returned, and a stable order is the worst kind: it looks
+ * deterministic, reports honestly, and starves everyone past the 25th project forever.
+ *
+ * `runMonitor` bills real money per call, so this is a project paying for a capture it
+ * never receives.
+ */
+const projectLastAsked = db
+  .select({
+    projectId: aiModeSnapshots.projectId,
+    at: max(aiModeSnapshots.capturedAt).as("project_at"),
+  })
+  .from(aiModeSnapshots)
+  .groupBy(aiModeSnapshots.projectId)
+  .as("projectLastAsked");
+
 async function projectsWatchingAiMode(): Promise<Watcher[]> {
   const rows = await db
     .select({
@@ -96,7 +122,20 @@ async function projectsWatchingAiMode(): Promise<Watcher[]> {
     })
     .from(geoPrompts)
     .innerJoin(geoPromptSets, eq(geoPrompts.promptSetId, geoPromptSets.id))
-    .innerJoin(geoTargets, eq(geoPromptSets.projectId, geoTargets.projectId));
+    .innerJoin(geoTargets, eq(geoPromptSets.projectId, geoTargets.projectId))
+    .leftJoin(
+      projectLastAsked,
+      eq(projectLastAsked.projectId, geoTargets.projectId),
+    )
+    // **Never-asked projects first, then least-recently-asked.** The `is null` term is
+    // written out because a dialect that sorted nulls last would put every project
+    // needing a capture *behind* the ones already current — the same starvation the
+    // other three captures had to be taught.
+    .orderBy(
+      sql`${projectLastAsked.at} is null desc`,
+      sql`${projectLastAsked.at}`,
+      geoTargets.projectId,
+    );
 
   const byProject = new Map<string, Watcher>();
   for (const row of rows) {
