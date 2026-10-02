@@ -140,6 +140,47 @@ function importsOf(source: string): string[] {
  * before its verdict on anything else is worth reading**, which is why the control
  * above names `GeoPatrol` specifically rather than a synthetic file.
  */
+/**
+ * The import graph, resolved **once**: resolved path → the consumer files that import it.
+ *
+ * **This is the whole performance fix, and it changes no verdict.**
+ *
+ * The check asks, per declared writer: *"which consumer files import this module and
+ * mention its writer?"* Written that way the gate re-derives the graph inside the writer
+ * loop — reading every consumer again and calling `resolveLocal` on every local specifier
+ * **once per writer**. Measured:
+ *
+ * | | |
+ * |---|---|
+ * | local import specifiers across `src` + `scripts` | 835 |
+ * | writer files under `src/server/features` | 151 |
+ * | **filesystem resolutions per run** | **126,085** |
+ * | of which measured, as a *lower bound* | **6.8s** |
+ *
+ * **Every one of those 126,085 probes has the same answer as the last**, because the tree
+ * does not change while the loop runs. And it is filesystem I/O specifically, which is why
+ * the gate took **21s idle and 43s under load** while a regex-only replica of the same
+ * check took **288ms**.
+ *
+ * Inverted, the question is a map lookup.
+ */
+function buildImportGraph(
+  files: string[],
+): Map<string, Array<{ file: string; source: string }>> {
+  const graph = new Map<string, Array<{ file: string; source: string }>>();
+  for (const file of files) {
+    const source = readFileSync(file, "utf8");
+    for (const specifier of importsOf(source)) {
+      const resolved = resolveLocal(file, specifier);
+      if (resolved === null) continue;
+      const existing = graph.get(resolved);
+      if (existing) existing.push({ file, source });
+      else graph.set(resolved, [{ file, source }]);
+    }
+  }
+  return graph;
+}
+
 function resolveLocal(importer: string, specifier: string): string | null {
   const base = specifier.startsWith("@/")
     ? join(ROOT, "src", specifier.slice(2))
@@ -383,9 +424,18 @@ describe("a GEO module must be reachable from production", () => {
    * grep, which is the blind spot that made the sweep's "0 orphans" a weaker claim
    * than it looked.
    *
-   * **Scope: GEO writers only.** Widening it to every feature is a larger gate that
-   * would need an exemption list for each intentional library-style writer, and an
-   * exemption list nobody reads is how a gate stops being trusted.
+   * **Scope: every feature, not GEO alone.** The first version walked
+   * {@link GEO_ROOT} only, and this comment used to argue that was deliberate — *"widening
+   * it to every feature is a larger gate that would need an exemption list"*. **The scan was
+   * widened anyway** ({@link WRITER_ROOT} is `src/server/features`), and the line above
+   * says the widening *is* the whole argument, so the file contradicted itself about its
+   * most consequential decision.
+   *
+   * The exemption list it worried about turned out to be **one entry** —
+   * `samTurnTelemetry`, method-on-an-instance writers the scanner cannot resolve — plus
+   * `AuditScratchpad` for a Durable Object lifecycle method the platform calls. **Two
+   * entries is a list someone reads**, which is the bar the old comment set and the widened
+   * gate clears comfortably.
    */
   /**
    * **The negative control for the widened pattern.**
@@ -449,13 +499,26 @@ describe("a GEO module must be reachable from production", () => {
      * next flake in this suite for exactly the reason `oauth-refresh` was the last
      * one: a slow check whose failure names nothing.
      *
-     * **Raised to 60s when the scan widened to every feature** — measured at ~12.5s
-     * for GEO alone, and the cross-product is now every writer × every consumer file
-     * in `src` and `scripts`. Higher than the 20s the module-reachability test uses
-     * because it is genuinely the slower of the two, and because the whole point of
-     * this test is to report a defect by name — a timeout reports nothing at all.
+     * **
+     * 20s, and that is down from 60s — because the redundancy was removed, not because the
+     * ceiling was raised.** The scan had widened to every feature and the cost had moved into
+     * filesystem I/O: the gate re-resolved the import graph **once per declared writer**,
+     * which is 126,085 `resolveLocal` probes for answers that cannot change during the loop.
+     *
+     * | | before | after |
+     * |---|---|---|
+     * | the writer scan | 18.2s | 0.4s |
+     * | the test | 21s idle, 43s under load | **1.5s** |
+     * | budget | 60s, 72% consumed under load | 20s, **7.5%** |
+     *
+     * **Both implementations were run over the real tree and compared name for name** —
+     * identical verdicts, 45x apart — because a faster gate that checks less is the worst
+     * outcome available here and it would look like a pure win.
+     *
+     * The original reasoning stands: **a timeout reports nothing at all**, so it is the last
+     * response, not the first. The first is to find the slowness.
      */
-    { timeout: 60_000 },
+    { timeout: 20_000 },
     () => {
       // **Three shapes**, because each version of this found fewer writers than the last
       // and the guard caught every one. The repository convention is
@@ -496,6 +559,10 @@ describe("a GEO module must be reachable from production", () => {
 
       const offenders: string[] = [];
       let checked = 0;
+
+      // **Paid once, before the writer loop.** Every consumer is read here and its local
+      // specifiers resolved — once — rather than `writers x consumers` times inside it.
+      const importGraph = buildImportGraph(consumerFiles);
 
       for (const file of walk(join(ROOT, WRITER_ROOT))) {
         const rel = relative(ROOT, file).replace(/\\/g, "/");
@@ -544,17 +611,17 @@ describe("a GEO module must be reachable from production", () => {
 
           // Only counts as a caller if it also **imports this module** — otherwise a
           // same-named function in an unrelated file would vouch for this one.
-          const importers = consumerFiles.filter((f) => {
-            if (f === file) return false;
-            const grel = relative(ROOT, f).replace(/\\/g, "/");
-            if (/\.test\.tsx?$/.test(grel)) return false;
-            const gsrc = readFileSync(f, "utf8");
-            const importsIt = importsOf(gsrc).some((spec) => {
-              const resolved = resolveLocal(f, spec);
-              return resolved !== null && resolved === file;
-            });
-            return importsIt && isCalled(gsrc);
-          });
+          // **One map lookup, not a filter over 1114 files.** `importGraph` was built
+          // once above; the old shape re-read every consumer and re-resolved every
+          // local specifier **inside this loop**, which is where the 21 seconds went.
+          const importers = (importGraph.get(file) ?? []).filter(
+            ({ file: f, source }) => {
+              if (f === file) return false;
+              const grel = relative(ROOT, f).replace(/\\/g, "/");
+              if (/\.test\.tsx?$/.test(grel)) return false;
+              return isCalled(source);
+            },
+          );
 
           if (importers.length > 0) continue;
           // **The exemption is a keyed lookup, not a scan of a comment.** The

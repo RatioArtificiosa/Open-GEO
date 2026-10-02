@@ -175,8 +175,13 @@ describe("the timeout scanner reads every shape vitest accepts", () => {
     },
     {
       file: "scripts/geo-module-reachability.test.ts",
-      ms: 60_000,
-      why: "an options object, and the slowest test in the repository",
+      ms: 20_000,
+      // **Measured, and the number moved because the work moved.** This gate took 21s
+      // idle and 43s under load against a 60s budget — 72% consumed, which is not a
+      // margin. The cost was `resolveLocal` re-resolving the import graph once per
+      // declared writer: 126,085 filesystem probes for answers that cannot change during
+      // the loop. Hoisted out, it takes 1.5s, so the budget followed it down.
+      why: "an options object; measured, and lowered once the redundancy behind it was removed",
     },
     {
       file: "scripts/prepublish-audit.test.ts",
