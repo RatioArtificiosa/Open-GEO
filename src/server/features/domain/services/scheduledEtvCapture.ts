@@ -248,6 +248,33 @@ async function trackedDomains(): Promise<
    * constant — and using one name for both is what keeps the aggregate in the
    * `SELECT` and the same aggregate in the `ORDER BY` from drifting apart.
    */
+  /**
+   * When each **project** was last measured, at all.
+   *
+   * **The same one-level-too-low bug the keyword capture had** (`b61c513`), and worth
+   * spelling out because the naming hides it: `runDueEtvCaptures` does
+   * `domains.slice(0, limitProjects)`, so **`limitProjects` bounds domains** while this
+   * query rotates **per domain**. A rotation one level below the bound does nothing for
+   * the bound — in a deployment with more than `limitProjects` domains, the same ones win
+   * every night and the rest are never measured.
+   *
+   * | | rotates | the bound acts on |
+   * |---|---|---|
+   * | `trackedDomains` | per domain | **domains — never rotated** |
+   *
+   * And the name compounds it: `limitProjects` sounds like it bounds projects, and it does
+   * not. **What is the cap applied to, and is *that* rotated?** is the question; the
+   * parameter's name is not an answer to it.
+   */
+  const projectLastMeasured = db
+    .select({
+      projectId: domainMetrics.projectId,
+      at: lastAskedAt.as("project_at"),
+    })
+    .from(domainMetrics)
+    .groupBy(domainMetrics.projectId)
+    .as("projectLastMeasured");
+
   const lastMeasured = db
     .select({
       projectId: domainMetrics.projectId,
@@ -279,6 +306,13 @@ async function trackedDomains(): Promise<
           eq(lastMeasured.domain, geoTargets.domain),
         ),
       )
+      // **The project's own last measurement**, joined on the project alone. A second
+      // `leftJoin` rather than another `groupBy`, because one query cannot aggregate
+      // twice over at different grains.
+      .leftJoin(
+        projectLastMeasured,
+        eq(projectLastMeasured.projectId, geoTargets.projectId),
+      )
       // **Nulls first, then oldest first, then by name.**
       //
       // The `is null` term is the whole policy, written out rather than left to the
@@ -291,11 +325,23 @@ async function trackedDomains(): Promise<
       // (project, domain, market), so this query already returns one row per domain. The
       // grouping I first wrote existed only to satisfy the join, and duplicated a
       // constraint the schema already states.
+      // **Project rotation first, domain rotation second — the order is the fix.**
+      // `domains.slice(0, limitProjects)` takes the front of this list, so the first
+      // term decides which projects get a night at all. Rotating only *within* a project
+      // cannot change that: for a deployment of many projects the per-domain order is
+      // the same every night, so the same domains win every night.
+      //
+      // Within a project, the `is null` term then pushes its never-measured domains
+      // ahead of its measured ones — the rotation the per-domain subquery exists for.
+      //
+      // **Wrapped in `sql```: `orderBy` wants a `SQL` or a column, and an alias is
+      // neither by type though it is by name.** Two aliases, `project_at` and
+      // `domain_at`, because two columns called `at` in one outer query make
+      // `order by "at"` ambiguous — which SQLite rejects outright.
       .orderBy(
+        sql`${projectLastMeasured.at} is null desc`,
+        sql`${projectLastMeasured.at}`,
         sql`${lastMeasured.at} is null desc`,
-        // **Wrapped, because `orderBy` wants a `SQL` or a column** and the alias is
-        // neither by type — though it is by name, which is what the SQL uses. The wrapper
-        // satisfies the signature without changing a character of the emitted query.
         sql`${lastMeasured.at}`,
         geoTargets.domain,
       )

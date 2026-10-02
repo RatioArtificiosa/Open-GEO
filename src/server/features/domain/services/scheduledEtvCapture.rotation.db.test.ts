@@ -233,6 +233,111 @@ async function askOrder(): Promise<string[]> {
   return asked;
 }
 
+/**
+ * The **project** rotation — a different question from the domain one.
+ *
+ * `runDueEtvCaptures` does `domains.slice(0, limitProjects)`, so the bound acts on
+ * **domains** while the query rotated **per domain**. One level below the bound, which
+ * is the same shape the keyword capture had (`b61c513`).
+ *
+ * The fixture is deliberately built so the two orderings disagree, because with one
+ * measurement per project they do not: a project's last-measured time *is* its domain's
+ * measurement time, and a test built on that asserts nothing. **That is not a
+ * hypothetical — the keyword version of this test passed with the fix removed.**
+ */
+describe("the ETV project rotation — which deployments get a night", () => {
+  /** One project, one domain, optionally recorded as measured at a moment. */
+  async function seedDomain(
+    projectId: string,
+    domain: string,
+    index: number,
+    measuredAt: string | null,
+  ): Promise<void> {
+    await client.execute(
+      "INSERT OR IGNORE INTO projects (id, name, location_code, language_code, created_at) VALUES (?, ?, ?, ?, ?)",
+      [projectId, projectId, 2840, "en", "2026-10-01T00:00:00.000Z"],
+    );
+    await client.execute(
+      "INSERT INTO geo_targets (id, project_id, name, domain, location_code, language_code, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [
+        `t-${index}`,
+        projectId,
+        projectId,
+        domain,
+        2840,
+        "en",
+        "2026-10-01T00:00:00.000Z",
+      ],
+    );
+    if (measuredAt === null) return;
+    await client.execute(
+      `INSERT INTO domain_metrics
+         (id, project_id, domain, location_code, language_code, endpoint, organic_etv,
+          etv_formula_version, etv_requested_at)
+       VALUES (?, ?, ?, ?, ?, 'domain_rank_overview', 100, 'new', ?)`,
+      [Date.now() + index, projectId, domain, 2840, "en", measuredAt],
+    );
+  }
+
+  it("picks the project whose newest measurement is stalest, not the one with the oldest domain", async () => {
+    await client.execute("DELETE FROM domain_metrics");
+    await client.execute("DELETE FROM geo_targets");
+
+    await seedDomain("project_a", "a-stale.com", 0, "2026-09-01T00:00:00.000Z");
+    await seedDomain(
+      "project_a",
+      "a-recent.com",
+      1,
+      "2026-09-05T00:00:00.000Z",
+    );
+    await seedDomain("project_b", "b-only.com", 2, "2026-09-02T00:00:00.000Z");
+
+    const asked: string[] = [];
+    await runDueEtvCaptures({
+      limitProjects: 1,
+      // **The same stub the other tests in this file use** — `target`, and the whole
+      // envelope including `billing` and `etv`. A second, guessed shape in one file is
+      // one more thing to keep in step, and `as never` would hide the difference.
+      fetchOverview: async (input) => {
+        asked.push(input.target);
+        return {
+          data: [{ metrics: { organic: { etv: 100, count: 1 } } }],
+          billing: { path: ["/v3/x"], costUsd: 0.012 },
+          etv: {
+            formulaVersion: "new" as const,
+            useNewEtv: true,
+            requestedAt: "2026-10-01T00:00:00.000Z",
+          },
+        };
+      },
+      // **Built from the parameter**, like the other tests in this file: the
+      // repository returns a stored row the runner never reads, and a partial
+      // `{ id: 1 }` would be a partial row wearing a complete row's name.
+      writePoint: async (input) => ({
+        id: 1,
+        projectId: input.projectId,
+        domain: input.domain,
+        locationCode: input.locationCode,
+        languageCode: input.languageCode,
+        endpoint: input.endpoint,
+        organicEtv: input.organicEtv ?? null,
+        paidEtv: null,
+        etvFormulaVersion: input.etv?.formulaVersion ?? "new",
+        etvRequestedAt: input.etv?.requestedAt ?? "2026-10-01T00:00:00.000Z",
+        capturedAt: input.etv?.requestedAt ?? "2026-10-01T00:00:00.000Z",
+        domainRank: null,
+        organicKeywords: null,
+        paidKeywords: null,
+        pagesCount: null,
+      }),
+    });
+
+    // **project_b** — its only measurement (09-02) is staler than project_a's newest
+    // (09-05), even though project_a owns the single oldest row (09-01).
+    expect(asked).toEqual(["b-only.com"]);
+  });
+});
+
 describe("the ETV rotation — what makes the per-project cap fair", () => {
   /**
    * **The assertion that discriminates, and it belongs HERE.**
