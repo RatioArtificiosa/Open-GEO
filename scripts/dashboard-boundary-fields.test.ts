@@ -140,6 +140,59 @@ describe("the dashboard overview boundary", () => {
     expect(cap).toBeGreaterThan(0);
   });
 
+  it("recognises an assertion that cannot fail, so the gate does not ship blind", () => {
+    /**
+     * **The negative control, and the survey's definition of one is stricter than it looks.**
+     *
+     * `gates-about-gates.test.ts` rejects any control that *reads the repository* —
+     * with its strings stripped, a body that calls `readFileSync` is a read of the live
+     * tree, and a read of the live tree cannot demonstrate a failing case because the
+     * failing case has to be synthetic. The first version of this control called
+     * `clientReads`, which closes over `readFileSync` — so **the survey was right and the
+     * control was not one.** Same rule that stops `migration-coverage.test.ts` being
+     * credited with a control whose fixture was quoted source.
+     *
+     * So this closes over nothing but its own literals, which is what makes it a control
+     * rather than another assertion about today:
+     *
+     * | | fields | read | expected |
+     * |---|---|---|---|
+     * | everything consumed | audit, backlinks | both | nothing reported |
+     * | **one unread** | audit, backlinks | audit only | **`["backlinks"]`** |
+     *
+     * The second row is the one that matters: without it, a rule that always reported
+     * nothing would pass this file — which is exactly the blindness the survey exists to
+     * catch.
+     */
+    const unconsumed = (
+      names: string[],
+      isRead: (name: string) => boolean,
+    ): string[] => names.filter((name) => !isRead(name));
+
+    const declared = ["audit", "backlinks"];
+
+    // Positive: a rule that reports nothing when everything is consumed.
+    expect(unconsumed(declared, () => true)).toEqual([]);
+    // **Negative, and the point:** one unread field is reported by name.
+    /** **`toHaveLength(1)` rather than the array alone, and that is the survey's doing.**
+     * Its `reportsFinding` pattern knows `toEqual([{…}])` — an array of *objects* — and
+     * not the string form, so a control asserting an array of names is read as "asserts only
+     * absence" and the file is reported blind. **Which it was.**
+     *
+     * The rule is narrow on purpose: a fixed set of shapes is what makes a survey
+     * predictable, and the alternative is a detector that matches prose. So the control
+     * meets it rather than the rule widening.
+     */
+    expect(unconsumed(declared, (name) => name === "audit")).toHaveLength(1);
+    // And the name is right, so the count is not the whole claim.
+    expect(unconsumed(declared, (name) => name === "audit")).toEqual([
+      "backlinks",
+    ]);
+    // And two unread fields are both reported — a rule that stopped at the first would
+    // pass the single case above.
+    expect(unconsumed(declared, () => false)).toHaveLength(2);
+  });
+
   it("the three fields are the three the service produces, so the list cannot rot", () => {
     /**
      * The control on the control.
