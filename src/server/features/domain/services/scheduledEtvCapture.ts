@@ -68,6 +68,33 @@ const LABS_UNIT_COST_USD = DFS_LABS.standard.perRequest;
  * product has no per-project spend setting, and inventing one would refuse runs on a
  * number nobody chose. Enough to be a real ceiling, small enough that a misconfigured
  * project cannot produce an invoice anybody has to explain.
+ *
+ * **And that paragraph was wrong, because it described this constant's opposite.**
+ * `scheduledGeoPatrol.ts` states the product's actual position in the same words and
+ * then passes `budgetUsd: null` — *"the cap is null, and that is a decision, not an
+ * omission"*. I quoted that reasoning here and then wrote a number into it anyway,
+ * because a sibling module had `$0.1` and citing that sibling felt like following
+ * precedent.
+ *
+ * **So: `$5` is a placeholder pending the pricing plan, not a chosen ceiling**, and it
+ * is named as one below. The difference matters — a chosen ceiling answers *how much
+ * per night*; a placeholder answers *not yet*, and refusing runs on a guessed number
+ * would hide coverage rather than cost it.
+ */
+/**
+ * A **placeholder pending the pricing plan**, and named as one.
+ *
+ * `$5` buys 416 Labs calls, which is a plausible night for a few hundred tracked
+ * domains — but plausible is not chosen, and the difference decides what happens when
+ * the number is wrong: a chosen ceiling that is too low silently drops coverage, while a
+ * placeholder that is too low drops coverage **loudly**, because the report names the
+ * dropped domains.
+ *
+ * **It becomes a real ceiling when a pricing plan supplies one.** Until then this is the
+ * same placeholder the AI keyword capture carries, and the honest default would be
+ * `null` — bounded by the project's own tracked domains rather than by a number I picked.
+ * It is a number rather than `null` so the capture is safe to switch on before that
+ * decision is made.
  */
 const ETV_NIGHTLY_BUDGET_USD = 5;
 

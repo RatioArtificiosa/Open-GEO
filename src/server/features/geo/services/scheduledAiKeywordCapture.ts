@@ -81,6 +81,24 @@ const VENDOR_MAX_KEYWORDS = 1000;
 const AI_KEYWORD_UNIT_COST_USD = 0.002;
 
 /** The night's ceiling, in USD. Same reasoning as the AI Mode cap: a constant, not an invented setting. */
+/**
+ * A **placeholder pending the pricing plan**, and named as one.
+ *
+ * `$5` buys 2500 keyword calls, and the unit price above is **itself an unverified
+ * placeholder** — so the product of two guesses is not a budget anyone chose.
+ *
+ * **The honest default would be `null`, bounded instead by the project's own tracked
+ * keywords.** `scheduledGeoPatrol.ts` states the product's position in the same words I
+ * originally used here — *"the product has no per-project spend setting, and inventing a
+ * ceiling would refuse runs on a number nobody chose"* — and then passes `budgetUsd:
+ * null`. I quoted that reasoning and wrote a number into it anyway, citing a sibling that
+ * had `$0.1`.
+ *
+ * It is a number rather than `null` so the capture is safe to switch on before the pricing
+ * decision is made, and **the report names what the ceiling dropped** — so a wrong
+ * placeholder costs coverage loudly rather than silently, which is the difference that
+ * makes it acceptable to ship.
+ */
 const AI_KEYWORD_NIGHTLY_BUDGET_USD = 5;
 
 /**
