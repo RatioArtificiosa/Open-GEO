@@ -134,7 +134,24 @@ async function projectsWatchingAiMode(): Promise<Watcher[]> {
     .orderBy(
       sql`${projectLastAsked.at} is null desc`,
       sql`${projectLastAsked.at}`,
+      // **Then the configured prompt order, and it is not decoration.**
+      //
+      // `planAiModeCaptures` sorts by priority and is deliberately **stable on the
+      // caller's order** — `aiModeSchedule.ts` says so outright: *"two prompts with equal
+      // priority keep the caller's order, so a project sees the same plan twice in a row
+      // when nothing has changed."* So this query's order **is** the tiebreak, and before
+      // this capture had an `ORDER BY` at all the tiebreak was whatever order SQLite
+      // returned.
+      //
+      // `projectId` alone makes it deterministic, which is half the property; this term
+      // makes it **meaningful** — two equally-ranked prompts are now reported in the order
+      // the customer arranged them, rather than alphabetically by project.
+      //
+      // **Last, after the rotation terms**, for the reason the other two captures needed
+      // the same care: the bound acts on projects, so the project terms decide who runs
+      // and only then does prompt order become relevant.
       geoTargets.projectId,
+      geoPrompts.position,
     );
 
   const byProject = new Map<string, Watcher>();

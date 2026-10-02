@@ -132,6 +132,106 @@ beforeEach(async () => {
   await client.execute("DELETE FROM projects");
 });
 
+describe("which prompts get an AI Mode capture, and in what order", () => {
+  beforeEach(async () => {
+    // **Children before parents** — the foreign keys are real.
+    await client.execute("DELETE FROM ai_mode_snapshot_citations");
+    await client.execute("DELETE FROM ai_mode_snapshots");
+    await client.execute("DELETE FROM geo_prompts");
+    await client.execute("DELETE FROM geo_targets");
+    await client.execute("DELETE FROM geo_prompt_sets");
+    await client.execute("DELETE FROM projects");
+
+    await client.execute(
+      "INSERT OR IGNORE INTO projects (id, name, location_code, language_code, created_at) VALUES (?, ?, ?, ?, ?)",
+      ["project_order", "Order", 2840, "en", "2026-10-01T00:00:00.000Z"],
+    );
+    await client.execute(
+      "INSERT OR IGNORE INTO geo_prompt_sets (id, project_id, name, created_at) VALUES (?, ?, ?, ?)",
+      ["set-order", "project_order", "default", "2026-10-01T00:00:00.000Z"],
+    );
+    await client.execute(
+      "INSERT OR IGNORE INTO geo_targets (id, project_id, name, domain, location_code, language_code, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [
+        "t-order",
+        "project_order",
+        "Order",
+        "order.com",
+        2840,
+        "en",
+        "2026-10-01T00:00:00.000Z",
+      ],
+    );
+  });
+
+  it("returns equally-ranked prompts in the order the customer configured them", async () => {
+    /**
+     * **Zebra first, alpha second** — the reverse of alphabetical, so the assertion cannot
+     * be satisfied by accident.
+     *
+     * The scheduler's stable sort is a *deliberate* property: two prompts with equal
+     * priority keep the caller's order, so a project sees the same plan twice in a row and
+     * its run log stays readable. **That makes this query's ordering load-bearing rather
+     * than cosmetic** — and before `geoPrompts.position` was an `ORDER BY` term the
+     * caller's order was whatever SQLite returned.
+     *
+     * Every prompt here is unobserved, so priority ties and the configured order decides.
+     */
+    /**
+     * **Inserted in an order that is neither the configured one nor alphabetical.**
+     *
+     * The first version inserted `zebra, alpha, middle` at positions 0, 1, 2 — and SQLite
+     * returned them in **insertion order**, which *is* the configured order, so the test
+     * passed with the `position` term deleted. A fixture that agrees with the code by
+     * accident is worse than none: it keeps passing after the thing it checks is broken.
+     *
+     * Here the insert order is `middle, zebra, alpha` while the configured order is
+     * `zebra, alpha, middle`, so only the `position` term produces the expected list.
+     */
+    for (const entry of [
+      [2, "middle prompt"],
+      [0, "zebra prompt"],
+      [1, "alpha prompt"],
+    ]) {
+      const position = entry[0];
+      const prompt = entry[1];
+      await client.execute(
+        "INSERT INTO geo_prompts (id, prompt_set_id, prompt, position, created_at) VALUES (?, ?, ?, ?, ?)",
+        [
+          "q-" + String(position),
+          "set-order",
+          prompt,
+          position,
+          "2026-10-01T00:00:00.000Z",
+        ],
+      );
+    }
+
+    const asked: string[] = [];
+    await runDueAiModeCaptures({
+      limitProjects: 25,
+      now: new Date("2026-10-01T00:00:00.000Z"),
+      runMonitor: async (input) => {
+        // The scheduler runs inside the monitor, so this sees the **planned order**.
+        asked.push(...input.prompts.map((p) => p.keyword));
+        return {
+          projectId: input.projectId,
+          ran: true,
+          skippedReason: null,
+          captured: 0,
+          failed: [],
+          changes: [],
+          estimatedCostUsd: 0,
+          actualCostUsd: 0,
+          summary: "stub",
+        };
+      },
+    });
+
+    expect(asked).toEqual(["zebra prompt", "alpha prompt", "middle prompt"]);
+  });
+});
+
 describe("which projects get an AI Mode capture", () => {
   it("asks the project whose last snapshot is stalest, not the first row back", async () => {
     await seedProject("project_a", "alpha prompt", "2026-09-05T00:00:00.000Z");
