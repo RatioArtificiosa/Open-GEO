@@ -129,6 +129,38 @@ export function EarnTheCitationPanel({
                     phrasing written here is a second text to keep in step, and the
                     module already argues why each status implies its action. */}
                 <p className="text-xs text-base-content/70">{row.nextStep}</p>
+
+                {/*
+                 * **The anchor text is declared here and arrives as nothing.**
+                 *
+                 * `citationGraph`'s docstring says the overlay is "how many pages
+                 * of yours link here, and what does the anchor text look like",
+                 * and its type carries `anchors` for exactly that reason. But
+                 * `geoCitationGraph` passes **`backlinksToUs: null`** and never
+                 * sets `anchors` at all, because `listCitationDomains` returns a
+                 * mention count and nothing else — there is no backlink data behind
+                 * it to read.
+                 *
+                 * So the branch is deliberately **inert**, and the note says so
+                 * rather than leaving a reader to wonder. A non-empty `anchors`
+                 * would mean the backlinks layer had been connected, and nothing
+                 * renders until it is. Writing the JSX and leaving it dark would
+                 * have been a fourth way of pretending a field is live.
+                 */}
+                {row.anchors !== null && row.anchors.length > 0 ? (
+                  <p className="mt-1 text-xs text-base-content/60">
+                    Linked to from{" "}
+                    {row.anchors
+                      .slice(0, 3)
+                      .map((anchor) => `“${anchor}”`)
+                      .join(", ")}
+                    {row.anchors.length > 3
+                      ? `, and ${row.anchors.length - 3} more`
+                      : ""}
+                    . An outreach email to a domain is likelier to be read when
+                    it names the same thing its existing links do.
+                  </p>
+                ) : null}
               </li>
             ))}
           {data.outreach.filter((row) => row.nextStep !== null).length > 10 ? (
