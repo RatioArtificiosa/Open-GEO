@@ -11,12 +11,16 @@ import {
   vi,
 } from "vitest";
 
-import type { getAnswerDiff as GetAnswerDiff } from "./answerDiffReads";
+import type {
+  getAnswerDiff as GetAnswerDiff,
+  getAnswerDiffForAnswer as GetAnswerDiffForAnswer,
+} from "./answerDiffReads";
 
 vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
 
 let client: Client;
 let getAnswerDiff: typeof GetAnswerDiff;
+let getAnswerDiffForAnswer: typeof GetAnswerDiffForAnswer;
 
 beforeAll(async () => {
   client = createClient({ url: "file::memory:" });
@@ -40,7 +44,9 @@ beforeAll(async () => {
     ].join("\n"),
   );
 
-  getAnswerDiff = (await import("./answerDiffReads")).getAnswerDiff;
+  const reads = await import("./answerDiffReads");
+  getAnswerDiff = reads.getAnswerDiff;
+  getAnswerDiffForAnswer = reads.getAnswerDiffForAnswer;
 });
 
 afterAll(() => {
@@ -208,5 +214,61 @@ describe("getAnswerDiff", () => {
 
     expect(result.diff?.changes).toEqual([]);
     expect(result.diff?.summary).toMatch(/stable|same/i);
+  });
+});
+
+/**
+ * The entry point a surface can actually use.
+ *
+ * The panel holds an `answerId` and nothing else a person can see — no domain, no
+ * exact prompt text, no platform. So the reader resolves all three **from the stored
+ * answer**, which also removes a bug the other signature invited: a caller passing
+ * the prompt with different whitespace got no diff and read the result as "nothing
+ * changed".
+ */
+describe("getAnswerDiffForAnswer", () => {
+  it("compares from an answer id alone, resolving prompt and platform", async () => {
+    await seedAnswer("a1", "best crm", "2026-09-01T00:00:00.000Z", [
+      { url: "https://acme.com/pricing", rank: 1 },
+      { url: "https://hubspot.com/compare", rank: 2 },
+    ]);
+    await seedAnswer("a2", "best crm", "2026-09-08T00:00:00.000Z", [
+      { url: "https://acme.com/pricing", rank: 1 },
+    ]);
+
+    // Only the id. Everything else comes from the row.
+    const result = await getAnswerDiffForAnswer({
+      projectId: "p1",
+      answerId: "a2",
+    });
+
+    expect(result.prompt).toBe("best crm");
+    expect(result.diff?.changes.map((c) => c.kind)).toEqual(["lost"]);
+    expect(result.noDiffReason).toBeNull();
+  });
+
+  it("refuses rather than guessing when the answer is not in this project", async () => {
+    // `getTarget` takes the project *and* the id, so a foreign or deleted target
+    // resolves to null instead of to another project's brand — which is the shape
+    // of a cross-project read this reader could otherwise perform.
+    await seedAnswer("a1", "best crm", "2026-09-01T00:00:00.000Z");
+
+    await expect(
+      getAnswerDiffForAnswer({ projectId: "p1", answerId: "not-in-archive" }),
+    ).rejects.toThrow(/not in this project/i);
+  });
+
+  it("reports no comparison for a single capture, addressed the same way", async () => {
+    await seedAnswer("a1", "best crm", "2026-09-01T00:00:00.000Z", [
+      { url: "https://acme.com/pricing", rank: 1 },
+    ]);
+
+    const result = await getAnswerDiffForAnswer({
+      projectId: "p1",
+      answerId: "a1",
+    });
+
+    expect(result.diff).toBeNull();
+    expect(result.noDiffReason).toMatch(/only one capture/i);
   });
 });

@@ -241,37 +241,50 @@ describe("a GEO module must be reachable from production", () => {
    * synthetic one — a synthetic control passed happily while the real code was
    * wrong, which is the same lesson as the casing gate's control assertion.
    */
-  it("knows the cron-driven patrol is live, not dead", () => {
-    const patrol = join(ROOT, GEO_ROOT, "services/GeoPatrol.ts");
-    const importersOf = (target: string): string[] =>
-      consumerFiles
-        .filter((f) =>
-          importsOf(readFileSync(f, "utf8")).some((spec) => {
-            const resolved = resolveLocal(f, spec);
-            return resolved !== null && resolved === target;
-          }),
-        )
-        .map((f) => relative(ROOT, f).replace(/\\/g, "/"));
+  it(
+    "knows the cron-driven patrol is live, not dead",
+    // **A budget, for the same reason the encoding gates have one.** This walks
+    // every file under `src` and resolves every local import, which is seconds of
+    // work rather than milliseconds — so under the full suite's concurrency it was
+    // losing a race against vitest's 5-second default and failing with no
+    // diagnostic at all. A gate that times out is worse than a gate that is red,
+    // because a red gate names the module and a timeout names nothing.
+    //
+    // Measured at ~1.9s alone, so 20s is a wide margin rather than a number tuned
+    // to pass.
+    { timeout: 20_000 },
+    () => {
+      const patrol = join(ROOT, GEO_ROOT, "services/GeoPatrol.ts");
+      const importersOf = (target: string): string[] =>
+        consumerFiles
+          .filter((f) =>
+            importsOf(readFileSync(f, "utf8")).some((spec) => {
+              const resolved = resolveLocal(f, spec);
+              return resolved !== null && resolved === target;
+            }),
+          )
+          .map((f) => relative(ROOT, f).replace(/\\/g, "/"));
 
-    // Live, and live *transitively* through the worker's entry point:
-    // `src/server.ts` imports `scheduledGeoPatrol`, which imports `GeoPatrol`. The
-    // first version asserted a direct import and failed with
-    // `expected [ ...2 ] to include 'src/server.ts'` — the gate was right about the
-    // module and the control was asking the wrong question. **Reachability is
-    // transitive**, and a gate that only follows direct edges misses the most
-    // common shape there is: a cron handler wrapping the thing it drives.
-    expect(importersOf(patrol)).toContain(
-      "src/server/features/geo/services/scheduledGeoPatrol.ts",
-    );
-    // **The module written for this change must now be live.** It was dead when this
-    // control was written — that is exactly what the gate found — so the assertion
-    // is inverted as the work lands. Leaving it asserting `[]` would mean the
-    // control can only ever pass while the defect persists, which is a control that
-    // rewards the bug.
-    expect(
-      importersOf(join(ROOT, GEO_ROOT, "services/aiModeMonitor.ts")),
-    ).toContain("src/server/features/geo/services/scheduledAiModeCapture.ts");
-  });
+      // Live, and live *transitively* through the worker's entry point:
+      // `src/server.ts` imports `scheduledGeoPatrol`, which imports `GeoPatrol`. The
+      // first version asserted a direct import and failed with
+      // `expected [ ...2 ] to include 'src/server.ts'` — the gate was right about the
+      // module and the control was asking the wrong question. **Reachability is
+      // transitive**, and a gate that only follows direct edges misses the most
+      // common shape there is: a cron handler wrapping the thing it drives.
+      expect(importersOf(patrol)).toContain(
+        "src/server/features/geo/services/scheduledGeoPatrol.ts",
+      );
+      // **The module written for this change must now be live.** It was dead when this
+      // control was written — that is exactly what the gate found — so the assertion
+      // is inverted as the work lands. Leaving it asserting `[]` would mean the
+      // control can only ever pass while the defect persists, which is a control that
+      // rewards the bug.
+      expect(
+        importersOf(join(ROOT, GEO_ROOT, "services/aiModeMonitor.ts")),
+      ).toContain("src/server/features/geo/services/scheduledAiModeCapture.ts");
+    },
+  );
 
   it("rejects a module whose only importer is its own test", () => {
     /**

@@ -104,7 +104,7 @@ vi.mock("@/server/features/geo/services/geoLiveReads", () => ({
 // kind: the failure names neither the handler nor the cause. Mocked at the module,
 // so importing `@/serverFunctions/geo` never builds a database handle.
 vi.mock("@/server/features/geo/services/answerDiffReads", () => ({
-  getAnswerDiff: vi.fn(),
+  getAnswerDiffForAnswer: vi.fn(),
 }));
 
 // The evidence drawer's reads live in their own module and reach `@/db`, which

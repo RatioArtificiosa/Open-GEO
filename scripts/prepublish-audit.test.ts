@@ -841,21 +841,31 @@ describe("mojibake must not get worse", () => {
     expect(countSignature(Buffer.from([0xe2, 0x80, 0x94]))).toBe(0);
   });
 
-  it("does not grow the mojibake count", () => {
-    // **The ratchet.** Repairing files makes this test fail until CEILING is
-    // lowered, which is what turns "we fixed some" into a number the next person
-    // can see rather than a claim in a commit message.
-    const { scanned, sequences, list } = survey();
-    const report = list.slice(0, 10).join("\n  ");
-    expect(
-      sequences,
-      `Mojibake is now in ${list.length} files (${sequences} sequences). ` +
-        `That is UTF-8 re-decoded as cp1252, and almost always a multi-byte ` +
-        `punctuation mark in a comment. Re-save the file as UTF-8.\n  ${report}` +
-        (list.length > 10 ? "\n  ... and more" : ""),
-    ).toBe(0);
-    expect(scanned).toBeGreaterThan(500);
-  });
+  it(
+    "does not grow the mojibake count",
+    // **Same budget as the control-character scan, for the same reason.** Both walk
+    // every tracked file's bytes, so both cost seconds, and both were losing a race
+    // against vitest's 5-second default in the full suite — failing with a *clean*
+    // report, which is the worst kind of flake because it looks like a finding. See
+    // the note on `finds no forbidden control characters` for the full argument; the
+    // assertion is on the count, so a raise cannot hide real damage.
+    { timeout: 30_000 },
+    () => {
+      // **The ratchet.** Repairing files makes this test fail until CEILING is
+      // lowered, which is what turns "we fixed some" into a number the next person
+      // can see rather than a claim in a commit message.
+      const { scanned, sequences, list } = survey();
+      const report = list.slice(0, 10).join("\n  ");
+      expect(
+        sequences,
+        `Mojibake is now in ${list.length} files (${sequences} sequences). ` +
+          `That is UTF-8 re-decoded as cp1252, and almost always a multi-byte ` +
+          `punctuation mark in a comment. Re-save the file as UTF-8.\n  ${report}` +
+          (list.length > 10 ? "\n  ... and more" : ""),
+      ).toBe(0);
+      expect(scanned).toBeGreaterThan(500);
+    },
+  );
 
   it("states the current damage on every run", () => {
     // A number nobody sees is a trend nobody has.
@@ -1010,27 +1020,48 @@ describe("control characters", () => {
     expect(forbiddenCount(Buffer.from([0x7f]))).toBe(1);
   });
 
-  it("finds no forbidden control characters in the repository", () => {
-    const { scanned, nul, other, list } = controlSurvey();
-    const report = list.slice(0, 10).join("\n  ");
-    expect(
-      nul + other,
-      `Forbidden control characters in ${list.length} files ` +
-        `(${nul} NUL, ${other} other).\n  ${report}` +
-        (list.length > 10 ? "\n  ... and more" : "") +
-        `\n\nA NUL byte means a source file has been truncated or its ` +
-        `newlines destroyed — that is a real corruption, not a warning. ` +
-        `\`git checkout -- <file>\` restores it. A stray 0x0A inside a word means ` +
-        `a line feed was written where a character belongs.`,
-    ).toBe(0);
-    expect(scanned).toBeGreaterThan(500);
-  });
+  it(
+    "finds no forbidden control characters in the repository",
+    // **A budget, because the work is real and the machine is shared.**
+    //
+    // This walks every tracked file's bytes, so it costs seconds rather than
+    // milliseconds — and in the full suite it was losing a race against vitest's
+    // **5-second default** under concurrency, failing at 5500ms with a clean report.
+    // The sibling `does not grow the mojibake count` and `states the
+    // control-character damage` tests were failing the same way for the same
+    // reason.
+    //
+    // This is the load-sensitivity the ledger records for `migration-coverage` and
+    // the encoding gate: **the finding is real, the flake is the budget.** Raising
+    // it is the fix; a raise that were hiding a genuine corruption would show a
+    // non-zero count, and the assertion below is on the count, not on timing.
+    { timeout: 30_000 },
+    () => {
+      const { scanned, nul, other, list } = controlSurvey();
+      const report = list.slice(0, 10).join("\n  ");
+      expect(
+        nul + other,
+        `Forbidden control characters in ${list.length} files ` +
+          `(${nul} NUL, ${other} other).\n  ${report}` +
+          (list.length > 10 ? "\n  ... and more" : "") +
+          `\n\nA NUL byte means a source file has been truncated or its ` +
+          `newlines destroyed — that is a real corruption, not a warning. ` +
+          `\`git checkout -- <file>\` restores it. A stray 0x0A inside a word means ` +
+          `a line feed was written where a character belongs.`,
+      ).toBe(0);
+      expect(scanned).toBeGreaterThan(500);
+    },
+  );
 
-  it("states the control-character damage on every run", () => {
-    // The number has to be visible, or "it was green" is the only evidence anyone
-    // has — and a gate that is silent can be as wrong as one that is red.
-    const { nul, other } = controlSurvey();
-    console.log(`[control-chars] ${nul} NUL, ${other} other forbidden`);
-    expect(nul + other).toBe(0);
-  });
+  it(
+    "states the control-character damage on every run",
+    { timeout: 30_000 },
+    () => {
+      // The number has to be visible, or "it was green" is the only evidence anyone
+      // has — and a gate that is silent can be as wrong as one that is red.
+      const { nul, other } = controlSurvey();
+      console.log(`[control-chars] ${nul} NUL, ${other} other forbidden`);
+      expect(nul + other).toBe(0);
+    },
+  );
 });

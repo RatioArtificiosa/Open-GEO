@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { getGeoEvidence, listGeoEvidencedRuns } from "@/serverFunctions/geo";
+import { AnswerDiffPanel } from "./AnswerDiffPanel";
 
 /**
  * The Evidence Drawer, as a surface.
@@ -237,6 +238,27 @@ export function EvidenceDrawer({
                     </ol>
                   </details>
                 ) : null}
+
+                {/*
+                 * **The moat, and the reason it is here rather than elsewhere.**
+                 *
+                 * The reader who opens a drawer is the reader checking a number —
+                 * which is precisely the reader who wants to know whether the
+                 * answer *changed*, and nobody else can show them that. Putting it
+                 * on the GEO page would put it beside numbers it does not justify;
+                 * putting it here puts it beside the citations it compares, so a
+                 * reader can check both ends of the claim.
+                 *
+                 * **It renders its own no-comparison sentence**, so a first-night
+                 * reader is told "only one capture exists yet" rather than shown an
+                 * empty panel they would read as "nothing changed".
+                 */}
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-xs font-medium text-base-content/80">
+                    What changed since the last capture
+                  </summary>
+                  <AnswerDiffPanel answerId={answer.answerId} enabled />
+                </details>
               </li>
             ))}
           </ul>

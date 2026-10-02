@@ -6,7 +6,7 @@ import {
   getNewLostSeries,
   getTopCitedPages,
 } from "@/server/features/geo/services/geoLiveReads";
-import { getAnswerDiff } from "@/server/features/geo/services/answerDiffReads";
+import { getAnswerDiffForAnswer } from "@/server/features/geo/services/answerDiffReads";
 import { GEO_PLATFORMS } from "@/types/schemas/geo";
 import {
   getEvidenceForSnapshot,
@@ -159,31 +159,42 @@ export const listGeoAnswerHistory = createServerFn({ method: "POST" })
  *
  * **The one output this product cannot ship without, and the one no competitor can
  * copy.** Everybody can ask a model a question right now; nobody else can show you
- * the seventh answer. So this is a *pair* comparison the caller names, never a
- * default to "the latest two" — a default would silently change the question
- * whenever a capture lands between render and click.
+ * the seventh answer.
+ *
+ * **Addressed by `answerId`**, which resolves the prompt, the platform and the
+ * market from the stored row. An earlier version asked for `{ domain, prompt,
+ * platform }`, which made it unusable from a surface: a drawer holding an answer has
+ * none of those three to hand, and a caller that guessed the prompt's whitespace got
+ * no diff and read it as "nothing changed".
+ *
+ * The **pair is the server's choice, not the caller's** — "the last two captures,
+ * as of this render". A "compare these two" picker sounds more reproducible and is
+ * not: the list changes when a capture lands, so the question silently becomes a
+ * different one.
  *
  * `projectId` comes from the authorized context and never from `data`, and the
- * domain is resolved *within* that project, so a cross-project read is impossible
+ * answer is resolved *within* that project, so a cross-project read is impossible
  * rather than merely discouraged.
  *
  * The refusal travels in the payload: `diff` is null and `noDiffReason` says why,
- * because "only one capture exists" is the normal state for a project on its first
- * night and a throw would leave the panel blank with no explanation.
+ * because "only one capture exists" is the normal state on a project's first night
+ * and a throw would leave the panel blank with no explanation.
  */
 export const getGeoAnswerDiff = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
   .validator(
     z.object({
-      domain: z.string().min(1).max(2048),
-      prompt: z.string().min(1).max(700),
-      platform: z.enum(GEO_PLATFORMS),
-      /** Which capture to compare *backwards* from. Omitted means the newest. */
+      answerId: z.string().uuid(),
+      /** Compare backwards from this capture instead of from the given answer. */
       afterId: z.string().uuid().optional(),
     }),
   )
   .handler(async ({ data, context }) =>
-    getAnswerDiff({ ...data, projectId: context.projectId }),
+    getAnswerDiffForAnswer({
+      answerId: data.answerId,
+      afterId: data.afterId,
+      projectId: context.projectId,
+    }),
   );
 
 // --- Runs ------------------------------------------------------------------

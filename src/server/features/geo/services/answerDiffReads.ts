@@ -56,6 +56,57 @@ function asDiffAnswer(row: { id: string; answeredAt: string }): DiffAnswer {
 }
 
 /**
+ * The diff for one answer, addressed by **answer id** rather than by domain.
+ *
+ * **This is the entry point a surface can actually use.** The other signature takes
+ * `{ domain, prompt, platform }`, which forces the caller to know the brand's
+ * domain, the exact prompt text and the platform — three things a drawer holding an
+ * answer row has none of, because a row is not a page and a person never sees a
+ * domain. The answer id is the one thing the row carries and no one can mistype.
+ *
+ * It resolves the prompt, the platform and the market **from the stored answer**,
+ * which also removes a class of bug: a caller passing the prompt with different
+ * whitespace gets no diff and reads the result as "nothing changed".
+ */
+export async function getAnswerDiffForAnswer(input: {
+  projectId: string;
+  answerId: string;
+  /** Compare backwards from this capture. Omitted means this one. */
+  afterId?: string;
+}): Promise<AnswerDiffResult> {
+  const found = await GeoAnswerRepository.getAnswerWithSets(
+    input.projectId,
+    input.answerId,
+  );
+  if (!found) {
+    throw new AppError(
+      "NOT_FOUND",
+      "That answer is not in this project's archive, so there is nothing to compare.",
+    );
+  }
+
+  // `getTarget` takes the project *and* the id, so a deleted or foreign target
+  // resolves to null rather than to another project's brand.
+  const target = found.answer.targetId
+    ? await GeoSetupRepository.getTarget(input.projectId, found.answer.targetId)
+    : null;
+  if (!target) {
+    throw new AppError(
+      "NOT_FOUND",
+      "That answer's brand is no longer monitored, so its captures cannot be compared.",
+    );
+  }
+
+  return getAnswerDiff({
+    projectId: input.projectId,
+    domain: target.domain,
+    prompt: found.answer.prompt,
+    platform: found.answer.platform,
+    afterId: input.afterId ?? found.answer.id,
+  });
+}
+
+/**
  * The diff's shape, plus the two fields that exist only to say "there is nothing
  * to compare".
  *
