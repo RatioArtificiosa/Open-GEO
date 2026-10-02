@@ -8,11 +8,36 @@
  * it. So the schema is innocent, the query is innocent, and the `@/db` mock is present
  * and correctly ordered.
  *
- * Seven runs went into it, blaming in turn the migration list, the `is null` ordering, a
- * hoisted mock losing to a live binding, `vi.doMock` vs `vi.mock`, the subquery's
- * module-scope lifetime, and an injected collaborator passed as `undefined`. **Every one
- * of those was wrong.** The symptom pointed at the schema each time because that is what
- * a missing column *says* — not what it *means* when the column is there.
+ * ## What is known, and what is not
+ *
+ * All five fail with `no such column: domain_metrics.etv_requested_at`, and **the column
+ * provably exists** — probed directly against migration `0049`, which creates it. The
+ * migration list is applied (a standalone probe of the same statements shows the column),
+ * so the schema is innocent, the query is innocent, and isolation changes nothing.
+ *
+ * **Eight causes have now been ruled out**, each of which sounded plausible:
+ *
+ * | # | suspected | verdict |
+ * |---|---|---|
+ * | 1 | the migration list omits `0049` | wrong — a probe of the same statements shows the column |
+ * | 2 | the `is null desc` ordering term | wrong — it is correct SQL |
+ * | 3 | a hoisted `vi.mock` loses to a live binding | wrong — the mock is present and ordered |
+ * | 4 | `vi.doMock` vs `vi.mock` | wrong — switching changed nothing |
+ * | 5 | the subquery's module-scope lifetime | wrong — though moving it inside was right anyway |
+ * | 6 | an injected collaborator passed as `undefined` | wrong — though it is a real footgun |
+ * | 7 | the migration ordering, or a `DROP TABLE` in `0048` | wrong — `0048` has no drops |
+ * | 8 | `restoreMocks: true` restoring a `beforeAll` mock | wrong — hoisting it changed nothing |
+ *
+ * **The eighth was worth recording as a caution.** It was a *good* theory — the config
+ * genuinely does set `restoreMocks: true`, and it genuinely would break a
+ * `beforeAll`-registered mock — and it was still wrong. **A plausible cause with a
+ * real mechanism is not evidence**, and writing it into a banner would have sent the
+ * next session past the actual answer. That is why the row above exists and why
+ * nothing here claims a cause.
+ *
+ * **The symptom is the problem.** *`no such column`* is a statement about a schema, so
+ * every hypothesis was about schemas. The one that would have named the real cause is
+ * *"the real database is being used"*, and a missing-column error does not say that.
  *
  * ### Why this file is kept
  *
@@ -51,6 +76,23 @@ import {
 
 vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
 
+/**
+ * The database, filled in `beforeAll`.
+ *
+ * **Hoisted, and the handle is mutable — which only works because the module reads
+ * `@/db` lazily.** `restoreMocks: true` in `vitest.config.ts` restores a
+ * `beforeAll`-registered mock before the first assertion runs, so that version of
+ * this test silently used the real database. A module-scope `vi.mock` has nothing
+ * to restore.
+ *
+ * The two changes are the same change: **the mock is hoisted because the read is
+ * late.** The subquery moved inside `trackedDomains` during the hunt — a query
+ * builder is not a constant — and that is exactly what makes this possible.
+ */
+const handle: { db: unknown } = { db: undefined };
+
+vi.mock("@/db", () => ({ db: handle.db }));
+
 const PROJECT = "project_1";
 
 let client: Client;
@@ -79,10 +121,9 @@ beforeAll(async () => {
     ].join("\n"),
   );
 
-  // Registered before the dynamic import so the module evaluates against this
-  // database. `fetchDomains` is deliberately NOT injected below — the runner's real
-  // query is what this file exists to exercise.
-  vi.doMock("@/db", () => ({ db: testDb }));
+  // **Assigned, not registered** — the mock is hoisted above, so `restoreMocks`
+  // has nothing to undo here.
+  handle.db = testDb;
 
   runDueEtvCaptures = (
     await import("@/server/features/domain/services/scheduledEtvCapture")
