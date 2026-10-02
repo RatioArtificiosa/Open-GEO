@@ -54,7 +54,10 @@ import {
   geoPromptSets,
   geoTargets,
 } from "@/db/schema";
-import { fetchAiKeywordVolume } from "@/server/lib/dataforseo/ai-keywords";
+import {
+  fetchAiKeywordVolume,
+  MAX_KEYWORD_CHARS,
+} from "@/server/lib/dataforseo/ai-keywords";
 import { GeoRunRepository } from "@/server/features/geo/repositories/GeoRunRepository";
 
 /**
@@ -145,20 +148,37 @@ const AI_KEYWORD_NIGHTLY_BUDGET_USD = 5;
  * **normalised** prompt.
  */
 /**
- * **`lower(trim(...))` in SQL, and it must stay identical to `normaliseAiKeyword`.**
+ * **`lower(trim(substr(..., 1, 250)))` in SQL, and it *does* have to stay identical to
+ * `normaliseAiKeyword` — which is `trim().toLowerCase().slice(0, MAX_KEYWORD_CHARS)`.**
  *
- * The repository stores the **vendor's** normalised keyword, and the prompt row holds
- * whatever the customer typed — so the join has to tolerate a case or padding
- * difference. Normalising in SQL is the same rule `normaliseAiKeyword` applies, and
- * duplicating it is unavoidable because one is a string function and the other is a
- * column expression.
+ * | | TS rule | SQL rule |
+ * |---|---|---|
+ * | trim | `.trim()` | `trim(...)` |
+ * | lowercase | `.toLowerCase()` | `lower(...)` |
+ * | length clamp | `.slice(0, 250)` | `substr(..., 1, 250)` |
  *
- * **The two must not drift**, and this comment is the thing that makes that legible: if
- * `normaliseAiKeyword` gains trimming, padding or a length cut, this is the line that has
- * to change with it. A drift here is silent — every row simply stops matching, and a
- * project's keywords look permanently unmeasured.
+ * **The length clamp was missing here and the comment above said it could not be.** The
+ * comment read *"if `normaliseAiKeyword` gains trimming, padding or a length cut, this is
+ * the line that has to change with it"* — but the cut was **already present** in
+ * `ai-keywords.ts`, so the drift had happened before the comment warned about it.
+ *
+ * **What that cost, and it is the same shape as the `ORDER BY` bug I fixed an hour ago:**
+ * for any prompt over 250 characters the stored keyword is a truncated prefix, the join
+ * compares the whole prompt against it, nothing matches, and the prompt is
+ * **never measured**. Being sorted as never-asked puts it at the *front* of the queue —
+ * so the longest prompts are re-asked every single night and never recorded.
+ *
+ * **The number is now imported, not retyped**, and `MAX_KEYWORD_CHARS` is exported rather
+ * than module-private. One value, so the two rules agree by construction instead of by
+ * comment — which is the only kind of agreement that survives a change. */
+/**
+ * The vendor's length clamp, repeated here because SQL cannot import a TS constant.
+ *
+ * **Exported from `ai-keywords.ts` and imported below**, so it is one number rather
+ * than two that must be kept in step — see `MAX_KEYWORD_CHARS` at the top of this file.
  */
-const normaliseColumn = (column: SQLiteColumn) => sql`lower(trim(${column}))`;
+const normaliseColumn = (column: SQLiteColumn) =>
+  sql`lower(trim(substr(${column}, 1, ${MAX_KEYWORD_CHARS})))`;
 
 /**
  * The aggregation, named once and used **only inside the subquery**.

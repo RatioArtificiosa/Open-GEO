@@ -45,7 +45,7 @@ const PATH = "/v3/ai_optimization/ai_keyword_data/keywords_search_volume/live";
 
 /** Documented limits. Exceeding them is a billed rejection, so we clamp first. */
 const MAX_KEYWORDS = 1000;
-const MAX_KEYWORD_CHARS = 250;
+export const MAX_KEYWORD_CHARS = 250;
 
 const monthlySearchSchema = z
   .object({
@@ -80,7 +80,8 @@ const resultSchema = z
 // the API surface.
 type AiKeywordVolumeItem = z.infer<typeof keywordVolumeItemSchema>;
 
-type AiKeywordVolumeResult = {
+/** Exported because `fetchAiKeywordVolume` returns it, and a test double typed from it is the honest shape. */
+export type AiKeywordVolumeResult = {
   locationCode: number | null;
   languageCode: string | null;
   items: AiKeywordVolumeItem[];
