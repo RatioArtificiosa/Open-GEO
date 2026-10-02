@@ -1,7 +1,5 @@
-import { eq, isNull } from "drizzle-orm";
-import { db } from "@/db";
-import { geoTargets, projects } from "@/db/schema";
 import { GeoService } from "@/server/features/geo/services/GeoService";
+import { GeoRetentionRepository } from "@/server/features/geo/repositories/GeoRetentionRepository";
 
 /**
  * The daily retention sweep.
@@ -22,6 +20,14 @@ import { GeoService } from "@/server/features/geo/services/GeoService";
 type RetentionRunResult = {
   projectsVisited: number;
   answersDeleted: number;
+  /**
+   * AI Mode snapshots removed.
+   *
+   * **A separate count rather than folded into `answersDeleted`,** because a silent
+   * sum is what let the missing purge go unnoticed: the sweep reported a number, the
+   * number was non-zero, and nothing in it said the largest table had been missed.
+   */
+  aiModeSnapshotsDeleted: number;
   cutoff: string;
   errors: string[];
 };
@@ -46,16 +52,28 @@ async function runRetentionSweep(
 
   // Archived projects keep their archive: archiving is a deletion promise, and a
   // sweep that keeps deleting after someone asked us to stop would be wrong.
-  const active = await db
-    .selectDistinct({ projectId: projects.id })
-    .from(geoTargets)
-    .innerJoin(projects, eq(geoTargets.projectId, projects.id))
-    .where(isNull(projects.archivedAt));
+  const cutoff = GeoRetentionRepository.cutoffFor(input.env, now);
 
-  const projectIds = active.map((row) => row.projectId).slice(0, limit);
+  /**
+   * Projects with rows past the cutoff, most overdue first — see
+   * `GeoRetentionRepository.projectsWithExpiredRows` for why this is ordered by the
+   * *data* rather than rotated by a timestamp, and why that matters more here than in
+   * the four captures: skipping a project there costs freshness, and here it costs an
+   * archive that never ages out.
+   */
+  const projectIds = (
+    await GeoRetentionRepository.projectsWithExpiredRows(cutoff)
+  )
+    .map((row) => row.projectId)
+    // **Still sliced** — a first deploy must not sweep every tenant at once — but now
+    // the front of the list is the projects with the *most* expired rows, so the slice
+    // does the most good per run rather than whatever the database happened to return.
+    .slice(0, limit);
+
   const result: RetentionRunResult = {
     projectsVisited: 0,
     answersDeleted: 0,
+    aiModeSnapshotsDeleted: 0,
     cutoff: "",
     errors: [],
   };
@@ -72,6 +90,38 @@ async function runRetentionSweep(
       result.cutoff = purged.cutoff;
       result.answersDeleted += purged.answersDeleted;
       result.projectsVisited += 1;
+
+      /**
+       * AI Mode snapshots are purged **in the same pass**, and they had no caller at all.
+       *
+       * `purgeAiModeBefore` existed, was tested, and was never invoked — so
+       * `ai_mode_snapshots` grew without bound while the sweep that exists to stop exactly
+       * that reported success every night. It is the largest table in the schema, because
+       * it stores the **verbatim answer markdown**: the whole model response, per keyword,
+       * per market, per project, forever.
+       *
+       * `purgeAnswersBefore` cascades correctly for its own tree — `geo_answers` ->
+       * citations, retrievals, fan-out queries and snapshot links all cascade on
+       * `onDelete: "cascade"` — but the AI Mode snapshots are a **separate tree** with
+       * nothing cascading from an answer row, so the one purge could never have covered
+       * them.
+       *
+       * **Citations are deleted explicitly, and before the parents**: the ids have to be
+       * read while the rows still exist, because `ai_mode_snapshot_citations` is keyed on
+       * `snapshotId` rather than cascading. Deleting the snapshots first would leave the
+       * join table referring to rows that no longer exist.
+       */
+      const expiredSnapshots =
+        await GeoRetentionRepository.expiredAiModeSnapshotIds(
+          projectId,
+          result.cutoff,
+        );
+      await GeoRetentionRepository.deleteAiModeCitationsFor(expiredSnapshots);
+      result.aiModeSnapshotsDeleted +=
+        await GeoRetentionRepository.purgeAiModeBefore(
+          projectId,
+          result.cutoff,
+        );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       result.errors.push(`${projectId}: ${message}`);
@@ -82,6 +132,7 @@ async function runRetentionSweep(
   console.log("[cron] GEO retention complete", {
     projects: result.projectsVisited,
     answersDeleted: result.answersDeleted,
+    aiModeSnapshotsDeleted: result.aiModeSnapshotsDeleted,
     errors: result.errors.length,
   });
 
