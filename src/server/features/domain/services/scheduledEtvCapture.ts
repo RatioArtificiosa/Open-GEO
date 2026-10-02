@@ -45,6 +45,7 @@
  *    different populations and comparing them means nothing.
  */
 import { db } from "@/db";
+import type { BudgetedCaptureReport } from "@/server/features/geo/services/captureReport";
 import { geoTargets } from "@/db/schema";
 import { DomainMetricsRepository } from "@/server/features/domain/repositories/DomainMetricsRepository";
 import { fetchDomainRankOverview } from "@/server/lib/dataforseo/labs";
@@ -109,21 +110,16 @@ async function trackedDomains(): Promise<
  * returned value, and an exported type nothing imports is a claim about the API
  * surface that is not true. Same reasoning as its two siblings.
  */
-type EtvNightReport = {
-  projectsVisited: number;
+/**
+ * **Extends the shared `BudgetedCaptureReport`**, so the measured cost, the estimate
+ * and the dropped-work count are the three fields every budgeted nightly capture
+ * reports — and a fourth one cannot omit the first two.
+ */
+type EtvNightReport = BudgetedCaptureReport & {
   /** Domains we asked the vendor about, after the budget admitted them. */
   domainsAsked: number;
   /** Points stored. Lower than asked when a call returned no metrics block. */
   rowsStored: number;
-  /** Domains dropped because the budget ran out. Named, never silently omitted. */
-  droppedForBudget: number;
-  /**
-   * What the **vendor** says the night cost, summed from each response's
-   * `billing.costUsd` — beside `estimatedCostUsd` from the price book, so a repriced
-   * endpoint shows as drift rather than as a wrong budget nobody notices.
-   */
-  actualCostUsd: number;
-  estimatedCostUsd: number;
   /** One line per failed domain for the cron log. */
   failures: Array<{ domain: string; reason: string }>;
 };

@@ -45,6 +45,7 @@
  *    request is how a budget disappears without a trace.
  */
 import { eq } from "drizzle-orm";
+import type { BudgetedCaptureReport } from "@/server/features/geo/services/captureReport";
 import { db } from "@/db";
 import { geoPrompts, geoPromptSets, geoTargets } from "@/db/schema";
 import { fetchAiKeywordVolume } from "@/server/lib/dataforseo/ai-keywords";
@@ -217,38 +218,18 @@ function toMonthlyRows(input: {
  * returned value, and an exported type nothing imports is a claim about the API
  * surface that is not true. Same reasoning as `AiModeNightReport`.
  */
-type AiKeywordNightReport = {
-  projectsVisited: number;
+/**
+ * **Extends the shared `BudgetedCaptureReport`**, so the measured cost, the estimate
+ * and the dropped-work count are the three fields every budgeted nightly capture
+ * reports — and a fourth one cannot omit the first two.
+ */
+type AiKeywordNightReport = BudgetedCaptureReport & {
   /** Keywords whose demand we asked about, after batching. */
   keywordsAsked: number;
   /** Monthly rows stored. Larger than `keywordsAsked` — one keyword is many months. */
   rowsStored: number;
   /** Calls actually made. One per batch, not one per keyword. */
   callsMade: number;
-  /** Keywords dropped because the budget ran out. Named, never silently omitted. */
-  droppedForBudget: number;
-  /**
-   * What the **vendor** says the night cost, summed from each response's
-   * `billing.costUsd`.
-   *
-   * **Not the estimate**, and the distinction is the whole reason this field is
-   * separate from `estimatedCostUsd`: `AI_KEYWORD_UNIT_COST_USD` is a placeholder
-   * nobody has verified against an invoice, so a report that called the estimate
-   * "cost" would be claiming a precision it does not have. The vendor's figure is
-   * authoritative, and comparing the two is how the placeholder gets corrected —
-   * which is the verification the live check is currently blocked on.
-   *
-   * `aiModeMonitor` reports only an estimate and drops the `billing` its own
-   * response carries; doing better here costs one line and is why the placeholder
-   * is recoverable at all.
-   */
-  actualCostUsd: number;
-  /**
-   * What the planner *expected* to spend. Kept beside the actual so the drift is
-   * visible rather than inferred — a placeholder that has been wrong by 3x is
-   * exactly what nobody would otherwise notice.
-   */
-  estimatedCostUsd: number;
   /** One line per failed project for the cron log. */
   failures: Array<{ projectId: string; reason: string }>;
 };

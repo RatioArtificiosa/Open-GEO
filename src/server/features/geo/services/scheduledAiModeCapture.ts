@@ -29,6 +29,7 @@
  * and the **budget** is what bounds cost.
  */
 import { eq } from "drizzle-orm";
+import type { CaptureCostReport } from "@/server/features/geo/services/captureReport";
 import { db } from "@/db";
 import { geoPrompts, geoPromptSets, geoTargets } from "@/db/schema";
 import { runAiModeMonitor, type AiModeNightResult } from "./aiModeMonitor";
@@ -139,26 +140,21 @@ async function projectsWatchingAiMode(): Promise<Watcher[]> {
  * and this repository has just spent a day removing code whose only evidence of use
  * was its own declaration.
  */
-type AiModeNightReport = {
-  projectsVisited: number;
+/**
+ * **Extends the shared `CaptureCostReport`** rather than restating it: the three
+ * cost fields are what every nightly capture reports, and a fourth capture that
+ * forgot one would be a compile error rather than a gap nobody noticed.
+ *
+ * `droppedForBudget` is **absent and deliberately so** — the monitor measures one
+ * project against a budget it either fits or refuses, so a dropped count here would
+ * always be `0`, which is a measurement rather than a measurement that is zero.
+ * `failed` is absent for the same reason: the per-project `projects` list already
+ * carries each project's own failures, and a count beside it would be a second
+ * place to read the same fact.
+ */
+type AiModeNightReport = CaptureCostReport & {
   captured: number;
   failed: number;
-  /**
-   * What the **vendor** says the night cost, summed from each monitor result's
-   * `actualCostUsd`.
-   *
-   * **And `estimatedCostUsd` is the estimate beside it.** This field was a single
-   * `costUsd` that summed only the estimate, so the one figure that would reveal the
-   * $0.004 constant drifting was computed a layer down in `aiModeMonitor` and
-   * discarded on the way out — the same shape as the two never-written tables, one
-   * call stack up.
-   *
-   * Renamed rather than kept, because `costUsd` on its own now says "estimated"
-   * while the sibling says "measured", and a reader who learned the old name from
-   * muscle memory would read the wrong one.
-   */
-  actualCostUsd: number;
-  estimatedCostUsd: number;
   /** Per project, so an operator can see which keyword went unanswered. */
   projects: AiModeNightResult[];
 };
