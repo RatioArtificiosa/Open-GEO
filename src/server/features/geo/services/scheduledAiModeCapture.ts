@@ -143,7 +143,22 @@ type AiModeNightReport = {
   projectsVisited: number;
   captured: number;
   failed: number;
-  costUsd: number;
+  /**
+   * What the **vendor** says the night cost, summed from each monitor result's
+   * `actualCostUsd`.
+   *
+   * **And `estimatedCostUsd` is the estimate beside it.** This field was a single
+   * `costUsd` that summed only the estimate, so the one figure that would reveal the
+   * $0.004 constant drifting was computed a layer down in `aiModeMonitor` and
+   * discarded on the way out — the same shape as the two never-written tables, one
+   * call stack up.
+   *
+   * Renamed rather than kept, because `costUsd` on its own now says "estimated"
+   * while the sibling says "measured", and a reader who learned the old name from
+   * muscle memory would read the wrong one.
+   */
+  actualCostUsd: number;
+  estimatedCostUsd: number;
   /** Per project, so an operator can see which keyword went unanswered. */
   projects: AiModeNightResult[];
 };
@@ -173,7 +188,8 @@ export async function runDueAiModeCaptures(input?: {
     projectsVisited: 0,
     captured: 0,
     failed: 0,
-    costUsd: 0,
+    actualCostUsd: 0,
+    estimatedCostUsd: 0,
     projects: [],
   };
 
@@ -193,7 +209,8 @@ export async function runDueAiModeCaptures(input?: {
     report.projectsVisited += 1;
     report.captured += result.captured;
     report.failed += result.failed.length;
-    report.costUsd += result.estimatedCostUsd;
+    report.actualCostUsd += result.actualCostUsd;
+    report.estimatedCostUsd += result.estimatedCostUsd;
     report.projects.push(result);
   }
 

@@ -295,7 +295,17 @@ export default {
       const aiMode = await withPgClient(() => runDueAiModeCaptures());
       if (aiMode.projectsVisited > 0) {
         console.log(
-          `[cron] AI Mode: ${aiMode.captured} captured, ${aiMode.failed} failed, ~$${aiMode.costUsd.toFixed(4)} across ${aiMode.projectsVisited} project(s)`,
+          // **Vendor cost beside the estimate**, matching the other two captures. The
+          // monitor has reported `actualCostUsd` since the billing fix, and this line
+          // never printed it — so the one figure that would show the $0.004 constant
+          // drifting was computed and then dropped at the last step, which is the same
+          // shape as the two dead captures: the value exists and nothing reads it on
+          // the way out.
+          //
+          // The `~` is dropped deliberately: a tilde means *estimated*, and this line
+          // now prints the measured figure beside the estimated one rather than
+          // calling the estimate approximate.
+          `[cron] AI Mode: ${aiMode.captured} captured, ${aiMode.failed} failed, vendor ${aiMode.actualCostUsd.toFixed(4)} (est. ${aiMode.estimatedCostUsd.toFixed(4)}) across ${aiMode.projectsVisited} project(s)`,
         );
       }
     } catch (err) {
@@ -334,6 +344,7 @@ export default {
     } catch (err) {
       console.error("[cron] AI keyword capture failed:", err);
     }
+
     // Labs ETV, and the **last** of the three nightly captures. It is here rather
     // than folded into the patrol because it is a *different question*: the patrol
     // asks whether a brand was named, this asks how much search traffic the domain
