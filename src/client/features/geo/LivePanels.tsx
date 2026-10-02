@@ -126,6 +126,30 @@ export function NewLostPanel({
               <th className="font-normal">Week</th>
               <th className="font-normal">New</th>
               <th className="font-normal">Lost</th>
+              {/*
+               * The demand columns, and **per platform only**.
+               *
+               * These arrive on every row and nothing rendered them, which is the
+               * expensive kind of unread field: this panel is one of only two on the
+               * page that cannot be answered from the archive, so it is a **metered,
+               * billable** call. The figures were fetched, paid for, and dropped.
+               *
+               * **Why a mention and its demand belong in one row.** A brand that
+               * gained ten mentions on prompts with no search demand behind them has
+               * gained visibility that will not repeat; one that gained ten on
+               * high-demand prompts has found a durable position. The counts alone
+               * cannot tell those apart, and the difference is the difference between
+               * a win and a sampling artefact.
+               *
+               * **And why they must never be summed.** ChatGPT's figure is
+               * People-Also-Ask modelled and Google's is real search volume — the
+               * 198× discrepancy this repo has a gate for. A total across the two
+               * would be the exact violation CL-212a found. The footnote says so on
+               * the card, and this table keeps one platform per row so a reader
+               * cannot add them by accident.
+               */}
+              <th className="font-normal">New demand</th>
+              <th className="font-normal">Lost demand</th>
             </tr>
           </thead>
           <tbody style={{ fontVariantNumeric: "tabular-nums" }}>
@@ -134,6 +158,14 @@ export function NewLostPanel({
                 <td>{row.date}</td>
                 <td>{row.newMentions ?? "—"}</td>
                 <td>{row.lostMentions ?? "—"}</td>
+                {/*
+                 * An em dash for null, matching the columns beside it, and the
+                 * footnote explains that these two are *not* summed: a reader
+                 * who adds two incomparable demand figures gets the 198× error
+                 * this repo has a gate for.
+                 */}
+                <td>{row.newAiSearchVolume ?? "—"}</td>
+                <td>{row.lostAiSearchVolume ?? "—"}</td>
               </tr>
             ))}
           </tbody>
