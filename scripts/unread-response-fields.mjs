@@ -83,6 +83,32 @@
 // is worse than a known gap**: it would report a live field as dead and invite the
 // same deletion this file warns about above.
 //
+// ## The hit rate, stated plainly
+//
+// Six candidates examined by hand so far. The scoreboard, because a reader who
+// trusts the list without checking will be wrong more often than right:
+//
+//   candidate                          verdict
+//   answer.retrievals (drawer)         real - the gap was shown without what the model used
+//   direction (forecast)               real - computed for five sessions, rendered by nobody
+//   windowed / considered (forecast)   false alarm - the server's note already says it in prose
+//   recent (visibility)                false alarm - read twice by the get_geo_visibility MCP tool
+//   targetId / vendorTaskId (vis.)     false alarm - read by the same MCP tool
+//   promptSetId (prompt sets)          false alarm - a column on geo_prompts, not on the set
+//
+// **Two real, four not.** And the last one is a structural error rather than a blind
+// spot: `geo_prompts.promptSetId` names the *set* from the *prompt*, so the field is
+// unread on the object the tool named and does not exist on it at all. A tool that
+// matches names across a response tree will attribute a nested column to its parent,
+// because the name matches and the object does not. Threshold tuning cannot remove
+// that; the fix is to ask the type system about the *path* rather than the tree about
+// names — which is a third reason this belongs in a header rather than in a gate.
+//
+// **What this changes about the output.** The candidate list is a *where to look* list
+// and the header now says so with a number attached, because a tool that reports a hit
+// rate has told the reader what the list is worth. The earlier framing — "these are
+// findings" — was wrong in a way that would have cost someone a working field.
+
 // So the division of labour is explicit, and the tool prints which bucket a finding
 // came from for this reason: **the unmounted-endpoint bucket is trustworthy, and
 // the candidate rows are a shortlist rather than a verdict.**
