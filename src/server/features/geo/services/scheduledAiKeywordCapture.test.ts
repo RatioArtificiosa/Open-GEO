@@ -401,4 +401,69 @@ describe("runDueAiKeywordCaptures", () => {
     // spending money nobody budgeted.
     expect(report.actualCostUsd).toBeLessThan(report.estimatedCostUsd);
   });
+
+  it("makes exactly one call per project however many keywords it watches", async () => {
+    // **A batch calculation that could only ever return 1.** The module sliced
+    // `keywords` to the vendor's 1000-keyword cap one line above, then computed
+    // `Math.ceil(keywords.length / VENDOR_MAX_KEYWORDS)` — dividing an
+    // already-truncated list by the same cap. The expression *read* as a batching
+    // calculation and was a constant, so a reader would believe the budget accounted
+    // for batching when it accounted for nothing.
+    //
+    // The overflow is still handled — the slice above drops it and names it in
+    // `droppedForBudget` — so the claim here is narrower: one project is one call,
+    // and the test pins the call count rather than the arithmetic.
+    const fetchVolume = vi.fn(async () => ({
+      data: { locationCode: 2840, languageCode: "en", items: [] },
+      billing: { path: ["/v3/x"], costUsd: 0.002 },
+    }));
+
+    const report = await runDueAiKeywordCaptures({
+      now: NOW,
+      fetchProjects: watchers([
+        {
+          projectId: "p1",
+          keywords: Array.from({ length: 40 }, (_, i) => `keyword ${i}`),
+          locationCode: 2840,
+          languageCode: "en",
+        },
+      ]),
+      fetchVolume,
+      writeRows: async () => {},
+    });
+
+    expect(fetchVolume).toHaveBeenCalledTimes(1);
+    expect(report.callsMade).toBe(1);
+    expect(report.keywordsAsked).toBe(40);
+    // One call's worth of spend for forty keywords, which is the point of batching.
+    expect(report.estimatedCostUsd).toBeCloseTo(0.002, 6);
+  });
+
+  it("names the keywords it dropped when a set exceeds the vendor's batch cap", async () => {
+    // The other half of the same fact: the slice is not silent. A set of 1001
+    // keywords asks about 1000 and says so, rather than quietly covering the 999th
+    // for a month.
+    const fetchVolume = vi.fn(async () => ({
+      data: { locationCode: 2840, languageCode: "en", items: [] },
+      billing: { path: ["/v3/x"], costUsd: 0.002 },
+    }));
+
+    const report = await runDueAiKeywordCaptures({
+      now: NOW,
+      fetchProjects: watchers([
+        {
+          projectId: "p1",
+          keywords: Array.from({ length: 1001 }, (_, i) => `keyword ${i}`),
+          locationCode: 2840,
+          languageCode: "en",
+        },
+      ]),
+      fetchVolume,
+      writeRows: async () => {},
+    });
+
+    expect(fetchVolume).toHaveBeenCalledTimes(1);
+    expect(report.keywordsAsked).toBe(1000);
+    expect(report.droppedForBudget).toBe(1);
+  });
 });

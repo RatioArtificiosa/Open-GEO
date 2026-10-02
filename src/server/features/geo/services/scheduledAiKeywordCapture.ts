@@ -301,11 +301,27 @@ export async function runDueAiKeywordCaptures(input?: {
     }
     if (keywords.length === 0) continue;
 
-    // Cost is per **call**, and the planner must know how many calls it is about
-    // to make before it makes the first one — a cap checked afterwards is a
-    // report of an overspend, not a limit on one.
-    const batches = Math.ceil(keywords.length / VENDOR_MAX_KEYWORDS);
-    const cost = batches * AI_KEYWORD_UNIT_COST_USD;
+    /**
+     * Cost is per **call**, and the planner must know how many calls it is about to
+     * make before it makes the first one — a cap checked afterwards is a report of an
+     * overspend, not a limit on one.
+     *
+     * **`keywords` is already sliced to the vendor's cap, so this is always 1** —
+     * and the previous line computed `Math.ceil(keywords.length / VENDOR_MAX_KEYWORDS)`,
+     * which divides an already-truncated list by the same cap and can only ever
+     * return 1. So the expression *looked* like a batch calculation and was a constant.
+     *
+     * **It is written as 1 with the reason above rather than as the division**,
+     * because a reader who sees `Math.ceil` will believe it accounts for batching and
+     * will not re-derive that the input was truncated one line earlier. The honest
+     * shape for "this loop makes exactly one call" is the number 1.
+     *
+     * The `> VENDOR_MAX_KEYWORDS` case above drops the overflow and **names it**, so
+     * the truncation is visible in the report rather than hidden inside an arithmetic
+     * expression that returns 1 either way.
+     */
+    const calls = 1;
+    const cost = calls * AI_KEYWORD_UNIT_COST_USD;
 
     if (cost > remaining) {
       report.droppedForBudget += keywords.length;
@@ -342,7 +358,7 @@ export async function runDueAiKeywordCaptures(input?: {
 
       report.keywordsAsked += keywords.length;
       report.rowsStored += rows.length;
-      report.callsMade += batches;
+      report.callsMade += calls;
       report.estimatedCostUsd += cost;
       // **The vendor's figure, not the estimate.** Reading it is what makes the
       // unverified `AI_KEYWORD_UNIT_COST_USD` placeholder correctable: the two are
