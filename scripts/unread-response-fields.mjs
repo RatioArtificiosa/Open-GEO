@@ -134,6 +134,31 @@
 // | `getGeoAiKeywordHistory` | **no writer at all** — `upsertAiKeywordMetrics` was called by nothing, so the table was empty forever |
 // | `listGeoAnswerHistory` | a surface choice: the diff reads the archive directly |
 //
+// ## Before you design a reader for an unmounted endpoint
+//
+// **Ask who calls its writer first.** From the endpoint, "no reader" and "no writer" are
+// the same sentence, and the fixes are in different places — only one of them is the
+// endpoint you were looking at.
+//
+// ```
+// grep -rn 'upsertX|insertX' src/ | grep -v '\.test\.'
+// ```
+//
+// If nothing calls it, **the endpoint is not the bug** — building its screen draws an empty
+// chart, and an empty chart reads as a working feature with no data yet.
+// `getGeoAiKeywordHistory` was exactly that: three links of a chain, tested at every step,
+// with a caller missing from the middle. The vendor client even said so — *"nothing outside
+// this file consumes these yet"* — in a comment nobody had read yet.
+//
+// **What the three verdicts cost, since the check is one grep:**
+//
+// | verdict | if you had designed the screen first |
+// |---|---|
+// | scope endpoint | a second panel saying the same thing in a different place |
+// | **no writer** | an empty chart, plus a day spent on a screen for nothing |
+// | surface choice | a surface, correctly, with no urgency invented for it |
+//
+
 // **The lesson worth keeping is the third row.** From the endpoint, "no reader" and "no
 // writer" look identical — and a screen built on that assumption would have drawn an
 // empty chart that reads as a working feature with no data yet. Checking *who calls the
