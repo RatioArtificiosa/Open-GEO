@@ -174,39 +174,70 @@ export function EvidenceDrawer({
                  * - fan-out queries are the model's own reasoning, and the closest
                  *   thing here to seeing what it actually asked.
                  */}
-                {answer.retrievedNotCited === null ? (
-                  <p className="mt-2 text-xs text-base-content/60">
-                    This source does not report which pages the model retrieved,
-                    so the gap cannot be computed for this answer.
+                {/*
+                 * The gap — **read and not cited** — plus the half that was
+                 * missing: read and *cited*.
+                 *
+                 * Showing only the ignored pages is a fragment. "The model opened
+                 * these nine pages and used something else" is only legible
+                 * against what it actually used, and the useful reading is the
+                 * ratio: a model that read twenty pages and cited one is a
+                 * different finding from one that read two and cited none. A reader
+                 * given the first list alone cannot tell those apart, and would
+                 * draw the wrong conclusion from the most reassuring case.
+                 *
+                 * The three states are three facts, not three renderings of one:
+                 * `null` means the vendor never reported a retrieval list, `[]`
+                 * means it did and everything was used, and a list means some were
+                 * not. The first is the one a reader must not read as the second.
+                 */}
+                <div className="mt-2">
+                  <p className="text-xs font-medium text-base-content/80">
+                    What the model retrieved
                   </p>
-                ) : answer.retrievedNotCited.length === 0 ? (
-                  <p className="mt-2 text-xs text-base-content/60">
-                    Every page the model retrieved, it cited. Nothing in the
-                    gap.
-                  </p>
-                ) : (
-                  <div className="mt-2">
-                    <p className="text-xs font-medium text-base-content/80">
-                      Read but not cited ({answer.retrievedNotCited.length})
-                    </p>
+                  {answer.retrievedNotCited === null ? (
                     <p className="text-xs text-base-content/60">
-                      The model opened these pages and then used something else.
-                      That is a directness problem, not a volume one.
+                      This source does not report which pages the model
+                      retrieved, so the gap cannot be computed for this answer.
                     </p>
-                    <ul className="mt-1 list-disc pl-5 text-xs text-base-content/70">
-                      {answer.retrievedNotCited.slice(0, 10).map((page) => (
-                        <li key={page.url} className="truncate">
-                          {page.url}
-                        </li>
-                      ))}
-                      {answer.retrievedNotCited.length > 10 ? (
-                        <li>
-                          …and {answer.retrievedNotCited.length - 10} more
-                        </li>
-                      ) : null}
-                    </ul>
-                  </div>
-                )}
+                  ) : (
+                    <>
+                      <p className="text-xs text-base-content/70">
+                        {answer.retrievals.length === 0
+                          ? "Nothing was recorded as retrieved for this answer."
+                          : `Retrieved ${answer.retrievals.length}, cited ${answer.citations.length}.`}
+                      </p>
+                      {answer.retrievedNotCited.length > 0 ? (
+                        <>
+                          <p className="mt-1 text-xs text-base-content/60">
+                            The model opened these pages and then used something
+                            else. That is a directness problem, not a volume
+                            one.
+                          </p>
+                          <ul className="mt-1 list-disc pl-5 text-xs text-base-content/70">
+                            {answer.retrievedNotCited
+                              .slice(0, 10)
+                              .map((page) => (
+                                <li key={page.url} className="truncate">
+                                  {page.url}
+                                </li>
+                              ))}
+                            {answer.retrievedNotCited.length > 10 ? (
+                              <li>
+                                …and {answer.retrievedNotCited.length - 10} more
+                              </li>
+                            ) : null}
+                          </ul>
+                        </>
+                      ) : (
+                        <p className="mt-1 text-xs text-base-content/60">
+                          Every page the model retrieved, it cited. Nothing in
+                          the gap.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
 
                 {answer.citations.length > 0 ? (
                   <details className="mt-2">
