@@ -193,12 +193,6 @@ export const getGeoVisibilityForecastSchema = z.object({
   platform: geoPlatformSchema,
 });
 
-export const getGeoShareOfVoiceSchema = z.object({
-  snapshotId: z.string().uuid(),
-  platform: geoPlatformSchema,
-  limit: z.number().int().min(1).max(200).optional(),
-});
-
 export const getGeoAiKeywordHistorySchema = z.object({
   keyword: z.string().trim().min(1).max(250),
 });

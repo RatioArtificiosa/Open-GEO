@@ -24,7 +24,6 @@ import {
   getGeoAnswerSchema,
   getGeoCitationGapSchema,
   getGeoRunSchema,
-  getGeoShareOfVoiceSchema,
   getGeoVisibilitySchema,
   getGeoVisibilityForecastSchema,
   listGeoAnswerHistorySchema,
@@ -40,6 +39,34 @@ import {
 
 // --- Setup: targets ---------------------------------------------------------
 
+/**
+ * ## The four endpoints below are built, tested, and deliberately unmounted
+ *
+ * `getGeoAnswer`, `listGeoAnswerHistory`, `getGeoRun` and
+ * `getGeoAiKeywordHistory` have no route or component caller. That is a
+ * **decision with a screen attached to it**, not an oversight — each names the
+ * surface that would want it below, so the next person does not re-derive which
+ * four of twenty-three are missing and start looking again.
+ *
+ * | Endpoint | Reads | The screen that wants it |
+ * |---|---|---|
+ * | `getGeoAnswer` | one archived answer with its citation and retrieval sets | an answer drawer, reachable from a mention on the trend panel |
+ * | `listGeoAnswerHistory` | every answer to one prompt, newest first | the answer diff — the run-over-run comparison behind CL-209 |
+ * | `getGeoRun` | one run's snapshot and its per-platform metrics | a run detail, reachable from the runs list |
+ * | `getGeoAiKeywordHistory` | monthly AI demand for a keyword | a keyword drill-down from the demand explorer |
+ *
+ * **A fifth was deleted rather than kept: `getGeoShareOfVoice`.** Its name
+ * promised a share of voice and it returned `listCitationDomains` — domains with
+ * mention counts, and no competitor set anywhere in the schema. The score
+ * component's `shareOfVoice: null` is therefore an *honest refusal* rather than a
+ * wiring gap, and keeping an endpoint whose name promises a share it cannot
+ * compute is the same defect as the MCP tool that named a tool which did not
+ * exist: a false claim in an API surface, found by a reader rather than a test.
+ *
+ * So the rule is the one this file already follows: **nothing here is a stub.**
+ * Each is complete, each is tested, and each is waiting for a screen rather than
+ * for someone to remember it.
+ */
 export const listGeoTargets = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
   .validator(listGeoTargetsSchema)
@@ -142,31 +169,6 @@ export const getGeoRun = createServerFn({ method: "POST" })
     GeoService.getRun(context.projectId, data.snapshotId),
   );
 
-/** Share of voice for one run, on one platform. Never summed across platforms. */
-export const getGeoShareOfVoice = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
-  .validator(getGeoShareOfVoiceSchema)
-  .handler(async ({ data, context }) =>
-    GeoService.getShareOfVoice({ ...data, projectId: context.projectId }),
-  );
-
-// --- Evidence ---------------------------------------------------------------
-
-/**
- * The evidence behind one run, and what is missing from it.
- *
- * An **archive read** — it queries rows we already hold and never re-queries the
- * vendor. That is deliberate and load-bearing: a drawer that re-fetched to
- * "confirm" would cost money, would not return the bytes we were billed for, and
- * would be a second source of truth for a number the archive already holds.
- *
- * So the free tier can have this. The paid tier exists for the *live* reads above
- * (CL-131's new/lost and top-cited), which genuinely cannot be derived from
- * stored levels.
- *
- * `gaps` travels with the payload rather than being reconstructed in the client,
- * because a gap the client has to notice is a gap the client will not.
- */
 export const getGeoEvidence = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
   .validator(

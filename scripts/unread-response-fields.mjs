@@ -65,6 +65,27 @@
 // gaps from, and the gap detection would quietly stop working with nothing failing.
 // This paragraph is the only thing standing between the next reader and that
 // deletion, which is why it lives here rather than in a commit message.
+//
+// ## A second blind spot, narrower and worse
+//
+// **A field read through a prop is not seen.** The detector collects property
+// accesses and local bindings, so it follows `data.outreach` in a component but
+// not an access inside a *child* that received `data` as a prop.
+// `EarnTheCitationPanel` reads `outreach` eight times and the tool still listed it
+// as unread, because the access happens in a component whose only relationship to
+// the query is a prop.
+//
+// It was caught by reading the panel and counting; the endpoint's **disappearance
+// from the unmounted bucket** was the real signal, and the field rows were the
+// tool being wrong rather than the code being broken. Recorded rather than tuned,
+// because following prop identity means re-implementing enough of the type system to
+// answer "is this prop the query's field" — and **a wrong answer in that direction
+// is worse than a known gap**: it would report a live field as dead and invite the
+// same deletion this file warns about above.
+//
+// So the division of labour is explicit, and the tool prints which bucket a finding
+// came from for this reason: **the unmounted-endpoint bucket is trustworthy, and
+// the candidate rows are a shortlist rather than a verdict.**
 import ts from "typescript";
 import path from "node:path";
 import process from "node:process";

@@ -2,6 +2,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { computeVisibilityScore } from "@/client/features/geo/visibility-score";
 import { computeCitationAuthority } from "@/client/features/geo/citation-authority";
+import { useCitationGraph } from "./useCitationGraph";
 import { buildMentionsTrend, type MentionMonth } from "./mentions-trend";
 import {
   getGeoCitationGap,
@@ -152,6 +153,26 @@ export function useGeoPageData(projectId: string) {
     enabled: ready,
     staleTime: GEO_QUERY_STALE_TIME_MS,
     queryFn: () => getGeoEtvSeries({ data: { domain: domain ?? "" } }),
+  });
+
+  /**
+   * The earn-the-citation list: which domains the AI answers cite, and whether our
+   * link graph can reach any of them.
+   *
+   * **The inverse of a domain-rating tool, which is the whole product claim.** AI
+   * engines cite low-authority long-tail domains — the proposal names two it saw in
+   * the *documented vendor response* — so ranking them by authority would put every
+   * domain the models actually use at the bottom.
+   *
+   * Its own query and shape live in `useCitationGraph`, because adding them here
+   * pushed this function past the complexity limit — and this hook should stay
+   * readable as the list of what the page fetches rather than as the fetcher.
+   */
+  const { citationGraph, citationGraphError } = useCitationGraph({
+    projectId,
+    domain,
+    enabled: ready,
+    staleTimeMs: GEO_QUERY_STALE_TIME_MS,
   });
 
   /**
@@ -397,6 +418,15 @@ export function useGeoPageData(projectId: string) {
       citationGap.error,
       "Could not load the citation gap.",
     ),
+
+    /**
+     * The earn-the-citation list, shaped for the panel. Fetched by
+     * `useCitationGraph`; `insight` is null when the archive is too thin, which is
+     * a different state from "no domains were cited" and must not render as an
+     * empty list.
+     */
+    citationGraph,
+    citationGraphError,
 
     /**
      * Points for the boundary chart. Each carries its own formula version, which

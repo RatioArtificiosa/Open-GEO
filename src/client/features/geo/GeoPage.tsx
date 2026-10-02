@@ -1,6 +1,7 @@
 import { AlertTriangle, RefreshCw, SearchCheck } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { GeoVisibilityPanel } from "./GeoVisibilityPanel";
+import { EarnTheCitationPanel } from "./EarnTheCitationPanel";
 import { GeoTargetForm } from "./GeoTargetForm";
 import { GeoAcquisitionSettings } from "./GeoAcquisitionSettings";
 import { MentionsTrendPanel } from "./MentionsTrendPanel";
@@ -183,6 +184,20 @@ export function GeoPage({ projectId }: { projectId: string }) {
                 </p>
               )}
             </section>
+
+            {/*
+              The earn-the-citation list sits beside the citation gap rather than
+              further down the page, because they answer the same reader's question
+              from opposite directions: the gap says *your* pages were read and
+              passed over, and this says *whose* pages were cited instead. A reader
+              who has one and not the other is being pointed at the wrong fix —
+              writing more content when the answer is to get linked.
+            */}
+            <EarnTheCitationPanel
+              data={data.citationGraph}
+              errorMessage={data.citationGraphError}
+              targetName={data.targetName}
+            />
 
             <section aria-label="Mentions over time" className="space-y-3">
               <div>

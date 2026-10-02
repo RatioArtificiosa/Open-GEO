@@ -181,7 +181,6 @@ const EXPECTED = [
   "getGeoNewLost",
   "getGeoTopCited",
   "getGeoRun",
-  "getGeoShareOfVoice",
   "getGeoVisibility",
   "getGeoVisibilityForecast",
   "listGeoAnswerHistory",

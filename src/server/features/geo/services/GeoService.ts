@@ -377,22 +377,6 @@ async function ownsSnapshot(
   return snapshot !== null;
 }
 
-/** Share of voice for one run, per platform. Never summed across platforms. */
-async function getShareOfVoice(input: {
-  projectId: string;
-  snapshotId: string;
-  platform: unknown;
-  limit?: number;
-}) {
-  const platform = requirePlatform(input.platform);
-  return GeoRunRepository.listCitationDomains(
-    input.projectId,
-    input.snapshotId,
-    platform,
-    input.limit ?? 25,
-  );
-}
-
 /** AI demand history for a keyword. Missing months stay missing. */
 async function getAiKeywordHistory(projectId: string, keyword: string) {
   return GeoRunRepository.listAiKeywordHistory(
@@ -514,7 +498,6 @@ export const GeoService = {
   listRunDemand,
   getRun,
   ownsSnapshot,
-  getShareOfVoice,
   getAiKeywordHistory,
   getEtvSeries,
   getMentionHistory,
