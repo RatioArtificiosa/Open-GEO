@@ -136,6 +136,40 @@ async function seedSnapshot(id: string): Promise<void> {
   });
 }
 
+/**
+ * `geo_target_metrics.target_id` is a foreign key, so a metrics row cannot be
+ * seeded without a target to point at. **Idempotent**, because two tests seed the
+ * same one and the suite's `beforeEach` clears tables rather than reseeding them.
+ */
+const METRIC_TARGET_ID = "t-metrics";
+
+async function seedMetricTarget(): Promise<string> {
+  await client.execute({
+    sql: `INSERT OR IGNORE INTO geo_targets
+            (id, project_id, domain, name, location_code, language_code, created_at)
+          VALUES (?, 'p1', 'acme.com', 'Acme', 2840, 'en', '2026-09-29T00:00:00.000Z')`,
+    args: [METRIC_TARGET_ID],
+  });
+  return METRIC_TARGET_ID;
+}
+
+/** One metrics row, so each test states only the figure it is about. */
+async function seedMetric(
+  id: string,
+  platform: string,
+  mentions: number | null,
+  aiSearchVolume: number | null,
+  snapshotId = "s1",
+): Promise<void> {
+  const targetId = await seedMetricTarget();
+  await client.execute({
+    sql: `INSERT INTO geo_target_metrics
+            (id, project_id, target_id, snapshot_id, platform, mentions, ai_search_volume, captured_at)
+          VALUES (?, 'p1', ?, ?, ?, ?, ?, '2026-09-29T00:00:00.000Z')`,
+    args: [id, targetId, snapshotId, platform, mentions, aiSearchVolume],
+  });
+}
+
 async function seedAnswer(
   id: string,
   snapshotId: string,
@@ -467,6 +501,72 @@ describe("spend reconciliation", () => {
 
     expect(result.vendorUsd).toBeCloseTo(3, 6);
     expect(result.vendorUsd).toBe(3);
+  });
+
+  it("returns the run's per-platform metrics", async () => {
+    // **The number the run exists to record**, and the reason `getGeoRun` counted as
+    // unmounted: the drawer had cost, prompts and calls, and none of these.
+    await seedSnapshot("s1");
+    await seedMetric("m1", "chat_gpt", 12, 63000);
+    await seedMetric("m2", "google_ai_overview", 4, 12000000);
+
+    const drawer = await getEvidence("s1");
+
+    expect(drawer.metrics).toHaveLength(2);
+    // The two demand figures are ~190x apart by construction, which is the whole
+    // point: a reader who added them would be wrong by two orders of magnitude.
+    const byPlatform = new Map(drawer.metrics.map((m) => [m.platform, m]));
+    expect(byPlatform.get("chat_gpt")?.aiSearchVolume).toBe(63000);
+    expect(byPlatform.get("google_ai_overview")?.aiSearchVolume).toBe(12000000);
+    expect(byPlatform.get("chat_gpt")?.mentions).toBe(12);
+  });
+
+  it("returns no metrics rather than zeros when the run recorded none", async () => {
+    // An absent list and a list of zeroes are different facts: the first is "we
+    // have nothing", the second is "we looked and found nothing".
+    await seedSnapshot("s1");
+
+    const drawer = await getEvidence("s1");
+
+    expect(drawer.metrics).toEqual([]);
+  });
+
+  it("keeps a null mention distinct from a zero one", async () => {
+    await seedSnapshot("s1");
+    await seedMetric("m1", "chat_gpt", null, null);
+
+    const drawer = await getEvidence("s1");
+
+    expect(drawer.metrics[0]?.mentions).toBeNull();
+    expect(drawer.metrics[0]?.aiSearchVolume).toBeNull();
+  });
+
+  it("reports a measured zero as zero, because that is a finding", async () => {
+    // The mirror of the test above, and the pair is the point: a vendor that
+    // reported **0 mentions** has told us something, and flattening it to null
+    // would lose the only row in this feature that says "we looked and found
+    // nothing".
+    await seedSnapshot("s1");
+    await seedMetric("m1", "chat_gpt", 0, 0);
+
+    const drawer = await getEvidence("s1");
+
+    expect(drawer.metrics[0]?.mentions).toBe(0);
+    expect(drawer.metrics[0]?.aiSearchVolume).toBe(0);
+  });
+
+  it("does not leak one run's metrics into another", async () => {
+    // The read is scoped by snapshot id alone, so this is the test that keeps it
+    // scoped: a row belonging to a different run must not appear beside this one.
+    await seedSnapshot("s1");
+    await seedSnapshot("s2");
+    await seedMetric("m1", "chat_gpt", 7, 700, "s1");
+    await seedMetric("m2", "chat_gpt", 99, 9900, "s2");
+
+    const drawer = await getEvidence("s1");
+
+    expect(drawer.metrics).toHaveLength(1);
+    expect(drawer.metrics[0]?.mentions).toBe(7);
   });
 });
 

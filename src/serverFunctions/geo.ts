@@ -250,6 +250,12 @@ export const getGeoEvidence = createServerFn({ method: "POST" })
     if (!owned) {
       return {
         answers: [],
+        // Empty, because this branch exists so that **every caller can read every
+        // key** — the note above says a union of shapes would force narrowing. A
+        // key added to the success path and forgotten here is exactly the narrowing
+        // bug that note warns about, so the two lists are kept identical by eye and
+        // the gap is what distinguishes "not yours" from "nothing there".
+        metrics: [],
         calls: [],
         reconciliation: {
           vendorUsd: 0,

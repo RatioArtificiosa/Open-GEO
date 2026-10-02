@@ -7,6 +7,7 @@ import {
   geoFanoutQueries,
   geoSnapshotAnswers,
   geoSnapshots,
+  geoTargetMetrics,
   geoVendorTasks,
 } from "@/db/schema";
 import { normaliseUrlForJoin } from "./urlIdentity";
@@ -135,6 +136,37 @@ type EvidenceDrawer = {
      */
     retrievedNotCited: Array<{ url: string; domain: string | null }> | null;
   }>;
+  /**
+   * What the vendor reported for this run, **per platform**.
+   *
+   * The drawer had three sections — cost, prompts, calls — and none of them was the
+   * number the run exists to record. `geo_target_metrics` holds `mentions` and
+   * `ai_search_volume` per platform, and **no surface read them**: this is the whole
+   * reason `getGeoRun` counted as unmounted while the drawer beside it showed
+   * everything else about the same run.
+   *
+   * **Per platform and never summed.** ChatGPT's `ai_search_volume` is
+   * People-Also-Ask modelled and Google's is real search volume; the repository has a
+   * merge gate over exactly this violation (CL-132, and CL-212a found one in shipped
+   * code). The figure is therefore returned as a keyed list, so a caller cannot total
+   * it without going out of its way.
+   *
+   * An archive read, so it costs nothing.
+   */
+  metrics: Array<{
+    /**
+     * The platform this row belongs to, and the reason the two figures below are
+     * not totals. `geo_target_metrics.ai_search_volume` says so itself: *NOT
+     * comparable across platforms and NOT summable with a sibling row*. ChatGPT's is
+     * People-Also-Ask modelled; Google's is real search volume; we measured them
+     * ~198x apart.
+     */
+    platform: string;
+    mentions: number | null;
+    /** Null where the platform reported none, which is not the same as zero. */
+    aiSearchVolume: number | null;
+    capturedAt: string;
+  }>;
   /** The vendor calls behind those answers, oldest first. */
   calls: EvidenceEntry[];
   /**
@@ -169,6 +201,12 @@ export async function getEvidenceForSnapshot(
   if (snapshot.length === 0) {
     return {
       answers: [],
+      // Empty rather than absent, for the same reason as `answers` and `calls`:
+      // the client branches on the length, and a missing key would be a second
+      // thing to be right about. The **gap** below is what carries the fact that
+      // the run is unknown — a list of zero rows must never read as "we looked
+      // and there was nothing".
+      metrics: [],
       calls: [],
       gaps: [
         {
@@ -336,6 +374,37 @@ export async function getEvidenceForSnapshot(
     }
   }
 
+  /**
+   * What the vendor reported for this run, per platform.
+   *
+   * **Read here rather than through `getGeoRun`,** because the drawer already has the
+   * snapshot in hand and calling the other endpoint would be a second round trip for
+   * rows this query can reach directly. `getGeoRun` stays as the endpoint for a
+   * caller that holds only a snapshot id.
+   *
+   * Scoped by **snapshot id alone**, not by project: `getEvidenceForSnapshot` is
+   * already gated by `ownsSnapshot` at the server function, and every read in this
+   * file follows the same convention — scoped to the thing, verified by the caller.
+   * That is why the drawer's own docstring insists the check happens at the boundary.
+   */
+  const metricRows = await db
+    .select({
+      platform: geoTargetMetrics.platform,
+      mentions: geoTargetMetrics.mentions,
+      aiSearchVolume: geoTargetMetrics.aiSearchVolume,
+      capturedAt: geoTargetMetrics.capturedAt,
+    })
+    .from(geoTargetMetrics)
+    .where(eq(geoTargetMetrics.snapshotId, snapshotId))
+    .orderBy(geoTargetMetrics.platform);
+
+  const metrics = metricRows.map((row) => ({
+    platform: row.platform,
+    mentions: row.mentions,
+    aiSearchVolume: row.aiSearchVolume,
+    capturedAt: row.capturedAt,
+  }));
+
   // A missing answer body is only a gap for sources that are *supposed* to
   // carry one. A `mentions_search` row never has answer text — the endpoint
   // returns a mention count, not the response — so flagging it would put a
@@ -351,6 +420,7 @@ export async function getEvidenceForSnapshot(
 
   return {
     answers: answersWithSets,
+    metrics,
     calls: calls.map((c) => ({
       id: c.id,
       startedAt: c.startedAt,

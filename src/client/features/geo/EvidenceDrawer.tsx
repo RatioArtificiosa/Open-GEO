@@ -315,6 +315,59 @@ export function EvidenceDrawer({
         )}
       </section>
 
+      {/*
+       * What the vendor reported, per platform.
+       *
+       * **The number the run exists to record, and the drawer had three other
+       * sections without it** — cost, prompts, calls — so the mentions and demand
+       * behind this run were readable nowhere. `getGeoRun` counted as unmounted for
+       * exactly this reason.
+       *
+       * **One row per platform, never a total.** `geo_target_metrics` says on the
+       * column itself: *NOT comparable across platforms and NOT summable with a
+       * sibling row*. ChatGPT's demand is People-Also-Ask modelled, Google's is real
+       * search volume, and we measured them ~198x apart. A total across the two is
+       * the violation CL-132 exists to prevent and CL-212a found in shipped code,
+       * so the shape here cannot produce one by accident.
+       */}
+      <section aria-labelledby="evidence-metrics">
+        <h2 id="evidence-metrics" className="text-lg font-semibold">
+          What the vendor reported
+        </h2>
+        {data.metrics.length === 0 ? (
+          <p className="mt-2 text-sm text-base-content/70">
+            No platform metrics were recorded for this run. That is a gap, not a
+            zero — the vendor may have reported nothing rather than nothing
+            being true.
+          </p>
+        ) : (
+          <table className="mt-2 w-full text-xs">
+            <thead>
+              <tr className="text-base-content/60 text-left">
+                <th className="font-normal">Platform</th>
+                <th className="font-normal">Mentions</th>
+                <th className="font-normal">AI demand</th>
+              </tr>
+            </thead>
+            <tbody style={{ fontVariantNumeric: "tabular-nums" }}>
+              {data.metrics.map((metric) => (
+                <tr key={`${metric.platform}-${metric.capturedAt}`}>
+                  <td>{metric.platform}</td>
+                  <td>{metric.mentions ?? "—"}</td>
+                  <td>{metric.aiSearchVolume ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {data.metrics.length > 1 ? (
+          <p className="mt-1 text-xs text-base-content/50">
+            Figures are per platform and are not comparable: demand is modelled
+            differently on each, so these numbers are never added together.
+          </p>
+        ) : null}
+      </section>
+
       <section aria-labelledby="evidence-calls">
         <h2 id="evidence-calls" className="text-lg font-semibold">
           The calls we made
