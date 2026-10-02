@@ -1,11 +1,32 @@
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  geoAnswerCitations,
+  geoAnswerRetrievals,
   geoAnswers,
+  geoFanoutQueries,
   geoSnapshotAnswers,
   geoSnapshots,
   geoVendorTasks,
 } from "@/db/schema";
+import { normaliseUrlForJoin } from "./urlIdentity";
+
+/**
+ * Bucket rows by the answer they belong to, so the client can pair them.
+ *
+ * **At module scope rather than inside the function**, because it closes over
+ * nothing — `consistent-function-scoping` is right about that, and a helper
+ * declared inside a 200-line function is a helper a reader has to hunt for.
+ */
+function byAnswer<T extends { answerId: string }>(rows: T[]): Map<string, T[]> {
+  const out = new Map<string, T[]>();
+  for (const row of rows) {
+    const list = out.get(row.answerId) ?? [];
+    list.push(row);
+    out.set(row.answerId, list);
+  }
+  return out;
+}
 
 /**
  * The Evidence Drawer: from any number on screen back to the call that made it.
@@ -87,6 +108,32 @@ type EvidenceDrawer = {
     source: string;
     answeredAt: string;
     vendorTaskId: string | null;
+    /** What the model cited. Empty means none were stored, which is not the same as
+     *  the model citing nothing — see the join note where these are read. */
+    citations: Array<{
+      url: string;
+      domain: string | null;
+      title: string | null;
+    }>;
+    /**
+     * What the model fetched while composing. **Absent for a `mentions_search`
+     * answer**, because that endpoint does not report a retrieval list at all.
+     */
+    retrievals: Array<{ url: string; domain: string | null }>;
+    /**
+     * The follow-up queries the vendor ran on this answer, in order. This is the
+     * answer's own reasoning made visible, and it is the closest thing to seeing
+     * what the model actually asked.
+     */
+    fanOutQueries: Array<{ query: string; position: number }>;
+    /**
+     * Retrieved and **not** cited — the product's headline finding, per answer.
+     *
+     * **Null, not `[]`, when no retrievals were recorded.** `llm_responses` reports
+     * a retrieval list and `llm_mentions` does not, so an empty array here would
+     * be a claim that the model fetched nothing, made from the vendor's silence.
+     */
+    retrievedNotCited: Array<{ url: string; domain: string | null }> | null;
   }>;
   /** The vendor calls behind those answers, oldest first. */
   calls: EvidenceEntry[];
@@ -150,6 +197,101 @@ export async function getEvidenceForSnapshot(
     .innerJoin(geoAnswers, eq(geoAnswers.id, geoSnapshotAnswers.answerId))
     .where(eq(geoSnapshotAnswers.snapshotId, snapshotId));
 
+  /**
+   * Each answer's citation and retrieval sets, keyed by answer id.
+   *
+   * **This is the product, and the drawer was the only surface that could show
+   * it.** Without it the drawer says *that* a model mentioned the brand and not
+   * *which pages it cited* or *which it fetched and passed over* — so the
+   * inclusion–citation gap on the GEO page, which is a per-answer fact, had
+   * nowhere a reader could corroborate it. The numbers were real and
+   * unfalsifiable, which is the one state this drawer exists to prevent.
+   *
+   * **Read as a separate query per table rather than a join**, for a reason that
+   * is about correctness rather than style: `geo_answers` is the parent of three
+   * independent child sets, so an inner join across all three would return an
+   * answer with no citations as though it had none — which is a claim about the
+   * model rather than a fact about our join. Three keyed lists let the client say
+   * "no citations were recorded" separately from "this answer cites nothing we
+   * stored", and the distinction is the drawer's whole argument.
+   */
+  const [citationRows, retrievalRows, fanoutRows] = await Promise.all([
+    db
+      .select({
+        answerId: geoAnswerCitations.answerId,
+        url: geoAnswerCitations.url,
+        domain: geoAnswerCitations.domain,
+        title: geoAnswerCitations.title,
+      })
+      .from(geoAnswerCitations)
+      .innerJoin(
+        geoSnapshotAnswers,
+        eq(geoSnapshotAnswers.answerId, geoAnswerCitations.answerId),
+      )
+      .where(eq(geoSnapshotAnswers.snapshotId, snapshotId)),
+    db
+      .select({
+        answerId: geoAnswerRetrievals.answerId,
+        url: geoAnswerRetrievals.url,
+        domain: geoAnswerRetrievals.domain,
+      })
+      .from(geoAnswerRetrievals)
+      .innerJoin(
+        geoSnapshotAnswers,
+        eq(geoSnapshotAnswers.answerId, geoAnswerRetrievals.answerId),
+      )
+      .where(eq(geoSnapshotAnswers.snapshotId, snapshotId)),
+    db
+      .select({
+        answerId: geoFanoutQueries.answerId,
+        query: geoFanoutQueries.query,
+        position: geoFanoutQueries.position,
+      })
+      .from(geoFanoutQueries)
+      .innerJoin(
+        geoSnapshotAnswers,
+        eq(geoSnapshotAnswers.answerId, geoFanoutQueries.answerId),
+      )
+      .where(eq(geoSnapshotAnswers.snapshotId, snapshotId))
+      .orderBy(geoFanoutQueries.position),
+  ]);
+
+  const citationsByAnswer = byAnswer(citationRows);
+  const retrievalsByAnswer = byAnswer(retrievalRows);
+  const fanoutByAnswer = byAnswer(fanoutRows);
+
+  const answersWithSets = answers.map((answer) => ({
+    ...answer,
+    citations: citationsByAnswer.get(answer.answerId) ?? [],
+    retrievals: retrievalsByAnswer.get(answer.answerId) ?? [],
+    fanOutQueries: fanoutByAnswer.get(answer.answerId) ?? [],
+    /**
+     * The gap, computed here rather than in the client.
+     *
+     * **Retrieved and not cited, per answer** — the product's headline finding,
+     * and only observable at this grain. It is computed once, on the server, from
+     * the same rows the drawer shows, so the panel that quotes the number and the
+     * drawer that justifies it cannot disagree.
+     *
+     * Null when the answer has no retrievals recorded, which is **not** zero:
+     * `llm_responses` reports a retrieval list and `llm_mentions` does not, so an
+     * absent list means the vendor never told us, and a confident "nothing was
+     * retrieved" would be a claim about the world made from silence.
+     */
+    retrievedNotCited:
+      retrievalsByAnswer.get(answer.answerId) === undefined
+        ? null
+        : (retrievalsByAnswer.get(answer.answerId) ?? []).filter(
+            (retrieval) =>
+              !normaliseUrlForJoin(retrieval.url) ||
+              !(citationsByAnswer.get(answer.answerId) ?? []).some(
+                (citation) =>
+                  normaliseUrlForJoin(citation.url) ===
+                  normaliseUrlForJoin(retrieval.url),
+              ),
+          ),
+  }));
+
   const calls = await db
     .select()
     .from(geoVendorTasks)
@@ -208,7 +350,7 @@ export async function getEvidenceForSnapshot(
   }
 
   return {
-    answers,
+    answers: answersWithSets,
     calls: calls.map((c) => ({
       id: c.id,
       startedAt: c.startedAt,

@@ -76,10 +76,53 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await client.executeMultiple(
-    "DELETE FROM geo_vendor_tasks; DELETE FROM geo_snapshot_answers; DELETE FROM geo_answers; DELETE FROM geo_snapshots; DELETE FROM geo_targets; DELETE FROM projects;",
+    "DELETE FROM geo_vendor_tasks; DELETE FROM geo_snapshot_answers; DELETE FROM geo_fanout_queries; DELETE FROM geo_answer_retrievals; DELETE FROM geo_answer_citations; DELETE FROM geo_answers; DELETE FROM geo_snapshots; DELETE FROM geo_targets; DELETE FROM projects;",
   );
   await client.execute("INSERT INTO projects (id, name) VALUES ('p1', 'Acme')");
 });
+
+/**
+ * One cited page for an answer.
+ *
+ * `geo_answer_citations`'s primary key is (answer_id, url), so seeding the same
+ * page twice is a constraint violation rather than a second citation — which is
+ * why the de-duplication case is seeded through *different spellings* of one URL
+ * rather than by repeating a row.
+ */
+async function seedCitation(
+  answerId: string,
+  url: string,
+  domain: string | null = null,
+): Promise<void> {
+  await client.execute({
+    sql: `INSERT INTO geo_answer_citations (answer_id, url, domain) VALUES (?, ?, ?)`,
+    args: [answerId, url, domain],
+  });
+}
+
+/** One retrieved page for an answer. */
+async function seedRetrieval(
+  answerId: string,
+  url: string,
+  domain: string | null = null,
+): Promise<void> {
+  await client.execute({
+    sql: `INSERT INTO geo_answer_retrievals (answer_id, url, domain) VALUES (?, ?, ?)`,
+    args: [answerId, url, domain],
+  });
+}
+
+/** One of the vendor's follow-up queries, in the order it ran them. */
+async function seedFanOut(
+  answerId: string,
+  position: number,
+  query: string,
+): Promise<void> {
+  await client.execute({
+    sql: `INSERT INTO geo_fanout_queries (answer_id, query, position) VALUES (?, ?, ?)`,
+    args: [answerId, query, position],
+  });
+}
 
 async function seedSnapshot(id: string): Promise<void> {
   // `geo_snapshots` has no `captured_at` and no `created_at`: its clock is
@@ -155,6 +198,105 @@ describe("evidence drawer", () => {
     expect(drawer.calls).toHaveLength(1);
     expect(drawer.calls[0]?.costUsd).toBeCloseTo(0.02, 5);
     expect(drawer.gaps).toEqual([]);
+  });
+
+  /**
+   * The evidence the drawer existed for and did not have.
+   *
+   * Every other number this product publishes is a model over these rows, and
+   * without them a reader who follows a figure here finds the answer and no way to
+   * check it. **The gap is only observable at this grain** — it is a per-answer
+   * fact — so it is computed here rather than anywhere a panel could reach it.
+   */
+  it("names the pages the model read and did not cite", async () => {
+    await seedSnapshot("s1");
+    await seedAnswer("a1", "s1", { prompt: "best acme tools" });
+    await seedCitation("a1", "https://acme.com/pricing", "acme.com");
+    await seedRetrieval("a1", "https://acme.com/pricing", "acme.com");
+    // Read, then ignored. This is the product's headline finding.
+    await seedRetrieval("a1", "https://g2.com/compare/acme", "g2.com");
+    await seedFanOut("a1", 0, "acme alternatives");
+    await seedFanOut("a1", 1, "acme pricing");
+
+    const drawer = await getEvidence("s1");
+    const answer = drawer.answers[0];
+
+    expect(answer?.citations).toHaveLength(1);
+    expect(answer?.retrievals).toHaveLength(2);
+    // **Mapped rather than compared whole**, because the rows carry `answerId`
+    // for the bucketing. The first version asserted the array directly and failed
+    // with `expected [ { answerId: 'a1', …(2) } ]` — the product was right and the
+    // assertion was asking about the join key rather than the finding.
+    expect(
+      (answer?.retrievedNotCited ?? []).map((r) => r.url),
+    ).toEqual(["https://g2.com/compare/acme"]);
+    // The model's own reasoning, in the order it asked. Mapped for the same
+    // reason as the gap above: the rows carry `answerId` for the bucketing, and
+    // the finding is the order of the queries.
+    expect((answer?.fanOutQueries ?? []).map((f) => f.query)).toEqual([
+      "acme alternatives",
+      "acme pricing",
+    ]);
+  });
+
+  it("treats one page spelled two ways as cited once, not as a phantom gap", async () => {
+    // `?utm_source=openai` is in the **documented** ChatGPT payloads, so the
+    // tracking-parameter case is the normal one rather than an edge case. Joining on
+    // the raw string would report the page as both read and cited-but-not — a gap
+    // invented out of the archive disagreeing with itself.
+    await seedSnapshot("s1");
+    await seedAnswer("a1", "s1", { prompt: "best acme tools" });
+    await seedCitation("a1", "https://acme.com/pricing");
+    await seedRetrieval("a1", "https://acme.com/pricing?utm_source=openai");
+
+    const drawer = await getEvidence("s1");
+    expect(drawer.answers[0]?.retrievedNotCited).toEqual([]);
+  });
+
+  it("reports an empty gap when everything retrieved was cited", async () => {
+    await seedSnapshot("s1");
+    await seedAnswer("a1", "s1");
+    await seedCitation("a1", "https://acme.com/pricing");
+    await seedRetrieval("a1", "https://acme.com/pricing");
+
+    const drawer = await getEvidence("s1");
+    // `[]`, not null: we were told what was retrieved and everything was used.
+    expect(drawer.answers[0]?.retrievedNotCited).toEqual([]);
+  });
+
+  it("returns null, not an empty list, when the source reports no retrievals", async () => {
+    // The distinction the whole feature turns on. `llm_mentions` does not report a
+    // retrieval list, so `[]` here would be a claim that the model fetched
+    // nothing — made from the vendor's silence, and the one a reader would act on.
+    await seedSnapshot("s1");
+    await seedAnswer("a1", "s1", { prompt: "best acme tools" });
+    await seedCitation("a1", "https://acme.com/pricing");
+
+    const drawer = await getEvidence("s1");
+    expect(drawer.answers[0]?.retrievedNotCited).toBeNull();
+    // And the citations are still there — "no retrieval data" must not swallow the
+    // evidence we do hold.
+    expect(drawer.answers[0]?.citations).toHaveLength(1);
+  });
+
+  it("keeps each answer's sets to its own answer", async () => {
+    // Three child tables, three independent reads. An inner join across them would
+    // return an answer with no citations *as though it had none*, which is a claim
+    // about the model rather than a fact about our join — and the whole reason the
+    // sets are read separately is that the two cannot be confused.
+    await seedSnapshot("s1");
+    await seedAnswer("a1", "s1", { prompt: "ours" });
+    await seedAnswer("a2", "s1", { prompt: "theirs" });
+    await seedCitation("a1", "https://acme.com/pricing");
+    await seedRetrieval("a2", "https://elsewhere.example/x");
+
+    const drawer = await getEvidence("s1");
+    const byPrompt = new Map(drawer.answers.map((a) => [a.prompt, a]));
+
+    expect(byPrompt.get("ours")?.citations).toHaveLength(1);
+    expect(byPrompt.get("ours")?.retrievals).toHaveLength(0);
+    expect(byPrompt.get("theirs")?.citations).toHaveLength(0);
+    expect(byPrompt.get("theirs")?.retrievedNotCited).toHaveLength(1);
   });
 
   it("links answers to a snapshot through the join table, not a column", async () => {

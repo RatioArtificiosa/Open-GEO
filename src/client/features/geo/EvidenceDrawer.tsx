@@ -148,6 +148,95 @@ export function EvidenceDrawer({
                     answer text.
                   </p>
                 )}
+
+                {/*
+                 * The evidence, per answer.
+                 *
+                 * **This is the part the drawer existed for and did not have.**
+                 * It said *that* a model mentioned the brand; the numbers on the
+                 * GEO page — the citation gap above all — are per-answer facts,
+                 * so a reader following them here found the answer row and no way
+                 * to check it. **Every derived number in this product is a model
+                 * of something observed, and without this the models were
+                 * unfalsifiable**, which is the single state this drawer exists to
+                 * prevent.
+                 *
+                 * Three sets, three different sentences, because they are three
+                 * different facts:
+                 * - `retrievedNotCited === null` means the vendor never told us
+                 *   what was retrieved. That is **not** "nothing was retrieved",
+                 *   and rendering an empty list here would be a claim about the
+                 *   world made from silence — the error `llm_mentions` invites,
+                 *   since that endpoint reports no retrieval list at all.
+                 * - citations empty means none were stored, which is a fact about
+                 *   the archive rather than about the model.
+                 * - fan-out queries are the model's own reasoning, and the closest
+                 *   thing here to seeing what it actually asked.
+                 */}
+                {answer.retrievedNotCited === null ? (
+                  <p className="mt-2 text-xs text-base-content/60">
+                    This source does not report which pages the model retrieved,
+                    so the gap cannot be computed for this answer.
+                  </p>
+                ) : answer.retrievedNotCited.length === 0 ? (
+                  <p className="mt-2 text-xs text-base-content/60">
+                    Every page the model retrieved, it cited. Nothing in the
+                    gap.
+                  </p>
+                ) : (
+                  <div className="mt-2">
+                    <p className="text-xs font-medium text-base-content/80">
+                      Read but not cited ({answer.retrievedNotCited.length})
+                    </p>
+                    <p className="text-xs text-base-content/60">
+                      The model opened these pages and then used something else.
+                      That is a directness problem, not a volume one.
+                    </p>
+                    <ul className="mt-1 list-disc pl-5 text-xs text-base-content/70">
+                      {answer.retrievedNotCited.slice(0, 10).map((page) => (
+                        <li key={page.url} className="truncate">
+                          {page.url}
+                        </li>
+                      ))}
+                      {answer.retrievedNotCited.length > 10 ? (
+                        <li>
+                          …and {answer.retrievedNotCited.length - 10} more
+                        </li>
+                      ) : null}
+                    </ul>
+                  </div>
+                )}
+
+                {answer.citations.length > 0 ? (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-base-content/70">
+                      Cited ({answer.citations.length})
+                    </summary>
+                    <ul className="mt-1 list-disc pl-5 text-xs text-base-content/70">
+                      {answer.citations.map((citation) => (
+                        <li key={citation.url} className="truncate">
+                          {citation.title ?? citation.url}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ) : null}
+
+                {answer.fanOutQueries.length > 0 ? (
+                  <details className="mt-1">
+                    <summary className="cursor-pointer text-xs text-base-content/70">
+                      The model's follow-up questions (
+                      {answer.fanOutQueries.length})
+                    </summary>
+                    <ol className="mt-1 list-decimal pl-5 text-xs text-base-content/70">
+                      {answer.fanOutQueries.map((fanout) => (
+                        <li key={`${answer.answerId}-${fanout.position}`}>
+                          {fanout.query}
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                ) : null}
               </li>
             ))}
           </ul>
