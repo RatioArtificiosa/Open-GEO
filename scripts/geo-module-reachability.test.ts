@@ -303,6 +303,141 @@ describe("a GEO module must be reachable from production", () => {
     expect(isDeadModule(productionImportsIt)).toBe(false);
   });
 
+  /**
+   * The same reachability question, asked of **functions** rather than modules.
+   *
+   * `upsertAiKeywordMetrics` was exported, tested, and **called by nothing** — so
+   * `ai_keyword_metrics` was never written and `getGeoAiKeywordHistory` returned an
+   * empty list forever. Every check in this repository passed, because an exported
+   * function *is* "used" as far as knip is concerned: **the export itself was the
+   * evidence of use.**
+   *
+   * This asks the question a name-based sweep cannot: not "is the name mentioned"
+   * but "does any production file **import** the module and call it". Namespaced
+   * calls (`GeoRunRepository.insertSnapshots(...)`) resolve here and do not in a
+   * grep, which is the blind spot that made the sweep's "0 orphans" a weaker claim
+   * than it looked.
+   *
+   * **Scope: GEO writers only.** Widening it to every feature is a larger gate that
+   * would need an exemption list for each intentional library-style writer, and an
+   * exemption list nobody reads is how a gate stops being trusted.
+   */
+  it(
+    "reports no GEO writer whose only callers are tests",
+    /**
+     * **30s, measured rather than guessed.** This walks every GEO file, extracts
+     * three declaration shapes from each, then for every declared writer re-reads
+     * every consumer file — a reader × writer scan. It runs at **~9.5s**, against
+     * vitest's 5s `testTimeout` and 10s `hookTimeout`, so it would have been the
+     * next flake in this suite for exactly the reason `oauth-refresh` was the last
+     * one: a slow check whose failure names nothing.
+     *
+     * Higher than the 20s the module-reachability test uses because it is genuinely
+     * the slower of the two, and because the whole point of this test is to report a
+     * defect by name — a timeout reports nothing at all.
+     */
+    { timeout: 30_000 },
+    () => {
+      // **Three shapes**, because each version of this found fewer writers than the last
+      // and the guard caught every one. The repository convention is
+      // `export const GeoRunRepository = { …, upsertAiKeywordMetrics, … } as const`
+      // — **shorthand**, a bare name with no parentheses at all, so the `(` and `<`
+      // in the method pattern below match nothing here.
+      //
+      // All three wrong versions shared one cause: writing the pattern for the shape
+      // I had seen most recently rather than the shape in front of me. That is why
+      // `expect(checked).toBeGreaterThan(5)` is here — it fired with `expected 1 to be
+      // greater than 5` twice, and named the bug each time instead of reporting a
+      // clean bill of health.
+      const WRITE_NAME = "(upsert|insert|save|record|write|capture)[A-Z]\\w*";
+      const shapes: RegExp[] = [
+        // 1. `export async function upsertFoo(`
+        new RegExp(
+          `export\\s+(?:async\\s+)?function\\s+(${WRITE_NAME})\\s*[(<]`,
+          "g",
+        ),
+        // 2. `  async upsertFoo(` — a method with a body.
+        new RegExp(`^\\s+(?:async\\s+)?(${WRITE_NAME})\\s*[(<]`, "gm"),
+        // 3. `  upsertFoo,` — **shorthand**, which is what every repository here uses.
+        new RegExp(`^\\s+(${WRITE_NAME})\\s*,\\s*$`, "gm"),
+      ];
+
+      const offenders: string[] = [];
+      let checked = 0;
+
+      for (const file of files) {
+        const rel = relative(ROOT, file).replace(/\\/g, "/");
+        if (/\.test\.tsx?$/.test(rel)) continue;
+        const src = readFileSync(file, "utf8");
+
+        const declared = shapes.flatMap((re) =>
+          [...src.matchAll(re)].map((m) => m[1]),
+        );
+
+        for (const name of declared) {
+          checked += 1;
+
+          // A **call**, not a mention: `name(` on a line that is not a comment.
+          // The comment case is the exact trap — `upsertAiKeywordMetrics` appears in
+          // its own file's prose, and a sweep that counted words found it "used".
+          //
+          // **Or a bare reference.** `scheduledAiKeywordCapture` injects its writer
+          // as `?? GeoRunRepository.upsertAiKeywordMetrics` — a method reference,
+          // not a call — so a pattern requiring `(` reported a wired-up writer as
+          // an orphan. A dependency injected for testability is still a
+          // dependency, and **the gate was wrong rather than the code**.
+          //
+          // **No trailing character requirement at all.** Requiring `.` or `(` after
+          // the name looks right and is wrong twice: the reference above sits at the
+          // *end* of its line, so `upsertAiKeywordMetrics;` has no punctuation after
+          // it at all — and requiring one would also miss a writer named in a
+          // `typeof` position. So the rule is "the name appears in a non-comment line
+          // of a file that imports this module", which is what a reference *is*.
+          //
+          // The comment exclusion is what keeps this honest: the name appears in this
+          // repository's own prose in three files, and counting those would report
+          // every writer as wired.
+          const isCalled = (source: string): boolean =>
+            source.split(/\r?\n/).some((line) => {
+              const t = line.trim();
+              if (
+                t.startsWith("//") ||
+                t.startsWith("*") ||
+                t.startsWith("/*")
+              ) {
+                return false;
+              }
+              return line.includes(name);
+            });
+
+          // Only counts as a caller if it also **imports this module** — otherwise a
+          // same-named function in an unrelated file would vouch for this one.
+          const importers = consumerFiles.filter((f) => {
+            if (f === file) return false;
+            const grel = relative(ROOT, f).replace(/\\/g, "/");
+            if (/\.test\.tsx?$/.test(grel)) return false;
+            const gsrc = readFileSync(f, "utf8");
+            const importsIt = importsOf(gsrc).some((spec) => {
+              const resolved = resolveLocal(f, spec);
+              return resolved !== null && resolved === file;
+            });
+            return importsIt && isCalled(gsrc);
+          });
+
+          if (importers.length === 0) {
+            offenders.push(`${name}  —  ${rel}`);
+          }
+        }
+      }
+
+      // **A non-zero count, so a mis-scoped walk is not green.** Without it, a
+      // misspelled root yields zero writers and the gate passes having checked
+      // nothing — the failure mode of the first two versions of the casing gate.
+      expect(checked).toBeGreaterThan(5);
+      expect(offenders).toEqual([]);
+    },
+  );
+
   it("reports no GEO module whose only consumers are tests", () => {
     // Over the *consumer* roots, not the GEO directory — see CONSUMER_ROOTS.
     const index = indexProducers(

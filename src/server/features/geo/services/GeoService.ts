@@ -29,6 +29,7 @@ import {
   type GeoPlatform,
 } from "@/server/features/geo/repositories/GeoSetupRepository";
 import { GeoRunRepository } from "@/server/features/geo/repositories/GeoRunRepository";
+import { writeRunRollups } from "./runRollups";
 import {
   getEtvSeries,
   getMentionHistory,
@@ -303,6 +304,41 @@ async function recordRun(input: {
    */
   try {
     await GeoAnswerRepository.insertAnswers(input.answers, snapshotId);
+
+    /**
+     * The two per-run rollups — mentions per platform, and the citing domains per
+     * platform — reduced from the answers just archived.
+     *
+     * **Both writers had never been called**, so both tables were empty and every
+     * surface on them was reading zero rows: the drawer's "What the vendor reported",
+     * `getGeoRun`, and the "Earn the citation" panel, which has been drawing an empty
+     * chart on every project since it shipped.
+     *
+     * **After the answers, not beside them** — it is a reduction over those rows.
+     *
+     * **Best-effort, and deliberately so:** a rollup that fails must not fail a patrol
+     * whose answers are already archived. The failure is logged rather than swallowed
+     * silently, because a missing rollup is a missing rollup and should be visible as
+     * one.
+     *
+     * The domain comes from the **target**, resolved once here rather than inside the
+     * reduction, so the mention judgement uses the same brand identity the archive was
+     * built from.
+     */
+    const rollupTarget = input.targetId
+      ? await GeoSetupRepository.getTarget(input.projectId, input.targetId)
+      : null;
+    await writeRunRollups({
+      projectId: input.projectId,
+      snapshotId,
+      targetId: input.targetId,
+      domain: rollupTarget?.domain ?? undefined,
+      brandName: rollupTarget?.name ?? undefined,
+      answers: input.answers,
+    }).catch((error: unknown) => {
+      console.error(`[geo] rollups failed for snapshot ${snapshotId}:`, error);
+    });
+
     await runBatch((tx) => [
       GeoRunRepository.completeSnapshot(tx, snapshotId, {
         status: "complete",
