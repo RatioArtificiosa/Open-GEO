@@ -44,7 +44,15 @@ import type {
   AiKeywordVolumeResult,
 } from "@/server/lib/dataforseo/ai-keywords";
 import type { DataforseoApiResponse } from "@/server/lib/dataforseo/envelope";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
 
@@ -186,6 +194,146 @@ async function askOrder(stored: Map<string, string | null>): Promise<string[]> {
   });
   return asked;
 }
+
+/**
+ * The **project** rotation, which is a different question from the keyword one.
+ *
+ * `limitProjects` slices the front of the project list, so the query's `orderBy` is what
+ * decides which customers get a night at all. The per-keyword rotation cannot help with
+ * that: it rotates *inside* a project, and the bound acts on projects.
+ */
+describe("the project rotation — what decides which customers get a night", () => {
+  /** Clear everything, then seed one project with a single prompt. */
+  async function seedProject(
+    projectId: string,
+    prompt: string,
+    index: number,
+  ): Promise<void> {
+    // **Idempotent**, because a project is seeded once per *keyword* and
+    // `projects.id` is a primary key — inserting it twice raises a constraint error that
+    // has nothing to do with what the test is checking.
+    await client.execute(
+      "INSERT OR IGNORE INTO projects (id, name, location_code, language_code, created_at) VALUES (?, ?, ?, ?, ?)",
+      [projectId, projectId, 2840, "en", "2026-10-01T00:00:00.000Z"],
+    );
+    // **`geo_prompt_sets` is unique on (project, name)** — a project has exactly one
+    // set, which is the product's shape rather than a fixture convenience. So the set
+    // and the target are created once per project, and every keyword hangs off them.
+    await client.execute(
+      "INSERT OR IGNORE INTO geo_prompt_sets (id, project_id, name, created_at) VALUES (?, ?, ?, ?)",
+      [`set-${projectId}`, projectId, "default", "2026-10-01T00:00:00.000Z"],
+    );
+    await client.execute(
+      "INSERT OR IGNORE INTO geo_targets (id, project_id, name, domain, location_code, language_code, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [
+        `t-${projectId}`,
+        projectId,
+        projectId,
+        `${projectId}.com`,
+        2840,
+        "en",
+        "2026-10-01T00:00:00.000Z",
+      ],
+    );
+    await client.execute(
+      "INSERT INTO geo_prompts (id, prompt_set_id, prompt, position, created_at) VALUES (?, ?, ?, ?, ?)",
+      [
+        `q-${index}`,
+        `set-${projectId}`,
+        prompt,
+        index,
+        "2026-10-01T00:00:00.000Z",
+      ],
+    );
+  }
+
+  /** Record that a project's keywords were captured at a given moment. */
+  async function markAsked(
+    projectId: string,
+    keyword: string,
+    capturedAt: string,
+  ): Promise<void> {
+    await client.execute(
+      "INSERT INTO ai_keyword_metrics (project_id, keyword, location_code, language_code, month, ai_search_volume, captured_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [projectId, keyword, 2840, "en", "2026-09", 100, capturedAt],
+    );
+  }
+
+  beforeEach(async () => {
+    // **Children before parents.** The foreign keys are real, so deleting `projects`
+    // while `geo_targets` still references it raises a constraint error — the database
+    // correctly refusing to orphan rows. `projects` is deleted last and only where it is
+    // not the base project the other suite seeds.
+    await client.execute("DELETE FROM ai_keyword_metrics");
+    await client.execute("DELETE FROM geo_prompts");
+    await client.execute("DELETE FROM geo_targets");
+    await client.execute("DELETE FROM geo_prompt_sets");
+    await client.execute("DELETE FROM projects WHERE id != ?", [PROJECT]);
+  });
+
+  /**
+   * **The fixture is built so the two orderings disagree** — one project with two
+   * keywords asked at different times, another with one in between.
+   *
+   * A first attempt seeded one keyword per project, and the test **passed with the
+   * project rotation removed**. The reason is worth stating, because it is not obvious:
+   * with one keyword, a project's last-asked time *is* its keyword's ask time, so
+   * "rotate by project" and "rotate by keyword" produce **the same order**. The test
+   * asserted an answer both orderings give, which means it asserted nothing.
+   *
+   * So the project below has an old keyword *and* a recent one:
+   *
+   * | | project_a: 09-01, 09-05 | project_b: 09-02 |
+   * |---|---|---|
+   * | ordered by **keyword** time | `a-old` is the earliest row | → project_a wins |
+   * | ordered by **project** time | project_a's newest is 09-05, so project_b at 09-02 is the stalest | → **project_b wins** |
+   *
+   * **Only the project rotation makes project_b win**, which is what this asserts.
+   */
+  it("picks the project whose newest ask is stalest, not the project with the oldest keyword", async () => {
+    await seedProject("project_a", "a-old keyword", 0);
+    await seedProject("project_a", "a-recent keyword", 1);
+    await seedProject("project_b", "b keyword", 2);
+
+    await markAsked("project_a", "a-old keyword", "2026-09-01T00:00:00.000Z");
+    await markAsked(
+      "project_a",
+      "a-recent keyword",
+      "2026-09-05T00:00:00.000Z",
+    );
+    await markAsked("project_b", "b keyword", "2026-09-02T00:00:00.000Z");
+
+    const asked: string[] = [];
+    await runDueAiKeywordCaptures({
+      limitProjects: 1,
+      fetchVolume: volumeStub(asked),
+      writeRows: async () => undefined,
+    });
+
+    // **project_b**, whose last ask (09-02) is staler than project_a's (09-05) — even
+    // though project_a owns the single oldest keyword (09-01).
+    expect(asked).toEqual(["b keyword"]);
+  });
+
+  it("puts a never-asked project ahead of every asked one", async () => {
+    await seedProject("project_a", "alpha keyword", 0);
+    await seedProject("project_fresh", "delta keyword", 1);
+
+    await markAsked("project_a", "alpha keyword", "2026-09-05T00:00:00.000Z");
+    // project_fresh has no rows in ai_keyword_metrics at all.
+
+    const asked: string[] = [];
+    await runDueAiKeywordCaptures({
+      limitProjects: 1,
+      fetchVolume: volumeStub(asked),
+      writeRows: async () => undefined,
+    });
+
+    // The never-asked project wins — the same `is null` rule the keyword rotation uses,
+    // applied one level up.
+    expect(asked).toEqual(["delta keyword"]);
+  });
+});
 
 describe("the AI-keyword rotation — the normalisation boundary", () => {
   it("counts a stored keyword as measured when the prompt is case- and padding-different", async () => {

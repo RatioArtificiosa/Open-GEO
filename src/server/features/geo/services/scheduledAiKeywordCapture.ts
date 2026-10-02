@@ -193,11 +193,48 @@ const lastAsked = db
   .select({
     projectId: aiKeywordMetrics.projectId,
     keyword: aiKeywordMetrics.keyword,
-    at: lastAskedAt.as("at"),
+    // **`keyword_at`, not `at`** — the project subquery below also aliases a column,
+    // and two columns called `at` in one outer query make `order by "at"` ambiguous.
+    // SQLite rejects the whole query, so the names have to differ.
+    at: lastAskedAt.as("keyword_at"),
   })
   .from(aiKeywordMetrics)
   .groupBy(aiKeywordMetrics.projectId, aiKeywordMetrics.keyword)
   .as("lastAsked");
+
+/**
+ * When each **project** was last asked about, at all.
+ *
+ * **The third instance of one bug, and the same shape as the other two.** The query above
+ * rotates *within* a project — and the runner then does
+ * `watchers.slice(0, limitProjects)`, which bounds **projects**. A rotation one level
+ * below the bound does nothing for the bound: `[...byProject.values()]` arrives in the
+ * order the rows did, and for a customer with several projects that order is the same
+ * every night, so the same 25 projects win every night and the rest never run at all.
+ *
+ * **This is what it looked like while it was broken:** all the rotation code present and
+ * correct, just applied a level below the cap that needed it. Which is why "there is
+ * rotation here" is not the question — *"what is the cap applied to, and is *that* thing
+ * rotated?"* is.
+ *
+ * | | rotation exists | the bound acts on |
+ * |---|---|---|
+ * | ETV `ORDER BY` | per domain | the aggregate — wrongly |
+ * | keyword normalisation | per keyword | a join that matched nothing |
+ * | `limitProjects` | per keyword | **projects — never rotated** |
+ *
+ * The same `ROW_NUMBER()` window `queueDrainRunner` already uses, and for the same
+ * reason: a window orders **within** a partition, so partitioning by project gives a
+ * per-project rank that `limitProjects` can be spent against fairly.
+ */
+const projectLastAsked = db
+  .select({
+    projectId: aiKeywordMetrics.projectId,
+    at: lastAskedAt.as("project_at"),
+  })
+  .from(aiKeywordMetrics)
+  .groupBy(aiKeywordMetrics.projectId)
+  .as("projectLastAsked");
 
 /**
  * How many of one project's keywords the capture covers per night.
@@ -252,6 +289,9 @@ async function projectsWatchingKeywords(): Promise<
       keyword: geoPrompts.prompt,
       locationCode: geoTargets.locationCode,
       languageCode: geoTargets.languageCode,
+      // **Selected so the ordering below can see it.** The runner bounds projects, and
+      // an `ORDER BY` is the only thing that decides which projects those are.
+      projectAskedAt: projectLastAsked.at,
     })
     .from(geoPromptSets)
     .innerJoin(geoTargets, eq(geoTargets.projectId, geoPromptSets.projectId))
@@ -271,6 +311,13 @@ async function projectsWatchingKeywords(): Promise<
         eq(lastAsked.keyword, normaliseColumn(geoPrompts.prompt)),
       ),
     )
+    // **The project's own last-asked time**, joined on the project alone. A second
+    // `leftJoin` rather than another `groupBy`, because one query cannot aggregate
+    // twice over at different grains.
+    .leftJoin(
+      projectLastAsked,
+      eq(projectLastAsked.projectId, geoTargets.projectId),
+    )
     // **The alias, not the aggregate** — the same fix as the ETV rotation, and for
     // the same reason. Ordering by `lastAskedAt` makes drizzle emit
     // `max("ai_keyword_metrics"."captured_at")` in the **outer** query, where that
@@ -279,7 +326,17 @@ async function projectsWatchingKeywords(): Promise<
     //
     // Wrapped in `sql``` so `orderBy` accepts the alias by type — the emitted SQL is
     // unchanged.
+    // **Project rotation first, keyword rotation second — in that order, and the
+    // order is the fix.** `limitProjects` slices the front of this list, so the FIRST
+    // term decides which projects get a night at all. Putting the per-keyword term first
+    // would rotate keywords *within* whichever projects happened to lead, and the
+    // project bound would still be won by the same customers every night.
+    //
+    // Within a project the `is null` term then pushes its never-asked keywords ahead of
+    // its asked ones, which is the rotation the per-keyword subquery exists for.
     .orderBy(
+      sql`${projectLastAsked.at} is null desc`,
+      sql`${projectLastAsked.at}`,
       sql`${lastAsked.at} is null desc`,
       sql`${lastAsked.at}`,
       geoPrompts.prompt,
