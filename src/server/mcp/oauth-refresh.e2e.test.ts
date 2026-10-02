@@ -133,13 +133,36 @@ type Env = Parameters<Provider["fetch"]>[1];
 let provider: Provider;
 let env: Env;
 
+/*
+ * **The hook needs 30s; the tests do not.**
+ *
+ * This was diagnosed by running the suite three times until it failed, and the
+ * failure was not where the symptom pointed. The report reads:
+ *
+ *   Error: Hook timed out in 10000ms
+ *   ❯ oauth-refresh.e2e.test.ts:136:1
+ *
+ * Line 136 is the **`beforeEach`**, not the slow test — and `hookTimeout` defaults
+ * to 10s while `testTimeout` defaults to 5s. So the ceiling that actually bites is
+ * the hook's, and raising the test's timeout changes nothing.
+ *
+ * **Why the hook is slow at all.** It does `await import("./oauth-provider")` on
+ * every test, pulling in the real `workers-oauth-provider` and its module graph
+ * eight times over. The import is cached, so the cost is the *first* one — but that
+ * first one lands inside a hook, which is where the whole budget is spent.
+ *
+ * 30s because the work is CPU-bound module evaluation and crypto setup, bounded by
+ * the machine rather than a network: a busy CI runner is the case, not a slow
+ * endpoint. Leaving it flaky is worse than a slow suite — a test that fails
+ * sometimes teaches everyone to re-run CI instead of reading it.
+ */
 beforeEach(async () => {
   vi.useRealTimers();
   const { createOpenSeoOAuthProvider } = await import("./oauth-provider");
   provider = createOpenSeoOAuthProvider(() => new Response("app"));
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the provider touches only OAUTH_KV
   env = { OAUTH_KV: createKvFake() } as unknown as Env;
-});
+}, 30_000);
 
 const registrationSchema = z.looseObject({
   client_id: z.string(),
