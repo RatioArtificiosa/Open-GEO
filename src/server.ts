@@ -10,6 +10,7 @@ import { runScheduledRankChecks } from "@/server/features/rank-tracking/services
 import { runDueGeoPatrols } from "@/server/features/geo/services/scheduledGeoPatrol";
 import { runDueAiModeCaptures } from "@/server/features/geo/services/scheduledAiModeCapture";
 import { runDueAiKeywordCaptures } from "@/server/features/geo/services/scheduledAiKeywordCapture";
+import { runDueEtvCaptures } from "@/server/features/domain/services/scheduledEtvCapture";
 import { runQueueDrain } from "@/server/features/geo/services/queueDrainRunner";
 import { runScheduledGeoRetention } from "@/server/features/geo/services/scheduledGeoRetention";
 import { reconcileStaleAudits } from "@/server/features/audit/services/auditReconciler";
@@ -332,6 +333,36 @@ export default {
       }
     } catch (err) {
       console.error("[cron] AI keyword capture failed:", err);
+    }
+    // Labs ETV, and the **last** of the three nightly captures. It is here rather
+    // than folded into the patrol because it is a *different question*: the patrol
+    // asks whether a brand was named, this asks how much search traffic the domain
+    // carries — over a different population, on a different schedule, at $0.012 a
+    // call.
+    //
+    // **After the AI captures, and for the same reason each of those is:** a billable
+    // step must not block the cheap work that fills the archive. Its own report names
+    // dropped domains rather than omitting them, because "we captured everything" and
+    // "we captured what we could afford" are different claims.
+    try {
+      const etv = await withPgClient(() => runDueEtvCaptures());
+      if (etv.projectsVisited > 0) {
+        console.log(
+          `[cron] ETV: ${etv.rowsStored} point(s) from ${etv.domainsAsked} domain(s), vendor ${etv.actualCostUsd.toFixed(4)} (est. ${etv.estimatedCostUsd.toFixed(4)}) across ${etv.projectsVisited} project(s)` +
+            (etv.droppedForBudget > 0
+              ? `, ${etv.droppedForBudget} dropped for budget`
+              : ""),
+        );
+      }
+      // One line per failure: the night failed for this domain, and an operator
+      // reading the log needs to know which rather than only how many.
+      for (const failure of etv.failures) {
+        console.error(
+          `[cron] ETV capture failed for ${failure.domain}: ${failure.reason}`,
+        );
+      }
+    } catch (err) {
+      console.error("[cron] ETV capture failed:", err);
     }
 
     // Retention follows the patrol on the same tick: the sweep only deletes what
