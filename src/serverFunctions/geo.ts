@@ -49,12 +49,18 @@ import {
  * surface that would want it below, so the next person does not re-derive which
  * four of twenty-three are missing and start looking again.
  *
- * | Endpoint | Reads | The screen that wants it |
- * |---|---|---|
- * | `getGeoAnswer` | one archived answer with its citation and retrieval sets | an answer drawer, reachable from a mention on the trend panel |
- * | `listGeoAnswerHistory` | every answer to one prompt, newest first | the answer diff — the run-over-run comparison behind CL-209 |
- * | `getGeoRun` | one run's snapshot and its per-platform metrics | a run detail, reachable from the runs list |
- * | `getGeoAiKeywordHistory` | monthly AI demand for a keyword | a keyword drill-down from the demand explorer |
+ * **Verified on 2026-10-02** by a scan of `src/client`, `src/routes` and
+ * `routeTree.gen.ts` for each exported name: 19 of 23 are named by a surface, and
+ * these four are named by none — including by the MCP tools, so none of them has a
+ * reader of *any* kind. Three earlier counts in this file were wrong, which is why
+ * the number is measured rather than remembered.
+ *
+ * | Endpoint | Reads | The screen that wants it | Note |
+ * |---|---|---|---|
+ * | `getGeoAnswer` | one archived answer with its citation and retrieval sets | an answer drawer | **Partly covered, and the remainder is a real gap.** `evidenceDrawer` renders the citations, the fan-out queries and the derived `retrievedNotCited` — but **not the raw retrievals**, so a reader sees what was read-and-ignored and cannot see what was read-and-used. And it is scoped per *snapshot*, so a surface wanting one answer from any run has no address |
+ * | `listGeoAnswerHistory` | every answer to one prompt, newest first | a prompt's capture history | The diff does not need it: `answerDiffReads` reads the archive directly, because an endpoint returning a series would have to choose a pair — and every choice is a claim |
+ * | `getGeoRun` | one run's snapshot and its per-platform metrics | a run detail, reachable from the runs list | The drawer's index already lists evidenced runs; what is missing is the per-run metric panel behind one |
+ * | `getGeoAiKeywordHistory` | monthly AI demand for a keyword | a keyword drill-down from the demand explorer | The one of the four with **no overlapping surface at all** |
  *
  * **A fifth was deleted rather than kept: `getGeoShareOfVoice`.** Its name
  * promised a share of voice and it returned `listCitationDomains` — domains with
@@ -62,7 +68,14 @@ import {
  * component's `shareOfVoice: null` is therefore an *honest refusal* rather than a
  * wiring gap, and keeping an endpoint whose name promises a share it cannot
  * compute is the same defect as the MCP tool that named a tool which did not
- * exist: a false claim in an API surface, found by a reader rather than a test.
+ * exist: a false claim in an API surface, found by a reader rather than by a test.
+ *
+ * **Why there is no gate for the four, which is the deliberate decision.** A gate
+ * here would need a four-entry exemption list, and a gate with a standing exemption
+ * list is a gate whose list grows: the next unmounted endpoint is added to it, and
+ * the rule becomes "assert this occasionally", which is worse than no rule because it
+ * is believed. `scripts/unread-response-fields.mjs` prints the same answer on demand
+ * — a tool, not a gate, for the same reason and with the same measurement behind it.
  *
  * So the rule is the one this file already follows: **nothing here is a stub.**
  * Each is complete, each is tested, and each is waiting for a screen rather than
