@@ -215,18 +215,6 @@ const ENDPOINT = "domain_rank_overview" as const;
  */
 const lastAskedAt = max(domainMetrics.etvRequestedAt);
 
-const lastMeasured = db
-  .select({
-    projectId: domainMetrics.projectId,
-    domain: domainMetrics.domain,
-    at: lastAskedAt.as("at"),
-  })
-  .from(domainMetrics)
-  .groupBy(domainMetrics.projectId, domainMetrics.domain)
-  // **The same shape `snapshotQueries.ts` uses for its grouped join**, so this reads
-  // as the pattern it is rather than as a one-off.
-  .as("lastMeasured");
-
 /**
  * The domains worth asking about.
  *
@@ -242,6 +230,32 @@ async function trackedDomains(): Promise<
     languageCode: string;
   }>
 > {
+  /**
+   * Built here rather than at module scope, and that is deliberate twice over.
+   *
+   * **A query builder is not a constant** — a module-level `db.select(...)` binds to
+   * whatever `@/db` resolved to at import time, which pins the connection for the
+   * process's life and makes this module impossible to test against a substitute
+   * database. Found the hard way: the rotation's own db test failed with
+   * `no such column` while the schema plainly had the column, because the subquery was
+   * built against the *real* handle and the test's in-memory one never saw it.
+   *
+   * **The column expression stays at module scope**, because that genuinely is a
+   * constant — and using one name for both is what keeps the aggregate in the
+   * `SELECT` and the same aggregate in the `ORDER BY` from drifting apart.
+   */
+  const lastMeasured = db
+    .select({
+      projectId: domainMetrics.projectId,
+      domain: domainMetrics.domain,
+      at: lastAskedAt.as("at"),
+    })
+    .from(domainMetrics)
+    .groupBy(domainMetrics.projectId, domainMetrics.domain)
+    // **The same shape `snapshotQueries.ts` uses for its grouped join**, so this reads
+    // as the pattern it is rather than as a one-off.
+    .as("lastMeasured");
+
   return (
     db
       .select({
