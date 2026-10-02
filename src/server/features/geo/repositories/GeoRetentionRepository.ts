@@ -15,7 +15,6 @@ import {
   aiModeSnapshotCitations,
   aiModeSnapshots,
   geoAnswers,
-  geoSnapshots,
   geoTargets,
   projects,
 } from "@/db/schema";
@@ -181,11 +180,6 @@ async function purgeAiModeBefore(
   return deleted.length;
 }
 
-/** Remove snapshot links whose answer is gone, so the join table cannot rot. */
-async function pruneOrphanedSnapshotAnswers(snapshotId: string): Promise<void> {
-  await db.delete(geoSnapshots).where(eq(geoSnapshots.id, snapshotId));
-}
-
 /** How many answers a project is currently holding, for the usage meter. */
 async function countRetainedAnswers(
   projectId: string,
@@ -222,7 +216,6 @@ export const GeoRetentionRepository = {
   purgeAnswersBefore,
   expiredAiModeSnapshotIds,
   purgeAiModeBefore,
-  pruneOrphanedSnapshotAnswers,
   countRetainedAnswers,
   deleteAiModeCitationsFor,
   DEFAULT_RETENTION_DAYS,

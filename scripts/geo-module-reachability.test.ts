@@ -210,6 +210,20 @@ const WRITER_EXEMPT = new Map<string, string>([
     "src/server/features/sam/samTurnTelemetry.ts",
     "Method-on-an-instance writers, called as turn.recordStep(...) rather than Namespace.member(). The gate does not resolve this.x, so these read as orphans.",
   ],
+  [
+    // **A different kind of exemption from the one above, and the difference matters.**
+    // There the writer *is* called and the gate cannot see the call shape. Here
+    // `destroyForErasure` **should not be called by this repository at all** — it is a
+    // Cloudflare Durable Object lifecycle method, invoked by the runtime when an
+    // erasure request reaches the object. A grep for callers will never find one, and
+    // there is never meant to be one.
+    //
+    // Conflating the two would let the first kind grow: "the platform calls it" is
+    // available for any name that sounds lifecycle-shaped, and an exemption list that
+    // broad is one nobody reads.
+    "src/server/features/audit/AuditScratchpad.ts",
+    "A Durable Object. destroyForErasure is a lifecycle method the Cloudflare runtime invokes when an erasure request reaches the object; no caller in this repository is correct, not missing.",
+  ],
 ]);
 
 const EXEMPT: Array<{ module: string; reason: string }> = [
@@ -373,6 +387,58 @@ describe("a GEO module must be reachable from production", () => {
    * would need an exemption list for each intentional library-style writer, and an
    * exemption list nobody reads is how a gate stops being trusted.
    */
+  /**
+   * **The negative control for the widened pattern.**
+   *
+   * `WRITE_NAME` gained `purge|delete|prune|remove|destroy` because
+   * `purgeAiModeBefore` had no caller for the life of the repository and the pattern
+   * could not see it. Widening proves nothing by itself — a pattern matching neither the
+   * new cases nor the old ones passes as happily as a correct one.
+   *
+   * So this asserts the **scanner** finds an orphan removal writer, using the same three
+   * extraction shapes as the gate below. If the verbs stop matching, this fails.
+   */
+  it("recognises a purge writer as a writer", () => {
+    const WRITE_NAME =
+      "(upsert|insert|save|record|write|capture|purge|delete|prune|remove|destroy)[A-Z]\\w*";
+    const shapes: RegExp[] = [
+      new RegExp(
+        `export\\s+(?:async\\s+)?function\\s+(${WRITE_NAME})\\s*[(<]`,
+        "g",
+      ),
+      new RegExp(`^\\s+(?:async\\s+)?(${WRITE_NAME})\\s*[(<]`, "gm"),
+      new RegExp(`^\\s+(${WRITE_NAME})\\s*,\\s*$`, "gm"),
+    ];
+
+    // Shape 1 — a named export, which is how `purgeAiModeBefore` was declared.
+    const declaration = `export async function purgeSomething(
+      projectId: string,
+    ): Promise<number> {
+      return 0;
+    }`;
+    expect(
+      shapes.flatMap((re) => [...declaration.matchAll(re)].map((m) => m[1])),
+    ).toEqual(["purgeSomething"]);
+
+    // Shape 3 — **shorthand, which is what every repository here actually uses**, and
+    // the shape the gate's own comment records getting wrong twice.
+    const shorthand = `export const Repo = {
+  purgeSomethingElse,
+  purgeAnother,
+} as const;`;
+    expect(
+      shapes.flatMap((re) => [...shorthand.matchAll(re)].map((m) => m[1])),
+    ).toEqual(["purgeSomethingElse", "purgeAnother"]);
+
+    // **And a helper that merely starts with a removal verb must not match**, or the
+    // widening starts reporting every `removeFormatting` in the codebase.
+    const notAWriter = `function removeFormatting(text: string) {
+      return text;
+    }`;
+    expect(
+      shapes.flatMap((re) => [...notAWriter.matchAll(re)].map((m) => m[1])),
+    ).toEqual([]);
+  });
   it(
     "reports no feature writer whose only callers are tests",
     /**
@@ -402,7 +468,20 @@ describe("a GEO module must be reachable from production", () => {
       // `expect(checked).toBeGreaterThan(5)` is here — it fired with `expected 1 to be
       // greater than 5` twice, and named the bug each time instead of reporting a
       // clean bill of health.
-      const WRITE_NAME = "(upsert|insert|save|record|write|capture)[A-Z]\\w*";
+      /**
+       * **`purge`, `delete` and `prune` are writers too** — they remove rows, and a
+       * removal that is never called leaves a table growing without bound.
+       *
+       * `purgeAiModeBefore` existed, was tested, and had no caller anywhere in the
+       * repository, so `ai_mode_snapshots` — the verbatim answer markdown, the largest
+       * table in the schema — grew while the retention sweep that exists to prevent
+       * exactly that reported success every night. **This pattern could not see it**,
+       * which is what made it a lasting bug rather than an unlucky one: a writer gate
+       * that cannot fail on the class it exists to catch is worse than no gate, because
+       * it looks authoritative.
+       */
+      const WRITE_NAME =
+        "(upsert|insert|save|record|write|capture|purge|delete|prune|remove|destroy)[A-Z]\\w*";
       const shapes: RegExp[] = [
         // 1. `export async function upsertFoo(`
         new RegExp(
