@@ -85,29 +85,40 @@
 //
 // ## The hit rate, stated plainly
 //
-// Six candidates examined by hand so far. The scoreboard, because a reader who
-// trusts the list without checking will be wrong more often than right:
+// **The list is exhausted. All twelve remaining candidates were examined by hand and
+// none was a defect**, so the ones still printed are consumed somewhere this tool
+// cannot see, or deliberate. The scoreboard, because a reader who trusts the list
+// without checking will be wrong more often than right:
 //
 //   candidate                          verdict
-//   answer.retrievals (drawer)         real - the gap was shown without what the model used
-//   direction (forecast)               real - computed for five sessions, rendered by nobody
+//   answer.retrievals (drawer)         real - FIXED, the gap was shown without what the model used
+//   direction (forecast)               real - FIXED, computed for five sessions, rendered by nobody
+//   newAiSearchVolume / lostAi...      real - FIXED, a metered panel fetched them and dropped them
 //   windowed / considered (forecast)   false alarm - the server's note already says it in prose
+//   observations / basedOnWeeks        false alarm - the panel reads the counts off the insight
+//   nodes (citation graph)             false alarm - the insight says "9 of 27 domains"
 //   recent (visibility)                false alarm - read twice by the get_geo_visibility MCP tool
-//   targetId / vendorTaskId (vis.)     false alarm - read by the same MCP tool
+//   targetId / vendorTaskId / rawJson  false alarm - read by the same MCP tool
+//   requestBody / responseBody         false alarm - consumed server-side to derive the gaps array
+//   unpricedCalls (evidence)           false alarm - consumed server-side for the reconciliation note
 //   promptSetId (prompt sets)          false alarm - a column on geo_prompts, not on the set
+//   aliases (targets)                  false alarm - read twice: mentionFromAnswer and the forecast
+//   endpoint (etv series)              false alarm - part of the series identity, scopes the query
+//   anchors (citation graph)           not a defect either - a DESIGNED CAPABILITY WITH NO DATA,
+//                                      which is a fourth classification this tool has no bucket for
 //
-// **Two real, four not.** And the last one is a structural error rather than a blind
-// spot: `geo_prompts.promptSetId` names the *set* from the *prompt*, so the field is
-// unread on the object the tool named and does not exist on it at all. A tool that
-// matches names across a response tree will attribute a nested column to its parent,
-// because the name matches and the object does not. Threshold tuning cannot remove
-// that; the fix is to ask the type system about the *path* rather than the tree about
-// names — which is a third reason this belongs in a header rather than in a gate.
+// **Three real findings out of fifteen candidates.** All three were load-bearing: a
+// gap shown without what the model used, a direction computed for five sessions that
+// nobody rendered, and demand figures fetched on a billable call and discarded.
 //
-// **What this changes about the output.** The candidate list is a *where to look* list
-// and the header now says so with a number attached, because a tool that reports a hit
-// rate has told the reader what the list is worth. The earlier framing — "these are
-// findings" — was wrong in a way that would have cost someone a working field.
+// Every one of the twelve false alarms would have cost something real if acted on —
+// the `recent` case would have invited deleting a query that pulls 200 rows, and the
+// `aliases` case would have invited "fixing" the mention matcher that CL-501d
+// recorded as fixed.
+//
+// A fixture proves a detector *can* fail. Only the real defect proves it *can see*,
+// which is why the control for this tool is "revert the fix and re-run" rather than a
+// synthetic case.
 
 // So the division of labour is explicit, and the tool prints which bucket a finding
 // came from for this reason: **the unmounted-endpoint bucket is trustworthy, and
