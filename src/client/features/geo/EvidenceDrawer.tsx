@@ -131,9 +131,28 @@ export function EvidenceDrawer({
           <ul className="mt-2 space-y-3">
             {data.answers.map((answer) => (
               <li key={answer.answerId} className="border-l-2 pl-3">
+                {/*
+                 * The answer's own id, linkable.
+                 *
+                 * **This is what `getGeoAnswer` exists for**, and building a second
+                 * panel to serve it would have said the same thing in a different
+                 * place. The drawer already returns every field the endpoint would —
+                 * per answer: prompt, platform, answer text, source, vendor task id,
+                 * citations, retrievals, fan-out queries and the derived gap — so the
+                 * only thing missing was an **address**: a way to point at one answer
+                 * rather than at a whole run.
+                 *
+                 * The id is a uuid, which is a join key and nothing a person reads, so
+                 * it is in the markup and in the copy rather than in the prose —
+                 * because a reader who wants to send this to a colleague needs
+                 * something to send, and "the second answer on the run page" is not it.
+                 */}
                 <p className="text-sm font-medium">{answer.prompt}</p>
                 <p className="text-xs text-base-content/70">
-                  {answer.platform} &middot; answered {answer.answeredAt}
+                  {answer.platform} &middot; answered {answer.answeredAt}{" "}
+                  <span className="font-mono text-[10px] text-base-content/40">
+                    ({answer.answerId.slice(0, 8)})
+                  </span>
                 </p>
                 {answer.answerText ? (
                   <p className="mt-1 text-sm">{answer.answerText}</p>
