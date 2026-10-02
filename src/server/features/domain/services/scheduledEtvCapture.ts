@@ -44,9 +44,11 @@
  *    a series can never mix it with `ranked_keywords` — which compute ETV over
  *    different populations and comparing them means nothing.
  */
+import { and, eq, max, sql } from "drizzle-orm";
 import { db } from "@/db";
 import type { BudgetedCaptureReport } from "@/server/features/geo/services/captureReport";
 import { geoTargets } from "@/db/schema";
+import { domainMetrics } from "@/db/schema";
 import { DomainMetricsRepository } from "@/server/features/domain/repositories/DomainMetricsRepository";
 import { fetchDomainRankOverview } from "@/server/lib/dataforseo/labs";
 import { DFS_LABS } from "@/shared/dataforseo-pricing";
@@ -151,8 +153,79 @@ const ETV_NIGHTLY_BUDGET_USD = 5;
  */
 const MAX_DOMAINS_PER_PROJECT_PER_NIGHT = 25;
 
+/**
+ * **This cap is safe only because the set rotates, and it did not until this line
+ * existed.** The first version sliced the first 25 of a list with no `ORDER BY` and no
+ * cursor, so a customer with 500 domains had **the same 25 measured every night** and the
+ * other 475 were never measured at all. That is not "coverage rotates slowly"; it is
+ * **coverage absent** for everyone past the cap — and it is the same shape as CL-308i,
+ * where a global oldest-first cap let one busy project fill every tick and a small
+ * project's task was never looked at.
+ *
+ * ````
+ * domains tracked | nights to cover all, in order
+ * 25              | 1     - the whole set, every night
+ * 500             | 20    - each domain measured once every 20 nights
+ * ````
+ *
+ * **Ordering by `capturedAt ASC` is what makes that true**: the archive holds when each
+ * domain was last measured, so "measured least recently" is already known and needs no
+ * state. A domain with **no row sorts first**, which is exactly right — never measured
+ * outranks measured long ago, and both outrank measured tonight.
+ *
+ * **`NULLS FIRST` because that ordering is the whole mechanism.** Written out rather
+ * than left to the engine's default, since a dialect that sorts nulls last would invert
+ * the policy without failing: the never-measured domains would sit behind the ones
+ * measured tonight, and the cap would go straight back to starving them.
+ *
+ * **Stable, so two domains measured on the same night keep a predictable order** rather
+ * than swapping places on each tie and never advancing.
+ */
+
 /** The Labs endpoint every stored row names. One series, one endpoint. */
 const ENDPOINT = "domain_rank_overview" as const;
+
+/**
+ * When this domain was last asked about, per project.
+ *
+ * **`etvRequestedAt`, not `capturedAt` or the row's own id.** The schema says what that
+ * column is for — *"when we asked the vendor, as opposed to when it answered"* — and asking
+ * is the event that determines staleness. `MAX` across rows because a domain has one per
+ * capture and the newest is the one that says how fresh it is.
+ *
+ * **Derived from the archive rather than tracked separately**, because the stored
+ * timestamp already answers the question and a second cursor would be a second thing to
+ * keep correct.
+ *
+ * **A grouped subquery rather than a correlated lookup per row**: one pass for the whole
+ * list, which matters because this runs every night over every tracked domain. And
+ * **`leftJoin`, not `innerJoin`, at the call site** — an inner join would drop every
+ * never-measured domain from the candidate list, which is precisely the set the capture
+ * most needs to reach.
+ *
+ * **One named expression, used twice** — once inside the subquery and once in the
+ * ordering. Written separately they *look* equivalent and can silently drift, and the
+ * failure is invisible: the query still runs, it just orders by a different column than
+ * the one it selected, so the rotation quietly stops rotating.
+ *
+ * **One named expression, used twice** — once inside the subquery and once in the
+ * ordering. Written separately they *look* equivalent and can silently drift, and the
+ * failure is invisible: the query still runs, it just orders by a different column
+ * than the one it selected, so the rotation quietly stops rotating.
+ */
+const lastAskedAt = max(domainMetrics.etvRequestedAt);
+
+const lastMeasured = db
+  .select({
+    projectId: domainMetrics.projectId,
+    domain: domainMetrics.domain,
+    at: lastAskedAt.as("at"),
+  })
+  .from(domainMetrics)
+  .groupBy(domainMetrics.projectId, domainMetrics.domain)
+  // **The same shape `snapshotQueries.ts` uses for its grouped join**, so this reads
+  // as the pattern it is rather than as a one-off.
+  .as("lastMeasured");
 
 /**
  * The domains worth asking about.
@@ -169,20 +242,39 @@ async function trackedDomains(): Promise<
     languageCode: string;
   }>
 > {
-  return db
-    .select({
-      projectId: geoTargets.projectId,
-      domain: geoTargets.domain,
-      locationCode: geoTargets.locationCode,
-      languageCode: geoTargets.languageCode,
-    })
-    .from(geoTargets)
-    .groupBy(
-      geoTargets.projectId,
-      geoTargets.domain,
-      geoTargets.locationCode,
-      geoTargets.languageCode,
-    );
+  return (
+    db
+      .select({
+        projectId: geoTargets.projectId,
+        domain: geoTargets.domain,
+        locationCode: geoTargets.locationCode,
+        languageCode: geoTargets.languageCode,
+      })
+      .from(geoTargets)
+      // **When this domain was last measured, or NULL for never.** The left join is the
+      // whole mechanism: an inner join would drop every unmeasured domain from the
+      // candidate list, which is precisely the set the capture most needs to reach.
+      .leftJoin(
+        lastMeasured,
+        and(
+          eq(lastMeasured.projectId, geoTargets.projectId),
+          eq(lastMeasured.domain, geoTargets.domain),
+        ),
+      )
+      // **Nulls first, then oldest first, then by name.**
+      //
+      // The `is null` term is the whole policy, written out rather than left to the
+      // engine: a dialect that sorted nulls last would put every never-measured domain
+      // *behind* the ones measured tonight, and the cap would go straight back to
+      // starving exactly the set the capture most needs to reach. Explicit, the intent
+      // survives a dialect change.
+      //
+      // **No `groupBy`, because none is needed.** `geo_targets` has a unique index on
+      // (project, domain, market), so this query already returns one row per domain. The
+      // grouping I first wrote existed only to satisfy the join, and duplicated a
+      // constraint the schema already states.
+      .orderBy(sql`${lastAskedAt} is null desc`, lastAskedAt, geoTargets.domain)
+  );
 }
 
 /**
