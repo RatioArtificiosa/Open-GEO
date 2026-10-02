@@ -116,9 +116,28 @@
 // `aliases` case would have invited "fixing" the mention matcher that CL-501d
 // recorded as fixed.
 //
-// A fixture proves a detector *can* fail. Only the real defect proves it *can see*,
+// **A fixture proves a detector *can* fail. Only the real defect proves it *can see*,
 // which is why the control for this tool is "revert the fix and re-run" rather than a
-// synthetic case.
+// synthetic case.** That control has now been run three times, and each time it found
+// something real — which is the only evidence this header's claims are worth anything.
+//
+// ## The unmounted-endpoint list is empty, and it took three different fixes
+//
+// The bucket used to hold four GEO endpoints. **None needed a screen**, and each needed
+// something different — which is the reason to keep the bucket named separately rather
+// than fold it into the candidate count:
+//
+// | endpoint | what was actually wrong |
+// |---|---|
+// | `getGeoAnswer` | a **scope** endpoint: the drawer already returned every field, so only an *address* was missing |
+// | `getGeoRun` | a **scope** endpoint: the drawer shows the same rows, and now returns the same `metrics` |
+// | `getGeoAiKeywordHistory` | **no writer at all** — `upsertAiKeywordMetrics` was called by nothing, so the table was empty forever |
+// | `listGeoAnswerHistory` | a surface choice: the diff reads the archive directly |
+//
+// **The lesson worth keeping is the third row.** From the endpoint, "no reader" and "no
+// writer" look identical — and a screen built on that assumption would have drawn an
+// empty chart that reads as a working feature with no data yet. Checking *who calls the
+// writer* took one grep; building the reader would have taken a day and shipped a lie.
 
 // So the division of labour is explicit, and the tool prints which bucket a finding
 // came from for this reason: **the unmounted-endpoint bucket is trustworthy, and
