@@ -125,6 +125,32 @@ const AI_KEYWORD_UNIT_COST_USD = 0.002;
 const AI_KEYWORD_NIGHTLY_BUDGET_USD = 5;
 
 /**
+ * How many of one project's keywords the capture covers per night.
+ *
+ * **The same bound the ETV capture needed, on the same axis.** `limitProjects` bounds
+ * how many *customers* one tick touches; the ceiling above bounds a *night*. Neither
+ * bounds what one customer costs, and nothing in the product caps a project's prompt
+ * count.
+ *
+ * | keywords on one project | at `$0.002` a call |
+ * |---|---|
+ * | 25 | $0.05 |
+ * | 1,000 | $2.00 |
+ * | 5,000 | $10.00 — past a $5 night |
+ *
+ * **A count rather than a price**, and here that matters more than anywhere: the unit
+ * price above is **itself an unverified placeholder**, so a budget derived from it would be
+ * a guess with a unit. A keyword count is exact whatever the vendor charges — and the
+ * live verification blocked on the funded account is what would replace the guess.
+ *
+ * **Simpler than the ETV equivalent, because the shape is easier.** `projectsWatchingKeywords`
+ * already groups by project into a Set, so this is a slice rather than a running count
+ * over a flat list. The ETV capture had to count as it went, which is where its first
+ * version went wrong.
+ */
+const MAX_KEYWORDS_PER_PROJECT_PER_NIGHT = 25;
+
+/**
  * Projects with keywords worth asking about.
  *
  * **The prompt text is the keyword.** A project that tracks "best crm software" is
@@ -317,9 +343,28 @@ export async function runDueAiKeywordCaptures(input?: {
   for (const watcher of watchers.slice(0, limit)) {
     report.projectsVisited += 1;
 
-    const keywords = watcher.keywords.slice(0, VENDOR_MAX_KEYWORDS);
-    if (watcher.keywords.length > keywords.length) {
-      report.droppedForBudget += watcher.keywords.length - keywords.length;
+    // **Two slices, and the order matters.** The per-project cap comes first
+    // because it is the bound that holds: `VENDOR_MAX_KEYWORDS` is the vendor's
+    // rejection limit, so exceeding it is a *billed rejection* rather than a
+    // truncation — the cap has to keep us under it either way.
+    //
+    // **Overflow named, whichever slice produced it.** "We did not ask about this
+    // keyword" is one sentence with two causes, and the report carries one count.
+    const withinProjectCap = watcher.keywords.slice(
+      0,
+      MAX_KEYWORDS_PER_PROJECT_PER_NIGHT,
+    );
+    if (watcher.keywords.length > withinProjectCap.length) {
+      report.droppedForBudget +=
+        watcher.keywords.length - withinProjectCap.length;
+    }
+
+    // The vendor's cap still applies on top, in case the per-project cap is ever
+    // raised above 1000 — and because a request over the limit is billed, not
+    // truncated, so relying on the per-project cap alone would be a hidden coupling.
+    const keywords = withinProjectCap.slice(0, VENDOR_MAX_KEYWORDS);
+    if (withinProjectCap.length > keywords.length) {
+      report.droppedForBudget += withinProjectCap.length - keywords.length;
     }
     if (keywords.length === 0) continue;
 
