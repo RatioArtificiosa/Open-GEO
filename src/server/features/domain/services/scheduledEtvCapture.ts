@@ -213,6 +213,10 @@ const ENDPOINT = "domain_rank_overview" as const;
  * failure is invisible: the query still runs, it just orders by a different column
  * than the one it selected, so the rotation quietly stops rotating.
  */
+/**
+ * The aggregation, named because the **ordering must reference the subquery's alias**
+ * rather than this — see the note at the `orderBy`.
+ */
 const lastAskedAt = max(domainMetrics.etvRequestedAt);
 
 /**
@@ -287,7 +291,14 @@ async function trackedDomains(): Promise<
       // (project, domain, market), so this query already returns one row per domain. The
       // grouping I first wrote existed only to satisfy the join, and duplicated a
       // constraint the schema already states.
-      .orderBy(sql`${lastAskedAt} is null desc`, lastAskedAt, geoTargets.domain)
+      .orderBy(
+        sql`${lastMeasured.at} is null desc`,
+        // **Wrapped, because `orderBy` wants a `SQL` or a column** and the alias is
+        // neither by type — though it is by name, which is what the SQL uses. The wrapper
+        // satisfies the signature without changing a character of the emitted query.
+        sql`${lastMeasured.at}`,
+        geoTargets.domain,
+      )
   );
 }
 

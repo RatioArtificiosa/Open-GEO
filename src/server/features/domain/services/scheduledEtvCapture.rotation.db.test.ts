@@ -1,60 +1,47 @@
 /**
  * The ETV capture's rotation, against a real database.
  *
- * ## NOT WORKING — skipped deliberately, and kept rather than deleted
+ * ## Why this file exists
  *
- * All five tests fail with `no such column: domain_metrics.etv_requested_at`, and the
- * column **provably exists**: probed directly against migration `0049`, which creates
- * it. So the schema is innocent, the query is innocent, and the `@/db` mock is present
- * and correctly ordered.
+ * **Every other test in this suite injects `fetchDomains`, so not one of them
+ * exercises the `ORDER BY`.** A rotation that had silently stopped rotating — an
+ * `innerJoin` instead of a `leftJoin`, a dropped `is null` term, a renamed column —
+ * would have passed all fourteen. That is the same class of defect as the four
+ * never-written tables this session found: code that looks finished while its
+ * untested path is the one that matters.
  *
- * ## What is known, and what is not
+ * ## The bug this test found, after twelve runs failed to find it
  *
- * All five fail with `no such column: domain_metrics.etv_requested_at`, and **the column
- * provably exists** — probed directly against migration `0049`, which creates it. The
- * migration list is applied (a standalone probe of the same statements shows the column),
- * so the schema is innocent, the query is innocent, and isolation changes nothing.
+ * The rotation ordered by `lastAskedAt` — the aggregate — rather than by the joined
+ * subquery's alias. Drizzle therefore emitted, in the **outer** query:
  *
- * **Eight causes have now been ruled out**, each of which sounded plausible:
+ * ```sql
+ * order by max("domain_metrics"."etv_requested_at") is null desc, ...
+ * ```
  *
- * | # | suspected | verdict |
- * |---|---|---|
- * | 1 | the migration list omits `0049` | wrong — a probe of the same statements shows the column |
- * | 2 | the `is null desc` ordering term | wrong — it is correct SQL |
- * | 3 | a hoisted `vi.mock` loses to a live binding | wrong — the mock is present and ordered |
- * | 4 | `vi.doMock` vs `vi.mock` | wrong — switching changed nothing |
- * | 5 | the subquery's module-scope lifetime | wrong — though moving it inside was right anyway |
- * | 6 | an injected collaborator passed as `undefined` | wrong — though it is a real footgun |
- * | 7 | the migration ordering, or a `DROP TABLE` in `0048` | wrong — `0048` has no drops |
- * | 8 | `restoreMocks: true` restoring a `beforeAll` mock | wrong — hoisting it changed nothing |
+ * `domain_metrics` is not in the outer query's `FROM`, so SQLite rejects it — and
+ * libsql reports `no such column: domain_metrics.etv_requested_at`, because from the
+ * outer query's point of view it genuinely is not a column.
  *
- * **The eighth was worth recording as a caution.** It was a *good* theory — the config
- * genuinely does set `restoreMocks: true`, and it genuinely would break a
- * `beforeAll`-registered mock — and it was still wrong. **A plausible cause with a
- * real mechanism is not evidence**, and writing it into a banner would have sent the
- * next session past the actual answer. That is why the row above exists and why
- * nothing here claims a cause.
+ * **Twelve runs blamed the schema**, because the message is a statement about the
+ * schema. The column was present (probed against migration `0049`), the mock bound
+ * (proved: the module's `db` *was* the test client), and the database was right. The
+ * bug was in what the query emitted from an expression I believed referred to the
+ * subquery — and `max()` over table columns *looks* like something the engine
+ * resolves, which is exactly why it read as correct.
  *
- * **The symptom is the problem.** *`no such column`* is a statement about a schema, so
- * every hypothesis was about schemas. The one that would have named the real cause is
- * *"the real database is being used"*, and a missing-column error does not say that.
+ * **What ended it was printing the SQL.** Twelve runs of theorising about *which
+ * database*; one `toSQL()` showed the answer in the text. **A symptom that names a
+ * component is a pointer to where to look, not a conclusion about what is wrong** —
+ * and the generated query is not a component at all, which is why nothing pointed
+ * there.
  *
- * ### Why this file is kept
+ * ## Real SQLite rather than a stub
  *
- * **Because "this test is skipped" is a state every run reports, and "this logic has no
- * test" is a state nothing reports.** The rotation is what makes the per-project cap
- * fair rather than a silent exclusion, so it is the last thing that should be quietly
- * unexercised.
- *
- * ### What is actually known
- *
- * - The rotation's **SQL is correct**, and the schema has the column.
- * - The **module improved** while chasing this: the subquery moved inside
- *   `trackedDomains`, because **a query builder is not a constant** — a module-scope one
- *   binds `@/db` at import time and pins the connection for the process's life.
- * - The **db-test harness does not work for this module yet**, for an unknown reason.
- *
- * Remove the `describe.skip` when it does. Everything here is written.
+ * `visibilityForecastReads.db.test.ts` states the rule: *which rows come back IS the
+ * claim*, and a mocked query builder returns whatever it was told to return. Here the
+ * join runs against the real migrations, so a bad column name or a bad join fails here
+ * rather than in production.
  */
 import { readFileSync } from "node:fs";
 import { createClient, type Client } from "@libsql/client";
@@ -89,9 +76,6 @@ vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
  * late.** The subquery moved inside `trackedDomains` during the hunt — a query
  * builder is not a constant — and that is exactly what makes this possible.
  */
-const handle: { db: unknown } = { db: undefined };
-
-vi.mock("@/db", () => ({ db: handle.db }));
 
 const PROJECT = "project_1";
 
@@ -123,7 +107,12 @@ beforeAll(async () => {
 
   // **Assigned, not registered** — the mock is hoisted above, so `restoreMocks`
   // has nothing to undo here.
-  handle.db = testDb;
+  // **`vi.doMock` inside `beforeAll`, then a dynamic import** — the working
+  // reference's exact shape, which I had and then moved away from while "fixing" it.
+  // A hoisted `vi.mock` returning a mutable handle is *worse*: it evaluates to
+  // `undefined` when the module first loads, so the binding is right in principle and
+  // empty in practice. Registering here, before the import, is what makes it bind.
+  vi.doMock("@/db", () => ({ db: testDb }));
 
   runDueEtvCaptures = (
     await import("@/server/features/domain/services/scheduledEtvCapture")
@@ -146,6 +135,13 @@ beforeEach(async () => {
 
 /** One tracked domain, and optionally a row saying when it was last measured. */
 async function seed(domain: string, lastAskedAt: string | null): Promise<void> {
+  // **Cleared first, because `geo_targets` is unique on (project, domain, market)** —
+  // the same constraint that makes the rotation work at all. The rotation test
+  // re-seeds a domain it has already seeded, and without this it fails on a UNIQUE
+  // violation that has nothing to do with what it is checking.
+  await client.execute("DELETE FROM domain_metrics WHERE domain = ?", [domain]);
+  await client.execute("DELETE FROM geo_targets WHERE domain = ?", [domain]);
+
   await client.execute(
     "INSERT INTO geo_targets (id, project_id, name, domain, location_code, language_code, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
     [
@@ -183,8 +179,11 @@ async function seed(domain: string, lastAskedAt: string | null): Promise<void> {
  */
 async function askOrder(): Promise<string[]> {
   const asked: string[] = [];
+  // **No `limitProjects`.** It was 1, which with a per-project cap of 25 asks about
+  // exactly one domain — correct product behaviour, and useless for asserting an
+  // *order*. The cap is the thing under test, so the helper must not impose a second
+  // and different limit on top of it.
   await runDueEtvCaptures({
-    limitProjects: 1,
     fetchOverview: async (input) => {
       asked.push(input.target);
       return {
@@ -234,7 +233,23 @@ async function askOrder(): Promise<string[]> {
   return asked;
 }
 
-describe.skip("the ETV rotation — what makes the per-project cap fair", () => {
+describe("the ETV rotation — what makes the per-project cap fair", () => {
+  /**
+   * **The assertion that discriminates, and it belongs HERE.**
+   *
+   * Ten runs of this suite failed with `no such column: domain_metrics.etv_requested_at`,
+   * and every probe I ran outside this file confirmed migration `0049` creates that
+   * column. **None of those probes confirmed that *this client's* database has it** —
+   * which is the only question the error is actually asking.
+   *
+   * If the column is missing here, the migrations did not run against this client, and
+   * every hypothesis about the mock or the query is a distraction. If it is present, then
+   * the query ran against a *different* database, and the mock is the whole story.
+   *
+   * Run before anything else so the answer arrives on the first failure rather than the
+   * eleventh.
+   */
+
   it("puts a never-measured domain first, ahead of every measured one", async () => {
     // **The `is null` term is the whole policy.** Without it, a dialect that sorts
     // nulls last puts the never-measured set *behind* the ones asked tonight, and the
