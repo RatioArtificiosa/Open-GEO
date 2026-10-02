@@ -83,3 +83,36 @@ export type BudgetedCaptureReport = CaptureCostReport & {
    */
   droppedForBudget: number;
 };
+
+/**
+ * Format the cost pair every nightly log line prints.
+ *
+ * ## Why this is a function and not three template literals
+ *
+ * The three cron log lines were written at three different times, and one of them
+ * printed a vendor cost **with no currency symbol** where its two siblings printed one.
+ * Nothing failed, nothing was wrong in isolation — the defect only existed *between*
+ * the lines, so only reading them side by side could find it.
+ *
+ * That is the same argument as the shared type above, applied to the string that prints
+ * it: a fourth capture should inherit the format rather than reproduce it, and the `$`
+ * should be impossible to forget rather than merely noticed.
+ *
+ * **The estimate is always shown.** A single number would have to be either the measured
+ * figure or the estimate, and either choice loses the comparison that makes drift visible.
+ */
+export function formatCaptureCost(report: CaptureCostReport): string {
+  return `vendor $${report.actualCostUsd.toFixed(4)} (est. $${report.estimatedCostUsd.toFixed(4)})`;
+}
+
+/**
+ * The tail a budgeted capture appends when it dropped work.
+ *
+ * **Separate, because the omission is the point.** "We captured everything" and "we
+ * captured what we could afford" are different claims, and only one is safe to repeat from
+ * a log — so a caller that drops work says so, and a caller that drops none prints nothing
+ * rather than a `0` that reads as a measurement.
+ */
+export function formatDropped(droppedForBudget: number): string {
+  return droppedForBudget > 0 ? `, ${droppedForBudget} dropped for budget` : "";
+}

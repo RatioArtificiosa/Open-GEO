@@ -11,6 +11,10 @@ import { runDueGeoPatrols } from "@/server/features/geo/services/scheduledGeoPat
 import { runDueAiModeCaptures } from "@/server/features/geo/services/scheduledAiModeCapture";
 import { runDueAiKeywordCaptures } from "@/server/features/geo/services/scheduledAiKeywordCapture";
 import { runDueEtvCaptures } from "@/server/features/domain/services/scheduledEtvCapture";
+import {
+  formatCaptureCost,
+  formatDropped,
+} from "@/server/features/geo/services/captureReport";
 import { runQueueDrain } from "@/server/features/geo/services/queueDrainRunner";
 import { runScheduledGeoRetention } from "@/server/features/geo/services/scheduledGeoRetention";
 import { reconcileStaleAudits } from "@/server/features/audit/services/auditReconciler";
@@ -305,7 +309,7 @@ export default {
           // The `~` is dropped deliberately: a tilde means *estimated*, and this line
           // now prints the measured figure beside the estimated one rather than
           // calling the estimate approximate.
-          `[cron] AI Mode: ${aiMode.captured} captured, ${aiMode.failed} failed, vendor ${aiMode.actualCostUsd.toFixed(4)} (est. ${aiMode.estimatedCostUsd.toFixed(4)}) across ${aiMode.projectsVisited} project(s)`,
+          `[cron] AI Mode: ${aiMode.captured} captured, ${aiMode.failed} failed, ${formatCaptureCost(aiMode)} across ${aiMode.projectsVisited} project(s)`,
         );
       }
     } catch (err) {
@@ -325,13 +329,10 @@ export default {
       const aiKeywords = await withPgClient(() => runDueAiKeywordCaptures());
       if (aiKeywords.projectsVisited > 0) {
         console.log(
-          `[cron] AI keywords: ${aiKeywords.rowsStored} monthly row(s) from ${aiKeywords.keywordsAsked} keyword(s) in ${aiKeywords.callsMade} call(s), vendor $${aiKeywords.actualCostUsd.toFixed(4)} (est. $${aiKeywords.estimatedCostUsd.toFixed(4)}) across ${aiKeywords.projectsVisited} project(s)` +
-            // **Dropped work is named, never silently omitted.** "we captured
-            // everything" and "we captured what we could afford" are different
-            // claims and only one is safe to repeat from a log.
-            (aiKeywords.droppedForBudget > 0
-              ? `, ${aiKeywords.droppedForBudget} dropped for budget`
-              : ""),
+          `[cron] AI keywords: ${aiKeywords.rowsStored} monthly row(s) from ${aiKeywords.keywordsAsked} keyword(s) in ${aiKeywords.callsMade} call(s), ${formatCaptureCost(aiKeywords)} across ${aiKeywords.projectsVisited} project(s)` +
+            // Dropped work is named by the shared formatter, so "we captured
+            // everything" and "we captured what we could afford" cannot read alike.
+            formatDropped(aiKeywords.droppedForBudget),
         );
       }
       // One line per failure: the night failed for this project, and a reader of
@@ -359,10 +360,8 @@ export default {
       const etv = await withPgClient(() => runDueEtvCaptures());
       if (etv.projectsVisited > 0) {
         console.log(
-          `[cron] ETV: ${etv.rowsStored} point(s) from ${etv.domainsAsked} domain(s), vendor ${etv.actualCostUsd.toFixed(4)} (est. ${etv.estimatedCostUsd.toFixed(4)}) across ${etv.projectsVisited} project(s)` +
-            (etv.droppedForBudget > 0
-              ? `, ${etv.droppedForBudget} dropped for budget`
-              : ""),
+          `[cron] ETV: ${etv.rowsStored} point(s) from ${etv.domainsAsked} domain(s), ${formatCaptureCost(etv)} across ${etv.projectsVisited} project(s)` +
+            formatDropped(etv.droppedForBudget),
         );
       }
       // One line per failure: the night failed for this domain, and an operator
