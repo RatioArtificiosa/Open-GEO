@@ -160,6 +160,13 @@ const AI_KEYWORD_NIGHTLY_BUDGET_USD = 5;
  */
 const normaliseColumn = (column: SQLiteColumn) => sql`lower(trim(${column}))`;
 
+/**
+ * The aggregation, named once and used **only inside the subquery**.
+ *
+ * **The ordering does not use it** — it references `lastAsked.at` instead, because an
+ * aggregate over the joined table's columns is not valid in the outer query. Naming
+ * them as one expression was the bug, and it was the bug twice.
+ */
 const lastAskedAt = max(aiKeywordMetrics.capturedAt);
 
 const lastAsked = db
@@ -244,7 +251,19 @@ async function projectsWatchingKeywords(): Promise<
         eq(lastAsked.keyword, normaliseColumn(geoPrompts.prompt)),
       ),
     )
-    .orderBy(sql`${lastAskedAt} is null desc`, lastAskedAt, geoPrompts.prompt);
+    // **The alias, not the aggregate** — the same fix as the ETV rotation, and for
+    // the same reason. Ordering by `lastAskedAt` makes drizzle emit
+    // `max("ai_keyword_metrics"."captured_at")` in the **outer** query, where that
+    // table is not in scope; libsql then reports it as `no such column`, which names a
+    // schema problem rather than the query-construction one it is.
+    //
+    // Wrapped in `sql``` so `orderBy` accepts the alias by type — the emitted SQL is
+    // unchanged.
+    .orderBy(
+      sql`${lastAsked.at} is null desc`,
+      sql`${lastAsked.at}`,
+      geoPrompts.prompt,
+    );
 
   const byProject = new Map<
     string,
