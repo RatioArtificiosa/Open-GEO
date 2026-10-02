@@ -121,6 +121,36 @@ const LABS_UNIT_COST_USD = DFS_LABS.standard.perRequest;
  */
 const ETV_NIGHTLY_BUDGET_USD = 5;
 
+/**
+ * How many of one project's domains the capture covers per night.
+ *
+ * **This is the bound that actually holds, and the money ceiling is not.** The ceiling
+ * above bounds a *night*; this bounds a *customer*, which is the axis that matters when one
+ * account holds more domains than the ceiling can afford.
+ *
+ * The arithmetic that made it necessary:
+ *
+ * | domains on one project | at `$0.012` a call |
+ * |---|---|
+ * | 25 | $0.30 |
+ * | 1,000 | $12.00 — past a $5 night |
+ * | 5,000 | $60.00 |
+ *
+ * Nothing in the product caps a project's tracked domains — `geo_targets` has a unique
+ * index on (project, domain, market), which prevents *duplicates* and not a *count*. So
+ * before this, one large customer could spend $60 a night with the log naming it as
+ * dropped work rather than as a problem.
+ *
+ * **A count rather than a price, deliberately.** A proportional budget would need the unit
+ * price to mean anything, and the AI keyword capture's is still unverified — so a budget
+ * derived from it is a guess with a unit. A domain count is exact whatever the vendor
+ * charges.
+ *
+ * **And the dropped domains are named**, which is what makes a cap honest: a reader sees
+ * *which* domains went unmeasured rather than a number they have to trust.
+ */
+const MAX_DOMAINS_PER_PROJECT_PER_NIGHT = 25;
+
 /** The Labs endpoint every stored row names. One series, one endpoint. */
 const ENDPOINT = "domain_rank_overview" as const;
 
@@ -215,12 +245,34 @@ export async function runDueEtvCaptures(input?: {
     failures: [],
   };
 
+  /**
+   * **The per-project cap, applied before the money check** — because a cap that can
+   * be reached by spending is not a cap on a customer, it is a suggestion.
+   *
+   * Counted per project rather than across the night, so one account with 5,000 domains
+   * is bounded at the same 25 as one with 5. The overflow is **added to
+   * `droppedForBudget`** rather than to a field of its own: from the log's point of view
+   * *"we did not measure this"* is the same sentence whichever limit produced it, and two
+   * counters for one idea is one more thing to keep in step.
+   */
+  const perProjectSeen = new Map<string, number>();
+  const admittedWithinProjectCap: typeof admitted = [];
+  for (const row of admitted) {
+    const seen = perProjectSeen.get(row.projectId) ?? 0;
+    if (seen >= MAX_DOMAINS_PER_PROJECT_PER_NIGHT) {
+      report.droppedForBudget += 1;
+      continue;
+    }
+    perProjectSeen.set(row.projectId, seen + 1);
+    admittedWithinProjectCap.push(row);
+  }
+
   // Remaining budget for the whole night, **shared deliberately** — a per-project
   // budget would make the ceiling depend on how many customers happen to be
   // configured, which is the same bug the AI Mode runner fixed the other way round.
   let remaining = ETV_NIGHTLY_BUDGET_USD;
 
-  for (const row of admitted) {
+  for (const row of admittedWithinProjectCap) {
     // Checked **before** the call. A cap verified afterwards is a report of an
     // overspend, not a limit on one.
     if (LABS_UNIT_COST_USD > remaining) {

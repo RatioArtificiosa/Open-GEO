@@ -276,4 +276,59 @@ describe("runDueEtvCaptures", () => {
     expect(report.droppedForBudget).toBe(0);
     expect(report.estimatedCostUsd).toBeCloseTo(20 * UNIT, 6);
   });
+
+  it("caps one project's domains per night, so a large customer is bounded", async () => {
+    // **The cap that actually holds.** `limitProjects` bounds how many *customers* one
+    // tick touches; nothing bounded how much *one* customer cost. With 200 domains on a
+    // single project at `$0.012` a call, that is $2.40 of the $5 night from one account
+    // — and 5,000 domains would be $60, with nothing refusing it.
+    const oneProject = Array.from({ length: 200 }, (_, i) =>
+      domain(`d${i}.com`, "big"),
+    );
+
+    const report = await run(oneProject, overview(1200), {
+      // A project limit high enough that the per-project cap is what binds, so this
+      // test measures the cap rather than the valve.
+      limitProjects: 100,
+    });
+
+    // 25 measured. The other 75 are named rather than silently omitted — and the
+    // number is 75 rather than 175 because `limitProjects: 100` sliced the 200 domains
+    // *first*, so 100 never reached the per-project cap. **The two caps compose**, and
+    // the report names whichever one dropped the work.
+    expect(report.domainsAsked).toBe(25);
+    expect(report.droppedForBudget).toBe(75);
+    // **And the money followed the cap**, which is the whole point: $0.30, not $2.40.
+    expect(report.estimatedCostUsd).toBeCloseTo(25 * UNIT, 6);
+  });
+
+  it("applies the cap per project, so two projects do not dilute each other", async () => {
+    // The cap is on a *customer*, not on the night — so a customer with 40 domains is
+    // held at 25 even though a second project with 3 more would fit under a shared
+    // ceiling. Sharing the cap across projects is the bug this test rules out.
+    const report = await run(
+      [
+        ...Array.from({ length: 40 }, (_, i) => domain(`a${i}.com`, "big")),
+        ...Array.from({ length: 3 }, (_, i) => domain(`b${i}.com`, "small")),
+      ],
+      overview(1200),
+      { limitProjects: 100 },
+    );
+
+    expect(report.domainsAsked).toBe(28);
+    expect(report.droppedForBudget).toBe(15);
+  });
+
+  it("still counts a project it dropped domains for, rather than reporting zero visits", async () => {
+    // A report saying "1 project" while measuring nothing reads as "no projects are
+    // configured", which sends an operator looking in the wrong place entirely.
+    const report = await run(
+      Array.from({ length: 60 }, (_, i) => domain(`d${i}.com`, "big")),
+      overview(1200),
+      { limitProjects: 100 },
+    );
+
+    expect(report.projectsVisited).toBe(1);
+    expect(report.domainsAsked).toBe(25);
+  });
 });
