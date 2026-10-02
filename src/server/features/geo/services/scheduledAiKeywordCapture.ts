@@ -44,10 +44,16 @@
  *    exactly as `aiModeMonitor` does, because a retry after an unknown-outcome
  *    request is how a budget disappears without a trace.
  */
-import { eq } from "drizzle-orm";
+import { and, eq, max, sql } from "drizzle-orm";
+import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import type { BudgetedCaptureReport } from "@/server/features/geo/services/captureReport";
 import { db } from "@/db";
-import { geoPrompts, geoPromptSets, geoTargets } from "@/db/schema";
+import {
+  aiKeywordMetrics,
+  geoPrompts,
+  geoPromptSets,
+  geoTargets,
+} from "@/db/schema";
 import { fetchAiKeywordVolume } from "@/server/lib/dataforseo/ai-keywords";
 import { GeoRunRepository } from "@/server/features/geo/repositories/GeoRunRepository";
 
@@ -125,6 +131,48 @@ const AI_KEYWORD_UNIT_COST_USD = 0.002;
 const AI_KEYWORD_NIGHTLY_BUDGET_USD = 5;
 
 /**
+ * When each keyword was last asked about, per project.
+ *
+ * **The same rotation as the ETV capture, on this module's own table.** `capturedAt` is
+ * the closest thing to "when we asked", and it needs no separate cursor because the
+ * archive already holds it.
+ *
+ * **Joined on the keyword string, so the normalisation matters here more than
+ * anywhere else.** `ai-keywords.ts` normalises on both the request and the response
+ * so the vendor's returned string is a safe join key — a row written as `best crm` will
+ * not match a prompt stored as `Best CRM `, and the symptom would be a project whose
+ * keywords all look permanently unmeasured. The join therefore compares against the
+ * **normalised** prompt.
+ */
+/**
+ * **`lower(trim(...))` in SQL, and it must stay identical to `normaliseAiKeyword`.**
+ *
+ * The repository stores the **vendor's** normalised keyword, and the prompt row holds
+ * whatever the customer typed — so the join has to tolerate a case or padding
+ * difference. Normalising in SQL is the same rule `normaliseAiKeyword` applies, and
+ * duplicating it is unavoidable because one is a string function and the other is a
+ * column expression.
+ *
+ * **The two must not drift**, and this comment is the thing that makes that legible: if
+ * `normaliseAiKeyword` gains trimming, padding or a length cut, this is the line that has
+ * to change with it. A drift here is silent — every row simply stops matching, and a
+ * project's keywords look permanently unmeasured.
+ */
+const normaliseColumn = (column: SQLiteColumn) => sql`lower(trim(${column}))`;
+
+const lastAskedAt = max(aiKeywordMetrics.capturedAt);
+
+const lastAsked = db
+  .select({
+    projectId: aiKeywordMetrics.projectId,
+    keyword: aiKeywordMetrics.keyword,
+    at: lastAskedAt.as("at"),
+  })
+  .from(aiKeywordMetrics)
+  .groupBy(aiKeywordMetrics.projectId, aiKeywordMetrics.keyword)
+  .as("lastAsked");
+
+/**
  * How many of one project's keywords the capture covers per night.
  *
  * **The same bound the ETV capture needed, on the same axis.** `limitProjects` bounds
@@ -181,12 +229,22 @@ async function projectsWatchingKeywords(): Promise<
     .from(geoPromptSets)
     .innerJoin(geoTargets, eq(geoTargets.projectId, geoPromptSets.projectId))
     .innerJoin(geoPrompts, eq(geoPrompts.promptSetId, geoPromptSets.id))
-    .groupBy(
-      geoTargets.projectId,
-      geoPrompts.prompt,
-      geoTargets.locationCode,
-      geoTargets.languageCode,
-    );
+    // **Left join, nulls first — and the same three terms as the ETV capture.** Without
+    // it the cap slices the front of the list, so a project with 400 prompts has the
+    // **same 25 measured every night** and the other 375 never. With it the set
+    // rotates: least-recently-asked first, never-asked ahead of both.
+    //
+    // The `is null` term is written out because a dialect that sorted nulls last
+    // would put every never-asked keyword behind the ones asked tonight, and the cap
+    // would go straight back to starving exactly the set that needs reaching.
+    .leftJoin(
+      lastAsked,
+      and(
+        eq(lastAsked.projectId, geoTargets.projectId),
+        eq(lastAsked.keyword, normaliseColumn(geoPrompts.prompt)),
+      ),
+    )
+    .orderBy(sql`${lastAskedAt} is null desc`, lastAskedAt, geoPrompts.prompt);
 
   const byProject = new Map<
     string,
