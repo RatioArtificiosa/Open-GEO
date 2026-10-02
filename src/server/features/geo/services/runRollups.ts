@@ -112,6 +112,22 @@ export async function writeRunRollups(input: {
 
   for (const entry of input.answers) {
     const platform = entry.answer.platform;
+
+    /**
+     * **Seed the platform before the verdict, never after it.**
+     *
+     * The first version only wrote a row when `mentioned === true`, so a run in
+     * which the brand was named in *none* of the answers produced **no metrics row
+     * at all** — and a missing row reads as "we never collected for this platform"
+     * rather than "we collected and found nothing". That is the same
+     * absence-versus-zero confusion this feature has refused four times, and it was
+     * in the one module whose whole job is producing those numbers.
+     *
+     * Caught by a test asserting `mentions === 0` and receiving `undefined` — the
+     * number was not wrong, the row was missing.
+     */
+    mentionsByPlatform.set(platform, mentionsByPlatform.get(platform) ?? 0);
+
     const verdict = mentionFromAnswer({
       // The insert type marks this optional, so an answer row can legitimately
       // arrive without text — which is the `null` verdict, not an error.
@@ -123,6 +139,7 @@ export async function writeRunRollups(input: {
       aliases: input.brandName ? [input.brandName] : [],
     });
 
+    // `null` is neither a mention nor an absence, so it leaves the seeded zero alone.
     if (verdict.mentioned === true) {
       mentionsByPlatform.set(
         platform,
