@@ -28,6 +28,7 @@
 import { GeoRunRepository } from "../repositories/GeoRunRepository";
 import { runBatch } from "@/db/runBatch";
 import { fetchAiModeAnswer } from "@/server/lib/dataforseo/ai-mode";
+import { DataforseoChargedTaskError } from "@/server/lib/dataforseo/envelope";
 import { planAiModeCaptures, type WatchedPrompt } from "./aiModeSchedule";
 import { diffAnswers } from "./answerDiff";
 import { randomUUID } from "node:crypto";
@@ -57,8 +58,42 @@ export type AiModeNightResult = {
     diff: ReturnType<typeof diffAnswers> | null;
   }>;
   estimatedCostUsd: number;
+  /**
+   * What the **vendor** reported the night cost, from each response's
+   * `billing.costUsd` plus any billed failure.
+   *
+   * **Beside the estimate, never replacing it**, because the two answer different
+   * questions: the estimate is what the *budget* was enforced against, and this is
+   * what was *actually charged*. A single field would have to be one or the other,
+   * and either choice loses something — the estimate is what bounded the run, and
+   * this is what a customer will be invoiced.
+   *
+   * `estimatedCostUsd` was previously the only cost figure on this path, which made
+   * it the only number anyone could compare against an invoice. The sibling keyword
+   * capture hit the same omission.
+   */
+  actualCostUsd: number;
   summary: string;
 };
+
+/**
+ * What a thrown error cost, when it says.
+ *
+ * `DataforseoChargedTaskError` is thrown for a task that failed **after** being
+ * billed and carries its `billing`; anything else failed before a bill existed.
+ *
+ * **Zero for the unbilled case, and the distinction is the point.** A failure that
+ * never reached the vendor cost nothing, so counting an estimate for it would
+ * overstate the bill. A failure that *was* billed cost money whether or not we got
+ * an answer — and omitting it would understate the bill in exactly the direction
+ * that hides our own gap. Both are real failures; the honest figure for each is
+ * different, and `0` is the honest figure for one of them.
+ */
+function billedCostOf(error: unknown): number {
+  return error instanceof DataforseoChargedTaskError
+    ? error.billing.costUsd
+    : 0;
+}
 
 /**
  * The vendor call, injectable so a test can fail it without a network.
@@ -108,6 +143,7 @@ export async function runAiModeMonitor(input: {
       failed: [],
       changes: [],
       estimatedCostUsd: 0,
+      actualCostUsd: 0,
       summary:
         "No AI Mode capture tonight: this project was already captured in this window.",
     };
@@ -123,6 +159,20 @@ export async function runAiModeMonitor(input: {
   const runId = randomUUID();
   let captured = 0;
   let spent = 0;
+  /**
+   * What the **vendor** says the night cost, beside the planner's `spent`.
+   *
+   * `AI_MODE_UNIT_COST_USD` is *verified* against a real vendor response, so this
+   * is not about correcting a placeholder — it is about **detecting a price change**.
+   * DataForSEO repriced endpoints before, and a verified constant that nobody
+   * re-checks is a stale fact that looks current. Two numbers make the drift
+   * visible on the first night it appears.
+   *
+   * The sibling keyword capture needed this more urgently — its unit cost is an
+   * unverified placeholder — but the argument is identical, and having one path
+   * report a measured cost and the other not would make the two incomparable.
+   */
+  let measuredSpent = 0;
   const failed: AiModeNightResult["failed"] = [];
   const changes: AiModeNightResult["changes"] = [];
 
@@ -144,6 +194,14 @@ export async function runAiModeMonitor(input: {
     );
 
     let answer;
+    /**
+     * What the **vendor** says this call cost.
+     *
+     * Held outside the `try` because a billed failure still cost money, and a
+     * failure that cannot say what it cost is a failure nobody can reconcile. The
+     * `catch` below reads it for exactly that reason.
+     */
+    let billedUsd = 0;
     try {
       const response = await fetchAnswer({
         keyword: admitted.keyword,
@@ -151,6 +209,7 @@ export async function runAiModeMonitor(input: {
         languageCode: admitted.languageCode,
       });
       answer = response.data;
+      billedUsd = response.billing.costUsd;
     } catch (error) {
       /**
        * A failed call is **recorded, not retried.**
@@ -159,6 +218,10 @@ export async function runAiModeMonitor(input: {
        * second bill for the same question — and treating it as a capture would
        * claim a baseline that is not there.
        */
+      // A *billed* failure carries its cost on the thrown error, and it is still
+      // this night's spending. Counting only the successes would under-report the
+      // bill in exactly the direction that hides our own gap.
+      measuredSpent += billedCostOf(error);
       failed.push({
         keyword: admitted.keyword,
         reason: error instanceof Error ? error.message : String(error),
@@ -166,6 +229,7 @@ export async function runAiModeMonitor(input: {
       continue;
     }
 
+    measuredSpent += billedUsd;
     spent += admitted.estimatedCostUsd;
 
     /**
@@ -262,6 +326,7 @@ export async function runAiModeMonitor(input: {
     failed,
     changes,
     estimatedCostUsd: spent,
+    actualCostUsd: measuredSpent,
     summary: describe(captured, failed, changes, plan.budgetBound),
   };
 }

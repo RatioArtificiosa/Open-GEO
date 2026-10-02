@@ -136,7 +136,28 @@ export function planAiModeCaptures(input: {
   // changed. A nightly job that reshuffles its own list makes its run log
   // impossible to read.
   const ordered: WatchedPrompt[] = [];
+  /**
+   * Keywords already in the plan, so a repeated one is admitted **once**.
+   *
+   * **Reachable, not theoretical.** `geo_prompts` has a unique index on
+   * `(prompt_set_id, position)` — not on the prompt text — so a set can legitimately
+   * hold the same question twice at two positions. Without this, one duplicated
+   * prompt becomes **two paid calls for one question** and two rows captured in the
+   * same run, which the next night's diff would then report as a change that never
+   * happened. A baseline taken twice in the same second is not a baseline.
+   *
+   * Normalised the way the vendor would, because `"Best CRM"` and `"best crm"` are
+   * one question billed twice and the planner's whole job is deciding what is worth
+   * a call. Keeping the **first** occurrence also keeps the caller's ordering
+   * meaningful, which is what the stable sort below exists to protect.
+   */
+  const seenKeywords = new Set<string>();
   for (const prompt of input.prompts) {
+    const key = prompt.keyword.trim().toLowerCase();
+    if (seenKeywords.has(key)) {
+      continue;
+    }
+    seenKeywords.add(key);
     let at = ordered.length;
     for (let i = 0; i < ordered.length; i += 1) {
       const other = ordered[i];
