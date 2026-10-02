@@ -84,6 +84,20 @@ function walk(dir: string, out: string[] = []): string[] {
 const GEO_ROOT = "src/server/features/geo";
 
 /**
+ * Every feature's writers, for the **writer** check only.
+ *
+ * The module-reachability check below stays on `GEO_ROOT` deliberately: widening
+ * *that* one would flag every un-mounted surface in every feature at once, which is a
+ * product decision rather than a defect list. This one asks a much narrower question —
+ * "does an exported writer have a caller?" — and a false negative there is silent
+ * forever, because a table nothing writes simply stays empty.
+ *
+ * That asymmetry is the whole argument for widening this and not the other: **a
+ * missing reader is visible, a missing writer is not.**
+ */
+const WRITER_ROOT = "src/server/features";
+
+/**
  * The tree scanned for *consumers*.
  *
  * **This must be wider than {@link GEO_ROOT}, and the first version got it wrong.**
@@ -161,6 +175,43 @@ const ROOT = process.cwd();
  * nine of them stayed invisible: each was "noted in a comment" rather than listed
  * here, and a note is not a gate.
  */
+/**
+ * Writers with no production caller that are **intentionally** that way.
+ *
+ * Keyed on the **module path**, and every entry carries a reason. That is the whole design
+ * of this list: **an unnamed exemption is a hole dressed as a decision**, so the type
+ * makes a bare string impossible and the gate's own "exempts nothing without saying
+ * why" test reads this list.
+ *
+ * The decision to widen this gate across every feature came with accepting that cost,
+ * and this is that cost made concrete. Entries belong here only when the writer is a
+ * **library** — a thing something else is meant to call — rather than a thing nothing
+ * was supposed to need. "We will call it later" is not a reason; it is the bug this
+ * gate exists to find.
+ */
+const WRITER_EXEMPT = new Map<string, string>([
+  [
+    // **One entry for three methods, and that is the point.** `samTurnTelemetry` has a
+    // turn object whose `recordStep`, `recordToolCall` and `captureServerError` are all
+    // called as **methods on an instance** — `turn.recordStep(ctx, cost)` — rather than
+    // as `Namespace.member()` or a bare call. The gate sees the declaration, finds no
+    // matching call shape, and reports three orphans that are wired up on the line below
+    // where it looked.
+    //
+    // **The honest entry is the whole file with its reason**, not three bare names: a
+    // list of three unexplained entries reads as three mysteries, and a list of one
+    // explained entry reads as a known limitation. The limitation is real and worth
+    // stating plainly — **the gate sees `foo.bar(` and `bar(`, but not `this.x.bar(` or
+    // `turn.bar(`** — so every future method-on-an-instance writer lands here too.
+    //
+    // The alternative, teaching the gate to resolve `this.x`, is the better fix and is
+    // not done yet. Until it is, this entry is what keeps the gate's hit rate honest
+    // rather than perfect.
+    "src/server/features/sam/samTurnTelemetry.ts",
+    "Method-on-an-instance writers, called as turn.recordStep(...) rather than Namespace.member(). The gate does not resolve this.x, so these read as orphans.",
+  ],
+]);
+
 const EXEMPT: Array<{ module: string; reason: string }> = [
   {
     module: "src/server/features/geo/services/alertFixture.ts",
@@ -323,20 +374,22 @@ describe("a GEO module must be reachable from production", () => {
    * exemption list nobody reads is how a gate stops being trusted.
    */
   it(
-    "reports no GEO writer whose only callers are tests",
+    "reports no feature writer whose only callers are tests",
     /**
      * **30s, measured rather than guessed.** This walks every GEO file, extracts
      * three declaration shapes from each, then for every declared writer re-reads
-     * every consumer file — a reader × writer scan. It runs at **~9.5s**, against
+     * every consumer file — a reader × writer scan. It runs at **~9.5s** against
      * vitest's 5s `testTimeout` and 10s `hookTimeout`, so it would have been the
      * next flake in this suite for exactly the reason `oauth-refresh` was the last
      * one: a slow check whose failure names nothing.
      *
-     * Higher than the 20s the module-reachability test uses because it is genuinely
-     * the slower of the two, and because the whole point of this test is to report a
-     * defect by name — a timeout reports nothing at all.
+     * **Raised to 60s when the scan widened to every feature** — measured at ~12.5s
+     * for GEO alone, and the cross-product is now every writer × every consumer file
+     * in `src` and `scripts`. Higher than the 20s the module-reachability test uses
+     * because it is genuinely the slower of the two, and because the whole point of
+     * this test is to report a defect by name — a timeout reports nothing at all.
      */
-    { timeout: 30_000 },
+    { timeout: 60_000 },
     () => {
       // **Three shapes**, because each version of this found fewer writers than the last
       // and the guard caught every one. The repository convention is
@@ -365,7 +418,7 @@ describe("a GEO module must be reachable from production", () => {
       const offenders: string[] = [];
       let checked = 0;
 
-      for (const file of files) {
+      for (const file of walk(join(ROOT, WRITER_ROOT))) {
         const rel = relative(ROOT, file).replace(/\\/g, "/");
         if (/\.test\.tsx?$/.test(rel)) continue;
         const src = readFileSync(file, "utf8");
@@ -424,9 +477,17 @@ describe("a GEO module must be reachable from production", () => {
             return importsIt && isCalled(gsrc);
           });
 
-          if (importers.length === 0) {
-            offenders.push(`${name}  —  ${rel}`);
-          }
+          if (importers.length > 0) continue;
+          // **The exemption is a keyed lookup, not a scan of a comment.** The
+          // decision was to accept a list, so the list has to be the honest kind:
+          // every entry names a module and says why. An unnamed entry is a hole
+          // dressed as a decision.
+          // **Keyed on the module alone, deliberately.** A whole file shares one
+          // reason — three methods on one turn object are one fact, not three — so
+          // keying on `module#writer` would force the same sentence three times, and a
+          // list of three copies is a list nobody maintains.
+          if (WRITER_EXEMPT.has(rel)) continue;
+          offenders.push(`${name}  —  ${rel}`);
         }
       }
 
