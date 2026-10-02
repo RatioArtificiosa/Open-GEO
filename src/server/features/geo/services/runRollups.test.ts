@@ -15,30 +15,48 @@ import { AppError } from "@/server/lib/errors";
 import { writeRunRollups } from "./runRollups";
 import type { GeoAnswerInsert } from "@/server/features/geo/repositories/GeoAnswerRepository";
 import type { GeoPlatform } from "@/server/features/geo/repositories/GeoSetupRepository";
+import type { GeoRunRepository } from "@/server/features/geo/repositories/GeoRunRepository";
 
 vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
 
-const insertTargetMetrics = vi.fn(async (_rows: never[]) => {});
+/**
+ * The doubles are typed from the **repository's own method types**, not from
+ * `never[]`.
+ *
+ * `never` is what the earlier version used, and it is the same mistake as `as never`:
+ * it satisfies every check while constraining nothing, so a double that stopped
+ * matching the real signature would keep compiling. Naming the methods means a
+ * mismatch is a **compile error** instead of a test that quietly passes against a
+ * shape the repository no longer has.
+ *
+ * `insertCitationDomains` returns **builders** by the repository's convention, which
+ * is why its return is an array rather than a promise — the same fact `runBatch`'s
+ * stub has to compose.
+ */
+type WriteMetrics = typeof GeoRunRepository.insertTargetMetrics;
+type WriteDomains = typeof GeoRunRepository.insertCitationDomains;
+
+const insertTargetMetrics = vi.fn<WriteMetrics>(async () => {});
 // **Both parameters declared**, and that is load-bearing rather than pedantic: a
 // `vi.fn(() => [])` takes no arguments, so it recorded *none* — and every citation
 // assertion then read an empty list, which looked exactly like a module that never
 // writes them. A spy whose signature does not match the real function cannot see the
 // real function's arguments.
-const insertCitationDomains = vi.fn(
-  (_tx: unknown, _rows: never[]) => [] as never[],
-);
+const insertCitationDomains = vi.fn<WriteDomains>(() => []);
 
 vi.mock("@/server/features/geo/repositories/GeoRunRepository", () => ({
   GeoRunRepository: {
-    insertTargetMetrics: (rows: never[]) => insertTargetMetrics(rows),
+    insertTargetMetrics: (rows: Parameters<WriteMetrics>[0]) =>
+      insertTargetMetrics(rows),
     // `(tx, rows)` — the repository takes a transaction first, so recording
     // argument 0 as "the rows" would have made every citation assertion read an
     // empty list and look like a module that never writes them.
-    insertCitationDomains: (tx: unknown, rows: never[]) =>
-      insertCitationDomains(tx, rows),
+    insertCitationDomains: (
+      tx: Parameters<WriteDomains>[0],
+      rows: Parameters<WriteDomains>[1],
+    ) => insertCitationDomains(tx, rows),
   },
 }));
-
 vi.mock("@/db/runBatch", () => ({
   // The repository returns builders, and the real `runBatch` needs a database.
   // Composing them is what is being tested; executing them is not.
@@ -118,13 +136,18 @@ const run = (
   });
 
 /** The metrics rows the run produced, in platform order. */
-const metricsRows = () =>
-  (insertTargetMetrics.mock.calls[0]?.[0] ?? []) as Array<{
-    platform: string;
-    mentions: number;
-    aiSearchVolume: number | null;
-    targetId: string;
-  }>;
+/**
+ * The rows the writer was handed, typed as the **parameter** rather than as a hand-
+ * written subset.
+ *
+ * The earlier version spelled the four fields out and cast, which meant a fifth
+ * column added to the row type would be invisible here - and a test reading a subset
+ * of the row is a test that cannot catch the row changing.
+ */
+type MetricsRow = Parameters<WriteMetrics>[0][number];
+
+const metricsRows = (): MetricsRow[] =>
+  insertTargetMetrics.mock.calls[0]?.[0] ?? [];
 
 /** The citation rows the run produced, as platform+domain+mentions. */
 const citationRows = () =>
