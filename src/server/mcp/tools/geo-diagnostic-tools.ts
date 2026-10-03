@@ -107,9 +107,10 @@ export const getGeoCitationGapTool = {
           // report against our own server**.
           //
           // The first repair named a different tool that does not exist either.
-          // The registered set is `get_geo_citation_gap`, `get_geo_runs`,
-          // `get_geo_visibility`, `get_geo_visibility_forecast` and
-          // `get_geo_answer_history`, and replacing one invented name with another
+          // The registered GEO set is `get_geo_citation_gap`, `get_geo_runs`,
+          // `get_geo_visibility`, `get_geo_visibility_forecast`,
+          // `get_geo_answer_history` and `get_geo_top_citations`, and replacing
+          // one invented name with another
           // would have been the same defect wearing a different word. So the
           // sentence now names **no tool** and states the absence, which cannot be
           // wrong — and it cannot spell the old name either, because

@@ -787,6 +787,18 @@
         "open_world_justification": "Uses a private SEO research provider and cannot publish or modify publicly visible internet state.",
         "destructive_justification": "May use metered research credits when dry_run is explicitly false, but does not delete, overwrite, revoke access, send, or publish anything."
       }
+    },
+    "get_geo_top_citations": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only reads the stored citation archive from the project's most recent monitoring run, per platform. Mention counts are reported per platform and never summed.",
+        "open_world_justification": "Operates only on private OpenGeo state or private provider data and cannot change publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
     }
   },
   "test_cases": [

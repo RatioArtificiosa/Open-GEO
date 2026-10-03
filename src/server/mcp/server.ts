@@ -48,6 +48,7 @@ import {
   getGeoCitationGapTool,
   getGeoRunsTool,
 } from "@/server/mcp/tools/geo-diagnostic-tools";
+import { getGeoTopCitationsTool } from "@/server/mcp/tools/geo-top-citations-tool";
 import { computeShareOfVoiceTool } from "@/server/mcp/tools/compute-share-of-voice";
 import {
   getProjectContextTool,
@@ -207,6 +208,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getGeoVisibilityTool);
   register(getGeoVisibilityForecastTool);
   register(getGeoCitationGapTool);
+  register(getGeoTopCitationsTool);
   register(getGeoAnswerHistoryTool);
   // **Adjacent to the history tool on purpose.** An agent asking "what changed?" should get
   // the diff directly rather than two raw answers and a suggestion to compare them by eye —

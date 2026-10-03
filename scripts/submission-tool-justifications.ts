@@ -59,6 +59,12 @@ export const MISSING_TOOL_JUSTIFICATIONS: Record<string, ToolJustifications> = {
     open_world_justification: PRIVATE_STATE,
     destructive_justification: NOTHING_DESTRUCTIVE,
   },
+  get_geo_top_citations: {
+    read_only_justification:
+      "Only reads the stored citation archive from the project's most recent monitoring run, per platform. Mention counts are reported per platform and never summed.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification: NOTHING_DESTRUCTIVE,
+  },
   get_geo_answer_history: {
     read_only_justification:
       "Only retrieves previously archived answers to one prompt, newest first, so a change between two runs can be compared.",

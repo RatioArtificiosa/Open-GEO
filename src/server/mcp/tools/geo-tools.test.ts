@@ -85,6 +85,8 @@ const {
 } = await import("@/server/mcp/tools/geo-read-tools");
 const { getGeoCitationGapTool, getGeoRunsTool } =
   await import("@/server/mcp/tools/geo-diagnostic-tools");
+const { getGeoTopCitationsTool } =
+  await import("@/server/mcp/tools/geo-top-citations-tool");
 
 type ToolResult = {
   content?: Array<{ type: string; text?: string }>;
@@ -492,6 +494,7 @@ describe("tool annotations", () => {
       getGeoCitationGapTool,
       getGeoAnswerHistoryTool,
       getGeoRunsTool,
+      getGeoTopCitationsTool,
     ]) {
       expect(tool.config.annotations.readOnlyHint).toBe(true);
       expect(tool.config.annotations.destructiveHint).toBe(false);
