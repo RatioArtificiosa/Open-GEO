@@ -174,8 +174,20 @@ function buildImportGraph(
       const resolved = resolveLocal(file, specifier);
       if (resolved === null) continue;
       const existing = graph.get(resolved);
-      if (existing) existing.push({ file, source });
-      else graph.set(resolved, [{ file, source }]);
+      // **De-duplicated, deliberately.** 69 (consumer, module) pairs in this repository
+      // import the same module twice, so without this a consumer appears twice in its
+      // importer's list — where the old filter visited it once.
+      //
+      // The gate only asks `importers.length > 0`, so **the verdict is identical either
+      // way** — and that is exactly why it is worth making explicit. A latent doubling is
+      // one small change away from being a real one, and *"harmless for the verdict"* is
+      // the reasoning that hides the next change that is not harmless.
+      if (existing) {
+        if (existing.some((entry) => entry.file === file)) continue;
+        existing.push({ file, source });
+      } else {
+        graph.set(resolved, [{ file, source }]);
+      }
     }
   }
   return graph;

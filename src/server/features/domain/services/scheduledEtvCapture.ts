@@ -51,7 +51,11 @@ import { geoTargets } from "@/db/schema";
 import { domainMetrics } from "@/db/schema";
 import { DomainMetricsRepository } from "@/server/features/domain/repositories/DomainMetricsRepository";
 import { fetchDomainRankOverview } from "@/server/lib/dataforseo/labs";
-import { DFS_LABS } from "@/shared/dataforseo-pricing";
+import {
+  DFS_LABS,
+  NIGHTLY_BUDGET_USD,
+  PER_PROJECT_NIGHTLY_CAP,
+} from "@/shared/dataforseo-pricing";
 
 /**
  * One Labs call, in USD — **read from the price book**, not restated here.
@@ -121,7 +125,12 @@ const LABS_UNIT_COST_USD = DFS_LABS.standard.perRequest;
  * It is a number rather than `null` so the capture is safe to switch on before that
  * decision is made.
  */
-const ETV_NIGHTLY_BUDGET_USD = 5;
+/**
+ * **Read from {@link NIGHTLY_BUDGET_USD}** rather than declared here, because the budget is
+ * policy shared with the sibling captures and the price book it divides by — and a
+ * constant in two places is a constant that drifts.
+ */
+const ETV_NIGHTLY_BUDGET_USD = NIGHTLY_BUDGET_USD.etv;
 
 /**
  * How many of one project's domains the capture covers per night.
@@ -151,7 +160,7 @@ const ETV_NIGHTLY_BUDGET_USD = 5;
  * **And the dropped domains are named**, which is what makes a cap honest: a reader sees
  * *which* domains went unmeasured rather than a number they have to trust.
  */
-const MAX_DOMAINS_PER_PROJECT_PER_NIGHT = 25;
+const MAX_DOMAINS_PER_PROJECT_PER_NIGHT = PER_PROJECT_NIGHTLY_CAP.etvDomains;
 
 /**
  * **This cap is safe only because the set rotates, and it did not until this line

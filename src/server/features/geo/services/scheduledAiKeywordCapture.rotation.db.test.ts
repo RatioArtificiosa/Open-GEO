@@ -343,6 +343,112 @@ describe("the AI-keyword rotation — the normalisation boundary", () => {
     expect(order).toEqual(["Best CRM "]);
   });
 
+  it("matches a prompt whose leading padding pushes its content past the clamp", async () => {
+    /**
+     * **The order bug, and the fixture that could not see it.**
+     *
+     * `normaliseAiKeyword` is `k.trim().toLowerCase().slice(0, 250)` — the clamp **last**.
+     * The SQL had it as `lower(trim(substr(col, 1, 250)))` — the clamp **first** — which
+     * discards content that leading whitespace pushed past 250:
+     *
+     * | | `" " x 300 + "best crm software"` |
+     * |---|---|
+     * | clamp last (correct) | `best crm software` — matches the stored keyword |
+     * | clamp first (the bug) | `""` — matches nothing, ever |
+     *
+     * Measured over six prompts: **five agree, one does not** — and it is this one.
+     *
+     * **The original fixture padded *trailing* whitespace**, where both orders agree, so
+     * the suite passed with the bug in it. An external review caught it; the test written
+     * to check that line did not. **Written after the fix is the weaker position, and
+     * worth naming rather than presenting as if the suite had caught it.**
+     */
+    const padded = " ".repeat(300) + "best crm software";
+
+    await client.execute(
+      "INSERT OR IGNORE INTO projects (id, name, location_code, language_code, created_at) VALUES (?, ?, ?, ?, ?)",
+      ["project_pad", "Padded", 2840, "en", "2026-10-01T00:00:00.000Z"],
+    );
+    await client.execute(
+      "INSERT OR IGNORE INTO geo_prompt_sets (id, project_id, name, created_at) VALUES (?, ?, ?, ?)",
+      ["set-pad", "project_pad", "default", "2026-10-01T00:00:00.000Z"],
+    );
+    await client.execute(
+      "INSERT OR IGNORE INTO geo_targets (id, project_id, name, domain, location_code, language_code, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [
+        "t-pad",
+        "project_pad",
+        "Padded",
+        "pad.com",
+        2840,
+        "en",
+        "2026-10-01T00:00:00.000Z",
+      ],
+    );
+    await client.execute(
+      "INSERT INTO geo_prompts (id, prompt_set_id, prompt, position, created_at) VALUES (?, ?, ?, ?, ?)",
+      ["q-pad", "set-pad", padded, 0, "2026-10-01T00:00:00.000Z"],
+    );
+    // The vendor stored its **normalised** keyword, so this is what the join must match.
+    await client.execute(
+      "INSERT INTO ai_keyword_metrics (project_id, keyword, location_code, language_code, month, ai_search_volume, captured_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [
+        "project_pad",
+        padded.trim().toLowerCase().slice(0, 250),
+        2840,
+        "en",
+        "2026-09",
+        100,
+        "2026-09-01T00:00:00.000Z",
+      ],
+    );
+
+    // **A never-asked prompt in the same project**, so the order tells us something.
+    // With the clamp inside the trim the padded prompt is *unmeasured*, so it sorts
+    // nulls-first and leads this queue. With the clamp outside it is measured, so the
+    // never-asked one leads and the padded one follows.
+    await client.execute(
+      "INSERT INTO geo_prompts (id, prompt_set_id, prompt, position, created_at) VALUES (?, ?, ?, ?, ?)",
+      [
+        "q-never",
+        "set-pad",
+        "never asked keyword",
+        1,
+        "2026-10-01T00:00:00.000Z",
+      ],
+    );
+
+    /**
+     * **Through the runner, which is the honest route** — `projectsWatchingKeywords` is
+     * module-private, and the runner is what production calls anyway.
+     *
+     * **The runner asks the raw prompt, not the normalised keyword** — the query selects
+     * `geoPrompts.prompt` verbatim, and that is the string sent to the vendor. So the
+     * assertion is on the *padded* text, and on **when** it is asked rather than whether.
+     *
+     * **Asking at all proves nothing**: the padded prompt is asked under both orderings.
+     * What differs is its position — unmeasured work leads the queue, measured work
+     * follows it.
+     */
+    const asked: string[] = [];
+    await runDueAiKeywordCaptures({
+      limitProjects: 25,
+      fetchVolume: volumeStub(asked),
+      writeRows: async () => undefined,
+    });
+
+    // **Scoped to this test's own two prompts**, because every test in this file shares
+    // one in-memory database — the count was failing on a row a previous test left
+    // behind, which says nothing about the claim. The *relative* order of the two
+    // prompts created here is the whole assertion, and it is robust to whatever else is
+    // in the database.
+    const mine = asked.filter(
+      (keyword) => keyword === padded || keyword === "never asked keyword",
+    );
+
+    expect(mine).toEqual(["never asked keyword", padded]);
+  });
+
   it("counts a prompt longer than the vendor's length clamp as measured", async () => {
     // **The bug this file was written for.** `normaliseAiKeyword` cuts to
     // `MAX_KEYWORD_CHARS`; the SQL's `lower(trim(...))` did not, so a 300-character

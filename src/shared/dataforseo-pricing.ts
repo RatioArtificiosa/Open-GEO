@@ -550,3 +550,75 @@ export function estimateCrawl(input: {
       : [],
   };
 }
+
+// ---------------------------------------------------------------------------
+// Nightly capture budgets — POLICY, kept here rather than in each runner
+// ---------------------------------------------------------------------------
+
+/**
+ * What one night of each capture may spend, in USD.
+ *
+ * ## Why these live here and not in the runners
+ *
+ * **Three separate reasons, and the third is the one that settles it.**
+ *
+ * 1. **They are policy, not mechanism.** A budget says what the product is willing to
+ *    spend overnight; a cron runner says how it spends it. Those change for different
+ *    reasons and at different times.
+ * 2. **The runners cannot be imported to read them.** `scheduledEtvCapture` reaches
+ *    `@/db` → `db/provider.ts` → `import { env } from "cloudflare:workers"`, which does not
+ *    resolve outside a Worker. A test that imported the constant would load **zero tests**.
+ * 3. **Beside the price book is where a reader looks.** These numbers only mean anything
+ *    against a unit price, and `DFS_LABS.standard` lives here — so the budget and the
+ *    price it divides by can never drift apart by being edited in different files.
+ *
+ * ## And the honesty about them
+ *
+ * **All three are placeholders**, pending a live DataForSEO measurement — which is blocked
+ * on account verification. `scripts/nightly-budgets.test.ts` asserts the *relationships*
+ * between them (what a night can afford, and whether the ceiling can bind at all) rather
+ * than endorsing an amount, because a test that endorsed a placeholder would make it
+ * permanent by making it unchangeable.
+ *
+ * The keyword unit price is the soft one: it is the only figure here that has never been
+ * compared against what the vendor actually charges.
+ */
+export const NIGHTLY_BUDGET_USD = {
+  /** `scheduledEtvCapture` — shared across the night's projects. */
+  etv: 5,
+  /** `scheduledAiKeywordCapture` — shared across the night's projects. */
+  aiKeyword: 5,
+  /**
+   * `scheduledAiModeCapture` — **per project, not shared.**
+   *
+   * The other two share one night budget across projects; this runner gives each project
+   * the whole amount, because dividing it would make the bound depend on how many other
+   * customers happen to be watching. **The divergence is deliberate and is the reason
+   * these are named rather than summed.**
+   */
+  aiMode: 0.1,
+} as const;
+
+/**
+ * How much of one project the capture covers per night.
+ *
+ * **A count, not a price**, and that is the design working: coverage does not move when
+ * the price book is corrected. A money cap would make the budget the thing that decides
+ * what a customer is measured on.
+ */
+export const PER_PROJECT_NIGHTLY_CAP = {
+  /** One ETV point per tracked domain, per night. */
+  etvDomains: 25,
+  /** One vendor call per prompt. */
+  aiKeywords: 25,
+} as const;
+
+/**
+ * The AI keyword call's price, USD.
+ *
+ * **The one number here that has never been checked against the vendor.** It is the
+ * ceiling's denominator: `$5 / 0.002` is how many calls a night admits, so a wrong price
+ * makes the budget wrong in both directions. A live `/v3/appendix/user_data` read cannot
+ * price it; only one billable call can, and account verification is blocking that.
+ */
+export const AI_KEYWORD_UNIT_COST_USD = 0.002;

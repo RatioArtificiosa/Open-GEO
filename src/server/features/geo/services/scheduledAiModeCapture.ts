@@ -39,6 +39,7 @@ import {
 } from "@/db/schema";
 import { runAiModeMonitor, type AiModeNightResult } from "./aiModeMonitor";
 import type { WatchedPrompt } from "./aiModeSchedule";
+import { NIGHTLY_BUDGET_USD } from "@/shared/dataforseo-pricing";
 
 /**
  * One AI Mode call, in USD.
@@ -64,7 +65,9 @@ const AI_MODE_UNIT_COST_USD = 0.004;
  * claim about a consumer that does not exist yet, and knip correctly refuses it. The
  * number that matters is in the run log, which is where an operator will read it.
  */
-const AI_MODE_NIGHTLY_BUDGET_USD = 0.1;
+/** **Read from {@link NIGHTLY_BUDGET_USD}** — and it is the outlier there: per
+ * project, not shared. The sibling runners divide one night budget; this one cannot. */
+const AI_MODE_NIGHTLY_BUDGET_USD = NIGHTLY_BUDGET_USD.aiMode;
 
 /** One project's watch list, assembled from its prompt set and target. */
 type Watcher = {

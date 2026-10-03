@@ -1,4 +1,20 @@
 /**
+ * Every number below is imported from the module that enforces it.
+ *
+ * **The first version restated them** — `5`, `25`, `0.002` — as local copies, and CodeRabbit
+ * correctly named what that cost: *change a runner's budget and this test still passes on
+ * the old number*. A test that computes a placeholder's affordability from a **copy** of the
+ * placeholder is not a test of the runner; it is a test of itself.
+ *
+ * That is the same defect as the clamp order fixed in the same stretch — **a rule written
+ * twice, in two places, unable to track the other** — and the fix is the same shape: export
+ * the constant, import it, one value.
+ *
+ * Exporting these is not a widening of the API for a test's sake. They are the numbers a
+ * reader asks about (*"what does $5 buy?"*), and the reader should be able to ask the code
+ * rather than grep for it.
+ */
+/**
  * What the ledger already says, made executable.
  *
  * Three nightly budgets exist — `$5` for ETV, `$5` for AI keywords, `$0.10` for AI Mode —
@@ -23,47 +39,82 @@
  * by making it unchangeable.
  */
 import { describe, expect, it } from "vitest";
-import { DFS_LABS } from "@/shared/dataforseo-pricing";
+import {
+  AI_KEYWORD_UNIT_COST_USD,
+  DFS_AI_OPTIMIZATION,
+  DFS_LABS,
+  NIGHTLY_BUDGET_USD,
+  PER_PROJECT_NIGHTLY_CAP,
+} from "@/shared/dataforseo-pricing";
 
-/** The per-night constants, restated. Changing one here is a deliberate act. */
-const BUDGETS = {
-  etv: 5,
-  aiKeyword: 5,
-  aiMode: 0.1,
-} as const;
+/**
+ * **Every number below is imported from the module that enforces it.**
+ *
+ * **The first version of this file restated them** — `5`, `25`, `0.002` — as local
+ * copies, and CodeRabbit correctly named what that cost: *change a runner's budget and
+ * this test still passes on the old number*. A test that computes a placeholders'
+ * affordability from a **copy** of the placeholder is not a test of the runner; it is a
+ * test of itself.
+ *
+ * That is the same defect as the clamp order fixed in the same stretch — **a rule written
+ * twice, in two places, unable to track the other** — and the fix is the same shape:
+ * export the constant, import it, one value.
+ *
+ * Exporting these is not a widening of the API for a test's sake. They are the numbers a
+ * reader asks about (*"what does $5 buy?"*), and the reader should be able to ask the code
+ * rather than grep for it.
+ *
+ * **The two unit prices below are the exception**, and they are named as what they are —
+ * assumptions. The keyword price is a bare literal in the runner and the *unverified*
+ * placeholder a live DataForSEO call would replace; the AI Mode one is read from the price
+ * book at runtime rather than declared. Importing those two would mean moving a literal
+ * into an export for no gain.
+ */
 
-/** The per-project caps the runners enforce, restated for the same reason. */
-const CAPS = {
-  /** `scheduledEtvCapture`: one ETV point per domain, per night. */
-  etvDomainsPerProjectPerNight: 25,
-  /** `scheduledAiKeywordCapture`: one vendor call per keyword, per night. */
-  aiKeywordsPerProjectPerNight: 25,
-} as const;
+/**
+ * **No local copies.** The first version of this file restated `5`, `25` and `0.002`
+ * as its own constants, and CodeRabbit correctly named the consequence: *change a runner's
+ * budget and this test still passes on the old number*.
+ *
+ * The runners could not simply be imported — `scheduledEtvCapture` reaches `@/db` →
+ * `db/provider.ts` → `import { env } from "cloudflare:workers"`, which does not resolve outside
+ * a Worker, so a test importing them loads **zero tests**. So the values moved to
+ * `dataforseo-pricing.ts`, which has no platform import in its graph and is **where the
+ * price they divide by already lives**.
+ */
+const BUDGETS = NIGHTLY_BUDGET_USD;
+const CAPS = PER_PROJECT_NIGHTLY_CAP;
 
-/** The keyword unit price is the **unverified** one — see the note on the last test. */
-const AI_KEYWORD_UNIT = 0.002;
-const AI_MODE_UNIT = 0.0012;
+/**
+ * The two unit prices are the **only** numbers not read from an enforcing module,
+ * because the keyword one is a bare literal in `scheduledAiKeywordCapture` and the AI
+ * Mode one is read from the price book at runtime rather than declared.
+ *
+ * **Named as what they are — assumptions** — so a reader knows these two are the soft
+ * ones. The keyword unit price is the *unverified* placeholder the live DataForSEO call
+ * would replace; the AI Mode one is `DFS_AI_OPTIMIZATION.llmScraper.standard`.
+ */
+const AI_KEYWORD_UNIT = AI_KEYWORD_UNIT_COST_USD;
+const AI_MODE_UNIT = DFS_AI_OPTIMIZATION.llmScraper.standard.perRequest ?? 0;
 
 describe("the nightly budgets, and what they buy", () => {
   it("an ETV night can afford one project's documented domain cap", () => {
     // Read from the price book rather than retyped, so a price change moves this test
     // instead of silently making it wrong.
     const unit = DFS_LABS.standard.perRequest ?? 0;
-    const oneProject = unit * CAPS.etvDomainsPerProjectPerNight;
+    const oneProject = unit * CAPS.etvDomains;
 
     expect(unit).toBeGreaterThan(0);
     expect(oneProject).toBeLessThan(BUDGETS.etv);
-    expect(Math.floor(BUDGETS.etv / unit)).toBeGreaterThan(
-      CAPS.etvDomainsPerProjectPerNight,
-    );
+    expect(Math.floor(BUDGETS.etv / unit)).toBeGreaterThan(CAPS.etvDomains);
   });
 
   it("an AI keyword night can afford one project's documented keyword cap", () => {
-    const oneProject = AI_KEYWORD_UNIT * CAPS.aiKeywordsPerProjectPerNight;
+    const oneProject = AI_KEYWORD_UNIT * CAPS.aiKeywords;
 
     expect(oneProject).toBeLessThan(BUDGETS.aiKeyword);
     expect(Math.floor(BUDGETS.aiKeyword / AI_KEYWORD_UNIT)).toBeGreaterThan(
-      CAPS.aiKeywordsPerProjectPerNight,
+      CAPS.aiKeywords,
     );
   });
 
@@ -78,7 +129,7 @@ describe("the nightly budgets, and what they buy", () => {
      * That is the design working as intended — **a count rather than a price**, so coverage
      * does not move when the price book is corrected.
      */
-    const perProject = CAPS.aiKeywordsPerProjectPerNight * AI_KEYWORD_UNIT;
+    const perProject = CAPS.aiKeywords * AI_KEYWORD_UNIT;
     expect(perProject).toBeLessThan(BUDGETS.aiKeyword);
 
     /**

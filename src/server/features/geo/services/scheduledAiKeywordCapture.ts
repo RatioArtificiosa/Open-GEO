@@ -58,6 +58,10 @@ import {
   fetchAiKeywordVolume,
   MAX_KEYWORD_CHARS,
 } from "@/server/lib/dataforseo/ai-keywords";
+import {
+  NIGHTLY_BUDGET_USD,
+  PER_PROJECT_NIGHTLY_CAP,
+} from "@/shared/dataforseo-pricing";
 import { GeoRunRepository } from "@/server/features/geo/repositories/GeoRunRepository";
 
 /**
@@ -131,7 +135,11 @@ const AI_KEYWORD_UNIT_COST_USD = 0.002;
  * placeholder costs coverage loudly rather than silently, which is the difference that
  * makes it acceptable to ship.
  */
-const AI_KEYWORD_NIGHTLY_BUDGET_USD = 5;
+/**
+ * **Read from {@link NIGHTLY_BUDGET_USD}**, for the same reason as the sibling: the budget
+ * is policy, and its denominator — {@link AI_KEYWORD_UNIT_COST_USD} — sits beside it.
+ */
+const AI_KEYWORD_NIGHTLY_BUDGET_USD = NIGHTLY_BUDGET_USD.aiKeyword;
 
 /**
  * When each keyword was last asked about, per project.
@@ -155,7 +163,7 @@ const AI_KEYWORD_NIGHTLY_BUDGET_USD = 5;
  * |---|---|---|
  * | trim | `.trim()` | `trim(...)` |
  * | lowercase | `.toLowerCase()` | `lower(...)` |
- * | length clamp | `.slice(0, 250)` | `substr(..., 1, 250)` |
+ * | length clamp | `.slice(0, 250)` — **last** | `substr(…, 1, 250)` — **outermost** |
  *
  * **The length clamp was missing here and the comment above said it could not be.** The
  * comment read *"if `normaliseAiKeyword` gains trimming, padding or a length cut, this is
@@ -178,7 +186,24 @@ const AI_KEYWORD_NIGHTLY_BUDGET_USD = 5;
  * than two that must be kept in step — see `MAX_KEYWORD_CHARS` at the top of this file.
  */
 const normaliseColumn = (column: SQLiteColumn) =>
-  sql`lower(trim(substr(${column}, 1, ${MAX_KEYWORD_CHARS})))`;
+  // **The clamp is OUTSIDE, and that is the whole point.** `substr(lower(trim(col)), 1, N)`
+  // is `normaliseAiKeyword` — and the order is load-bearing, not stylistic:
+  //
+  // | | prompt | result |
+  // |---|---|---|
+  // | clamp **last** (correct) | `" " x 300 + "HELLO"` | `hello` |
+  // | clamp **first** (wrong)   | `" " x 300 + "HELLO"` | **`""` — the content is gone** |
+  //
+  // **Leading whitespace pushes the real content past the clamp.** Trimming first brings it
+  // back inside; clamping first discards it, and the vendor's stored keyword and this join
+  // key then disagree — so the prompt is never measured, forever.
+  //
+  // **The first version of this line had the order backwards and a passing test.** The
+  // fixture padded *trailing* whitespace, which both orders handle identically; only
+  // leading padding differs, and nothing in it had any. A bug that a well-meaning fixture
+  // is blind to is exactly the kind that ships, and this one was caught by an external
+  // review rather than by the test written to check the line.
+  sql`substr(lower(trim(${column})), 1, ${MAX_KEYWORD_CHARS})`;
 
 /**
  * The aggregation, named once and used **only inside the subquery**.
@@ -260,7 +285,7 @@ const projectLastAsked = db
  * over a flat list. The ETV capture had to count as it went, which is where its first
  * version went wrong.
  */
-const MAX_KEYWORDS_PER_PROJECT_PER_NIGHT = 25;
+const MAX_KEYWORDS_PER_PROJECT_PER_NIGHT = PER_PROJECT_NIGHTLY_CAP.aiKeywords;
 
 /**
  * Projects with keywords worth asking about.
