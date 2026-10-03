@@ -52,34 +52,47 @@ function cutoffFor(env: object, now = new Date()): string {
 }
 
 /**
- * Active projects with expired rows waiting, **most-overdue first.**
+ * Active projects **that have something to purge**, ordered by id.
  *
- * ## This is the retention sweep's version of a bug the four captures shared
+ * ## The bug this replaced
  *
- * The project query had **no `ORDER BY`**, so `.slice(0, limit)` took whatever order
- * the database returned. In a capture that costs freshness — the work happens tomorrow.
- * Here it costs **the archive growing without bound, permanently**: the same projects are
- * purged nightly and every project past the cap never ages out at all. Nothing comes
- * back for them, because the same ones keep winning.
+ * The project query had **no `ORDER BY`** and no filter, so `.slice(0, limit)` took every
+ * active project in whatever order the database returned. In a capture that costs
+ * freshness — the work happens tomorrow. Here it costs **an archive growing without bound,
+ * permanently**: a project past the cap is never visited, so its rows never age out, and
+ * nothing brings it back because the same projects keep winning.
  *
- * ## Why this is ordered by the data rather than by a rotation
+ * ## Why there is no rotation here, and what does the work instead
  *
  * Every other fix this session was a rotation, which needs a moment that *changes* after
- * each pass. **No such moment exists here** — there is no sweep-audit table, and adding
- * one is a migration to solve a scheduling problem.
+ * each pass. **No such moment exists** — there is no sweep-audit table, and adding one is
+ * a migration to solve a scheduling problem.
  *
- * What does change is the data: a project holding rows past the cutoff becomes purgable,
- * and purging it empties the set. Ordering by that gives a bounded cadence **using state
- * that already exists**, and it degrades correctly:
+ * So the rotation comes from **the filter rather than the order**, which is worth being
+ * exact about because the two are easy to confuse:
  *
- * | | rows past cutoff | position |
- * |---|---|---|
- * | | 50,000 | first — most overdue, swept tonight |
- * | | 3 | first among the rest — the smallest sweep, most owed |
- * | | 0 | last — nothing to do, and it stays out of the way |
+ * | | what it does |
+ * |---|---|
+ * | `.orderBy(projects.id)` | **nothing useful** — a stable, arbitrary order |
+ * | `or(isNotNull(expired…))` | **this is the rotation** |
  *
- * A project with nothing to purge sorts last **without needing a timestamp**, which is
- * what makes this work rather than needing an audit trail.
+ * **A project with nothing expired is not a candidate at all.** Sweeping empties its
+ * expired set, so it stops being a candidate — and the project behind it becomes one. The
+ * queue advances *because the work is done*, not because anything ranks it.
+ *
+ * That is the whole design, and it has one property a rank could not have: **there is no
+ * timestamp to go stale and no state to corrupt.** A project whose sweep failed stays a
+ * candidate, which is the correct outcome, and a project with nothing to purge occupies no
+ * slot, so a deployment with hundreds of active projects still reaches its expiring ones.
+ *
+ * ## The ordering is therefore *not* "most overdue first", and this comment said it was
+ *
+ * An earlier version of this doc claimed projects were ranked by expired-row count and
+ * that a clean project "sorts last". **Neither is true**, and both claims were doing real
+ * work in a reader's head: the first implies a priority the query does not have, and the
+ * second implies an inclusion the filter actually excludes. CodeRabbit caught it by
+ * comparing the comment to the code — which is the fourth time this session a comment, not
+ * a test, was the thing that was wrong.
  *
  * **Both tables, and both matter.** `geo_answers` is what the sweep called before;
  * `ai_mode_snapshots` holds the verbatim answer markdown, so it is the larger of the two
