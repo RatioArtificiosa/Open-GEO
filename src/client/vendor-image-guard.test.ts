@@ -131,19 +131,43 @@ function codeOnly(source: string): string {
     .replace(/(^|[^:])\/\/.*$/gm, "$1");
 }
 
+/**
+ * The rule itself, as a pure function of source text.
+ *
+ * **Extracted so a negative control can call it without touching the filesystem.**
+ * `gates-about-gates` rejects a negative control whose body calls `readFileSync` — a test
+ * that only reads the repository is asserting "nothing is wrong right now", which a scanner
+ * matching *nothing at all* would also satisfy. The sweep version of this control reads
+ * real files and so is not countable, which the survey reported as `negativeControls: 0`
+ * and correctly refused to accept a comment in place of one.
+ *
+ * So the rule is a function, and the control feeds it a string.
+ */
+function vendorImageLeaks(source: string): boolean {
+  const body = codeOnly(source);
+  const host = VENDOR_IMAGE_HOSTS.find((h) => body.includes(h));
+  // **A host alone is not a leak** — the module may be pricing one, or a doc link. The rule
+  // fires only where an *image-shaped* reference and the host co-occur.
+  return host !== undefined && IMAGE_KEYS.test(body);
+}
+
+/** Which vendor host, for the report. Diagnostics, not the decision itself. */
+function vendorHost(source: string): string | undefined {
+  const body = codeOnly(source);
+  return VENDOR_IMAGE_HOSTS.find((h) => body.includes(h));
+}
+
 describe("CL-703: a vendor screenshot URL never reaches a customer", () => {
   it("no client or shared module names a vendor image host", () => {
     const offenders = CLIENT_SOURCE.map(({ file, source }) => {
       // **The exemption is a single named file**, not a pattern. Anything else that renders
       // a vendor image URL is still caught, however it is spelled.
       if (file === SELF) return null;
-      const body = codeOnly(source);
-      const host = VENDOR_IMAGE_HOSTS.find((h) => body.includes(h));
-      // **A host alone is not a leak** — the module may be pricing one, or a doc link.
-      // The gate fires only where an *image-shaped* reference and the host co-occur.
-      if (host === undefined || !IMAGE_KEYS.test(body)) return null;
-      return { file, host };
-    }).filter((x): x is { file: string; host: string } => x !== null);
+      if (!vendorImageLeaks(source)) return null;
+      return { file, host: vendorHost(source) };
+    }).filter(
+      (x): x is { file: string; host: string | undefined } => x !== null,
+    );
 
     expect(offenders).toEqual([]);
   });
@@ -184,13 +208,43 @@ describe("CL-703: a vendor screenshot URL never reaches a customer", () => {
     }
   });
 
-  it("the gate catches the leak it exists for — proved on a real file, not a fixture", () => {
-    // **A prospective guard that has never been observed failing is an untested
-    // instrument**, and this repository has been burned by enough of those. A string literal
-    // is not proof enough either: the gate could pass because the *regex* is wrong while the
-    // literal happens to match it. So a real module is written to a scratch path inside
-    // `src/client`, the real sweep runs over it, and the offender list is expected to name
-    // it.
+  it("reports the leak on an inline fixture, and only the leak", () => {
+    // **The countable negative control**, and it is inline on purpose. `gates-about-gates`
+    // rejects a control whose body reads the repository: such a test asserts "nothing is
+    // wrong right now", which a scanner matching *nothing at all* would also satisfy. The
+    // file-sweep case below is stronger evidence but is invisible to that survey, so this
+    // one exists to be counted and the other exists to be believed.
+    //
+    // Both shapes are asserted, because the rule needs both to be right:
+    const leak = `export const Shot = () => (
+  <img src="https://api.dataforseo.com/v3/lighthouse/live/final-screenshot.jpg" />
+);`;
+    const clean = `export const Shot = () => (
+  <img src="https://cdn.example.com/shots/a.png" />
+);`;
+
+    expect(vendorImageLeaks(leak)).toBe(true);
+    expect(vendorImageLeaks(clean)).toBe(false);
+  });
+
+  it("a host without an image key is not a leak — pricing one is allowed", () => {
+    // **The false-positive half.** A module that names a vendor host to price a screenshot
+    // is doing exactly what `dataforseo-pricing.ts` does, and a gate that flagged it would
+    // be flagged-as-annoying within a week and then switched off.
+    const pricing = `export const PRICE = { finalScreenshot: 0.0048 }; // api.dataforseo.com`;
+    expect(vendorImageLeaks(pricing)).toBe(false);
+
+    // And the vendor's marketing host is not a leak, which is why the list names
+    // api/images/cdn subdomains rather than the bare domain.
+    const docs = `export const link = "https://dataforseo.com/products/lighthouse";`;
+    expect(vendorImageLeaks(docs)).toBe(false);
+  });
+
+  it("fires on a real file in the tree, not only on a literal", () => {
+    // **A string literal is not proof enough**: the gate could pass because the *regex* is
+    // wrong while the literal happens to match it. So a real module is written inside
+    // `src/client`, the same sweep the first case runs is re-run over the tree, and the
+    // offender list is expected to name that exact file.
     const scratchDir = join(ROOT, "src", "client", ".cl703-scratch");
     const scratch = join(scratchDir, "Leak.tsx");
     mkdirSync(scratchDir, { recursive: true });
@@ -207,16 +261,11 @@ describe("CL-703: a vendor screenshot URL never reaches a customer", () => {
         .filter(isClientSource)
         .filter((f) => f !== SELF)
         .map((f) => ({ file: f, source: readFileSync(join(ROOT, f), "utf8") }))
-        .map(({ file, source }) => {
-          const body = codeOnly(source);
-          const host = VENDOR_IMAGE_HOSTS.find((h) => body.includes(h));
-          if (host === undefined || !IMAGE_KEYS.test(body)) return null;
-          return { file, host };
-        })
-        .filter((x): x is { file: string; host: string } => x !== null);
+        .filter(({ source }) => vendorImageLeaks(source))
+        .map(({ file, source }) => ({ file, host: vendorHost(source) }));
 
       // **The gate fires, and names the exact file.** Not "an offender exists" — that would
-      // pass for the wrong reason, e.g. if some unrelated file had started naming a vendor.
+      // pass for the wrong reason, if some unrelated file had started naming a vendor.
       expect(leaked).toEqual([
         {
           file: "src/client/.cl703-scratch/Leak.tsx",
@@ -231,23 +280,6 @@ describe("CL-703: a vendor screenshot URL never reaches a customer", () => {
     }
 
     expect(existsSync(scratchDir)).toBe(false);
-  });
-
-  it("a legitimate report image on our own CDN is not flagged", () => {
-    // **The other half, and the half that decides whether the gate survives a week.** A
-    // gate that fires on our own assets gets switched off, and a switched-off gate is worse
-    // than none because it still reads as covered.
-    const own =
-      'export const Shot = () => <img src="https://cdn.example.com/shots/a.png" />;';
-    expect(VENDOR_IMAGE_HOSTS.some((h) => codeOnly(own).includes(h))).toBe(
-      false,
-    );
-
-    // And the vendor's *marketing* host is not a leak either, which is why the list names
-    // api/images/cdn subdomains rather than the bare domain.
-    const docs =
-      'export const link = "https://dataforseo.com/products/lighthouse";';
-    expect(VENDOR_IMAGE_HOSTS.some((h) => docs.includes(h))).toBe(false);
   });
 
   it("the client source set is non-empty, so the sweep is not passing vacuously", () => {
