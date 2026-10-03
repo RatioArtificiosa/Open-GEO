@@ -190,13 +190,25 @@ describe("MCP tool text output (service-backed tools)", () => {
       ],
     });
     const result = await getBacklinksOverviewTool.handler(
-      { projectId: "project_1", target: "example.com" },
+      { projectId: "project_1", target: "example.com", dry_run: false },
       toolContext,
     );
 
     const out = textContent(result);
     expect(out).toContain("domain | backlinks | referring pages | rank");
     expect(out).toContain("linker.example | 42 | 5 | 30");
+  });
+
+  it("get_backlinks_overview previews the credit cost by default", async () => {
+    const result = await getBacklinksOverviewTool.handler(
+      { projectId: "project_1", target: "example.com" },
+      toolContext,
+    );
+    const text = textContent(result);
+
+    expect(mocks.profileOverview).not.toHaveBeenCalled();
+    expect(text).toContain("dry_run: false");
+    expect(text).toContain("50 credits");
   });
 
   it("get_backlinks_profile renders all backlink rows", async () => {

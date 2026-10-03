@@ -46,6 +46,12 @@ const inputSchema = {
     .boolean()
     .optional()
     .describe("Filter out spammy referring domains. Defaults to true."),
+  dry_run: z
+    .boolean()
+    .optional()
+    .describe(
+      "Default true: preview the approximate credit cost without spending. Set dry_run: false to run the live vendor queries.",
+    ),
 } as const;
 
 type Args = z.infer<z.ZodObject<typeof inputSchema>>;
@@ -59,7 +65,7 @@ export const getBacklinksOverviewTool = {
   config: {
     title: "Get backlinks overview",
     description:
-      "Returns a backlinks profile summary (total backlinks, referring domains, top referring domains). Charges credits (~50 typical for a domain, ~25 for a single page). Note: bare domains default to scope 'subdomains'; pass scope 'domain' to exclude subdomains from the totals. Targets with a path default to 'subfolder', whose counts come from filtered backlink totals (no rank/trends/referring-domain breakdown). Trend data always includes subdomains (provider limitation). Self-hosted deployments need the Backlinks API enabled on their DataForSEO account.",
+      "Returns a backlinks profile summary (total backlinks, referring domains, top referring domains). Charges credits (~50 typical for a domain, ~25 for a single page). `dry_run` defaults to true, so the first call previews the credit estimate without spending; set `dry_run: false` to run. Note: bare domains default to scope 'subdomains'; pass scope 'domain' to exclude subdomains from the totals. Targets with a path default to 'subfolder', whose counts come from filtered backlink totals (no rank/trends/referring-domain breakdown). Trend data always includes subdomains (provider limitation). Self-hosted deployments need the Backlinks API enabled on their DataForSEO account.",
     inputSchema,
     outputSchema: z.looseObject({
       target: z.string(),
@@ -87,6 +93,29 @@ export const getBacklinksOverviewTool = {
     const resolvedScope = normalizeBacklinksTarget(args.target, {
       scope: lookup.scope,
     }).scope;
+    if (args.dry_run !== false) {
+      // **Cost preview by default on a paid tool.** The typical figure comes from
+      // the tool description's own estimate (~50 for a domain, ~25 for a single
+      // page); subfolder targets are the single-page shape.
+      const typical = resolvedScope === "subfolder" ? 25 : 50;
+      return mcpResponse({
+        text: [
+          `Dry run: ${args.target} (scope: ${resolvedScope}) will typically cost around ${typical} credits. Charged amount is what DataForSEO reports at send time.`,
+          `Re-run with dry_run: false to spend credits and fetch the profile.`,
+        ].join("\n"),
+        meta: buildProjectMeta(
+          context,
+          args.projectId,
+          `/p/${args.projectId}/backlinks`,
+        ),
+        structuredContent: {
+          dryRun: true,
+          target: args.target,
+          scope: resolvedScope,
+          estimatedCredits: typical,
+        },
+      });
+    }
     const [overview, refDomains] = await Promise.all([
       BacklinksService.profileOverview(lookup, context.billing),
       resolvedScope === "subfolder"
