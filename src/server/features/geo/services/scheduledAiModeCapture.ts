@@ -39,7 +39,10 @@ import {
 } from "@/db/schema";
 import { runAiModeMonitor, type AiModeNightResult } from "./aiModeMonitor";
 import type { WatchedPrompt } from "./aiModeSchedule";
-import { NIGHTLY_BUDGET_USD } from "@/shared/dataforseo-pricing";
+import {
+  NIGHTLY_BUDGET_USD,
+  NIGHTLY_PROJECT_SWEEP_LIMIT,
+} from "@/shared/dataforseo-pricing";
 
 /**
  * One AI Mode call, in USD.
@@ -221,7 +224,8 @@ type AiModeNightReport = CaptureCostReport & {
 /**
  * Capture AI Mode answers for every project watching them, once a day.
  *
- * `limitProjects` is the same first-deploy safety valve `runDuePatrols` has: an
+ * `limitProjects` is the shared first-deploy safety valve
+ * ({@link NIGHTLY_PROJECT_SWEEP_LIMIT}, which `runDuePatrols` also reads): an
  * unbounded sweep could fan out across every customer in one tick.
  */
 export async function runDueAiModeCaptures(input?: {
@@ -233,7 +237,7 @@ export async function runDueAiModeCaptures(input?: {
   fetchWatchers?: typeof projectsWatchingAiMode;
 }): Promise<AiModeNightReport> {
   const now = input?.now ?? new Date();
-  const limit = input?.limitProjects ?? 25;
+  const limit = input?.limitProjects ?? NIGHTLY_PROJECT_SWEEP_LIMIT;
   const runMonitor = input?.runMonitor ?? runAiModeMonitor;
   const fetchWatchers = input?.fetchWatchers ?? projectsWatchingAiMode;
 

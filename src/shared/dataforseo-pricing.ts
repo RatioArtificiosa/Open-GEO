@@ -622,3 +622,34 @@ export const PER_PROJECT_NIGHTLY_CAP = {
  * price it; only one billable call can, and account verification is blocking that.
  */
 export const AI_KEYWORD_UNIT_COST_USD = 0.002;
+
+/**
+ * How many customers one nightly tick may touch, across the whole product.
+ *
+ * ## One policy, four files, and this is the third instance of one failure mode
+ *
+ * `scheduledEtvCapture`, `scheduledAiKeywordCapture`, `scheduledAiModeCapture` and
+ * `scheduledGeoPatrol` each declared their own `?? 25`, and **each comment credited the
+ * others**: *"the same first-deploy safety valve both siblings carry"*, *"the same
+ * first-deploy safety valve `runDuePatrols` has"*, *"a safety valve for the first
+ * production deploy"*.
+ *
+ * **Cross-referencing each other and nothing else is not four coincidences.** It is one
+ * decision restated four times — and restating is how the two CodeRabbit majors of the same
+ * session happened: a clamp order in two places, and a budget in two places. **A gate cannot
+ * see any of them**, because every declaration really is used; only a reader comparing two
+ * files notices they ought to agree.
+ *
+ * Found by a sweep for policy-adjacent literals after the budgets were consolidated for
+ * exactly this reason — **which is the part worth keeping: a refactor that fixes one instance
+ * of a rule and leaves its siblings reads as finished, because the part anyone looked at
+ * is finished.**
+ *
+ * ## Not a product limit
+ *
+ * The patrol runner says it outright: *"it is not a product limit — raise it once real spend
+ * is known."* **Consolidating it does not make it one**, so the name and this comment say
+ * otherwise — a shared constant reads as a decision somebody made, and nobody has made this
+ * one. It is a placeholder somebody owes.
+ */
+export const NIGHTLY_PROJECT_SWEEP_LIMIT = 25;

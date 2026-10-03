@@ -164,6 +164,62 @@ describe("the nightly budgets, and what they buy", () => {
     expect(projectsFundable).toBeLessThanOrEqual(500);
   });
 
+  it("tells prose from code, so a comment about a bug is not the bug", () => {
+    /**
+     * **The negative control, and it exists because the rule above failed on a comment.**
+     *
+     * The rule is *no runner retypes the limit*, and `scheduledAiModeCapture.ts` contains
+     * `watchers.slice(0, 25)` **inside the note recording the bug this consolidation
+     * fixes**. So the check fired on the file's own account of the defect — and the fix,
+     * stripping comment lines, could itself be overdone.
+     */
+    const strip = (source: string): string =>
+      source
+        .split("\n")
+        .filter((line) => {
+          const t = line.trim();
+          return (
+            !t.startsWith("//") && !t.startsWith("*") && !t.startsWith("/*")
+          );
+        })
+        .join("\n");
+
+    const RE_RETYPE = /limitProjects\s*\?\?\s*25/;
+
+    /**
+     * **Self-contained on purpose.** The first version read the real runner to prove the
+     * comment it refers to is present — which made the control depend on the working
+     * directory, and a control that can fail for the wrong reason is worse than none
+     * because its failure is ambiguous.
+     *
+     * The real file is checked by the rule above; this control only has to prove the
+     * *filter* behaves, and a fixture does that without a filesystem.
+     */
+    const COMMENTED = [
+      "/**",
+      " * The bug: watchers.slice(0, 25) took whatever order the database returned.",
+      " */",
+      "const limit = input?.limitProjects ?? NIGHTLY_PROJECT_SWEEP_LIMIT;",
+    ].join("\n");
+
+    // The comment is present in the raw text, and gone from the code.
+    expect(COMMENTED).toMatch(/\.slice\(0,\s*25\)/);
+    expect(strip(COMMENTED)).not.toMatch(/\.slice\(0,\s*25\)/);
+    expect(strip(COMMENTED)).not.toMatch(RE_RETYPE);
+
+    // **The failing case, as code rather than prose** — which is exactly what an
+    // over-stripping filter would miss.
+    const bugAsCode = "const limit = input?.limitProjects ?? 25;";
+    expect(strip(bugAsCode)).toMatch(RE_RETYPE);
+
+    // And the form the runners now use is clean.
+    expect(
+      strip(
+        "const limit = input?.limitProjects ?? NIGHTLY_PROJECT_SWEEP_LIMIT;",
+      ),
+    ).not.toMatch(RE_RETYPE);
+  });
+
   it("the three budgets differ by policy, not by accident", () => {
     /**
      * `$0.10` against `$5` is a **50×** difference between nightly budgets, which is not a

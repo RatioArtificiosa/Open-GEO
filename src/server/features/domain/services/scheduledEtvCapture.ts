@@ -55,6 +55,7 @@ import {
   DFS_LABS,
   NIGHTLY_BUDGET_USD,
   PER_PROJECT_NIGHTLY_CAP,
+  NIGHTLY_PROJECT_SWEEP_LIMIT,
 } from "@/shared/dataforseo-pricing";
 
 /**
@@ -379,7 +380,8 @@ type EtvNightReport = BudgetedCaptureReport & {
 /**
  * Capture one ETV point per tracked domain, once a night.
  *
- * `limitProjects` is the same first-deploy safety valve both siblings carry: an
+ * `limitProjects` is the shared first-deploy safety valve
+ * ({@link NIGHTLY_PROJECT_SWEEP_LIMIT}, which the sibling sweeps also read): an
  * unbounded sweep across every customer in one tick is not a launch, it is an
  * incident.
  */
@@ -391,7 +393,7 @@ export async function runDueEtvCaptures(input?: {
   writePoint?: typeof DomainMetricsRepository.insertPoint;
 }): Promise<EtvNightReport> {
   const now = input?.now ?? new Date();
-  const limit = input?.limitProjects ?? 25;
+  const limit = input?.limitProjects ?? NIGHTLY_PROJECT_SWEEP_LIMIT;
   const fetchDomains = input?.fetchDomains ?? trackedDomains;
   const fetchOverview = input?.fetchOverview ?? fetchDomainRankOverview;
   const writePoint = input?.writePoint ?? DomainMetricsRepository.insertPoint;

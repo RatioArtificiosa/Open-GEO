@@ -8,7 +8,10 @@ import {
   projects,
 } from "@/db/schema";
 import { GeoPatrol } from "@/server/features/geo/services/GeoPatrol";
-import { geoAnswerUnitCostUsd } from "@/shared/dataforseo-pricing";
+import {
+  geoAnswerUnitCostUsd,
+  NIGHTLY_PROJECT_SWEEP_LIMIT,
+} from "@/shared/dataforseo-pricing";
 import {
   alertOnRunChange,
   ALERT_TRANSPORT,
@@ -157,7 +160,8 @@ async function listDueTargets(now: Date): Promise<DueTarget[]> {
 /**
  * Run the patrol for every due project.
  *
- * `limitProjects` is a safety valve for the first production deploy, where an
+ * `limitProjects` is the shared first-deploy safety valve
+ * ({@link NIGHTLY_PROJECT_SWEEP_LIMIT}, which every nightly sweep reads), where an
  * unbounded sweep could fan out across every customer in one tick. It is not a
  * product limit — raise it once real spend is known.
  */
@@ -165,7 +169,7 @@ async function runDuePatrols(
   options: { now?: Date; limitProjects?: number } = {},
 ): Promise<ScheduledPatrolResult> {
   const now = options.now ?? new Date();
-  const limit = options.limitProjects ?? 25;
+  const limit = options.limitProjects ?? NIGHTLY_PROJECT_SWEEP_LIMIT;
 
   const due = await listDueTargets(now);
   const byProject = new Map<string, DueTarget[]>();

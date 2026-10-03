@@ -61,6 +61,7 @@ import {
 import {
   NIGHTLY_BUDGET_USD,
   PER_PROJECT_NIGHTLY_CAP,
+  NIGHTLY_PROJECT_SWEEP_LIMIT,
 } from "@/shared/dataforseo-pricing";
 import { GeoRunRepository } from "@/server/features/geo/repositories/GeoRunRepository";
 
@@ -483,7 +484,8 @@ type AiKeywordNightReport = BudgetedCaptureReport & {
 /**
  * Capture monthly AI keyword demand for every project asking questions.
  *
- * `limitProjects` is the same first-deploy safety valve the other sweeps carry: an
+ * `limitProjects` is the shared first-deploy safety valve
+ * ({@link NIGHTLY_PROJECT_SWEEP_LIMIT}, which the sibling sweeps also read): an
  * unbounded sweep across every customer in one tick is not a launch, it is an
  * incident.
  */
@@ -495,7 +497,7 @@ export async function runDueAiKeywordCaptures(input?: {
   writeRows?: typeof GeoRunRepository.upsertAiKeywordMetrics;
 }): Promise<AiKeywordNightReport> {
   const now = input?.now ?? new Date();
-  const limit = input?.limitProjects ?? 25;
+  const limit = input?.limitProjects ?? NIGHTLY_PROJECT_SWEEP_LIMIT;
   const fetchProjects = input?.fetchProjects ?? projectsWatchingKeywords;
   const fetchVolume = input?.fetchVolume ?? fetchAiKeywordVolume;
   const writeRows = input?.writeRows ?? GeoRunRepository.upsertAiKeywordMetrics;
