@@ -499,20 +499,34 @@ describe("the AI-keyword rotation — the normalisation boundary", () => {
       [PROJECT, stored, 2840, "en", "2026-09", 100, "2026-09-01T00:00:00.000Z"],
     );
 
-    // With only the long prompt present, either state asks it — so a second,
-    // never-asked prompt is added to make the ordering tell the difference.
+    // A second, **never-asked** prompt, so the order says something: an unmeasured
+    // keyword sorts ahead of a measured one.
     await client.execute(
       "INSERT INTO geo_prompts (id, prompt_set_id, prompt, position, created_at) VALUES (?, ?, ?, ?, ?)",
       ["q-1", "set-0", "fresh keyword", 1, "2026-10-01T00:00:00.000Z"],
     );
 
     await capture();
-    await capture();
 
-    // **Measured prompts sort after never-asked ones**, so `fresh keyword` is asked on
-    // the first run. On the second run it is measured too, and the two rotate: the
-    // long one is no longer stuck at the front.
-    const firstRound = asked.slice(0, 1);
-    expect(firstRound).toEqual(["fresh keyword"]);
+    /**
+     * **One run, and an ordering claim — not two runs and a rotation claim.**
+     *
+     * The first version called `capture()` twice and asserted only on the first. Two
+     * problems, and the second is the one worth stating:
+     *
+     * 1. **The second run's result was discarded** while the comment above it described
+     *    the two runs rotating. An unbacked claim in a comment is worse than no comment,
+     *    because it reads as coverage.
+     * 2. **The rotation was not observable anyway.** `writeRows` is a no-op, so run two
+     *    sees the database exactly as run one left it — the stored keyword is unchanged and
+     *    `fresh keyword` still has no row — so **both runs ask `fresh keyword` first.**
+     *    Two runs cannot distinguish anything here.
+     *
+     * What *is* observable, and what this now asserts: **a measured keyword sorts behind an
+     * unmeasured one in the same project.** With the clamp on the wrong side of the trim the
+     * long prompt is unmeasured too, it sorts alongside, and this ordering inverts — which is
+     * why the assertion has to be on *order* and not on membership.
+     */
+    expect(asked).toEqual(["fresh keyword", LONG_PROMPT]);
   });
 });
