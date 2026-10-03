@@ -110,6 +110,12 @@ export const MISSING_TOOL_JUSTIFICATIONS: Record<string, ToolJustifications> = {
     destructive_justification:
       "May use metered DataForSEO credits on dry_run: false, billed per keyword. Does not delete, overwrite, revoke access, send, or publish anything.",
   },
+  forecast_traffic: {
+    read_only_justification:
+      "Reads the organic-traffic series already stored for a domain in the authenticated project and projects 13 weeks from it with a widening band. It makes no live vendor call and stores nothing. The response names the ETV formula the series was built on and flags a window that crosses the formula change as crossing it.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification: NOTHING_DESTRUCTIVE,
+  },
 
   // --- Saved keywords. Removing a keyword deletes a stored record, so this is
   // destructive, and it says which project it affects.

@@ -40,6 +40,7 @@ import * as aiModeQueryTool from "./ai-mode-query-tool";
 // "is not an exported tool definition" rather than being skipped. **The scan finds it; the map
 // is what proves the schema tolerates it.**
 import * as aiKeywordVolumeTool from "./ai-keyword-volume-tool";
+import * as forecastTrafficTool from "./forecast-traffic-tool";
 import * as googleAnalyticsTools from "./google-analytics-tools";
 import * as listProjects from "./list-projects";
 import * as listSavedKeywords from "./list-saved-keywords";
@@ -75,6 +76,7 @@ const toolExports: Record<string, unknown> = {
   ...geoPromptRunTool,
   ...aiModeQueryTool,
   ...aiKeywordVolumeTool,
+  ...forecastTrafficTool,
   ...googleAnalyticsTools,
   ...listProjects,
   ...listSavedKeywords,
