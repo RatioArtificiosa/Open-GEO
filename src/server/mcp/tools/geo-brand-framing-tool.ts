@@ -131,8 +131,11 @@ export const geoBrandFramingTool = {
     const response = await client.aiSearch.targetMetrics({
       target,
       platform: "chat_gpt",
-      locationCode: 2840,
-      languageCode: "en",
+      // The project's market, not a hardcoded US/en: brand entities are
+      // market-specific, so a French project's framing read at 2840 would
+      // be a different question than the one asked.
+      locationCode: context.project.locationCode ?? 2840,
+      languageCode: context.project.languageCode ?? "en",
       internalListLimit: 10,
     });
 

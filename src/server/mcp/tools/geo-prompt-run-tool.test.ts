@@ -3,21 +3,24 @@ import {
   makeToolContext,
   textContent,
 } from "@/server/mcp/tools/tool-test-support";
-import type * as dataforseoAi from "@/server/lib/dataforseo/ai";
+import type * as dataforseo from "@/server/lib/dataforseo";
 import type * as dataforseoLlmModels from "@/server/lib/dataforseo/llm-models";
 
 // `withMcpProjectAuth` is mocked so these tests are about the tool's
 // output, not authorisation, and no SQL can run.
 vi.mock("cloudflare:workers", () => ({ env: {} }));
 
-// The two vendor seams the live path calls: model resolution and the
-// LLM Responses fetch. Both are replaced so the test resolves a shaped
-// answer instead of hitting DataForSEO.
-const fetchLlmResponse = vi.fn();
+// Two seams. The LLM Responses call goes through the metered client
+// (`client.aiSearch.llmResponse`), which is what performs the credit
+// check and the usage record — mocking the raw fetcher instead would let
+// the tool spend credits unmetered and the test would not notice. Model
+// resolution stays a direct mock.
+const llmResponse = vi.fn();
+const createDataforseoClient = vi.fn();
 const resolveLlmModel = vi.fn();
-vi.mock("@/server/lib/dataforseo/ai", async (importOriginal) => {
-  const actual = await importOriginal<typeof dataforseoAi>();
-  return { ...actual, fetchLlmResponse };
+vi.mock("@/server/lib/dataforseo", async (importOriginal) => {
+  const actual = await importOriginal<typeof dataforseo>();
+  return { ...actual, createDataforseoClient };
 });
 vi.mock("@/server/lib/dataforseo/llm-models", async (importOriginal) => {
   const actual = await importOriginal<typeof dataforseoLlmModels>();
@@ -84,26 +87,30 @@ const MODEL = {
   taskPostSupported: true,
 };
 
-function llmResponse() {
+/**
+ * What the metered client resolves: the unwrapped response, because
+ * `meter` returns `result.data` to its caller.
+ */
+function llmAnswer() {
   return {
-    data: {
-      answer: "OpenGeo is a generative-engine-optimization audit tool.",
-      citations: [
-        { url: "https://opengeo.example", title: "OpenGeo", text: null },
-        { url: "https://example.com/guide", title: null, text: "A guide" },
-      ],
-    },
-    billing: {
-      path: ["v3", "llm_mentions", "response", "live"],
-      costUsd: 0.0006,
-    },
+    answer: "OpenGeo is a generative-engine-optimization audit tool.",
+    citations: [
+      { url: "https://opengeo.example", title: "OpenGeo", text: null },
+      { url: "https://example.com/guide", title: null, text: "A guide" },
+    ],
   };
+}
+
+/** Point the metered client at the LLM Responses seam before a live call. */
+function useLlmResponse(response?: ReturnType<typeof llmAnswer>) {
+  resolveLlmModel.mockResolvedValue(MODEL);
+  llmResponse.mockResolvedValue(response ?? llmAnswer());
+  createDataforseoClient.mockReturnValue({ aiSearch: { llmResponse } });
 }
 
 describe("geo_prompt_run", () => {
   it("returns the model's answer with its citations", async () => {
-    resolveLlmModel.mockResolvedValue(MODEL);
-    fetchLlmResponse.mockResolvedValue(llmResponse());
+    useLlmResponse();
 
     const result = await callTool(geoPromptRunTool, {
       prompt: "What is OpenGeo?",
@@ -119,11 +126,14 @@ describe("geo_prompt_run", () => {
     expect(text).toContain("Citations (2)");
     expect(text).toContain("opengeo.example");
 
-    // The resolved model is what gets sent, not the raw alias.
+    // The resolved model is what gets sent, not the raw alias — and the
+    // call goes through the metered client, so the spend is checked and
+    // recorded rather than happening off the books.
     expect(resolveLlmModel).toHaveBeenCalledWith("chat_gpt", "gpt-5.2");
-    expect(fetchLlmResponse).toHaveBeenCalledWith(
+    expect(llmResponse).toHaveBeenCalledWith(
       expect.objectContaining({ modelName: "gpt-5.2" }),
     );
+    expect(createDataforseoClient).toHaveBeenCalled();
 
     const structured = result.structuredContent ?? {};
     expect(structured.answer).toBe(
@@ -133,11 +143,7 @@ describe("geo_prompt_run", () => {
   });
 
   it("says there are no citations rather than inventing them", async () => {
-    resolveLlmModel.mockResolvedValue(MODEL);
-    fetchLlmResponse.mockResolvedValue({
-      data: { answer: "No sources to cite.", citations: [] },
-      billing: { path: [], costUsd: 0.0006 },
-    });
+    useLlmResponse({ answer: "No sources to cite.", citations: [] });
 
     const text = textOf(
       await callTool(geoPromptRunTool, {
@@ -165,7 +171,7 @@ describe("geo_prompt_run", () => {
     // is stated in the text rather than folded into a flat number.
     expect(structured.estimatedCredits).toBe(0.6);
     expect(textOf(result)).toMatch(/base fee/i);
-    expect(fetchLlmResponse).not.toHaveBeenCalled();
+    expect(llmResponse).not.toHaveBeenCalled();
     expect(resolveLlmModel).not.toHaveBeenCalled();
   });
 });

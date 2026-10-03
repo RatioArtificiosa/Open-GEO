@@ -3,18 +3,21 @@ import {
   makeToolContext,
   textContent,
 } from "@/server/mcp/tools/tool-test-support";
-import type * as dataforseoAiMode from "@/server/lib/dataforseo/ai-mode";
+import type * as dataforseo from "@/server/lib/dataforseo";
 
 // `withMcpProjectAuth` is mocked so these tests are about the tool's
 // output, not authorisation, and no SQL can run.
 vi.mock("cloudflare:workers", () => ({ env: {} }));
 
-// The vendor seam the live path calls. Replaced so the test resolves a
-// shaped AI Mode answer instead of hitting DataForSEO.
-const fetchAiModeAnswer = vi.fn();
-vi.mock("@/server/lib/dataforseo/ai-mode", async (importOriginal) => {
-  const actual = await importOriginal<typeof dataforseoAiMode>();
-  return { ...actual, fetchAiModeAnswer };
+// The metered client is the seam: the tool reaches DataForSEO through
+// `client.serp.aiMode`, which is what performs the credit check and the
+// usage record. Mocking the raw fetcher instead would let the tool call
+// the vendor without metering and the test would not notice.
+const aiMode = vi.fn();
+const createDataforseoClient = vi.fn();
+vi.mock("@/server/lib/dataforseo", async (importOriginal) => {
+  const actual = await importOriginal<typeof dataforseo>();
+  return { ...actual, createDataforseoClient };
 });
 
 vi.mock("@/server/mcp/project-auth", () => ({
@@ -70,55 +73,59 @@ async function callTool(
   return handler({ projectId: "p1", ...data }, makeToolContext());
 }
 
+/**
+ * What the metered client resolves: the unwrapped answer, because
+ * `meter` returns `result.data` to its caller.
+ */
 function aiModeAnswer() {
   return {
-    data: {
-      keyword: "best geo tool",
-      locationCode: 2840,
-      languageCode: "en",
-      datetime: "2026-10-03T12:00:00Z",
-      checkUrl: "https://google.com/search?udm=48",
-      elementTypes: ["text", "shopping"],
-      elements: [
-        {
-          type: "text",
-          position: "1",
-          title: "Answer",
-          text: null,
-          markdown: "OpenGeo is a generative-engine-optimization tool.",
-          references: [
-            {
-              type: "source",
-              source: "reddit",
-              domain: "reddit.com",
-              url: "https://reddit.com/r/seo",
-              title: "Reddit",
-              text: null,
-            },
-          ],
-        },
-      ],
-      references: [
-        {
-          type: "source",
-          source: "reddit",
-          domain: "reddit.com",
-          url: "https://reddit.com/r/seo",
-          title: "Reddit",
-          text: null,
-        },
-      ],
-    },
-    billing: {
-      path: ["v3", "serp", "google_ai_mode", "live"],
-      costUsd: 0.004,
-    },
+    keyword: "best geo tool",
+    locationCode: 2840,
+    languageCode: "en",
+    datetime: "2026-10-03T12:00:00Z",
+    checkUrl: "https://google.com/search?udm=48",
+    elementTypes: ["text", "shopping"],
+    elements: [
+      {
+        type: "text",
+        position: "1",
+        title: "Answer",
+        text: null,
+        markdown: "OpenGeo is a generative-engine-optimization tool.",
+        references: [
+          {
+            type: "source",
+            source: "reddit",
+            domain: "reddit.com",
+            url: "https://reddit.com/r/seo",
+            title: "Reddit",
+            text: null,
+          },
+        ],
+      },
+    ],
+    references: [
+      {
+        type: "source",
+        source: "reddit",
+        domain: "reddit.com",
+        url: "https://reddit.com/r/seo",
+        title: "Reddit",
+        text: null,
+      },
+    ],
   };
+}
+
+/** Point the metered client at the AI Mode seam before a live call. */
+function useAiModeAnswer() {
+  aiMode.mockResolvedValue(aiModeAnswer());
+  createDataforseoClient.mockReturnValue({ serp: { aiMode } });
 }
 
 describe("ai_mode_query", () => {
   it("returns the AI Mode answer with its elements and citations", async () => {
-    fetchAiModeAnswer.mockResolvedValue(aiModeAnswer());
+    useAiModeAnswer();
 
     const result = await callTool(aiModeQueryTool, {
       keyword: "best geo tool",
@@ -133,14 +140,18 @@ describe("ai_mode_query", () => {
     // the de-duplicated citation set the structured content carries.
     expect(text).toContain("Reddit (https://reddit.com/r/seo)");
 
-    // Defaults come from the project context, not a hardcoded market.
-    expect(fetchAiModeAnswer).toHaveBeenCalledWith(
+    // Defaults come from the project context, not a hardcoded market,
+    // and the call goes through the metered client rather than the raw
+    // fetcher — an unmetered call would spend credits with no balance
+    // check and no usage record.
+    expect(aiMode).toHaveBeenCalledWith(
       expect.objectContaining({
         keyword: "best geo tool",
         locationCode: 2840,
         languageCode: "en",
       }),
     );
+    expect(createDataforseoClient).toHaveBeenCalled();
 
     const structured = result.structuredContent ?? {};
     expect(structured.keyword).toBe("best geo tool");
@@ -149,7 +160,7 @@ describe("ai_mode_query", () => {
   });
 
   it("honours an explicit market override", async () => {
-    fetchAiModeAnswer.mockResolvedValue(aiModeAnswer());
+    useAiModeAnswer();
 
     await callTool(aiModeQueryTool, {
       keyword: "best geo tool",
@@ -158,7 +169,7 @@ describe("ai_mode_query", () => {
       dry_run: false,
     });
 
-    expect(fetchAiModeAnswer).toHaveBeenCalledWith(
+    expect(aiMode).toHaveBeenCalledWith(
       expect.objectContaining({
         locationCode: 2849,
         languageCode: "es",
@@ -175,6 +186,6 @@ describe("ai_mode_query", () => {
     expect(structured.dryRun).toBe(true);
     expect(structured.estimatedCredits).toBe(4);
     expect(textOf(result)).toMatch(/dry run/i);
-    expect(fetchAiModeAnswer).not.toHaveBeenCalled();
+    expect(aiMode).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { fetchAiModeAnswer } from "@/server/lib/dataforseo/ai-mode";
+import { createDataforseoClient } from "@/server/lib/dataforseo";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
@@ -43,7 +43,7 @@ export const aiModeQueryTool = {
   config: {
     title: "Query Google AI Mode",
     description:
-      "Returns the Google AI Mode SERP for a keyword: answer elements (prose, tables, shopping), references/citations, and a reproducible check URL. Charges ~4 credits per call (vendor list price, live/advanced variant). `dry_run` defaults to true, so the first call previews the cost without spending; set `dry_run: false` to run. Scope limit: for Google AI Overviews we get citations only — DataForSEO does not return what Google retrieved, so there is no retrieved-but-uncited gap for this platform.",
+      "Returns the Google AI Mode SERP for a keyword: answer elements (prose, tables, shopping), references/citations, and a reproducible check URL. Charges ~4 credits per call (vendor list price, live/advanced variant). `dry_run` defaults to true, so the first call previews the cost without spending; set `dry_run: false` to run. Scope limit: this tool reports what Google AI Mode cited, not what it retrieved behind the answer — DataForSEO returns no retrieval list for this endpoint, so there is no retrieved-but-uncited gap here.",
     inputSchema,
     outputSchema: z
       .object({
@@ -128,14 +128,16 @@ export const aiModeQueryTool = {
       });
     }
 
-    const response = await fetchAiModeAnswer({
+    // Through the metered client, not the raw fetcher: this spends vendor
+    // credits, so the balance check and the usage record have to run. The
+    // client unwraps `.data`, so the answer is used directly.
+    const client = createDataforseoClient(context.billing);
+    const answer = await client.serp.aiMode({
       keyword: args.keyword,
       locationCode,
       languageCode,
       ...(args.device ? { device: args.device } : {}),
     });
-
-    const answer = response.data;
     const lines = [
       `Google AI Mode answer for "${answer.keyword}" (location: ${answer.locationCode}, language: ${answer.languageCode}):`,
     ];

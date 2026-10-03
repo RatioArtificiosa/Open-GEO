@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { fetchLlmResponse } from "@/server/lib/dataforseo/ai";
+import { createDataforseoClient } from "@/server/lib/dataforseo";
 import { resolveLlmModel } from "@/server/lib/dataforseo/llm-models";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { buildProjectMeta } from "@/server/mcp/context";
@@ -104,14 +104,17 @@ export const geoPromptRunTool = {
     }
 
     const model = await resolveLlmModel(args.platform, args.modelName);
-    const response = await fetchLlmResponse({
+    // Through the metered client, not the raw fetcher: a prompt response
+    // costs a base fee plus the model's own tokens, so the balance check
+    // and the usage record have to run. The client unwraps `.data`.
+    const client = createDataforseoClient(context.billing);
+    const result = await client.aiSearch.llmResponse({
       userPrompt: args.prompt,
       modelSlug: args.platform,
       modelName: model.modelName,
       webSearch: args.webSearch,
     });
 
-    const result = response.data;
     const lines = [
       `Response from ${args.platform} (${model.modelName}):`,
       "",

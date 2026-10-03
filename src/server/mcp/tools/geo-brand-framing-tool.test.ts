@@ -187,6 +187,25 @@ describe("geo_brand_framing", () => {
     expect(text).toMatch(/ChatGPT's view only/i);
   });
 
+  it("reads the project's market rather than a hardcoded one", async () => {
+    // Brand entities are market-specific, so reading a French project's
+    // framing at the US location code would answer a different question
+    // than the one the user asked.
+    const targetMetrics = vi.fn().mockResolvedValue(targetMetricsResponse());
+    createDataforseoClient.mockReturnValue({
+      aiSearch: { targetMetrics },
+    });
+
+    await callTool(geoBrandFramingTool, {
+      domain: "acme.com",
+      dry_run: false,
+    });
+
+    expect(targetMetrics).toHaveBeenCalledWith(
+      expect.objectContaining({ locationCode: 2840, languageCode: "en" }),
+    );
+  });
+
   it("previews the credit cost without spending on a dry run", async () => {
     // A dry run must not touch the vendor client at all.
     const targetMetrics = vi.fn();
