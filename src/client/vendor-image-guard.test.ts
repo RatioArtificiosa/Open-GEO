@@ -36,12 +36,14 @@
 import {
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -124,11 +126,18 @@ const CLIENT_SOURCE = CLIENT_FILES.map((f) => ({
  */
 const SELF = "src/client/vendor-image-guard.test.ts";
 
-/** Strip comments so a URL in a doc block is not reported as code that can render. */
-function codeOnly(source: string): string {
+/**
+ * Blank out comments, keeping string literals — a comment is prose, not code.
+ *
+ * **Strings are kept**, unlike the comment-and-string stripper in `gates-about-gates`, which
+ * needs the opposite: there the *fixture* was quoted source, here the subject **is** the
+ * string. **Two gates in this repository need opposite treatment of string literals, and a
+ * helper shared between them would have to be wrong for one.**
+ */
+function stripComments(source: string): string {
   return source
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/(^|[^:"'`\\])\/\/[^\n]*/g, "$1");
 }
 
 /**
@@ -144,7 +153,7 @@ function codeOnly(source: string): string {
  * So the rule is a function, and the control feeds it a string.
  */
 function vendorImageLeaks(source: string): boolean {
-  const body = codeOnly(source);
+  const body = stripComments(source);
   const host = VENDOR_IMAGE_HOSTS.find((h) => body.includes(h));
   // **A host alone is not a leak** — the module may be pricing one, or a doc link. The rule
   // fires only where an *image-shaped* reference and the host co-occur.
@@ -153,7 +162,7 @@ function vendorImageLeaks(source: string): boolean {
 
 /** Which vendor host, for the report. Diagnostics, not the decision itself. */
 function vendorHost(source: string): string | undefined {
-  const body = codeOnly(source);
+  const body = stripComments(source);
   return VENDOR_IMAGE_HOSTS.find((h) => body.includes(h));
 }
 
@@ -240,14 +249,37 @@ describe("CL-703: a vendor screenshot URL never reaches a customer", () => {
     expect(vendorImageLeaks(docs)).toBe(false);
   });
 
-  it("fires on a real file in the tree, not only on a literal", () => {
+  it("fires on a real file, not only on a literal", () => {
     // **A string literal is not proof enough**: the gate could pass because the *regex* is
-    // wrong while the literal happens to match it. So a real module is written inside
-    // `src/client`, the same sweep the first case runs is re-run over the tree, and the
-    // offender list is expected to name that exact file.
-    const scratchDir = join(ROOT, "src", "client", ".cl703-scratch");
-    const scratch = join(scratchDir, "Leak.tsx");
-    mkdirSync(scratchDir, { recursive: true });
+    // wrong while the literal happens to match it. So a real module is written, the same
+    // sweep the first case runs is re-run over a tree containing it, and the offender list is
+    // expected to name that exact file.
+    //
+    // ## Why the scratch tree is NOT under `src/`
+    //
+    // **The first version wrote `src/client/.cl703-scratch/Leak.tsx` and deleted it in a
+    // `finally` — and CI failed on it.** `secrets-scan.test.ts` runs in another worker,
+    // enumerates the tree, and then reads each file; between those two steps this test
+    // deleted the scratch file, so the scan got:
+    //
+    // ```
+    // Error: ENOENT: no such file or directory,
+    //   open '.../src/client/.cl703-scratch/Leak.tsx'
+    // ```
+    //
+    // **A use-after-delete across processes** — which is why it reproduced on CI's many-core
+    // runner and never on a single-worker local run. "Clean afterwards" is not "never
+    // present", and **a test that opens a window in which the repository contains a file is a
+    // test that can break any concurrent reader.** There are four tree-walking gates in this
+    // repository and every one of them could have been the one that broke.
+    //
+    // So the scratch tree is built in a temp directory **outside the repository entirely**,
+    // and the sweep is pointed at it. The gate still runs over a real tree of real files —
+    // which is what the proof required — and the repository is never touched.
+    const scratchDir = mkdtempSync(join(tmpdir(), "cl703-guard-"));
+    const scratchClient = join(scratchDir, "src", "client");
+    const scratch = join(scratchClient, "Leak.tsx");
+    mkdirSync(scratchClient, { recursive: true });
     try {
       writeFileSync(
         scratch,
@@ -256,26 +288,35 @@ describe("CL-703: a vendor screenshot URL never reaches a customer", () => {
           ");\n",
       );
 
-      const leaked = walk(join(ROOT, "src"))
-        .map(repoRelative)
-        .filter(isClientSource)
-        .filter((f) => f !== SELF)
-        .map((f) => ({ file: f, source: readFileSync(join(ROOT, f), "utf8") }))
+      // **The filter runs on a forward-slashed relative path; the read uses the absolute one.**
+      //
+      // Dropping the `.map(toRelative)` this line used to have made `isClientSource` match
+      // nothing: `walk` yields **absolute** paths, and on Windows `C:\…\src\client\Leak.tsx`
+      // does not contain the forward-slashed `"src/client/"`. The gate then reported zero
+      // offenders and the failure read as *"the rule did not fire"* when the rule was fine and
+      // **the filter had silently stopped matching** — the exact shape of a sweep over zero
+      // files, which is why the *relative* mapping is load-bearing rather than cosmetic.
+      const toRelative = (absolute: string): string =>
+        relative(scratchDir, absolute).replaceAll("\\", "/");
+
+      const leaked = walk(join(scratchDir, "src"))
+        .map((absolute) => ({ absolute, label: toRelative(absolute) }))
+        .filter(({ label }) => isClientSource(label))
+        .map(({ absolute, label }) => ({
+          file: label,
+          source: readFileSync(absolute, "utf8"),
+        }))
         .filter(({ source }) => vendorImageLeaks(source))
         .map(({ file, source }) => ({ file, host: vendorHost(source) }));
 
       // **The gate fires, and names the exact file.** Not "an offender exists" — that would
       // pass for the wrong reason, if some unrelated file had started naming a vendor.
       expect(leaked).toEqual([
-        {
-          file: "src/client/.cl703-scratch/Leak.tsx",
-          host: "api.dataforseo.com",
-        },
+        { file: "src/client/Leak.tsx", host: "api.dataforseo.com" },
       ]);
     } finally {
-      // **`finally`, always.** A test that writes a file into `src/` and can leave it behind
-      // is a test that poisons the tree on failure, and the next run's gate sweep would
-      // read the leak as a real offender — a failure that manufactures its own next failure.
+      // **`finally`, always** — and now it removes a directory it created outside the
+      // repository, so even a total failure cannot leave anything for another gate to read.
       rmSync(scratchDir, { recursive: true, force: true });
     }
 
