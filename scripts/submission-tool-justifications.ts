@@ -103,6 +103,13 @@ export const MISSING_TOOL_JUSTIFICATIONS: Record<string, ToolJustifications> = {
     destructive_justification:
       "May use metered DataForSEO credits (a base fee plus the model's own token cost) when dry_run is explicitly false, but does not delete, overwrite, revoke access, send, or publish anything.",
   },
+  ai_keyword_volume: {
+    read_only_justification:
+      "Returns DataForSEO's AI-demand figure for up to 1000 keywords in one call, optionally with a 12-month series. The response states that this AI volume is a People-Also-Ask-derived model and is not comparable with Google search volume or with the same-named field from other AI tools.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification:
+      "May use metered DataForSEO credits on dry_run: false, billed per keyword. Does not delete, overwrite, revoke access, send, or publish anything.",
+  },
 
   // --- Saved keywords. Removing a keyword deletes a stored record, so this is
   // destructive, and it says which project it affects.

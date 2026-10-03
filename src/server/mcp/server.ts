@@ -52,6 +52,7 @@ import { getGeoTopCitationsTool } from "@/server/mcp/tools/geo-top-citations-too
 import { geoBrandFramingTool } from "@/server/mcp/tools/geo-brand-framing-tool";
 import { geoPromptRunTool } from "@/server/mcp/tools/geo-prompt-run-tool";
 import { aiModeQueryTool } from "@/server/mcp/tools/ai-mode-query-tool";
+import { aiKeywordVolumeTool } from "@/server/mcp/tools/ai-keyword-volume-tool";
 import { computeShareOfVoiceTool } from "@/server/mcp/tools/compute-share-of-voice";
 import {
   getProjectContextTool,
@@ -225,6 +226,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(geoBrandFramingTool);
   register(geoPromptRunTool);
   register(aiModeQueryTool);
+  register(aiKeywordVolumeTool);
   register(searchSerpLocationsTool);
   register(createRankTrackerTool);
   register(getRankTrackerTool);

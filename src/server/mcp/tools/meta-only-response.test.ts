@@ -34,6 +34,12 @@ import * as geoTopCitationsTool from "./geo-top-citations-tool";
 import * as geoBrandFramingTool from "./geo-brand-framing-tool";
 import * as geoPromptRunTool from "./geo-prompt-run-tool";
 import * as aiModeQueryTool from "./ai-mode-query-tool";
+// **A tool file whose exports must be in `toolExports` below.** The gate *scans* the
+// directory to find handlers that can answer with meta only, then *resolves* them from this
+// import map — so a new tool file that returns meta without `structuredContent` fails with
+// "is not an exported tool definition" rather than being skipped. **The scan finds it; the map
+// is what proves the schema tolerates it.**
+import * as aiKeywordVolumeTool from "./ai-keyword-volume-tool";
 import * as googleAnalyticsTools from "./google-analytics-tools";
 import * as listProjects from "./list-projects";
 import * as listSavedKeywords from "./list-saved-keywords";
@@ -68,6 +74,7 @@ const toolExports: Record<string, unknown> = {
   ...geoBrandFramingTool,
   ...geoPromptRunTool,
   ...aiModeQueryTool,
+  ...aiKeywordVolumeTool,
   ...googleAnalyticsTools,
   ...listProjects,
   ...listSavedKeywords,
