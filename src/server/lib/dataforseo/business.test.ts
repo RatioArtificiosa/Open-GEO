@@ -11,7 +11,9 @@ import {
   fetchBusinessListingsCategories,
   fetchBusinessListingsSearch,
   fetchMyBusinessInfo,
+  fetchQuestionsAnswers,
   postGoogleReviewsTask,
+  postMyBusinessUpdatesTask,
 } from "@/server/lib/dataforseo/business";
 
 function stubDataforseo(payload: unknown) {
@@ -316,5 +318,93 @@ describe("Google business_data fetchers", () => {
         offset: 10,
       },
     ]);
+  });
+});
+/**
+ * Every path in `business.ts`, pinned by calling each one.
+ *
+ * **The first version of this block asserted a list of three paths against an identical copy
+ * of itself.** It passed forever, asserted nothing, and satisfied the gate's *string* check
+ * without exercising a single endpoint — the exact shape of instrument failure this
+ * repository keeps hunting, written by me. **A gate that checks for a string can be satisfied
+ * by a string.** So each path is now reached by calling the function that sends it.
+ *
+ * **`business_listings/categories` has no `/live` suffix** and is a GET, not a POST. A path
+ * written by habit would add the suffix and demand a change that breaks it, which is the other
+ * way a path gate becomes an obstacle rather than a check.
+ *
+ * **These use this file's own `stubDataforseo`/`requestOf`/`okTask`.** An earlier draft
+ * brought in `okResponse`/`requestUrl` from the files that have them — neither exists here,
+ * and a block that imports a second way of stubbing a response into a file that already has
+ * one is how a test file ends up with two incompatible styles.
+ */
+describe("every business path is the one the client sends", () => {
+  it("sends questions_and_answers to the /live endpoint", async () => {
+    const mock = stubDataforseo(okTask(["v3", "business_data"], []));
+
+    await fetchQuestionsAnswers({
+      keyword: "coffee shop",
+      locationCoordinate: "0,0",
+      languageCode: "en",
+      depth: 10,
+    });
+
+    expect(requestOf(mock).url).toContain(
+      "/v3/business_data/google/questions_and_answers/live",
+    );
+  });
+
+  it("sends business_listings/categories with no /live suffix, because there is none", async () => {
+    const mock = stubDataforseo(okTask(["v3", "business_data"], []));
+
+    await fetchBusinessListingsCategories();
+
+    const { url } = requestOf(mock);
+    expect(url).toContain("/v3/business_data/business_listings/categories");
+    // **The negative assertion is the point of this case.** Every other endpoint in this
+    // client ends in `/live`, so the habit is to write `.../categories/live` — and the
+    // vendor 404s that with the customer's money already spent.
+    expect(url).not.toContain("/categories/live");
+  });
+
+  it("sends my_business_updates to task_post, not to /live", async () => {
+    // **`task_post`, and this is the most expensive wrong answer in the file.** A posted
+    // task is queued and billed, so a 404 costs the customer and tells them nothing until
+    // the bill arrives.
+    // **`id` at the task level**, because `postedTaskId` reads it from there — the same
+    // shape the reviews case above uses for its own `task_post`. The first version spread
+    // `okTask(...)` into a task object, which nests the helper's own `tasks` array inside
+    // another one, and the failure said "DataForSEO request failed" — a message about the
+    // request when the fault was in the fixture.
+    const mock = stubDataforseo({
+      status_code: 20000,
+      tasks: [
+        {
+          id: "task-1",
+          status_code: 20100,
+          cost: 0.002,
+          path: [
+            "v3",
+            "business_data",
+            "google",
+            "my_business_updates",
+            "task_post",
+          ],
+        },
+      ],
+    });
+
+    await postMyBusinessUpdatesTask({
+      keyword: "coffee shop",
+      locationCoordinate: "0,0",
+      languageCode: "en",
+      depth: 10,
+    });
+
+    const { url } = requestOf(mock);
+    expect(url).toContain(
+      "/v3/business_data/google/my_business_updates/task_post",
+    );
+    expect(url).not.toContain("/live");
   });
 });

@@ -18,7 +18,16 @@
  * `formulaVersion: new`, and every number in the table is wrong while every test passes.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchRelatedKeywords } from "@/server/lib/dataforseo/labs";
+import {
+  fetchDomainRankOverview,
+  fetchKeywordIdeas,
+  fetchKeywordOverview,
+  fetchKeywordSuggestions,
+  fetchRankedKeywords,
+  fetchRelatedKeywords,
+  fetchRelevantPages,
+  fetchSerpCompetitors,
+} from "@/server/lib/dataforseo/labs";
 import {
   fetchDomainIntersection,
   fetchPageIntersection,
@@ -248,4 +257,85 @@ describe("the intersection endpoints", () => {
       data: [],
     });
   });
+});
+
+/**
+ * Every path in `labs.ts`, pinned.
+ *
+ * **Nine of these ten endpoints have shipped without their destination ever being asserted.**
+ * The gate read one path per file — `related_keywords`, pinned in the case above — and
+ * reported the whole client covered. A path that 404s is not a crash: DataForSEO charges per
+ * request, so it is a customer-visible error after the money is spent.
+ *
+ * **No payload assertions and no ETV assertions here** — those are covered in the cases above
+ * where the behaviour actually lives. This block is the destination and nothing else, which is
+ * what the gate asks for and the cheapest thing that catches a transposition.
+ */
+describe("every labs path is the one the client sends", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  const KW = { locationCode: 2840, languageCode: "en" };
+  const DOMAIN = { target: "example.com", ...KW };
+
+  const cases = [
+    {
+      name: "keyword suggestions",
+      path: "/v3/dataforseo_labs/google/keyword_suggestions/live",
+      call: () =>
+        fetchKeywordSuggestions({ keyword: "geo tools", ...KW, limit: 10 }),
+    },
+    {
+      name: "keyword ideas",
+      path: "/v3/dataforseo_labs/google/keyword_ideas/live",
+      call: () => fetchKeywordIdeas({ keyword: "geo tools", ...KW, limit: 10 }),
+    },
+    {
+      name: "domain rank overview",
+      path: "/v3/dataforseo_labs/google/domain_rank_overview/live",
+      call: () => fetchDomainRankOverview(DOMAIN),
+    },
+    {
+      name: "ranked keywords",
+      path: "/v3/dataforseo_labs/google/ranked_keywords/live",
+      call: () => fetchRankedKeywords({ ...DOMAIN, limit: 10 }),
+    },
+    {
+      name: "relevant pages",
+      path: "/v3/dataforseo_labs/google/relevant_pages/live",
+      call: () => fetchRelevantPages({ ...DOMAIN, limit: 10 }),
+    },
+    {
+      name: "keyword overview",
+      path: "/v3/dataforseo_labs/google/keyword_overview/live",
+      call: () => fetchKeywordOverview({ keywords: ["geo tools"], ...KW }),
+    },
+    {
+      name: "serp competitors",
+      path: "/v3/dataforseo_labs/google/serp_competitors/live",
+      call: () =>
+        fetchSerpCompetitors({ keywords: ["geo tools"], ...KW, limit: 10 }),
+    },
+  ] as const;
+
+  for (const c of cases) {
+    it(`sends ${c.name} to ${c.path}`, async () => {
+      vi.mocked(fetch).mockImplementation(async () => okResponse([]));
+
+      await c.call();
+
+      const url = requestUrl(vi.mocked(fetch));
+      expect(url).toContain(c.path);
+      for (const other of cases) {
+        if (other.path === c.path) continue;
+        expect(url).not.toContain(other.path);
+      }
+    });
+  }
 });

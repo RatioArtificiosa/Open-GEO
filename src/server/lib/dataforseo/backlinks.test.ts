@@ -22,6 +22,8 @@ import {
   fetchBacklinksHistory,
   fetchBacklinksRows,
   fetchBacklinksSummary,
+  fetchDomainPagesSummary,
+  fetchReferringDomains,
 } from "@/server/lib/dataforseo/backlinks";
 import { normalizeBacklinksTarget } from "@/server/lib/dataforseoBacklinksTarget";
 import { requestBody, requestUrl } from "./test-support";
@@ -376,3 +378,84 @@ function expectValidationError(fn: () => unknown) {
 
   throw new Error("Expected normalizeBacklinksTarget to throw");
 }
+
+/**
+ * Every path in `backlinks.ts`, pinned.
+ *
+ * **These are the assertions `endpoint-path-gate` could not ask for until this pass**, because
+ * it read only the *first* `/v3/…` in a file — `summary`, which was the one already covered.
+ * Four endpoints in this client have shipped, been billed against, and never had their
+ * destination asserted.
+ *
+ * **No payload assertions.** The gate's rule is deliberately the cheap one — "does this test
+ * mention the path" — and re-testing behaviour here to satisfy it would grow assertions nobody
+ * reads. The one hazard worth a both-directions check is the copy-paste between siblings, and
+ * these functions have **identical bodies differing only in the path**.
+ */
+describe("every backlinks path is the one the client sends", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  /** Each case makes one call with a fresh body-bearing response. */
+  const cases = [
+    {
+      name: "summary",
+      path: "/v3/backlinks/summary/live",
+      call: () => fetchBacklinksSummary({ target: "example.com" }),
+    },
+    {
+      name: "rows",
+      path: "/v3/backlinks/backlinks/live",
+      call: () => fetchBacklinksRows({ target: "example.com" }),
+    },
+    {
+      name: "referring domains",
+      path: "/v3/backlinks/referring_domains/live",
+      call: () => fetchReferringDomains({ target: "example.com" }),
+    },
+    {
+      name: "domain pages summary",
+      path: "/v3/backlinks/domain_pages_summary/live",
+      call: () => fetchDomainPagesSummary({ target: "example.com" }),
+    },
+    {
+      name: "anchors",
+      path: "/v3/backlinks/anchors/live",
+      call: () => fetchAnchors({ target: "example.com" }),
+    },
+    {
+      name: "history",
+      path: "/v3/backlinks/history/live",
+      call: () =>
+        fetchBacklinksHistory({
+          target: "example.com",
+          dateFrom: "2025-01-01",
+          dateTo: "2025-12-31",
+        }),
+    },
+  ] as const;
+
+  for (const c of cases) {
+    it(`sends ${c.name} to ${c.path}`, async () => {
+      vi.mocked(fetch).mockImplementation(async () => okResponse([]));
+      classifyBacklinksError.mockReturnValue(null);
+
+      await c.call();
+
+      const url = requestUrl(vi.mocked(fetch));
+      expect(url).toContain(c.path);
+      // **And not to a sibling** — the six functions here share a prefix and differ only in
+      // the last segment, so the plausible mistake is a copy-paste rather than a typo.
+      for (const other of cases) {
+        if (other.path === c.path) continue;
+        expect(url).not.toContain(other.path);
+      }
+    });
+  }
+});

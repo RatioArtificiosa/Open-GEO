@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { sortBy } from "remeda";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -39,12 +40,57 @@ const readIfPresent = (name: string): string | null => {
   }
 };
 
-/** The endpoint, however the client spells it. */
-function detectPath(source: string): string | null {
-  const match =
-    /["'`](\/v3\/[a-z0-9_\-/]+)["'`]/.exec(source) ??
-    /["'`](\/ai_optimization\/[a-z0-9_\-/]+)["'`]/.exec(source);
-  return match?.[1] ?? null;
+/**
+ * Blank out comments, keeping string literals — a comment is prose, not code.
+ *
+ * **Strings are kept**, unlike the comment-and-string stripper in `gates-about-gates`, which
+ * needs the opposite: there the *fixture* was quoted source, here the subject **is** the
+ * string. **Two gates in this repository need opposite treatment of string literals, and a
+ * helper shared between them would have to be wrong for one.**
+ */
+function stripComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/(^|[^:"'`\\])\/\/[^\n]*/g, "$1");
+}
+
+/**
+ * Every endpoint path a DataForSEO client calls, however it spells it.
+ *
+ * ## Why this returns a LIST rather than the first match
+ *
+ * **The first version returned one path — the first `/v3/…` string in the file.** That is a
+ * plausible-looking rule, and it made the gate report `backlinks.ts` and `labs.ts` as covered
+ * while **four of five and nine of ten of their endpoints had never been gated.** A gate with
+ * one verdict per *file* is not a weaker gate, it is a different gate, and it reads as though
+ * it covers more than it does — which is worse than not existing, because the coverage is
+ * believed.
+ *
+ * Every path is returned, so the report below is per **endpoint**, and an endpoint added to an
+ * existing client is gated the day it is written rather than whenever that file happens to be
+ * restructured so its first path changes.
+ *
+ * ## Comments are stripped first
+ *
+ * **A path in a doc block is not a call.** `core.ts` names paths in prose to explain the
+ * throttle bug, and this file's own header quotes the broken `ai-keywords` URL. Counting
+ * those would demand assertions for endpoints nothing calls — and a gate that demands the
+ * impossible gets deleted rather than fixed.
+ */
+function detectPaths(source: string): string[] {
+  const code = stripComments(source);
+  const found = [
+    ...code.matchAll(/["'`](\/v3\/[a-z0-9_\-/]+)["'`]/g),
+    ...code.matchAll(/["'`](\/ai_optimization\/[a-z0-9_\-/]+)["'`]/g),
+  ].map((m) => m[1]);
+
+  // **Deduplicated**, because `assertOk(response, assertOptions(PATH))` repeats the path that
+  // `dataforseoPost(PATH, …)` already declared — and a gate reporting the same path twice
+  // reads as two endpoints where there is one.
+  //
+  // **No `!` on the capture.** `no-unnecessary-type-assertion` flagged it, and it was right:
+  // `matchAll` on a pattern with exactly one capture group types the capture as `string`.
+  return [...new Set(found)];
 }
 
 /**
@@ -74,14 +120,40 @@ function assertsPath(test: string, path: string): boolean {
   );
 }
 
-const clients = clientFiles.map((name) => {
-  const source = readFileSync(join(CLIENTS_DIR, name), "utf8");
-  return {
-    name,
-    path: detectPath(source),
-    test: readIfPresent(name.replace(/\.ts$/, ".test.ts")),
-  };
+const rawEndpoints = clientFiles.flatMap((name) => {
+  const test = readIfPresent(name.replace(/\.ts$/, ".test.ts"));
+  return detectPaths(readFileSync(join(CLIENTS_DIR, name), "utf8")).map(
+    (path) => ({
+      name,
+      path,
+      test,
+    }),
+  );
 });
+
+/**
+ * One row per **endpoint**, sorted so the failure message reads as a diff.
+ *
+ * **Remeda's `sortBy` with a single bare projection.** `OrderRule<T>` is
+ * `Projection<T> | [Projection<T>, direction]`, and a projection is just a function — so one
+ * concatenated key sorts by both fields with no tuple and no direction constant. **The
+ * codebase already uses this form** (`sortBy(a, identity())` in
+ * `usePromptExplorerSearchHistory.ts`) and I read that line three times while guessing.
+ *
+ * **Not `toSorted` and not `Array#sort`.** `oxlint` asks for `toSorted`; `tsconfig.json`
+ * answers why it cannot be used, on the `lib` line itself: *"toReversed, findLast, ... crash
+ * Chromium <110. Don't bump this to fix a missing-method error — use Remeda's
+ * sort/sortBy/findLast instead."* **A rule that cannot be satisfied without breaking a
+ * documented runtime constraint is not a rule to suppress — it is a signal to use the tool the
+ * codebase already chose.**
+ */
+const endpoints = sortBy(rawEndpoints, (e) => `${e.name} ${e.path}`);
+
+const clients = clientFiles.map((name) => ({
+  name,
+  path: detectPaths(readFileSync(join(CLIENTS_DIR, name), "utf8"))[0] ?? null,
+  test: readIfPresent(name.replace(/\.ts$/, ".test.ts")),
+}));
 
 /**
  * The URL a mocked `fetch` was called with.
@@ -107,17 +179,36 @@ describe("DataForSEO client endpoint paths", () => {
     expect(withPath.length).toBeGreaterThan(3);
   });
 
-  const unasserted = clients.filter(
-    (c) => c.path !== null && c.test !== null && !assertsPath(c.test, c.path),
+  it("sees every endpoint, not one per file — the defect this gate had", () => {
+    // **What makes the per-endpoint change mean anything.** If `detectPaths` silently
+    // regressed to returning one path, every other case here would still pass while the gate
+    // quietly covered a fraction of what it reads as covering — and it has done exactly that,
+    // which is how the ratio assertion came to exist.
+    //
+    // **A ratio, not a number**, so it stays true as clients are added: `toBe(30)` would
+    // break on the next endpoint and the tempting fix would be to bump the constant, which is
+    // how a pin becomes a rubber stamp.
+    const perFile = clients.filter((c) => c.path !== null).length;
+    expect(endpoints.length).toBeGreaterThan(perFile * 1.5);
+
+    // The case that started this: `backlinks.ts` has six endpoints and the gate used to
+    // speak about one of them.
+    expect(
+      endpoints.filter((e) => e.name === "backlinks.ts").length,
+    ).toBeGreaterThan(2);
+  });
+
+  const unasserted = endpoints.filter(
+    (e) => e.test !== null && !assertsPath(e.test, e.path),
   );
 
   it("are each pinned by their own test file", () => {
     // The failure message names the file and the path, because "some client is
     // wrong" is not actionable and this gate only helps if it is.
-    const report = unasserted.map((c) => `  ${c.name}: ${c.path}`).join("\n");
+    const report = unasserted.map((e) => `  ${e.name}: ${e.path}`).join("\n");
     expect(
-      unasserted.map((c) => `${c.name}: ${c.path}`),
-      `These clients' tests never assert their endpoint path, so a wrong URL ` +
+      unasserted.map((e) => `${e.name}: ${e.path}`),
+      `These endpoints are never asserted by their client's test, so a wrong URL ` +
         `would pass every test and fail only on a billed request:\n${report}`,
     ).toEqual([]);
   });
