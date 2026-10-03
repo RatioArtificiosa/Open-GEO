@@ -31,6 +31,9 @@ import * as geoDiagnosticTools from "./geo-diagnostic-tools";
 import * as geoAnswerDiffTool from "./geo-answer-diff-tool";
 import * as geoReadTools from "./geo-read-tools";
 import * as geoTopCitationsTool from "./geo-top-citations-tool";
+import * as geoBrandFramingTool from "./geo-brand-framing-tool";
+import * as geoPromptRunTool from "./geo-prompt-run-tool";
+import * as aiModeQueryTool from "./ai-mode-query-tool";
 import * as googleAnalyticsTools from "./google-analytics-tools";
 import * as listProjects from "./list-projects";
 import * as listSavedKeywords from "./list-saved-keywords";
@@ -62,6 +65,9 @@ const toolExports: Record<string, unknown> = {
   ...geoAnswerDiffTool,
   ...geoReadTools,
   ...geoTopCitationsTool,
+  ...geoBrandFramingTool,
+  ...geoPromptRunTool,
+  ...aiModeQueryTool,
   ...googleAnalyticsTools,
   ...listProjects,
   ...listSavedKeywords,

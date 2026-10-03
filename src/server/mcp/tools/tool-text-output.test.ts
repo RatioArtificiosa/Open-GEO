@@ -13,6 +13,9 @@ import {
 import { getRankTrackerTool } from "./get-rank-tracker";
 import { getBusinessUpdatesTool } from "./local-seo-tools";
 import { getSerpResultsTool } from "./get-serp-results";
+import { aiModeQueryTool } from "./ai-mode-query-tool";
+import { geoBrandFramingTool } from "./geo-brand-framing-tool";
+import { geoPromptRunTool } from "./geo-prompt-run-tool";
 import { researchKeywordsTool } from "./research-keywords";
 import { makeToolContext, textContent } from "./tool-test-support";
 import { makeGa4ReportResult } from "@/server/features/ga4/services/ga4-test-fixtures";
@@ -211,6 +214,27 @@ describe("MCP tool text output (service-backed tools)", () => {
     expect(text).toContain("50 credits");
   });
 
+  it("get_backlinks_profile previews the credit cost by default", async () => {
+    const result = await getBacklinksProfileTool.handler(
+      {
+        projectId: "project_1",
+        target: "example.com",
+        page: 1,
+        pageSize: 100,
+        sortField: "rank",
+        sortOrder: "desc",
+        filters: {},
+        mode: "one_per_domain",
+      },
+      toolContext,
+    );
+    const text = textContent(result);
+
+    expect(mocks.profileBacklinksPage).not.toHaveBeenCalled();
+    expect(text).toContain("dry_run: false");
+    expect(text).toContain("30 credits");
+  });
+
   it("get_backlinks_profile renders all backlink rows", async () => {
     mocks.profileBacklinksPage.mockResolvedValue({
       rows: [
@@ -243,6 +267,7 @@ describe("MCP tool text output (service-backed tools)", () => {
         sortOrder: "desc",
         filters: {},
         mode: "one_per_domain",
+        dry_run: false,
       },
       toolContext,
     );
@@ -705,5 +730,46 @@ describe("MCP tool text output (service-backed tools)", () => {
     expect(textContent(result)).toEqual(
       "Organic overview for 2026-07-09 through 2026-08-05, compared with 2026-06-11 through 2026-07-08. The trend was cut at 0 rows; use trend=weekly or a shorter date range for the full series. No Organic Search rows for this date range.",
     );
+  });
+
+  it("ai_mode_query previews the credit cost by default", async () => {
+    const result = await aiModeQueryTool.handler(
+      { projectId: "project_1", keyword: "seo tools" },
+      toolContext,
+    );
+    const text = textContent(result);
+
+    expect(text).toContain("dry_run: false");
+    expect(text).toContain("4 credits");
+  });
+
+  it("geo_brand_framing previews the credit cost by default", async () => {
+    const result = await geoBrandFramingTool.handler(
+      { projectId: "project_1", domain: "acme.com" },
+      toolContext,
+    );
+    const text = textContent(result);
+
+    expect(text).toContain("dry_run: false");
+    expect(text).toContain("100 credits");
+  });
+
+  it("geo_prompt_run previews the credit cost by default", async () => {
+    const result = await geoPromptRunTool.handler(
+      {
+        projectId: "project_1",
+        prompt: "What is the best CRM?",
+        platform: "chat_gpt",
+        modelName: "gpt-4o",
+      },
+      toolContext,
+    );
+    const text = textContent(result);
+
+    expect(text).toContain("dry_run: false");
+    // The base fee is the only fixed part; the provider's token
+    // cost is variable and is stated, not folded into a flat number.
+    expect(text).toContain("$0.0006");
+    expect(text).toContain("base fee");
   });
 });

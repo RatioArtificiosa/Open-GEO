@@ -267,6 +267,7 @@ describe("get_backlinks_profile MCP tool", () => {
         },
         mode: "as_is",
         hideSpam: false,
+        dry_run: false,
       },
       toolContext,
     );
@@ -294,7 +295,12 @@ describe("get_backlinks_profile MCP tool", () => {
       },
       { hideSpam: false },
     );
-    expect(result.structuredContent?.backlinks).toEqual(backlinkPage);
+    const structured = result.structuredContent;
+    expect(
+      structured && typeof structured === "object" && "backlinks" in structured
+        ? (structured as Record<string, unknown>).backlinks
+        : undefined,
+    ).toEqual(backlinkPage);
     const first = result.content[0];
     expect(first.type === "text" && first.text).toContain("- has more: yes");
   });
@@ -320,11 +326,17 @@ describe("get_backlinks_profile MCP tool", () => {
         filters: {},
         mode: "one_per_domain",
         hideSpam: true,
+        dry_run: false,
       },
       toolContext,
     );
 
-    expect(result.structuredContent?.backlinks).toMatchObject({
+    const structured = result.structuredContent;
+    expect(
+      structured && typeof structured === "object" && "backlinks" in structured
+        ? (structured as Record<string, unknown>).backlinks
+        : undefined,
+    ).toMatchObject({
       totalCount: 51,
       hasMore: false,
       page: 2,
@@ -352,6 +364,7 @@ describe("get_backlinks_profile MCP tool", () => {
           filters: {},
           mode: "one_per_domain",
           hideSpam: true,
+          dry_run: false,
         },
         toolContext,
       ),

@@ -70,6 +70,12 @@ const inputSchema = {
     .boolean()
     .optional()
     .describe("Filter out spammy backlinks. Defaults to true."),
+  dry_run: z
+    .boolean()
+    .optional()
+    .describe(
+      "Default true: preview the approximate credit cost without spending. Set dry_run: false to run the live vendor query.",
+    ),
 } as const;
 
 type Args = z.infer<z.ZodObject<typeof inputSchema>>;
@@ -123,7 +129,7 @@ export const getBacklinksProfileTool = {
   config: {
     title: "Get backlinks profile",
     description:
-      "Returns one bounded page of detailed backlink rows for a domain or page: linking URLs, target URLs, anchors, dofollow/nofollow, authority/spam signals, and lost/broken status. Supports filters, sorting, one_per_domain/as_is mode, and pagination. Charges credits (~30 per page typical). Self-hosted deployments need the Backlinks API enabled on their DataForSEO account.",
+      "Returns one bounded page of detailed backlink rows for a domain or page: linking URLs, target URLs, anchors, dofollow/nofollow, authority/spam signals, and lost/broken status. Supports filters, sorting, one_per_domain/as_is mode, and pagination. Charges credits (~30 per page typical). `dry_run` defaults to true, so the first call previews the credit estimate without spending; set `dry_run: false` to run. Self-hosted deployments need the Backlinks API enabled on their DataForSEO account.",
     inputSchema,
     outputSchema: z.looseObject({
       target: z.string(),
@@ -156,6 +162,26 @@ export const getBacklinksProfileTool = {
     const target = normalizeBacklinksTarget(request.target, {
       scope: request.scope,
     });
+    if (args.dry_run !== false) {
+      return mcpResponse({
+        text: [
+          `Dry run: page ${args.page} of backlinks for ${target.displayTarget} (scope: ${target.scope}) will typically cost around 30 credits. Charged amount is what DataForSEO reports at send time.`,
+          `Re-run with dry_run: false to spend credits and fetch the rows.`,
+        ].join("\n"),
+        meta: buildProjectMeta(
+          context,
+          args.projectId,
+          `/p/${args.projectId}/backlinks`,
+        ),
+        structuredContent: {
+          dryRun: true,
+          target: target.displayTarget,
+          scope: target.scope,
+          page: args.page,
+          estimatedCredits: 30,
+        },
+      });
+    }
     const backlinks = await BacklinksService.profileBacklinksPage(
       request,
       context.billing,

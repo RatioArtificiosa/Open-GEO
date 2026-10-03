@@ -49,6 +49,9 @@ import {
   getGeoRunsTool,
 } from "@/server/mcp/tools/geo-diagnostic-tools";
 import { getGeoTopCitationsTool } from "@/server/mcp/tools/geo-top-citations-tool";
+import { geoBrandFramingTool } from "@/server/mcp/tools/geo-brand-framing-tool";
+import { geoPromptRunTool } from "@/server/mcp/tools/geo-prompt-run-tool";
+import { aiModeQueryTool } from "@/server/mcp/tools/ai-mode-query-tool";
 import { computeShareOfVoiceTool } from "@/server/mcp/tools/compute-share-of-voice";
 import {
   getProjectContextTool,
@@ -219,6 +222,9 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   // The `geo-audit` skill instructs agents to call this by name; without it the
   // audit the skill describes cannot start.
   register(computeShareOfVoiceTool);
+  register(geoBrandFramingTool);
+  register(geoPromptRunTool);
+  register(aiModeQueryTool);
   register(searchSerpLocationsTool);
   register(createRankTrackerTool);
   register(getRankTrackerTool);

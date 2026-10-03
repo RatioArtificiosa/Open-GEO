@@ -78,6 +78,32 @@ export const MISSING_TOOL_JUSTIFICATIONS: Record<string, ToolJustifications> = {
     destructive_justification: NOTHING_DESTRUCTIVE,
   },
 
+  // --- Live vendor reads. These spend metered DataForSEO credits on the
+  // live path (dry_run: false), so they are not read-only in the
+  // annotation sense; the justifications say so rather than claiming a
+  // free read. dry_run defaults to true, so the default call spends nothing.
+  ai_mode_query: {
+    read_only_justification:
+      "Fetches the Google AI Mode SERP for one keyword — answer elements, references and a reproducible check URL — for the authenticated project's market and language. Returns one platform's answer and never combines platforms.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification:
+      "May use metered DataForSEO credits when dry_run is explicitly false, but does not delete, overwrite, revoke access, send, or publish anything.",
+  },
+  geo_brand_framing: {
+    read_only_justification:
+      "Fetches the entity buckets ChatGPT files a monitored domain under — title and category labels with mention counts — and returns a one-sentence positioning diagnosis. ChatGPT-only: the response names that it is one model's view, not a statement about every AI engine.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification:
+      "May use metered DataForSEO credits when dry_run is explicitly false, but does not delete, overwrite, revoke access, send, or publish anything.",
+  },
+  geo_prompt_run: {
+    read_only_justification:
+      "Sends one prompt to one AI platform's model and returns the answer with its citations, for testing how a model answers a question about a brand before it is added to a prompt set. One platform per call; results are never combined across platforms.",
+    open_world_justification: PRIVATE_STATE,
+    destructive_justification:
+      "May use metered DataForSEO credits (a base fee plus the model's own token cost) when dry_run is explicitly false, but does not delete, overwrite, revoke access, send, or publish anything.",
+  },
+
   // --- Saved keywords. Removing a keyword deletes a stored record, so this is
   // destructive, and it says which project it affects.
   remove_saved_keywords: {

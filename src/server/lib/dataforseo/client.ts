@@ -56,6 +56,7 @@ import {
   fetchLlmResponse,
   fetchLlmTopPages,
 } from "@/server/lib/dataforseo/ai";
+import { fetchLlmTargetMetrics } from "@/server/lib/dataforseo/ai-mentions";
 import { fetchAiKeywordVolume } from "@/server/lib/dataforseo/ai-keywords";
 import type { AiKeywordVolumeInput } from "@/server/lib/dataforseo/ai-keywords";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
@@ -145,6 +146,12 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
     aiSearch: {
       mentionsSearch: meter(customer, fetchLlmMentionsSearch),
       aggregatedMetrics: meter(customer, fetchLlmAggregatedMetrics),
+      // The dimensional breakdown for one target — the only LLM Mentions
+      // endpoint that returns the brand-entity buckets (`brand_entities_title`
+      // / `brand_entities_category`), so the brand-framing tool reads them
+      // here rather than off `aggregated_metrics`'s total, which does not
+      // carry them.
+      targetMetrics: meter(customer, fetchLlmTargetMetrics),
       topPages: meter(customer, fetchLlmTopPages),
       crossAggregatedMetrics: meter(customer, fetchLlmCrossAggregatedMetrics),
       llmResponse: meter(customer, fetchLlmResponse),
