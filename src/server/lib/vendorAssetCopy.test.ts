@@ -49,6 +49,15 @@ import {
 const VENDOR_IMAGE =
   "https://api.dataforseo.com/v3/lighthouse/task_get/live/abc123/result/final-screenshot.jpg";
 
+/**
+ * The owning tenant every copy is stamped with.
+ *
+ * **Required because `copyVendorAsset` demands it**, and that is deliberate: the GDPR sweeper
+ * matches on `organizationId`, so a copy without one survives every erasure request while
+ * looking identical to one that does not.
+ */
+const OWNER = { organizationId: "org_123" };
+
 /** A Response whose bytes read back as a tiny JPEG-ish payload. */
 function imageResponse(status = 200, bytes = 512): Response {
   return new Response(new Uint8Array(bytes), {
@@ -73,7 +82,7 @@ describe("copyVendorAsset", () => {
       vi.fn(async () => imageResponse()),
     );
 
-    const outcome = await copyVendorAsset(VENDOR_IMAGE);
+    const outcome = await copyVendorAsset(VENDOR_IMAGE, OWNER);
 
     expect(outcome.status).toBe("copied");
     if (outcome.status !== "copied") return;
@@ -88,7 +97,7 @@ describe("copyVendorAsset", () => {
       vi.fn(async () => imageResponse()),
     );
 
-    const outcome = await copyVendorAsset(VENDOR_IMAGE);
+    const outcome = await copyVendorAsset(VENDOR_IMAGE, OWNER);
     if (outcome.status !== "copied") throw new Error("expected a copy");
 
     // **The key is a hash, and the object path contains no vendor host.** A key built from
@@ -115,7 +124,7 @@ describe("copyVendorAsset", () => {
       "https://evil.com/?u=https://api.dataforseo.com/x.jpg",
       "https://dataforseo.com/final-screenshot.jpg",
     ]) {
-      const outcome = await copyVendorAsset(hostile);
+      const outcome = await copyVendorAsset(hostile, OWNER);
       expect(outcome.status, `${hostile} should not be copied`).toBe(
         "not-a-vendor-image",
       );
@@ -130,7 +139,7 @@ describe("copyVendorAsset", () => {
       "fetch",
       vi.fn(async () => imageResponse(404)),
     );
-    const notFound = await copyVendorAsset(VENDOR_IMAGE);
+    const notFound = await copyVendorAsset(VENDOR_IMAGE, OWNER);
     expect(notFound.status).toBe("copy-failed");
     expect(JSON.stringify(notFound)).not.toContain("dataforseo.com");
 
@@ -140,7 +149,7 @@ describe("copyVendorAsset", () => {
         throw new Error("network down");
       }),
     );
-    const threw = await copyVendorAsset(VENDOR_IMAGE);
+    const threw = await copyVendorAsset(VENDOR_IMAGE, OWNER);
     expect(threw.status).toBe("copy-failed");
     expect(JSON.stringify(threw)).not.toContain("dataforseo.com");
   });
@@ -154,7 +163,7 @@ describe("copyVendorAsset", () => {
     );
     put.mockRejectedValueOnce(new Error("R2 unavailable"));
 
-    const outcome = await copyVendorAsset(VENDOR_IMAGE);
+    const outcome = await copyVendorAsset(VENDOR_IMAGE, OWNER);
 
     expect(outcome.status).toBe("copy-failed");
     expect(JSON.stringify(outcome)).not.toContain("dataforseo.com");
@@ -166,7 +175,7 @@ describe("copyVendorAsset", () => {
       vi.fn(async () => imageResponse()),
     );
 
-    await copyVendorAsset(VENDOR_IMAGE);
+    await copyVendorAsset(VENDOR_IMAGE, OWNER);
 
     // **Typed spy, so `mock.calls[0]` carries the options shape rather than `[]`.** An untyped
     // `vi.fn()` records calls with no parameters at all, so every read of `calls[0][2]` was a
@@ -185,6 +194,26 @@ describe("copyVendorAsset", () => {
     expect(metadata.copiedAt).toBeTruthy();
   });
 
+  it("stamps the owning tenant, so a GDPR erasure can find the copy", async () => {
+    // **The field that makes the copy erasable, asserted.** `storage-erasure.ts` lists the
+    // prefix and deletes the objects whose `customMetadata.organizationId` is in the payload,
+    // **so a copy without one survives every erasure request while looking identical to one
+    // that does not.** This is the same defect class as a retention sweep shipped with nothing
+    // invoking it: **a policy with no code behind it is a comment.**
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => imageResponse()),
+    );
+
+    await copyVendorAsset(VENDOR_IMAGE, { organizationId: "org_acme" });
+
+    const metadata = put.mock.calls[0][2].customMetadata;
+    expect(metadata.organizationId).toBe("org_acme");
+    // And it is *the tenant*, not a copy of the source host — the two being different fields
+    // is the point, since one identifies our customer and the other identifies the vendor.
+    expect(metadata.organizationId).not.toBe(metadata.sourceHost);
+  });
+
   it("builds a client URL from our own origin, never the vendor's", () => {
     // **The function a caller reaches for when rendering.** If it could emit a vendor URL, the
     // guard would be bypassable by anyone using it.
@@ -200,7 +229,7 @@ describe("copyVendorAsset", () => {
   it("reports a non-URL as not-a-vendor-image rather than throwing", async () => {
     // **A malformed value must not take the audit down with it.** The copier runs inside the
     // request cycle, so an exception here is an exception on a billed call.
-    const outcome = await copyVendorAsset("not a url at all");
+    const outcome = await copyVendorAsset("not a url at all", OWNER);
     expect(outcome.status).toBe("not-a-vendor-image");
   });
 

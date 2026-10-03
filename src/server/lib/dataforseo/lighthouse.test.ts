@@ -67,6 +67,7 @@ describe("fetchLighthouseResult", () => {
     await fetchLighthouseResult({
       url: "https://example.com",
       strategy: "desktop",
+      organizationId: "org_123",
     }).catch(() => {
       // The empty result is not the subject of this test; the URL is.
     });
@@ -124,6 +125,7 @@ describe("fetchLighthouseResult", () => {
     const { data } = await fetchLighthouseResult({
       url: "https://example.com",
       strategy: "desktop",
+      organizationId: "org_123",
     });
 
     // **The vendor's URL is nowhere in what comes back.**
@@ -179,6 +181,7 @@ describe("fetchLighthouseResult", () => {
     const rejection = fetchLighthouseResult({
       url: "https://example.com/",
       strategy: "mobile",
+      organizationId: "org_123",
     });
 
     await expect(rejection).rejects.toBeInstanceOf(DataforseoChargedTaskError);
@@ -200,6 +203,7 @@ describe("fetchLighthouseResult", () => {
       fetchLighthouseResult({
         url: "https://example.com/",
         strategy: "mobile",
+        organizationId: "org_123",
       }),
     ).rejects.toMatchObject({ code: "UPSTREAM_UNAVAILABLE" });
     expect(fetchMock).toHaveBeenCalledOnce();

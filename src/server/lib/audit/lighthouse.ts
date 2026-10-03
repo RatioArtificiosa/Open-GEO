@@ -56,7 +56,16 @@ export async function fetchLighthouseResult(
 ): Promise<LighthouseFetchResult> {
   const dataforseo = createDataforseoClient(billingCustomer);
   try {
-    const data = await dataforseo.lighthouse.live({ url, strategy });
+    // **`organizationId` from `billingCustomer`, and it is not optional.** The client stamps
+    // it onto every copied screenshot because `storage-erasure.ts` matches on it to decide
+    // what a GDPR request deletes — **so a copy without one survives every erasure request
+    // while looking identical to one that does not.** The context already carries it, so
+    // threading it costs one argument and removes a class of unerasable data.
+    const data = await dataforseo.lighthouse.live({
+      url,
+      strategy,
+      organizationId: billingCustomer.organizationId,
+    });
 
     return {
       result: {

@@ -102,8 +102,22 @@ export function assetKey(vendorUrl: string): string {
  *
  * **Never returns the vendor URL.** That is the property the whole module exists for, and it
  * is why the return type has no field a caller could put in an `<img src>`.
+ *
+ * **`organizationId` is required, and that is what makes erasure possible.** The GDPR sweeper
+ * in `storage-erasure.ts` lists a prefix and deletes the objects whose
+ * `customMetadata.organizationId` is in the payload — **so a copy without one is invisible to
+ * it, and a prefix sweep added later would still delete nothing.** That is the same defect
+ * class as a sweep shipped with nothing invoking it: **a retention policy with no code behind
+ * it is a comment.**
+ *
+ * **Required rather than optional on purpose.** An optional `organizationId` is a parameter
+ * every caller passes `undefined`, and the resulting object is unerasable while looking
+ * identical to an erasable one.
  */
-export async function copyVendorAsset(vendorUrl: string): Promise<CopyOutcome> {
+export async function copyVendorAsset(
+  vendorUrl: string,
+  owner: { organizationId: string },
+): Promise<CopyOutcome> {
   let parsed: URL;
   try {
     parsed = new URL(vendorUrl);
@@ -150,6 +164,11 @@ export async function copyVendorAsset(vendorUrl: string): Promise<CopyOutcome> {
       httpMetadata: { contentType: contentTypeFor(parsed) },
       customMetadata: {
         expiresAt,
+        // **The tenant, first — because it is the only field that makes this object
+        // erasable.** `storage-erasure.ts` matches on it to decide what a GDPR request
+        // deletes, so an object without one survives every erasure request and looks
+        // identical to one that does not.
+        organizationId: owner.organizationId,
         // **The source host, not the URL.** Enough to answer "which vendor did this come
         // from" for an audit trail without storing an expiring link, and short enough that
         // §B.5's defensive posture holds for our own bucket too.

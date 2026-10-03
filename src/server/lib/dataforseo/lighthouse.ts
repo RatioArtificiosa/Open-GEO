@@ -59,9 +59,20 @@ function withParseLock<T>(fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
+/**
+ * One billed Lighthouse run, and whatever screenshots we copied while doing it.
+ *
+ * **`organizationId` is required, not optional.** The copier stamps it onto every copy
+ * because `storage-erasure.ts` matches on it to decide what a GDPR request deletes — **so a
+ * copy without one would survive every erasure request while looking identical to one that
+ * does not.** Requiring it here means the caller cannot forget: the alternative is an
+ * optional parameter every caller passes `undefined`.
+ */
 export async function fetchLighthouseResult(input: {
   url: string;
   strategy: LighthouseStrategy;
+  /** The owning tenant. Required so every copy is erasable. */
+  organizationId: string;
 }): Promise<DataforseoApiResponse<LighthouseResultWithScreenshots>> {
   // Billed, non-idempotent POST: a 5xx does not prove the provider skipped
   // the charge, so never replay it. The response is taken un-consumed (unlike
@@ -105,7 +116,9 @@ export async function fetchLighthouseResult(input: {
       // behind a retention policy" the one mitigation engineering can act on while the licence
       // question is open. `data.screenshots` holds **our** keys or nothing at all: there is no
       // vendor-URL fallback anywhere in this path, because a fallback is the leak.
-      const screenshots = await copyScreenshotsFromTask(task);
+      const screenshots = await copyScreenshotsFromTask(task, {
+        organizationId: input.organizationId,
+      });
       return {
         data: screenshots === undefined ? data : { ...data, screenshots },
         billing,
@@ -172,6 +185,7 @@ function readScreenshotUrl(auditValue: unknown): string | null {
  */
 async function copyScreenshotsFromTask(
   task: DataforseoTaskLike,
+  owner: { organizationId: string },
 ): Promise<StoredScreenshots | undefined> {
   // **Narrowed with guards rather than asserted.** The result is `unknown` on the wire type,
   // and casting it to a record shape asserts a structure the vendor has not promised — so
@@ -204,7 +218,7 @@ async function copyScreenshotsFromTask(
     const url = readScreenshotUrl(auditValue);
     if (url === null) continue;
 
-    const outcome = await copyVendorAsset(url);
+    const outcome = await copyVendorAsset(url, owner);
     if (outcome.status === "copied") {
       out[field] = {
         key: outcome.key,
