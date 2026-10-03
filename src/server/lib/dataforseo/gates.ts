@@ -241,3 +241,145 @@ export function gatePressure(): Array<{
     free: gate.free,
   }));
 }
+
+/**
+ * A circuit breaker, so a failing vendor is not called all night.
+ *
+ * ## Why this exists beside the semaphore
+ *
+ * The gates in this module bound **how many** requests go out. Nothing bounded **whether at
+ * all** when the vendor is failing: a nightly capture loop would retry a dead endpoint until
+ * its own timeout or its own budget stopped it, and the failure an operator saw was a timeout
+ * or a spend figure — never *"the vendor is down and we stopped asking."*
+ *
+ * CL-120 calls this behaviour **non-negotiable**, and it was the one of its ten with neither
+ * an implementation nor an assertion. Everything else it lists exists.
+ *
+ * ## The states
+ *
+ * ```
+ * CLOSED    --failure x threshold-->  OPEN        nothing is attempted
+ * CLOSED    --success-->             CLOSED       (and the failure count resets)
+ * OPEN      --after cooldown-->       HALF_OPEN   one probe, not a stampede
+ * HALF_OPEN --success-->            CLOSED
+ * HALF_OPEN --failure-->             OPEN
+ * ```
+ *
+ * Three decisions worth stating, because each is a policy rather than an implementation
+ * detail:
+ *
+ * - **Consecutive failures, not a total.** Fifty successes then one failure is not a failing
+ *   vendor, and a total-count breaker opens on it.
+ * - **The count resets on success, not on a timer.** A recovered endpoint does not have to
+ *   wait out a cooldown it never tripped.
+ * - **One probe in HALF_OPEN.** Recovery is tested rather than assumed — the same reason the
+ *   concurrency gate counts its peak rather than trusting that the semaphore works.
+ *
+ * ## Why the refusal is UPSTREAM_UNAVAILABLE
+ *
+ * **Not an auth error and not a billing error**, and the reason is specific: a breaker that
+ * reported itself as a credential failure would send an operator to rotate a working API key
+ * during a vendor outage. A vendor being down is exactly what the run log has to say.
+ */
+export class CircuitBreaker {
+  /** closed | open | half-open — as data, so a test can assert on the state itself. */
+  private state: "closed" | "open" | "half-open" = "closed";
+  private consecutiveFailures = 0;
+  private openedAt = 0;
+
+  constructor(
+    /** Consecutive failures that open the circuit. */
+    private readonly failureThreshold: number,
+    /** Milliseconds the circuit stays open before one probe is allowed. */
+    private readonly cooldownMs: number,
+    /** Injected so a test never has to sleep. */
+    private readonly now: () => number = () => Date.now(),
+  ) {}
+
+  get currentState(): "closed" | "open" | "half-open" {
+    // **Derived rather than stored**, so an elapsed cooldown reads as half-open without
+    // anything having to run to move the state.
+    if (
+      this.state === "open" &&
+      this.now() - this.openedAt >= this.cooldownMs
+    ) {
+      return "half-open";
+    }
+    return this.state;
+  }
+
+  /**
+   * Failures since the last success. Diagnostics only — the state is derived, so a caller
+   * should branch on {@link currentState} rather than on this count.
+   */
+  get consecutiveFailureCount(): number {
+    return this.consecutiveFailures;
+  }
+
+  /** Whether a call may be attempted. True in CLOSED and in an elapsed HALF_OPEN. */
+  allowsRequest(): boolean {
+    return this.currentState !== "open";
+  }
+
+  /** Milliseconds until the next probe is allowed, for a caller that would rather wait. */
+  retryAfterMs(): number {
+    if (this.state !== "open") return 0;
+    return Math.max(0, this.cooldownMs - (this.now() - this.openedAt));
+  }
+
+  onSuccess(): void {
+    this.state = "closed";
+    this.consecutiveFailures = 0;
+  }
+
+  onFailure(): void {
+    if (this.state === "half-open") {
+      // The probe failed: straight back to open, and the cooldown restarts. A breaker that
+      // let a failed probe drop to closed would reopen on the very next call.
+      this.state = "open";
+      this.openedAt = this.now();
+      return;
+    }
+    this.consecutiveFailures += 1;
+    if (this.consecutiveFailures >= this.failureThreshold) {
+      this.state = "open";
+      this.openedAt = this.now();
+    }
+  }
+}
+
+/**
+ * Breakers, keyed by the same endpoint-family identity `gateFor` uses.
+ *
+ * **Keyed by family rather than by URL on purpose.** A per-URL breaker opens on one bad
+ * path while the rest of the vendor is fine, and the first storm of per-path failures is
+ * exactly when it is least useful. The shared key also means a family's failure backs off
+ * that family rather than the whole account.
+ */
+const breakers = new Map<string, CircuitBreaker>();
+
+export function breakerFor(
+  limit: EndpointLimit,
+  failureThreshold = 5,
+  cooldownMs = 60_000,
+): CircuitBreaker {
+  const key = `${limit.kind}:${limit.pathPrefix}:${limit.value}`;
+  const existing = breakers.get(key);
+  if (existing !== undefined) return existing;
+  const created = new CircuitBreaker(failureThreshold, cooldownMs);
+  breakers.set(key, created);
+  return created;
+}
+
+/**
+ * Drop every breaker.
+ *
+ * **For tests, and the reason is not laziness**: the module-level map is shared state that
+ * survives between cases in a file, so a breaker left open by one test silently refuses
+ * requests in the next and the failure lands on an unrelated assertion. The same reason
+ * `semaphores` above is module-level — process-global is correct for a Worker, where every
+ * isolate handles many requests, and wrong for a test, which is why this exists.
+ */
+export function resetBreakers(): void {
+  breakers.clear();
+}
