@@ -158,6 +158,24 @@ describe("the intersection endpoints", () => {
     expect(["legacy", "new"]).toContain(result.etv.formulaVersion);
   });
 
+  it("sends use_new_etv: true after the cutover, which is the case a forced false would break", async () => {
+    // **The pre-cutover case alone cannot see a `use_new_etv: false` mutation** — for
+    // `now` before 2026-11-01 the honest body *is* false, so forcing false changes nothing
+    // observable and the mutation sails through. A `now` past the cutover makes the body
+    // must-be-true, which is exactly what the sent-flag assertion exists to pin.
+    vi.mocked(fetch).mockImplementation(async () => okResponse([]));
+
+    const result = await fetchDomainIntersection({
+      ...BASE,
+      now: new Date("2026-11-01T00:00:01.000Z"),
+    });
+
+    const body = requestBody(vi.mocked(fetch));
+    expect(body[0].use_new_etv).toBe(true);
+    expect(result.etv.useNewEtv).toBe(true);
+    expect(result.etv.formulaVersion).toBe("new");
+  });
+
   it("resolves a different version after the cutover, or the deadline means nothing", async () => {
     // **CL-715's 2026-11-01 deadline is only real if the date changes the answer.** A
     // resolver that ignores `now` would keep returning the pre-cutover version forever and
