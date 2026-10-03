@@ -20,7 +20,7 @@ import {
  * recorded is literally the flag we sent — a mismatch between the two would be a
  * silent lie in the archive.
  */
-function etvFields(
+export function etvFields(
   endpoint: EtvBearingLabsEndpoint,
   now?: Date,
 ): EtvProvenance & { use_new_etv: boolean } {
