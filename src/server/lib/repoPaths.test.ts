@@ -16,6 +16,23 @@ import {
 
 const ROOT = process.cwd();
 
+/**
+ * A path written the way *this platform* writes one.
+ *
+ * **These three cases were the only failures on CI**, and the reason is the whole point of
+ * this module: they hard-coded `\\`, so they passed on the Windows machine that wrote them and
+ * **failed on Linux**, where `path.relative` treats a backslash as an ordinary filename
+ * character and returns the path unchanged.
+ *
+ * **A test for a path normaliser that hard-codes one platform's separator is a test that
+ * describes the machine it was written on.** `PATH_SEPARATOR` is used for the *real* assertion —
+ * the module's job is to erase the difference — and the platform-specific half of each case is
+ * built from it, so the case means the same thing in both CI environments.
+ */
+function nativePath(...segments: string[]): string {
+  return [ROOT, ...segments].join(PATH_SEPARATOR);
+}
+
 describe("repoRelative", () => {
   it("returns forward slashes whatever the platform produces", () => {
     const out = repoRelative("src/client/components/Button.tsx", ROOT);
@@ -31,27 +48,35 @@ describe("repoRelative", () => {
     expect(out.includes(PATH_SEPARATOR)).toBe(PATH_SEPARATOR === "/");
   });
 
-  it("normalises an absolute Windows path, which is the shape a walk() yields", () => {
+  it("normalises an absolute path, which is the shape a walk() yields", () => {
     // **The shape that actually broke.** `walk` returns absolute paths, and on Windows an
     // absolute path contains no forward slash — so `includes("src/client/")` was false for
     // every file and the gate reported clean.
-    const absolute = `${ROOT}\\src\\client\\components\\Button.tsx`;
+    //
+    // **And the case that broke this test on CI: it used to hard-code `\\`.** Here it is built
+    // from `PATH_SEPARATOR`, so it exercises the module's actual job — erasing whatever the
+    // platform produces — in both environments.
+    const absolute = nativePath("src", "client", "components", "Button.tsx");
     expect(repoRelative(absolute, ROOT)).toBe(
       "src/client/components/Button.tsx",
+    );
+    // **Stated on its own terms:** the output has this platform's separator nowhere in it.
+    expect(repoRelative(absolute, ROOT).includes(PATH_SEPARATOR)).toBe(
+      PATH_SEPARATOR === "/",
     );
   });
 
   it("makes a forward-slash filter match, which is the point of the whole module", () => {
-    const absolute = `${ROOT}\\src\\client\\Leak.tsx`;
-    const label = repoRelative(absolute, ROOT);
+    const label = repoRelative(nativePath("src", "client", "Leak.tsx"), ROOT);
     expect(label.includes("src/client/")).toBe(true);
   });
 });
 
 describe("isUnder", () => {
   it("matches a path inside the prefix", () => {
+    // **`nativePath`, not a hard-coded backslash** — the third CI failure, and the same mistake.
     expect(
-      isUnder(`${ROOT}\\vendor-assets\\a.bin`, "vendor-assets", ROOT),
+      isUnder(nativePath("vendor-assets", "a.bin"), "vendor-assets", ROOT),
     ).toBe(true);
   });
 
