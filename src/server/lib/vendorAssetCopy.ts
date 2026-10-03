@@ -52,8 +52,15 @@ import { createHash } from "node:crypto";
 export const COPY_TTL_DAYS = 30;
 const COPY_TTL_SECONDS = COPY_TTL_DAYS * 86_400;
 
-/** Where our copies live. Namespaced so the retention sweep can list by prefix. */
-const PREFIX = "vendor-assets";
+/**
+ * Where our copies live.
+ *
+ * **Exported, and imported by `gdpr/storage-erasure.ts` rather than re-typed there.** A
+ * prefix duplicated across the writer and the deleter is a prefix that drifts the first time
+ * one of them is renamed — and the deleter would go on deleting nothing while reporting
+ * success. **One definition, two readers, and the compiler checks the second.**
+ */
+export const VENDOR_ASSET_PREFIX = "vendor-assets";
 
 /**
  * The host we will copy from, and the only one.
@@ -78,7 +85,7 @@ export type CopyOutcome =
 
 /** Our own URL for a stored copy, and the only one a client may be handed. */
 export function storedAssetUrl(key: string, baseUrl: string): string {
-  return `${baseUrl.replace(/\/$/, "")}/${PREFIX}/${key}`;
+  return `${baseUrl.replace(/\/$/, "")}/${VENDOR_ASSET_PREFIX}/${key}`;
 }
 
 function sha256Hex(value: string): string {
@@ -160,7 +167,7 @@ export async function copyVendorAsset(
   ).toISOString();
 
   try {
-    await env.R2.put(`${PREFIX}/${key}`, bytes, {
+    await env.R2.put(`${VENDOR_ASSET_PREFIX}/${key}`, bytes, {
       httpMetadata: { contentType: contentTypeFor(parsed) },
       customMetadata: {
         expiresAt,

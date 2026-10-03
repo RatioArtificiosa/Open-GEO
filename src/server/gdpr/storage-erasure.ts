@@ -9,6 +9,7 @@ import {
   AI_SEARCH_PROMPT_CACHE_NAMESPACE,
   cacheObjectPrefix,
 } from "@/server/lib/r2-cache";
+import { VENDOR_ASSET_PREFIX as VENDOR_ASSET_PREFIX_ROOT } from "@/server/lib/vendorAssetCopy";
 import {
   gdprStorageErasurePayloadSchema,
   signGdprErasureRequest,
@@ -19,6 +20,13 @@ const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
 const GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 const PROMPT_CACHE_PREFIX = cacheObjectPrefix(AI_SEARCH_PROMPT_CACHE_NAMESPACE);
+// **Imported from the copier, not re-typed.** A prefix duplicated across the writer and the
+// deleter is one that drifts the first time either is renamed — and the deleter goes on
+// deleting nothing while reporting success. **The trailing slash is added here**, because the
+// copier's constant is a *directory* and `r2:list` wants a prefix: `vendor-assets` would also
+// match a hypothetical `vendor-assets-manifest/`, which is exactly the kind of
+// over-broad prefix that makes an erasure delete more than it should.
+const VENDOR_ASSET_PREFIX = `${VENDOR_ASSET_PREFIX_ROOT}/`;
 
 type GoogleRevocationResult = {
   providerId: string;
@@ -109,26 +117,55 @@ async function deleteOauthGrants(namespace: KVNamespace, userId: string) {
   return { deletedGrants, deletedTokens };
 }
 
-async function deleteOrganizationPromptCaches(
+/**
+ * Delete every R2 object under `prefix` whose `organizationId` is one of the targets.
+ *
+ * **Takes a list of prefixes rather than one**, because a single-prefix function is how a
+ * second bucket goes unerased: the first caller added its prefix, the next author wrote a
+ * second function, and the two drifted. `vendor-assets/` (the copied Lighthouse screenshots
+ * from CL-703) is the second prefix, and it was added as a **new argument** rather than a new
+ * loop — so a third bucket is one more string rather than one more mechanism.
+ *
+ * **It still deletes by `organizationId`, not by prefix alone.** A prefix sweep would delete
+ * every tenant's data on any one tenant's erasure request, which is the opposite failure and
+ * much worse than deleting nothing.
+ *
+ * **Pagination is required, not defensive.** R2 lists 1,000 keys per page, so a
+ * single-page read silently leaves the rest — and the count returned is the count *this run
+ * deleted*, which is what makes a partial erasure visible in the response rather than in a
+ * support ticket.
+ */
+async function deleteOrganizationScopedObjects(
   bucket: R2Bucket,
+  prefixes: string[],
   organizationIds: string[],
 ) {
   const targets = new Set(organizationIds);
-  let cursor: string | undefined;
   const keys: string[] = [];
-  do {
-    const page = await bucket.list({
-      prefix: PROMPT_CACHE_PREFIX,
-      cursor,
-      include: ["customMetadata"],
-    });
-    for (const object of page.objects) {
-      if (targets.has(object.customMetadata?.organizationId ?? "")) {
-        keys.push(object.key);
+
+  // **One loop over the prefixes, each with its own pagination.**
+  //
+  // `r2:list` takes a single prefix, so the prefixes cannot be merged — and faking a common
+  // prefix would either over-list or miss a bucket whose name sorts between the two. The first
+  // draft ran the pagination for `prefixes[0]` outside the loop and the rest inside, which is
+  // the same work in two shapes and one more place for the two to disagree.
+  for (const prefix of prefixes) {
+    let cursor: string | undefined;
+    do {
+      const page = await bucket.list({
+        prefix,
+        cursor,
+        include: ["customMetadata"],
+      });
+      for (const object of page.objects) {
+        if (targets.has(object.customMetadata?.organizationId ?? "")) {
+          keys.push(object.key);
+        }
       }
-    }
-    cursor = page.truncated ? page.cursor : undefined;
-  } while (cursor);
+      cursor = page.truncated ? page.cursor : undefined;
+    } while (cursor);
+  }
+
   for (let index = 0; index < keys.length; index += 1_000) {
     await bucket.delete(keys.slice(index, index + 1_000));
   }
@@ -218,8 +255,18 @@ async function eraseStorage(env: Env, payload: GdprStorageErasurePayload) {
   for (let index = 0; index < payload.r2Keys.length; index += 1_000) {
     await env.R2.delete(payload.r2Keys.slice(index, index + 1_000));
   }
-  const promptCacheObjects = await deleteOrganizationPromptCaches(
+  // **Both organisation-scoped R2 prefixes, in one call.**
+  //
+  // `PROMPT_CACHE_PREFIX` is the AI-search prompt cache. `VENDOR_ASSET_PREFIX` is the
+  // copied Lighthouse screenshots from CL-703 — **added here because the copier stamps
+  // `organizationId` on every copy, which is the field this sweep matches on.** Without the
+  // stamp a sweep would have deleted nothing; without this entry a stamped copy survives.
+  //
+  // **Two halves of one mechanism, and both were needed.** A prefix sweep added before the
+  // stamp is worse than no sweep, because it looks finished.
+  const organizationScopedObjects = await deleteOrganizationScopedObjects(
     env.R2,
+    [PROMPT_CACHE_PREFIX, VENDOR_ASSET_PREFIX],
     payload.organizationIds,
   );
 
@@ -239,7 +286,11 @@ async function eraseStorage(env: Env, payload: GdprStorageErasurePayload) {
       oauthTokens: oauth.deletedTokens,
     },
     r2Objects: payload.r2Keys.length,
-    promptCacheObjects,
+    // **Renamed from `promptCacheObjects`, and the rename is the point.** The count now covers
+    // both organisation-scoped prefixes, so the field name had to stop claiming one of them —
+    // **a response field that names one bucket while reporting two is how an erasure looks
+    // complete while a tenant's screenshots survive.**
+    organizationScopedObjects,
     googleRevocations,
   };
 }
