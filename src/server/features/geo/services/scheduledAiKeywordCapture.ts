@@ -157,7 +157,7 @@ const AI_KEYWORD_NIGHTLY_BUDGET_USD = NIGHTLY_BUDGET_USD.aiKeyword;
  * **normalised** prompt.
  */
 /**
- * **`lower(trim(substr(..., 1, 250)))` in SQL, and it *does* have to stay identical to
+ * **`substr(lower(trim(...)), 1, 250)` in SQL, and it *does* have to stay identical to
  * `normaliseAiKeyword` — which is `trim().toLowerCase().slice(0, MAX_KEYWORD_CHARS)`.**
  *
  * | | TS rule | SQL rule |
@@ -166,12 +166,27 @@ const AI_KEYWORD_NIGHTLY_BUDGET_USD = NIGHTLY_BUDGET_USD.aiKeyword;
  * | lowercase | `.toLowerCase()` | `lower(...)` |
  * | length clamp | `.slice(0, 250)` — **last** | `substr(…, 1, 250)` — **outermost** |
  *
- * **The length clamp was missing here and the comment above said it could not be.** The
- * comment read *"if `normaliseAiKeyword` gains trimming, padding or a length cut, this is
- * the line that has to change with it"* — but the cut was **already present** in
+ * **The order is load-bearing, and this heading had the wrong one for the whole time the
+ * code was wrong too.** A comment quoting `lower(trim(substr(…, 1, 250)))` above a line that
+ * read the same way is a comment that cannot catch anything — and CodeRabbit caught it
+ * instead, by comparing the two files.
+ *
+ * **The clamp was missing entirely at first**, and the comment above said it could not be:
+ * it read *"if `normaliseAiKeyword` gains trimming, padding or a length cut, this is the
+ * line that has to change with it"* — but the cut was **already present** in
  * `ai-keywords.ts`, so the drift had happened before the comment warned about it.
  *
- * **What that cost, and it is the same shape as the `ORDER BY` bug I fixed an hour ago:**
+ * **Then it was present and in the wrong place**, which is worse than absent: absent is
+ * obviously absent, and misplaced looks right. Leading whitespace pushes real content past
+ * the clamp *before* the trim removes it, so the stored keyword and the join key disagree
+ * and the prompt is **never measured, for ever** — the same symptom the missing clamp had.
+ *
+ * **Three ways this rule has been wrong in one file**: missing, then misordered, and a
+ * comment that described it wrongly through both. A comment asserting a rule it did not
+ * check is not documentation, it is a second copy to keep in step — which is the defect
+ * CodeRabbit flagged in the sibling test the same hour.
+ *
+ * **What it cost, and it is the same shape as the `ORDER BY` bug fixed an hour earlier:**
  * for any prompt over 250 characters the stored keyword is a truncated prefix, the join
  * compares the whole prompt against it, nothing matches, and the prompt is
  * **never measured**. Being sorted as never-asked puts it at the *front* of the queue —
