@@ -43,6 +43,7 @@ import {
   getGeoVisibilityTool,
   listGeoTargetsTool,
 } from "@/server/mcp/tools/geo-read-tools";
+import { getGeoAnswerDiffTool } from "@/server/mcp/tools/geo-answer-diff-tool";
 import {
   getGeoCitationGapTool,
   getGeoRunsTool,
@@ -207,6 +208,11 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getGeoVisibilityForecastTool);
   register(getGeoCitationGapTool);
   register(getGeoAnswerHistoryTool);
+  // **Adjacent to the history tool on purpose.** An agent asking "what changed?" should get
+  // the diff directly rather than two raw answers and a suggestion to compare them by eye —
+  // and the diff is the only one of OpenGeo's outputs that cannot be reproduced by asking a
+  // model the same question now.
+  register(getGeoAnswerDiffTool);
   register(getGeoRunsTool);
   // The `geo-audit` skill instructs agents to call this by name; without it the
   // audit the skill describes cannot start.

@@ -23,6 +23,12 @@ import * as getDomainOverview from "./get-domain-overview";
 import * as getRankTracker from "./get-rank-tracker";
 import * as getSerpResults from "./get-serp-results";
 import * as geoDiagnosticTools from "./geo-diagnostic-tools";
+// **A tool file whose exports must be in `toolExports` below.** The gate *scans* the
+// directory to find handlers that can answer with meta only, then *resolves* them from this
+// import map — so a new tool file that returns meta without `structuredContent` fails with
+// "is not an exported tool definition" rather than being skipped. **The scan finds it; the map
+// is what proves the schema tolerates it.**
+import * as geoAnswerDiffTool from "./geo-answer-diff-tool";
 import * as geoReadTools from "./geo-read-tools";
 import * as googleAnalyticsTools from "./google-analytics-tools";
 import * as listProjects from "./list-projects";
@@ -52,6 +58,7 @@ const toolExports: Record<string, unknown> = {
   ...getRankTracker,
   ...getSerpResults,
   ...geoDiagnosticTools,
+  ...geoAnswerDiffTool,
   ...geoReadTools,
   ...googleAnalyticsTools,
   ...listProjects,
