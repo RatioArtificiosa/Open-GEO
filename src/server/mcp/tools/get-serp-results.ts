@@ -54,7 +54,13 @@ const inputSchema = {
     .multipleOf(10)
     .optional()
     .describe(
-      "How many SERP rows to crawl per keyword — a multiple of 10 from 10 to 100, default 20. Google has no offset, so a deeper crawl re-fetches the top too: each additional 10 adds ~2.5 credits per keyword. Only raise it when you need ranks past the top 20.",
+      "How many SERP rows to crawl per keyword - a multiple of 10 from 10 to 100, default 20. Google has no offset, so a deeper crawl re-fetches the top too: each additional 10 adds ~2.5 credits per keyword. Only raise it when you need ranks past the top 20.",
+    ),
+  dry_run: z
+    .boolean()
+    .optional()
+    .describe(
+      "Default true: preview the credit cost across the queries without spending. Set dry_run: false to actually run the vendor queries.",
     ),
 } as const;
 
@@ -65,7 +71,7 @@ export const getSerpResultsTool = {
   config: {
     title: "Get Google SERP results",
     description:
-      "Fetch live Google organic search results for 1-10 keywords. Use this to inspect who ranks for a query, verify competitors, compare SERPs across keywords, or gather source URLs before content planning. Returns the top `depth` result rows per keyword (default 20). Charges credits per keyword: ~5 each at the default depth 20, and each additional 10 of depth adds ~2.5. Does not save results to OpenGeo. Per-keyword errors don't fail the batch.",
+      "Fetch live Google organic search results for 1-10 keywords. Use this to inspect who ranks for a query, verify competitors, compare SERPs across keywords, or gather source URLs before content planning. Returns the top `depth` result rows per keyword (default 20). Charges credits per keyword: ~5 each at the default depth 20, and each additional 10 of depth adds ~2.5. `dry_run` defaults to true, so the first call previews the credit estimate without spending; set `dry_run: false` to run. Does not save results to OpenGeo. Per-keyword errors don't fail the batch.",
     inputSchema,
     outputSchema: z.looseObject({
       results: z.array(
@@ -106,8 +112,34 @@ export const getSerpResultsTool = {
     },
   },
   handler: withMcpProjectAuth(async (args: Args, context) => {
-    const client = createDataforseoClient(context.billing);
     const depth = args.depth ?? SERP_ANALYSIS_DEPTH;
+    if (args.dry_run !== false) {
+      // **The preview is the default.** The query description quotes the exact
+      // per-keyword cost formula, so the estimate is built from it rather than
+      // invented: ~5 credits at depth 20, plus ~2.5 per extra 10. Vendor charges
+      // are exact, this is an estimate, and the text says which is which.
+      const perKeyword = 5 + (Math.max(0, depth - 20) / 10) * 2.5;
+      const estimate = perKeyword * args.queries.length;
+      return mcpResponse({
+        text: [
+          `Dry run: ${args.queries.length} keyword(s) at depth ${depth} will cost approximately ${estimate} credits (~${perKeyword} per keyword, vendor estimate - the charged amount is what DataForSEO reports at send time).`,
+          `Re-run with dry_run: false to actually spend credits and fetch the results.`,
+        ].join("\n"),
+        meta: buildProjectMeta(
+          context,
+          args.projectId,
+          `/p/${args.projectId}/keywords`,
+        ),
+        structuredContent: {
+          dryRun: true,
+          queries: args.queries.length,
+          depth,
+          estimatedCredits: estimate,
+        },
+      });
+    }
+
+    const client = createDataforseoClient(context.billing);
     const results = await Promise.all(
       args.queries.map(async (q) => {
         try {

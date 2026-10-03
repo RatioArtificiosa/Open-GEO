@@ -30,6 +30,7 @@ import * as geoDiagnosticTools from "./geo-diagnostic-tools";
 // is what proves the schema tolerates it.**
 import * as geoAnswerDiffTool from "./geo-answer-diff-tool";
 import * as geoReadTools from "./geo-read-tools";
+import * as geoTopCitationsTool from "./geo-top-citations-tool";
 import * as googleAnalyticsTools from "./google-analytics-tools";
 import * as listProjects from "./list-projects";
 import * as listSavedKeywords from "./list-saved-keywords";
@@ -60,6 +61,7 @@ const toolExports: Record<string, unknown> = {
   ...geoDiagnosticTools,
   ...geoAnswerDiffTool,
   ...geoReadTools,
+  ...geoTopCitationsTool,
   ...googleAnalyticsTools,
   ...listProjects,
   ...listSavedKeywords,

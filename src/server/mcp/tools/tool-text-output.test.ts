@@ -383,6 +383,26 @@ describe("MCP tool text output (service-backed tools)", () => {
     );
   });
 
+  it("previews the credit cost instead of spending by default, and only spends when dry_run is false", async () => {
+    const live = vi.fn();
+    mocks.createDataforseoClient.mockReturnValue({ serp: { live } });
+
+    const preview = await getSerpResultsTool.handler(
+      {
+        projectId: "project_1",
+        queries: [{ keyword: "seo tools" }, { keyword: "serp api" }],
+        depth: 30,
+      },
+      toolContext,
+    );
+    const text = textContent(preview);
+
+    expect(live).not.toHaveBeenCalled();
+    expect(text).toContain("dry_run: false");
+    expect(text).toContain("2 keyword(s)");
+    expect(text).toContain("vendor estimate");
+  });
+
   it("get_serp_results renders each query's items as a text table", async () => {
     const live = vi.fn().mockResolvedValue([
       {
@@ -397,7 +417,11 @@ describe("MCP tool text output (service-backed tools)", () => {
     mocks.createDataforseoClient.mockReturnValue({ serp: { live } });
 
     const result = await getSerpResultsTool.handler(
-      { projectId: "project_1", queries: [{ keyword: "seo tools" }] },
+      {
+        projectId: "project_1",
+        queries: [{ keyword: "seo tools" }],
+        dry_run: false,
+      },
       toolContext,
     );
 
@@ -426,6 +450,7 @@ describe("MCP tool text output (service-backed tools)", () => {
         projectId: "project_1",
         queries: [{ keyword: "seo tools" }],
         depth: 30,
+        dry_run: false,
       },
       toolContext,
     );
