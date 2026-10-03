@@ -44,7 +44,15 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { join } from "node:path";
+// **The shared normalisers**, replacing two local copies of the same filter. `repoPaths` exists
+// because three separate path comparisons in this repository silently matched nothing on
+// Windows, and a fourth is cheaper to import than to re-derive.
+import {
+  isUnder,
+  namesVendorImage,
+  repoRelative as sharedRepoRelative,
+} from "@/server/lib/repoPaths";
 import { describe, expect, it } from "vitest";
 
 const ROOT = process.cwd();
@@ -59,29 +67,21 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 /**
- * Repository-relative, forward-slashed path.
- *
- * **`relative()` rather than a string replace, and this is the third bug in this one file
- * from one cause.** `join()` emits `\` on Windows, so `path.replace(`${ROOT}/`, "")` never
- * matched — the sweep tried to open
- * `G:\opengeo\Open-GEO\G:\opengeo\Open-GEO\src\...`, two absolute roots in one path. Three
- * symptoms, one mistake: **a path filter written for POSIX and run on Windows.** Normalise
- * at this boundary, once, and never touch separators again.
- */
-function repoRelative(full: string): string {
-  return relative(ROOT, full).replace(/\\/g, "/");
-}
-
-/**
  * Only files a browser bundle can contain: client components, not server handlers.
  *
- * **Matched on forward slashes, always.** A filter built from `join` silently matches
- * nothing on Windows — which is exactly what happened: the sweep passed over zero files, and
- * the vacuity check at the end of this file is what caught it. No path filter here may be
- * built from `join`.
+ * **Segment-aware, and taken from `server/lib/repoPaths`.** This was the third local copy of
+ * the same filter in this repository, and the copy before it matched **nothing on Windows** —
+ * the sweep passed over zero files and the vacuity assertion at the end of this file is the only
+ * reason that was caught.
+ *
+ * **`isUnder` rather than `includes`**, so `src/client/` does not also match
+ * `src/client-legacy/`. That is not hypothetical here: the erasure sweep in `storage-erasure.ts`
+ * has the same shape of hazard, where matching too much *deletes* a bucket.
  */
-function isClientSource(file: string): boolean {
-  return file.includes("src/client/") || file.includes("src/shared/");
+function isClientSource(file: string, root: string = ROOT): boolean {
+  // **The root is a parameter**, because the scratch tree is rooted elsewhere and a filter that
+  // hard-codes `process.cwd()` is the second copy of the same bug in a different place.
+  return isUnder(file, "src/client", root) || isUnder(file, "src/shared", root);
 }
 
 /**
@@ -99,12 +99,12 @@ const VENDOR_IMAGE_HOSTS = [
   "cdn.dataforseo.com",
 ];
 
-const IMAGE_KEYS =
-  /final[-_]?screenshot|screenshot[-_]?thumbnails?|image_url|imageUrl|thumbnail/i;
-
+// **No local `IMAGE_KEYS` any more.** It lived here and in `repoPaths`, and two copies of "what
+// counts as a vendor image" is two chances to disagree — which is exactly what `/mcp/i`
+// matching `mcpActivation.ts` was. `knip` caught the dead copy, which is the gate working.
 const CLIENT_FILES = walk(join(ROOT, "src"))
-  .map(repoRelative)
-  .filter(isClientSource);
+  .map((f) => sharedRepoRelative(f, ROOT))
+  .filter((f) => isClientSource(f, ROOT));
 
 const CLIENT_SOURCE = CLIENT_FILES.map((f) => ({
   file: f,
@@ -154,10 +154,11 @@ function stripComments(source: string): string {
  */
 function vendorImageLeaks(source: string): boolean {
   const body = stripComments(source);
-  const host = VENDOR_IMAGE_HOSTS.find((h) => body.includes(h));
-  // **A host alone is not a leak** — the module may be pricing one, or a doc link. The rule
-  // fires only where an *image-shaped* reference and the host co-occur.
-  return host !== undefined && IMAGE_KEYS.test(body);
+  // **The rule lives in `server/lib/repoPaths` now.** It was duplicated here and there, and
+  // two copies of "what counts as a vendor image" is two chances to disagree — which is what
+  // `/mcp/i` matching `mcpActivation.ts` was: a probe answering a different question than it
+  // appeared to ask.
+  return namesVendorImage(body, VENDOR_IMAGE_HOSTS);
 }
 
 /** Which vendor host, for the report. Diagnostics, not the decision itself. */
@@ -185,9 +186,14 @@ describe("CL-703: a vendor screenshot URL never reaches a customer", () => {
     // **Named as an assertion so the allowance is deliberate.** If this ever starts failing,
     // the reason is that someone started *rendering* on the server side, and the boundary
     // this gate draws is in the wrong place.
+    //
+    // **`isUnder`, not `includes("src/server/")`** — the fourth copy of this filter, and the
+    // one that matched nothing on Windows before `repoPaths` existed. It is also the check
+    // that makes this gate's own boundary *readable*: `src/server/` does not match
+    // `src/serverless/`.
     const serverFiles = walk(join(ROOT, "src"))
-      .map(repoRelative)
-      .filter((f) => f.includes("src/server/"));
+      .map((f) => sharedRepoRelative(f, ROOT))
+      .filter((f) => isUnder(f, "src/server", ROOT));
 
     expect(serverFiles.length).toBeGreaterThan(0);
   });
@@ -297,7 +303,7 @@ describe("CL-703: a vendor screenshot URL never reaches a customer", () => {
       // **the filter had silently stopped matching** — the exact shape of a sweep over zero
       // files, which is why the *relative* mapping is load-bearing rather than cosmetic.
       const toRelative = (absolute: string): string =>
-        relative(scratchDir, absolute).replaceAll("\\", "/");
+        sharedRepoRelative(absolute, scratchDir);
 
       const leaked = walk(join(scratchDir, "src"))
         .map((absolute) => ({ absolute, label: toRelative(absolute) }))
