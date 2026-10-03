@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  AI_KEYWORD_UNIT_COST_USD,
   DFS_AI_OPTIMIZATION,
   DFS_COMMERCE,
   DFS_DOMAIN,
@@ -14,6 +15,9 @@ import {
   estimateCrawl,
   estimateDailyBrandMonitoring,
   estimateScraperPatrol,
+  NIGHTLY_BUDGET_USD,
+  NIGHTLY_PROJECT_SWEEP_LIMIT,
+  PER_PROJECT_NIGHTLY_CAP,
   type CostEstimate,
   type DfsPrice,
   type DfsQueue,
@@ -245,5 +249,44 @@ describe("remaining price families", () => {
     });
     expect(e.lines.map((l) => l.label)).toEqual(["1 request", "10 rows"]);
     expect(e.caveats).toHaveLength(1);
+  });
+});
+
+/**
+ * The nightly budgets and caps, pinned like every other figure in this file.
+ *
+ * **This file's own rule, which the four exports below were breaking:**
+ *
+ * > The remaining price-book families are pinned here so no figure can drift silently.
+ *
+ * They moved here from the runners in the last hour, **into a file whose stated purpose is
+ * that nothing in it moves unnoticed** — and were added without being pinned. So the
+ * convention was broken by the very change that was supposed to follow it.
+ *
+ * **They are placeholders, and pinning a placeholder is still the point**: a pin makes a
+ * change deliberate. `scripts/nightly-budgets.test.ts` asserts the *relationships*
+ * between them (what a night can afford, whether the ceiling can bind); this file asserts
+ * the *values*, so a reviewer changing one sees it.
+ */
+describe("nightly budgets and caps", () => {
+  it("pins the two shared night budgets and the one per-project outlier", () => {
+    expect(NIGHTLY_BUDGET_USD.etv).toBe(5);
+    expect(NIGHTLY_BUDGET_USD.aiKeyword).toBe(5);
+    // The outlier: AI Mode is **per project**, so dividing it across the night's projects
+    // would make the bound depend on how many other customers are watching.
+    expect(NIGHTLY_BUDGET_USD.aiMode).toBe(0.1);
+  });
+
+  it("pins the per-project nightly caps", () => {
+    expect(PER_PROJECT_NIGHTLY_CAP.etvDomains).toBe(25);
+    expect(PER_PROJECT_NIGHTLY_CAP.aiKeywords).toBe(25);
+  });
+
+  it("pins the sweep limit and the one unit price that has never been verified", () => {
+    expect(NIGHTLY_PROJECT_SWEEP_LIMIT).toBe(25);
+    // **The only figure here that no live call has confirmed.** It is the keyword
+    // capture's ceiling denominator, so a wrong price makes the budget wrong in both
+    // directions — and account verification is what would replace it.
+    expect(AI_KEYWORD_UNIT_COST_USD).toBe(0.002);
   });
 });
