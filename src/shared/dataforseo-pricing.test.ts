@@ -23,6 +23,7 @@ import {
   type DfsQueue,
   type EstimateInput,
 } from "@/shared/dataforseo-pricing";
+import { ETV_BEARING_LABS_ENDPOINTS } from "@/shared/etv-versioning";
 
 // These assertions are the contract. Every figure was read off a rendered
 // DataForSEO pricing page on 2026-09-28 (see OPENGEO_MASTER_REFERENCE.md §A.1).
@@ -87,6 +88,40 @@ describe("dataforseo price book", () => {
     for (const endpoint of ETV_VERSION.historicalEndpointsExcluded) {
       expect(ETV_VERSION.endpointsWithNewEtv).not.toContain(endpoint);
     }
+  });
+
+  it("agrees with the module that decides, endpoint for endpoint", () => {
+    /**
+     * **The check that was missing, and its absence is why the two lists disagreed for
+     * as long as they existed.**
+     *
+     * ```
+     * ETV_BEARING_LABS_ENDPOINTS     8 endpoints   ← what resolveEtvMode reads
+     * ETV_VERSION.endpointsWithNewEtv  9 endpoints   ← 9th: categories_for_domain
+     * ```
+     *
+     * Nothing failed, because the existing test asked whether the two lists in *this
+     * object* were disjoint — which they were — and never whether *this object* and the
+     * module named one entry earlier as the place the logic lives, agreed with each other.
+     *
+     * **The failure mode this had:** a maintainer reading the price book concludes nine
+     * endpoints need stamping, finds eight in the module that does the stamping, and has
+     * no way to tell which governs. **On the item with a 2026-11-01 deadline attached.**
+     *
+     * `endpointsWithNewEtv` is now a reference rather than a second literal, so this
+     * cannot drift — **and the test is here so that if someone reintroduces a literal,
+     * this is what says no.**
+     */
+    expect(ETV_VERSION.endpointsWithNewEtv).toEqual(ETV_BEARING_LABS_ENDPOINTS);
+
+    // **And the count, pinned.** A disagreement of one endpoint is invisible to a
+    // `toContain` check and obvious to a length, so both are asserted — the identity
+    // above says they are the same list, and this says what that list is.
+    expect(ETV_VERSION.endpointsWithNewEtv).toHaveLength(8);
+    expect(ETV_VERSION.endpointsWithNewEtv).toContain("domain_rank_overview");
+    expect(ETV_VERSION.endpointsWithNewEtv).not.toContain(
+      "categories_for_domain",
+    );
   });
 
   it("records that accounts registered after 2026-09-01 default to the new model", () => {

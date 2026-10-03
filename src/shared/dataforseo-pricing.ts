@@ -10,6 +10,8 @@
 // pricing slider promises a user, so treat edits as pricing changes and re-verify
 // against the vendor's pricing page before shipping.
 
+import { ETV_BEARING_LABS_ENDPOINTS } from "@/shared/etv-versioning";
+
 /** Which DataForSEO queue/priority a call runs on. */
 export type DfsQueue = "standard" | "priority" | "live";
 
@@ -388,22 +390,28 @@ export const ETV_VERSION = {
    */
   alsoAffectsFields: ["estimated_paid_traffic_cost"],
   /**
-   * Endpoints the vendor states carry the NEW ETV. The historical ones are
-   * deliberately absent: they are in `historicalEndpointsExcluded` instead, and
-   * a test asserts the two lists stay disjoint. Listing both is how a caller
-   * would end up stamping a historical value `new`.
+   * Endpoints that carry the NEW ETV, **derived from the module that acts on it** rather
+   * than restated here.
+   *
+   * ## Why this is a reference and not a list
+   *
+   * This file once declared nine endpoints; `etv-versioning.ts` declares eight. **The
+   * difference was `categories_for_domain`, which appears nowhere else in `src`** — not
+   * in `labs.ts`, not in the versioning module, not in a test. So this was a second copy
+   * of a fact that could not track the first, on the item with a **2026-11-01 deadline**
+   * attached: a maintainer reading this list would conclude nine endpoints need stamping,
+   * find eight in the module that does the stamping, and have no way to tell which governs.
+   *
+   * **The module's list is authoritative** and always was — its docstring states the
+   * criterion (*"the Labs endpoints that carry an `etv` field"*), and
+   * `resolveEtvMode` keys off it. So this points there.
+   *
+   * `categories_for_domain` is **not dropped silently**: it is a real vendor endpoint that
+   * may well accept the flag, and it is recorded on `DFS_LABS` where its *price* lives, with
+   * a note that we do not call it. **The distinction that matters** is between a catalogue
+   * fact and a statement about what this product does, and this file mixes both.
    */
-  endpointsWithNewEtv: [
-    "categories_for_domain",
-    "ranked_keywords",
-    "serp_competitors",
-    "competitors_domain",
-    "domain_intersection",
-    "subdomains",
-    "relevant_pages",
-    "domain_rank_overview",
-    "page_intersection",
-  ] as const,
+  endpointsWithNewEtv: ETV_BEARING_LABS_ENDPOINTS,
   caveat:
     "No backfill is documented, and historical endpoints are excluded from the " +
     "new model, so a historical series stays legacy and cannot be restated. " +
