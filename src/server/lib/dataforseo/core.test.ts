@@ -9,6 +9,11 @@ vi.mock("@/server/lib/runtime-env", () => ({
 }));
 
 import { dataforseoPost } from "@/server/lib/dataforseo/core";
+// The URL a mocked `fetch` was called with. `fetch` takes a string, a `URL` or a
+// `Request`, and `Request` stringifies to `[object Object]` — so a path assertion built
+// on `String(call)` would pass for entirely the wrong reason. `endpoint-path-gate.test.ts`
+// re-exports this for exactly that reason.
+import { requestUrl } from "./test-support";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -55,4 +60,31 @@ describe("DataForSEO transport", () => {
       expect(fetchMock).toHaveBeenCalledOnce();
     },
   );
+
+  /**
+   * The path this file's requests go to, pinned by name.
+   *
+   * `endpoint-path-gate.test.ts` requires every client path to be asserted by the
+   * **same-named** test file, because a wrong URL passes every behavioural test and fails
+   * only on a billed request. It was reported as unasserted when a sibling file exercised
+   * the path instead — **the gate was right and the assertion was in the wrong file.**
+   *
+   * **Self-contained on purpose.** The first version read
+   * `vi.mocked(fetch).mock.calls[0]` from whatever ran before it, which is why it failed:
+   * the other cases in this file restore their mocks, so there was no call left to read.
+   * A test whose subject is "which URL did we send" has to send one itself.
+   */
+  it("pins the endpoint path its requests use", async () => {
+    const fetchMock = vi.fn(async () => new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await dataforseoPost("/v3/appendix/user_data", []);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // `requestUrl` takes the **mock**, not the argument — it unwraps the
+    // string/URL/Request union itself, which is the whole reason it exists.
+    expect(requestUrl(fetchMock)).toContain("/v3/appendix/user_data");
+
+    vi.unstubAllGlobals();
+  });
 });

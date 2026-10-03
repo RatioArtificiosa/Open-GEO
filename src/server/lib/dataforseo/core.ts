@@ -125,6 +125,76 @@ function createAuthenticatedFetch(
       const classified = classify?.(response.status, rawText, path);
       if (classified) throw classified;
 
+      /**
+       * **Now the body's own verdict, because a non-2xx can still carry it.**
+       *
+       * DataForSEO's convention is to answer a *logical* failure with **HTTP 200** and put
+       * the outcome in `status_code`; `assertOk` reads that and classifies 40104 and 40200
+       * correctly. **This is the only path that cannot**, because `doFetch` throws before
+       * the body is ever parsed:
+       *
+       * ```
+       * HTTP 401 + body status_code 40100   "Please verify your account"… no, a THROTTLE
+       * ```
+       *
+       * Measured on this account: `/v3/appendix/user_data` returned exactly that, and **the
+       * identical call returned `20000` seconds later.** Without this the ladder below
+       * reports `DATAFORSEO_AUTH_FAILED`, so an operator reads the run log and **rotates a
+       * working API key** — an expensive way to fix nothing, at the worst moment to change
+       * a credential.
+       *
+       * **Routed through `classify`, not a new switch**, because that is where the
+       * knowledge already lives: `dataforseoBillingClassification.ts` documents 40100 as
+       * throttling and deliberately declines to match it, so it is never mistaken for an
+       * auth failure. **The knowledge exists and the wiring did not** — and a third copy of
+       * the rule is the thing this session has spent its length consolidating.
+       *
+       * **The charge constraint cannot bite here.** `DataforseoChargedTaskError` is thrown
+       * from `assertOk`, which only ever sees HTTP 2xx, so **the HTTP layer and the
+       * charged-task path are disjoint** and reclassifying cannot lose a charge.
+       *
+       * Falls through when there is no body code — `classify` returns null, and the HTTP
+       * ladder below decides, which is right for a genuine transport 401 with no envelope.
+       */
+      const bodyStatusCode = readBodyStatusCode(rawText);
+      if (bodyStatusCode !== null) {
+        const fromBody = classify?.(bodyStatusCode, rawText, path);
+        if (fromBody) throw fromBody;
+
+        /**
+         * **And the one code the classifier deliberately declines: a throttle.**
+         *
+         * `40100` is *not* in `VERIFICATION_STATUS_CODES` or `BILLING_STATUS_CODES`, and
+         * that is right — it is neither. It reads *"You are not Authorized to Access this
+         * Resource"*, which is why the classifier refuses it rather than let it become an
+         * auth error, **but something must claim it**, and the HTTP ladder below claims it as
+         * `DATAFORSEO_AUTH_FAILED`.
+         *
+         * Measured on this account: `/v3/appendix/user_data` returned exactly that, and
+         * **the identical call returned `20000` seconds later.** So the ladder's answer is
+         * wrong in the most expensive direction available — an operator reads the run log and
+         * **rotates a working API key**, at the worst moment to change a credential.
+         *
+         * **Branched here rather than added to the classifier**, because the classifier
+         * answers *"is this money, or is this verification?"* — and this is neither.
+         * `core.ts` answers *"what does the transport mean?"*, and a throttle is a transport
+         * fact wearing an auth status. **Putting it in the classifier would make a third
+         * copy of a rule this session has spent its length consolidating.**
+         */
+        if (bodyStatusCode === 40100) {
+          throw new AppError(
+            "RATE_LIMITED",
+            `DataForSEO throttled this account on ${path} (status_code 40100 returned as HTTP ${response.status}). The credential is valid — this is a rate limit, not an auth failure.`,
+            {
+              provider: "dataforseo",
+              providerStatus: String(response.status),
+              providerPath: path,
+              responseBody: formatDataforseoErrorPayload(rawText),
+            },
+          );
+        }
+      }
+
       const code: ErrorCode =
         response.status >= 500
           ? "UPSTREAM_UNAVAILABLE"
@@ -156,6 +226,36 @@ function createAuthenticatedFetch(
       throw error;
     }
   };
+}
+
+/**
+ * The `status_code` in a DataForSEO response body, or null when there isn't a readable one.
+ *
+ * **Parsed rather than trusted, and never throws.** The body on an error path is whatever
+ * the vendor sent — an HTML error page from a proxy, an empty string, a shape we have not
+ * seen. Every one of those means "no verdict from the body", which is `null`, and the
+ * caller's HTTP ladder then decides. **A helper that can throw on a malformed body would
+ * turn a vendor's bad day into ours.**
+ *
+ * `tryBuildTaskBilling` in `envelope.ts` is the precedent: the same shape, the same
+ * reason, and Zod rather than a regex — because a regex on JSON is a guess about quoting.
+ */
+function readBodyStatusCode(rawText: string): number | null {
+  if (rawText.length === 0 || rawText[0] !== "{") return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch {
+    return null;
+  }
+  // **Narrowed, not asserted.** `in` plus a typeof check is the type guard; the two casts
+  // this replaces were the failure mode `envelope.ts` warns about in its own comment -
+  // "arrives from the wire untyped and optional" - where an assertion is a claim the
+  // compiler cannot check and the vendor can break.
+  if (typeof parsed !== "object" || parsed === null) return null;
+  if (!("status_code" in parsed)) return null;
+  const statusCode: unknown = parsed.status_code;
+  return typeof statusCode === "number" ? statusCode : null;
 }
 
 type DataforseoRequestOptions = {
