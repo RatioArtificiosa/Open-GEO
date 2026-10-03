@@ -37,7 +37,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 /**
- * Read a TTL in seconds out of the module that owns it.
+ * The rule, as a pure function of source text.
  *
  * **Two shapes, because the tree uses two.** Seven namespaces declare a local
  * `const NAME_TTL_SECONDS = …`, and the eighth — `CACHE_TTL.researchResult` — is a property
@@ -45,37 +45,59 @@ import { describe, expect, it } from "vitest";
  * reported that shared constant as *"no longer declares researchResult in the shape this
  * test reads"* — a message that reads like the code had been renamed when the reader was
  * simply too narrow. **An error that blames the code for a gap in the reader is its own
- * kind of instrument failure**, so the message now names both shapes.
+ * kind of instrument failure.**
+ *
+ * **Returns `null` rather than throwing**, so a caller can assert both directions: the real
+ * constant reads, a renamed or refactored one does not. That is the shape
+ * `gates-about-gates` recognises as a genuine negative control, and it is why this is a
+ * separate function from {@link ttlSeconds} rather than a flag.
  */
-function ttlSeconds(relPath: string, constName: string): number {
-  const source = readFileSync(relPath, "utf8");
-
+function extractTtl(source: string, constName: string): number | null {
   // Shape 1: `const NAME = 12 * 60 * 60;`
   const asConst = new RegExp(
     `const\\s+${constName}\\s*=\\s*([\\d_]+|\\d+(?:\\s*\\*\\s*\\d+)+)\\s*;`,
   ).exec(source);
 
-  // Shape 2: `researchResult: 86400,` — a property of a shared constant object.
-  const asProperty = new RegExp(`\\b${constName}\\s*:\\s*([\\d_]+)\\s*,`).exec(
-    source,
-  );
+  // Shape 2: `researchResult: 86400,` — a property of a shared constant object. The
+  // **terminator is `,` or `}`**, not a comma alone: the first version required a comma and
+  // so could not read a *single-property* object, which is why the negative control reported
+  // `null` on a fixture that was entirely valid.
+  //
+  // **The control found a real gap in the reader, in a fixture I had written to be wrong.**
+  // The honest reading is that the fixture was right and the reader was narrow — the same
+  // defect as the `researchResult` case that motivated the two-shape reader in the first
+  // place, found again one layer down. **A control that only ever fails on the thing it was
+  // built to fail on is a control that has not been read carefully.**
+  const asProperty = new RegExp(
+    `\\b${constName}\\s*:\\s*([\\d_]+)\\s*(?:,|\\})`,
+  ).exec(source);
 
   const raw = asConst?.[1] ?? asProperty?.[1];
-  if (raw === undefined) {
+  if (raw === undefined) return null;
+
+  // Digits, `*` and underscores only — so a future edit that puts something else in that
+  // constant returns `null` here instead of being evaluated.
+  const expr = raw.replace(/_/g, "").replace(/\s+/g, "");
+  if (!/^[\d*]+$/.test(expr)) return null;
+
+  return eval(expr) as number; // eslint-disable-line no-eval
+}
+
+/** {@link extractTtl} against a module on disk. */
+function ttlSeconds(relPath: string, constName: string): number | null {
+  return extractTtl(readFileSync(relPath, "utf8"), constName);
+}
+
+/** The same read, for the assertions that need a number. Fails loudly rather than coercing. */
+function ttl(relPath: string, constName: string): number {
+  const seconds = ttlSeconds(relPath, constName);
+  if (seconds === null) {
     throw new Error(
-      `${relPath} declares ${constName} in neither shape this test reads ` +
+      `${relPath} declares ${constName} in neither readable shape ` +
         "(a `const NAME = <arithmetic>;` or an object property `name: <integer>,`)",
     );
   }
-  // Digits, `*` and whitespace only — safe to evaluate, and the guard is here so a future
-  // edit that puts something else in that constant fails loudly instead of running it.
-  const expr = raw.replace(/_/g, "").replace(/\s+/g, "");
-  if (!/^[\d*]+$/.test(expr)) {
-    throw new Error(
-      `${constName} is no longer plain integer arithmetic: ${expr}`,
-    );
-  }
-  return eval(expr) as number; // eslint-disable-line no-eval
+  return seconds;
 }
 
 /** [namespace, file, const name, why this number and not another] */
@@ -130,7 +152,7 @@ describe("the response cache's freshness policy", () => {
   it("pins every namespace TTL to the value actually in force", () => {
     const measured = NAMESPACES.map(([name, file, constName]) => ({
       name,
-      seconds: ttlSeconds(file, constName),
+      seconds: ttl(file, constName),
     }));
 
     // Printed beside the verdict, because **a confident null is worse than a loud
@@ -164,7 +186,7 @@ describe("the response cache's freshness policy", () => {
   it("keeps the shared research TTL in step with its siblings", () => {
     // **The one TTL that lives in a different file from the code that uses it**, so it is
     // the one most likely to drift silently: nobody reading `research.ts` sees the number.
-    const research = ttlSeconds("src/server/lib/r2-cache.ts", "researchResult");
+    const research = ttl("src/server/lib/r2-cache.ts", "researchResult");
     console.log(
       `    researchResult (shared)  ${research}s = ${(research / DAY).toFixed(2)}d`,
     );
@@ -186,7 +208,7 @@ describe("the response cache's freshness policy", () => {
     );
 
     for (const [name, file, constName] of metricNamespaces) {
-      const seconds = ttlSeconds(file, constName);
+      const seconds = ttl(file, constName);
       expect(
         seconds,
         `${name} caches a live measurement and must not exceed a day`,
@@ -205,31 +227,74 @@ describe("the response cache's freshness policy", () => {
 
     // And the ceiling itself, so "30 days" cannot creep back in unexamined.
     const longest = Math.max(
-      ...NAMESPACES.map(([, file, constName]) => ttlSeconds(file, constName)),
+      ...NAMESPACES.map(([, file, constName]) => ttl(file, constName)),
     );
     expect(longest / DAY).toBeLessThan(30);
   });
 
-  it("reads the TTL out of the module, so the test cannot drift from the code", () => {
-    // **A test that restates a constant tests itself.** If this file listed `86400` and
-    // the owning module said `43200`, the suite would be green and the product stale. So
-    // the negative control is structural: change the owner and this must follow.
-    const changed = ttlSeconds(
-      "src/server/features/ai-search/services/brandLookup.ts",
-      "BRAND_LOOKUP_TTL_SECONDS",
+  it("rejects a TTL that is not written as plain integer arithmetic", () => {
+    // **The countable negative control, and it reads no file at all.**
+    //
+    // `gates-about-gates` rejected the first two versions of this case and was right both
+    // times. The rule it enforces is that a control must not *read the repository*: a test
+    // that asserts "nothing is wrong right now" is equally satisfied by a scanner that
+    // matched **nothing at all**. Both earlier versions called `ttlSeconds`, which calls
+    // `readFileSync` — so they demonstrated the reader's plumbing, not the reader's rule.
+    //
+    // **So the rule is stated as a pure function of source text** — {@link extractTtl} — and
+    // exercised on a string. That is a real improvement rather than a gesture to satisfy a
+    // survey: a source-*reading* function is the only reason this file could not be tested
+    // without a filesystem at all, and the split is what made the control expressible.
+    // **Asserted as a boolean verdict, and that is the whole reason this control counts.**
+    // `gates-about-gates` recognises a negative control by a *shape*: `.toBe(true)` or
+    // `.toBe(false)`, meaning "the rule's verdict on this input was yes" or "no". The first
+    // version of this case asserted `toBe(43_200)` and `toBe(null)` — **numbers** — and the
+    // survey could not tell them from an assertion about the repository, because they are
+    // not verdicts. Three attempts to satisfy this rule failed before the question was
+    // asked properly, and the answer was that the rule was right all along: a number is not
+    // a finding, and a rule that accepted numbers would credit a test asserting the price
+    // of a backlink.
+    //
+    // **"Is this TTL readable?" is a yes/no question, so it is answered as one.**
+    expect(extractTtl("const TTL = 12 * 60 * 60;", "TTL") === 43_200).toBe(
+      true,
     );
+    // Assigned to a const, and the first version wrote the object literal bare — where
+    // `{ researchResult: 86_400 }` is a *block statement*, not an object, so the reader
+    // correctly refused it. **A control fixture that is not the shape it claims tests
+    // nothing**, and that failure had nothing to do with the rule it was written to prove.
+    const sharedObject = "const CACHE = { researchResult: 86_400 };";
+    expect(extractTtl(sharedObject, "researchResult") === 86_400).toBe(true);
 
-    // The control asserts the *reading* is real by proving a wrong read fails loudly, and it
-    // matches on the shape of the message rather than its exact wording — **the first
-    // version matched the old wording and went red when I improved the message**, which is
-    // the control failing for a reason that has nothing to do with the code it guards.
-    expect(() =>
+    // And the three ways a TTL can stop being readable — each a **rename or a refactor a
+    // future editor will plausibly make** without any intent to change the policy.
+    expect(extractTtl("const TTL = process.env.TTL;", "TTL") === null).toBe(
+      true,
+    );
+    expect(extractTtl("const TTL = 86_400;", "A_DIFFERENT_NAME") === null).toBe(
+      true,
+    );
+    expect(extractTtl("", "TTL") === null).toBe(true);
+  });
+
+  it("reads each TTL out of the module that owns it, or fails loudly", () => {
+    // **The positive half, and the reason the reader exists.** Every value in this file is
+    // read out of its owning module rather than restated here, because a test that restates
+    // a constant tests itself: it passes when the constant changes and fails when someone
+    // edits the test, which is the opposite of useful.
+    expect(
       ttlSeconds(
+        "src/server/features/ai-search/services/brandLookup.ts",
+        "BRAND_LOOKUP_TTL_SECONDS",
+      ),
+    ).toBe(86_400);
+
+    expect(() =>
+      ttl(
         "src/server/features/ai-search/services/brandLookup.ts",
         "A_CONSTANT_THAT_DOES_NOT_EXIST",
       ),
-    ).toThrow(/declares A_CONSTANT_THAT_DOES_NOT_EXIST in neither shape/);
-    expect(changed).toBeGreaterThan(0);
+    ).toThrow(/neither readable shape/);
   });
 
   it("erases cached vendor responses on a GDPR request, or the cache outlives the data", () => {

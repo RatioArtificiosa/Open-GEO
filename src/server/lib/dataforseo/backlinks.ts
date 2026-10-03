@@ -112,6 +112,27 @@ export const referringDomainItemSchema = z
   })
   .passthrough();
 
+/**
+ * Module-private, and that is a deliberate difference from its siblings.
+ *
+ * `referringDomainItemSchema` and the rest are `export`ed because a service layer consumes
+ * them. **Nothing consumes the anchor schema yet**, and `knip` is right that an export with
+ * no reader is a claim that something depends on it. It becomes exported when the service
+ * that shapes an anchor table arrives — which is also the moment a reader appears.
+ */
+const anchorItemSchema = z
+  .object({
+    anchor: z.string().nullable().optional(),
+    backlinks: z.number().nullable().optional(),
+    referring_domains: z.number().nullable().optional(),
+    rank: z.number().nullable().optional(),
+    first_seen: z.string().nullable().optional(),
+    last_seen: z.string().nullable().optional(),
+    backlinks_spam_score: z.number().nullable().optional(),
+    target_spam_score: z.number().nullable().optional(),
+  })
+  .passthrough();
+
 export const domainPageSummaryItemSchema = z
   .object({
     page: z.string().nullable().optional(),
@@ -276,6 +297,47 @@ export async function fetchReferringDomains(input: BacklinksListRequest) {
   };
 }
 
+export async function fetchAnchors(input: BacklinksListRequest) {
+  // **Anchors are a *list of strings*, and that is not the same endpoint as referring
+  // domains.** `/v3/backlinks/referring_domains/live` returns one row per domain; an
+  // anchor analysis asks a different question — which phrases point at this target — and
+  // the vendor prices and paginates it separately. Folding it into the domains call would
+  // have produced a plausible-looking table with the wrong question behind it.
+  const spamFilterOptions = normalizeBacklinksSpamFilterOptions(input);
+  const filters = combineFilters(
+    input.filters,
+    spamFilterOptions.hideSpam
+      ? ["backlinks_spam_score", "<=", spamFilterOptions.spamThreshold]
+      : undefined,
+  );
+  const response = await dataforseoPost(
+    "/v3/backlinks/anchors/live",
+    [
+      {
+        ...buildCommonPayload(input),
+        limit: input.limit ?? 100,
+        offset: input.offset,
+        // **Ordered by backlinks, then referring domains.** An anchor list sorted by rank
+        // shows the best-positioned phrase rather than the most-linked one, and "which
+        // phrases describe us" is answered by volume while "where are we strongest" is
+        // answered by rank — a filter can ask for either, so the default is the one that
+        // matches how the table is read.
+        order_by: input.orderBy ?? ["backlinks,desc", "referring_domains,desc"],
+        ...(filters ? { filters } : {}),
+      },
+    ],
+    { classify: classifyBacklinksError },
+  );
+  const task = assertOk(response, assertOptions("/v3/backlinks/anchors/live"));
+  return {
+    data: {
+      items: parseTaskItems("anchors-live", task, anchorItemSchema),
+      totalCount: parseTaskTotalCount(task),
+    },
+    billing: buildTaskBilling(task),
+  };
+}
+
 export async function fetchDomainPagesSummary(input: BacklinksListRequest) {
   const filters =
     input.filters && input.filters.length > 0 ? input.filters : undefined;
@@ -336,5 +398,10 @@ export async function fetchBacklinksHistory(input: BacklinksTimeseriesRequest) {
 export type BacklinksSummaryItem = z.infer<typeof backlinksSummaryItemSchema>;
 export type BacklinksItem = z.infer<typeof backlinksItemSchema>;
 export type ReferringDomainItem = z.infer<typeof referringDomainItemSchema>;
+// No `AnchorItem` type yet, and **there was one twice**: first exported (knip: unread
+// export), then module-private (oxlint: declared and never used). Both linters were right,
+// and the answer was neither — **a type nothing reads is not a type, it is a comment with
+// a semicolon.** It is written when the service layer that shapes an anchor table arrives,
+// which is also when a reader appears.
 export type DomainPageSummaryItem = z.infer<typeof domainPageSummaryItemSchema>;
 export type BacklinksHistoryItem = z.infer<typeof backlinksHistoryItemSchema>;

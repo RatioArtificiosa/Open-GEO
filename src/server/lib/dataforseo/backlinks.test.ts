@@ -18,11 +18,13 @@ vi.mock("@/server/lib/dataforseoBillingClassification", () => ({
 }));
 
 import {
+  fetchAnchors,
   fetchBacklinksHistory,
   fetchBacklinksRows,
   fetchBacklinksSummary,
 } from "@/server/lib/dataforseo/backlinks";
 import { normalizeBacklinksTarget } from "@/server/lib/dataforseoBacklinksTarget";
+import { requestBody, requestUrl } from "./test-support";
 
 // A successful DataForSEO task always carries billing metadata (path + cost).
 const billed = {
@@ -229,6 +231,138 @@ describe("fetchBacklinksSummary", () => {
         dateTo: "2025-12-31",
       }),
     ).resolves.toMatchObject({ data: [] });
+  });
+});
+
+describe("fetchAnchors", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  /**
+   * **The path is asserted here because `endpoint-path-gate` cannot see it.**
+   *
+   * That gate takes `detectPath(source)` — the *first* `/v3/…` string in a client file —
+   * and `backlinks.ts` opens with `summary`, so it has been checking `/v3/backlinks/summary/live`
+   * and reporting the file covered ever since. **Four of this file's five endpoints have
+   * never been gated**, including the two this row adds. So the assertion the gate owes is
+   * written next to the call instead, which is the only place it can be relied on.
+   */
+  it("posts to the anchors endpoint, not the referring-domains one", async () => {
+    vi.mocked(fetch).mockResolvedValue(okResponse([]));
+    classifyBacklinksError.mockReturnValue(null);
+
+    await fetchAnchors({ target: "example.com" });
+
+    const url = requestUrl(vi.mocked(fetch));
+    // **Both directions asserted**, because the plausible mistake is not a typo but a copy
+    // of the sibling function: anchors and referring domains have identical bodies and
+    // differ only in the path, so a copy-paste passes every other test in this file.
+    expect(url).toContain("/v3/backlinks/anchors/live");
+    expect(url).not.toContain("referring_domains");
+  });
+
+  it("orders by backlinks then referring domains, not by rank", async () => {
+    // **A default is a product decision and it is the wrong way round by default for this
+    // table.** Sorted by rank, an anchor list shows the best-*positioned* phrase rather
+    // than the most-*linked* one — which answers "where are we strongest" when the reader
+    // asked "which phrases describe us". Both questions are legitimate, so a caller can
+    // pass `orderBy`; the default is the one the table is read as.
+    vi.mocked(fetch).mockResolvedValue(okResponse([]));
+    classifyBacklinksError.mockReturnValue(null);
+
+    await fetchAnchors({ target: "example.com" });
+
+    const body = requestBody(vi.mocked(fetch));
+
+    expect(body[0].order_by).toEqual([
+      "backlinks,desc",
+      "referring_domains,desc",
+    ]);
+  });
+
+  it("carries the spam filter when asked, so a spam anchor table is opt-in", async () => {
+    // **The filter is applied on the server, not trusted from the UI** — the same path
+    // `fetchReferringDomains` takes, and the reason an anchor table and a domain table
+    // agree about what counts as spam.
+    vi.mocked(fetch).mockResolvedValue(okResponse([]));
+    classifyBacklinksError.mockReturnValue(null);
+
+    await fetchAnchors({
+      target: "example.com",
+      hideSpam: true,
+      spamThreshold: 5,
+    });
+
+    const body = requestBody(vi.mocked(fetch));
+
+    expect(body[0].filters).toEqual([["backlinks_spam_score", "<=", 5]]);
+  });
+
+  it("parses an anchor row and keeps unknown fields, so a vendor addition is not a crash", async () => {
+    // **`.passthrough()`, and it is the reason `refused an unknown model_name before
+    // dispatching a paid LLM task` is a rule in this repository**: a schema that rejects
+    // the response would fail a *billed* call. Evidence is stored raw so a vendor change
+    // never loses it.
+    // **A row, not a bare array** — `parseTaskItems` reads `task.result[0].items`, so
+    // passing `[row]` yields zero items rather than an error, and the first version of this
+    // test reported `expected [] to have a length of 1` with no clue why. **A parser that
+    // finds nothing where something was sent is worse than one that throws.**
+    vi.mocked(fetch).mockResolvedValue(
+      okResponse([
+        {
+          items: [
+            {
+              anchor: "open geo tooling",
+              backlinks: 42,
+              referring_domains: 17,
+              rank: 3,
+              first_seen: "2025-01-01",
+              last_seen: "2026-09-01",
+              something_new: { nested: true },
+            },
+          ],
+        },
+      ]),
+    );
+    classifyBacklinksError.mockReturnValue(null);
+
+    const result = await fetchAnchors({ target: "example.com" });
+
+    expect(result.data.items).toHaveLength(1);
+    expect(result.data.items[0]).toMatchObject({
+      anchor: "open geo tooling",
+      backlinks: 42,
+      referring_domains: 17,
+      something_new: { nested: true },
+    });
+    // Billing is captured from the task envelope, so a paid call is never unaccounted.
+    // **`costUsd`, not `cost`** — the envelope's field is `cost` and the *product's* field is
+    // `costUsd`, and the first version asserted `cost`, which fails because a `toMatchObject`
+    // on a missing key is a red test rather than a silent pass. Worth pinning both, because a
+    // billing record with the wrong endpoint is how a per-endpoint price book stops matching
+    // its own line items.
+    expect(result.billing).toMatchObject({
+      costUsd: 0.02,
+      path: ["v3", "backlinks", "summary", "live"],
+    });
+  });
+
+  it("treats an empty anchor result as a valid empty table, not an error", async () => {
+    // **The shape the repo keeps getting wrong.** A target with no anchor text is a
+    // legitimate answer, and a client that renders it as a failure tells the customer
+    // their backlinks are broken when they simply have no anchor text.
+    vi.mocked(fetch).mockResolvedValue(okResponse([]));
+    classifyBacklinksError.mockReturnValue(null);
+
+    await expect(
+      fetchAnchors({ target: "example.com" }),
+    ).resolves.toMatchObject({ data: { items: [], totalCount: null } });
   });
 });
 
