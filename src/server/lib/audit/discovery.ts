@@ -12,6 +12,20 @@ const SITEMAP_FETCH_TIMEOUT_MS = 15_000;
 // that — so this cap matches standard crawler behavior while keeping a
 // misbehaving server (e.g. HTML at /robots.txt) from blowing the step limit.
 const MAX_ROBOTS_TXT_BYTES = 500 * 1024;
+// llms.txt is meant to be a short outline, so a quarter of the robots.txt budget
+// is generous. Truncated rather than rejected: a long file is still readable, and
+// a site that describes itself for 300 KiB should not be reported as undescribed.
+const MAX_LLMS_TXT_BYTES = 125 * 1024;
+/**
+ * The User-Agent every customer-facing fetch identifies itself with.
+ *
+ * **One constant, because the crawl tells sites who it is and there is no reason
+ * for the readiness path to answer to a different name.** Site owners read these
+ * in their logs, and a crawler that appears under two identities is harder to
+ * block deliberately — which cuts against the whole point of an audit a customer
+ * can act on.
+ */
+const AUDIT_USER_AGENT = "OpenGeo-Audit/1.0";
 const MAX_SITEMAP_DEPTH = 3;
 const MAX_SITEMAP_DOCS = 300;
 const SITEMAP_CONCURRENCY = 5;
@@ -36,11 +50,21 @@ export interface RobotsResult {
  * Fetch the raw robots.txt body (null = missing/unreachable). Kept separate
  * from parsing so Workflows can checkpoint the text as durable step state and
  * re-derive the parsed result deterministically on replay.
+ *
+ * **Exported because `runAudit` needs the text as well as the parse.** The
+ * crawler needs `parseRobotsTxt` for its allow/deny decisions; the readiness
+ * report needs the raw directives so it can show the customer the exact line
+ * that blocked them. Two consumers of the same fetch, so the fetch is shared
+ * rather than written twice — a second robots.txt fetcher would be free to drift
+ * on the timeout, the byte cap, or the User-Agent, and **three copies of a
+ * User-Agent string is three chances for the crawl to misidentify itself**.
  */
-async function fetchRobotsTxtText(origin: string): Promise<string | null> {
+export async function fetchRobotsTxtText(
+  origin: string,
+): Promise<string | null> {
   try {
     const response = await fetch(`${origin}/robots.txt`, {
-      headers: { "User-Agent": "OpenGeo-Audit/1.0" },
+      headers: { "User-Agent": AUDIT_USER_AGENT },
       signal: AbortSignal.timeout(10_000),
     });
 
@@ -48,6 +72,49 @@ async function fetchRobotsTxtText(origin: string): Promise<string | null> {
     return (await response.text()).slice(0, MAX_ROBOTS_TXT_BYTES);
   } catch (error) {
     console.warn("Failed to fetch robots.txt:", error);
+    return null;
+  }
+}
+
+/**
+ * Fetch `/llms.txt`, the agent-facing outline a site may publish.
+ *
+ * ## Why this had to be written
+ *
+ * `auditLlmsTxt` (CL-300a) has shipped since it was written and **nothing could
+ * ever call it**, because no code fetched the file it grades. This is the fifth
+ * instance of that shape in this codebase — a capability that exists, is
+ * tested, and is unreachable — and the second time the fix turned out to be
+ * free rather than a new dependency.
+ *
+ * ## The three states, and why a 404 is not the same as an error
+ *
+ * `null` here means *no usable body*, and the check downstream distinguishes
+ * "the site does not publish one" (a finding) from "we could not ask" (a gap in
+ * our own coverage). So a non-OK response and a thrown error both yield `null`,
+ * for the same reason `fetchRobotsTxtText` does — **and neither is reported as a
+ * pass**, because a site that silently 404s `/llms.txt` and one we failed to
+ * reach are different facts about different problems.
+ *
+ * ## Byte cap
+ *
+ * A quarter of the robots.txt budget, and deliberately generous for what is
+ * meant to be a short outline. The file is truncated rather than rejected
+ * because a long one is still readable, and a page that describes itself for
+ * 300 KiB should not be reported as undescribed.
+ */
+export async function fetchLlmsTxt(origin: string): Promise<string | null> {
+  try {
+    const response = await fetch(`${origin}/llms.txt`, {
+      headers: { "User-Agent": AUDIT_USER_AGENT },
+      redirect: "manual",
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) return null;
+    return (await response.text()).slice(0, MAX_LLMS_TXT_BYTES);
+  } catch (error) {
+    console.warn("Failed to fetch llms.txt:", error);
     return null;
   }
 }
