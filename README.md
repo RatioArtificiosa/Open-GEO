@@ -25,7 +25,7 @@ That's a traffic leak with no dashboard. OpenGeo is the dashboard.
 | 🧠 **Answer Intelligence** | Every AI answer archived — the exact prompt, the response, the sources, and where your page was cited _(or retrieved and dropped)_ |
 | 🎯 **What to Build**       | Content gaps ranked by intent, format and difficulty, with machine-generated briefs                                                |
 | 🔮 **Forecasts**           | Traffic and AI-visibility projections built on stored history                                                                      |
-| 🧪 **AI Readiness Audit**  | `llms.txt`, AI-crawler rules, schema and citability — scored, with fixes                                                           |
+| 🧪 **AI Readiness Audit**  | `llms.txt`, AI-crawler rules, schema and citability — ranked fixes, deliberately un-scored (see below)                             |
 | 📈 **Classic SEO**         | Keyword research, rank tracking, backlinks, site audits, competitors — a full Semrush-class toolkit                                |
 
 **Free (this repo):** the complete, uncapped product. You pay DataForSEO directly.
@@ -42,7 +42,23 @@ forecast; the answer is no. So we build the decision layer on top:
 3. **The receipts** — every number opens the exact prompt, answer, source and vendor cost behind it. In a market full of untraceable dashboards, provable provenance _is_ the premium feature.
 4. **The scale** — one AI skill handles one brand in one session. OpenGeo tracks thousands, nightly.
 
-## Honest numbers, and one thing we won't do
+## Honest numbers, and two things we won't do
+
+### We don't score AI readiness
+
+The readiness audit gives you **ranked fixes**, not a score.
+
+A site with its AI crawler blocked and otherwise perfect content would average to a
+healthy-looking middle — and the one thing that would make it citable is still
+switched off. A single number would hide the finding that matters behind a digit that
+looks like every other score in this category. So the panel says _"here is what is
+wrong, in order"_ instead, and the absence of a score is deliberate rather than
+unfinished.
+
+If you have used a tool that gives you a readiness score, this is the part where we
+disagree with the category. Everything else on this page is a number you can audit.
+
+### We don't merge AI search volumes across platforms
 
 `ai_search_volume` is **computed differently per platform** — Google's figure is real search volume,
 ChatGPT's is a People-Also-Ask model. Measured on one keyword: **12,621,380 vs 63,850 — a 198× gap.**

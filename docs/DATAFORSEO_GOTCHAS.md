@@ -41,7 +41,17 @@ handler **idempotent**. Poll only for low volume or to recover a missed callback
 Applies to **AI Optimization, DataForSEO Labs, On-Page, Backlinks, Content Analysis, DataForSEO
 Trends**. The 2,000 requests/minute limit does **not** override the 30-concurrent limit.
 
-**→ In OpenGeo:** `GEO_PATROL_CONCURRENCY=30` is the ceiling. Never raise it.
+**→ In OpenGeo:** the client does **not** read a concurrency env var. `ENDPOINT_LIMITS` in
+`src/server/lib/dataforseo/limits.ts` records the vendor ceiling (30) beside a `divisor`, and
+`effectiveValue()` divides them — so `/v3/ai_optimization/` runs at **15 permits per isolate**,
+deliberately half the vendor ceiling, because running at exactly 30 leaves nothing for the next
+request and turns one slow call into a cascade of rejections. **Never raise the `value` above the
+vendor's documented number; change the `divisor`, which is where our own headroom lives.**
+
+This line used to read `GEO_PATROL_CONCURRENCY=30` is the ceiling. **Nothing in `src/` ever read
+that variable** — it survived the move off a sequential for-loop, and a self-hoster could set it
+believing it governed anything. The number a self-hoster needed was in a file that is not an
+environment contract, which is exactly why it is recorded here.
 
 ### 1.5 Validate task status, not just HTTP status
 
