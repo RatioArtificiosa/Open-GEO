@@ -140,6 +140,14 @@ export const MISSING_TOOL_JUSTIFICATIONS: Record<string, ToolJustifications> = {
     destructive_justification:
       "May use metered DataForSEO credits on dry_run: false, for up to three provider calls. Does not delete, overwrite, revoke access, send, or publish anything. The response deliberately contains no combined sentiment figure, because the two sources are not measured in the same units.",
   },
+  get_web_citations: {
+    read_only_justification:
+      "Returns the pages in a search provider's citation index that mention a topic, with each page's own sentiment probabilities, the aggregate polarity across that corpus, optional emotion breakdowns and an optional monthly trend. It stores nothing and reads nothing the caller could not read elsewhere.",
+    open_world_justification:
+      "Sends a topic keyword to a private SEO research provider. The keyword is the caller's own research topic and is not published to any public service.",
+    destructive_justification:
+      "May use metered DataForSEO credits on dry_run: false — one request for the page list, one for the aggregate, and optionally one for the trend. Does not delete, overwrite, revoke access, send, or publish anything. Per-page sentiment probabilities and corpus-wide counts are labelled separately and are not combined.",
+  },
 
   // --- Saved keywords. Removing a keyword deletes a stored record, so this is
   // destructive, and it says which project it affects.
