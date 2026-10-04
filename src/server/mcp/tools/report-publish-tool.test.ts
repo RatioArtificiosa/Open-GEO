@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   makeToolContext,
   textContent,
@@ -98,6 +98,18 @@ function useShared() {
   getReport.mockResolvedValue(SHARED_REPORT);
 }
 
+// **Reset between tests.** Without this, `getReport` keeps whatever the
+// previous case set — so a case that calls `usePrivate()` after a `useShared()`
+// one still reads a shared report and takes the idempotent branch. Three tests
+// failed this way before the reset existed, and the cause was invisible: each
+// case passed in isolation and only failed in a file. A test that depends on
+// its neighbours' leftovers is testing the order, not the code.
+beforeEach(() => {
+  getReport.mockReset();
+  shareReport.mockReset();
+  unshareReport.mockReset();
+});
+
 describe("report_publish", () => {
   it("shares nothing when asked to publish without confirming", async () => {
     // The single most important behaviour in the file. A user asking an agent
@@ -129,8 +141,8 @@ describe("report_publish", () => {
   });
 
   it("shares only when both publish and dry_run:false are given", async () => {
-    shareReport.mockResolvedValue(SHARED_REPORT);
     usePrivate();
+    shareReport.mockResolvedValue(SHARED_REPORT);
 
     const result = await callTool(reportPublishTool, {
       reportId: "r1",
@@ -145,11 +157,34 @@ describe("report_publish", () => {
     // The URL uses the shared route, and the token is in it.
     expect(text).toContain("https://open-geo.test/s/" + "a".repeat(32));
     expect(result.structuredContent?.shared).toBe(true);
+    // A real transition: private before, shared after.
+    expect(result.structuredContent?.unchanged).toBe(false);
+  });
+
+  it("says a link was already shared rather than implying it just published one", async () => {
+    // `shareReport` is idempotent: a retry returns the existing token. An agent
+    // that called twice — or retried after a dropped connection — must not be
+    // told it published something when it changed nothing, or it will report a
+    // fresh publication to a user.
+    useShared();
+    shareReport.mockResolvedValue(SHARED_REPORT);
+
+    const result = await callTool(reportPublishTool, {
+      reportId: "r1",
+      publish: true,
+      dry_run: false,
+    });
+    const text = textOf(result);
+
+    expect(text).toMatch(/already shared, so the existing link is unchanged/i);
+    // Still not "Published" — that word claims a transition that did not happen.
+    expect(text).not.toMatch(/^Published/m);
+    expect(result.structuredContent?.unchanged).toBe(true);
   });
 
   it("says the link is public and unauthenticated, because the token is in the URL", async () => {
-    shareReport.mockResolvedValue(SHARED_REPORT);
     usePrivate();
+    shareReport.mockResolvedValue(SHARED_REPORT);
 
     const text = textOf(
       await callTool(reportPublishTool, {
@@ -166,8 +201,8 @@ describe("report_publish", () => {
   });
 
   it("revokes without needing a confirmation, because revoking only reduces exposure", async () => {
-    unshareReport.mockResolvedValue(PRIVATE_REPORT);
     useShared();
+    unshareReport.mockResolvedValue(PRIVATE_REPORT);
 
     const result = await callTool(reportPublishTool, {
       reportId: "r1",
@@ -180,11 +215,17 @@ describe("report_publish", () => {
     expect(shareReport).not.toHaveBeenCalled();
     expect(result.structuredContent?.shared).toBe(false);
     expect(result.structuredContent?.shareUrl).toBeNull();
+    // Shared before, private after: a real transition.
+    expect(result.structuredContent?.unchanged).toBe(false);
+    expect(textOf(result)).toMatch(/private again/i);
   });
 
-  it("reports an already-private report as unchanged rather than as a revocation", async () => {
-    unshareReport.mockResolvedValue(PRIVATE_REPORT);
+  it("reports an already-private report as unchanged, and says so", async () => {
+    // The distinction the finding was about: reading only the result cannot
+    // tell "I revoked it" from "there was nothing to revoke", and the second
+    // must not be reported to a user as an action taken.
     usePrivate();
+    unshareReport.mockResolvedValue(PRIVATE_REPORT);
 
     const result = await callTool(reportPublishTool, {
       reportId: "r1",
@@ -192,7 +233,8 @@ describe("report_publish", () => {
     });
 
     expect(result.structuredContent?.unchanged).toBe(true);
-    expect(textOf(result)).toMatch(/private again/i);
+    expect(textOf(result)).toMatch(/was already private/i);
+    expect(textOf(result)).toMatch(/nothing changed/i);
   });
 
   it("says an already-shared report is already shared, instead of implying it was just published", async () => {

@@ -112,6 +112,17 @@ export const reportPublishTool = {
       buildProjectMeta(context, args.projectId, `/p/${args.projectId}/reports`);
 
     if (args.revoke === true) {
+      // Read the state first: `unchanged` is a claim about a *transition*, and
+      // reading only the result cannot tell one. `unshareReport` returns the
+      // report either way — it is a no-op when there was nothing to revoke —
+      // so without the before-state this field would report "unchanged: true"
+      // for a report that was never shared and "false" for one that was.
+      const before = await ReportService.getReport(
+        args.projectId,
+        args.reportId,
+      );
+      const wasShared = Boolean(before.shareToken);
+
       // Safe to do directly: revoking can only reduce who can read the report.
       const report = await ReportService.unshareReport({
         projectId: args.projectId,
@@ -122,8 +133,8 @@ export const reportPublishTool = {
       });
 
       return mcpResponse({
-        text: report.shareToken
-          ? `Report "${report.title}" is still shared.`
+        text: !wasShared
+          ? `Report "${report.title}" was already private. Nothing changed.`
           : `Report "${report.title}" is private again. Anyone holding the old link can no longer read it.`,
         meta: meta(),
         structuredContent: {
@@ -131,7 +142,7 @@ export const reportPublishTool = {
           shared: false,
           shareUrl: null,
           sharedAt: null,
-          unchanged: !report.shareToken,
+          unchanged: !wasShared,
         },
       });
     }
@@ -166,6 +177,14 @@ export const reportPublishTool = {
       });
     }
 
+    // Read the state before the mint, for the same reason as the revoke path:
+    // `shareReport` is idempotent and returns the existing token rather than a
+    // new one, so "already shared" and "just published" are otherwise the same
+    // response — and an agent retrying after a dropped connection would be told
+    // it had published when it had changed nothing.
+    const before = await ReportService.getReport(args.projectId, args.reportId);
+    const wasShared = Boolean(before.shareToken);
+
     const report = await ReportService.shareReport({
       projectId: args.projectId,
       reportId: args.reportId,
@@ -182,18 +201,29 @@ export const reportPublishTool = {
       : null;
 
     return mcpResponse({
-      text: [
-        `Published "${report.title}". Anyone with this link can read it without logging in — the token is part of the URL, so treat it as a secret.`,
-        `Share: ${shareUrl}`,
-        `To make it private again, call this with revoke: true.`,
-      ].join("\n"),
+      // Joined, not an array: `mcpResponse` takes a single string. The array form
+      // typechecks nowhere — `tsc` rejects it at the call — and it also reaches
+      // the caller as an object, not prose, which is what an agent would then try
+      // to speak. Both gates exist; this is the one that stopped me.
+      text: (wasShared
+        ? [
+            `"${report.title}" was already shared, so the existing link is unchanged.`,
+            `Share: ${shareUrl}`,
+            `To make it private again, call this with revoke: true.`,
+          ]
+        : [
+            `Published "${report.title}". Anyone with this link can read it without logging in — the token is part of the URL, so treat it as a secret.`,
+            `Share: ${shareUrl}`,
+            `To make it private again, call this with revoke: true.`,
+          ]
+      ).join("\n"),
       meta: meta(),
       structuredContent: {
         reportId: report.id,
         shared: Boolean(report.shareToken),
         shareUrl,
         sharedAt: report.sharedAt ?? null,
-        unchanged: false,
+        unchanged: wasShared,
       },
     });
   }),
