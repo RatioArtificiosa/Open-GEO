@@ -236,39 +236,79 @@ describe("crawl tier bundling", () => {
     ).toBeCloseTo(0.0003, 6);
   });
 
-  it("does not stack loadJavaScript on loadResources — the vendor bundles them", () => {
-    // Load JavaScript is "All in Basic + JS", so loading resources too adds
-    // nothing. Stacked, it came to 30x and charged for work the vendor does not
-    // bill twice.
+  it("adds resources and JavaScript separately, because they are separate add-ons", () => {
+    // **Corrected after CodeRabbit.** My first fix read the price page's tier
+    // names ("All in Basic + ...") as meaning every tier contains the ones above
+    // it, and used `Math.max`. That is wrong for this pair: they are independent
+    // charges, and the vendor's `enable_browser_rendering` doc is explicit that
+    // it *requires* both alongside it rather than replacing them.
     const combined = estimateCrawl({
       pages: 1,
       loadResources: true,
       loadJavaScript: true,
     });
-    expect(combined.requestCostUsd).toBeCloseTo(0.0015, 6);
+    // **$0.0018, not $0.00195.** DataForSEO prints each option as
+    // `Basic + N x Base`, and Basic is a *shared component* rather than a
+    // per-option charge — so loading both pays Basic once plus both increments:
+    // `0.00015 + 2x + 9x`. My first expectation summed the two published totals
+    // and counted Basic twice; that is the mirror of the double-count the code
+    // had just fixed, and the vendor's own arithmetic is the authority.
+    expect(combined.requestCostUsd).toBeCloseTo(0.00015 * 12, 6);
+    expect(combined.requestCostUsd).toBeCloseTo(0.0018, 6);
   });
 
-  it("caps every combination at the highest tier requested", () => {
-    // **The property that makes this a pricing model rather than arithmetic:** no
-    // combination of flags may cost more than the most expensive single tier,
-    // because each tier already contains the ones below it.
+  it("treats browser rendering as a bundle that replaces resources and JavaScript", () => {
+    // "if you use this field, enable_javascript, and load_resources parameters
+    // must be set to true" — and it is priced at 34x, not 34x on top of them.
+    const rendering = estimateCrawl({
+      pages: 1,
+      loadResources: true,
+      loadJavaScript: true,
+      browserRendering: true,
+    });
+    expect(rendering.requestCostUsd).toBeCloseTo(0.0051, 6);
+  });
+
+  it("stacks keyword density with the load options, because it is independent", () => {
+    // **The case `Math.max` silently dropped.** Keyword density is its own
+    // Basic + 1xBase add-on, so a crawl asking for it *and* JavaScript pays for
+    // both. Under-quoting is the direction that looks fine in review.
+    const combined = estimateCrawl({
+      pages: 1,
+      loadJavaScript: true,
+      keywordDensity: true,
+    });
+    // JavaScript is 10 Basic units and density adds 1 more: 11 units.
+    expect(combined.requestCostUsd).toBeCloseTo(0.00015 * 11, 6);
+  });
+
+  it("never charges less than the most expensive single option it contains", () => {
+    // **The property that survives the corrected model.** The original
+    // multiplication violated its mirror (charging vastly more), and `Math.max`
+    // violated this one by dropping the independent keyword-density charge.
     const tiers = [
       { loadResources: true },
       { loadJavaScript: true },
       { browserRendering: true },
       { keywordDensity: true },
     ];
-    const single = tiers.map(
-      (tier) => estimateCrawl({ pages: 1, ...tier }).requestCostUsd,
-    );
-    const mostExpensive = Math.max(...single);
 
     for (const a of tiers) {
       for (const b of tiers) {
         const both = estimateCrawl({ pages: 1, ...a, ...b }).requestCostUsd;
-        expect(both).toBeLessThanOrEqual(mostExpensive + 1e-9);
+        const floor = Math.max(
+          estimateCrawl({ pages: 1, ...a }).requestCostUsd,
+          estimateCrawl({ pages: 1, ...b }).requestCostUsd,
+        );
+        expect(both).toBeGreaterThanOrEqual(floor - 1e-9);
       }
     }
+  });
+
+  it("totals all four options at the vendor's $0.00525", () => {
+    // 0.00015 (Basic) + 33 x 0.00015 (the rendering bundle) + 1 x 0.00015
+    // (keyword density) — CodeRabbit's figure, and the arithmetic that shows
+    // why `Math.max` was wrong.
     const everything = estimateCrawl({
       pages: 1,
       loadResources: true,
@@ -276,7 +316,7 @@ describe("crawl tier bundling", () => {
       browserRendering: true,
       keywordDensity: true,
     });
-    expect(everything.requestCostUsd).toBeCloseTo(0.0051, 6);
+    expect(everything.requestCostUsd).toBeCloseTo(0.00525, 6);
   });
 
   it("prices a real crawl at the vendor's number, not a multiple of it", () => {
@@ -290,21 +330,28 @@ describe("crawl tier bundling", () => {
     expect(crawl.requestCostUsd).toBeCloseTo(50 * 0.0051, 6);
   });
 
-  it("says why combining flags does not add their costs", () => {
-    // The caveat is the user-facing half of the fix: without it, a customer
-    // reading "load resources and JavaScript" cannot tell why the number matches
-    // the JavaScript tier alone.
+  it("explains the bundling and the independent add-on in the caveat", () => {
+    // The caveat is the user-facing half of the fix: a customer reading "load
+    // resources and JavaScript" must be able to see why the number is what it is.
     const combined = estimateCrawl({
       pages: 1,
       loadResources: true,
       loadJavaScript: true,
     });
-    expect(combined.caveats.join(" ")).toMatch(
-      /already includes resource loading/i,
-    );
+    expect(combined.caveats.join(" ")).toMatch(/separate add-ons/i);
 
     const rendering = estimateCrawl({ pages: 1, browserRendering: true });
     expect(rendering.caveats.join(" ")).toMatch(/one bundle/i);
+    expect(rendering.caveats.join(" ")).toMatch(
+      /keyword density is a separate add-on/i,
+    );
+
+    const density = estimateCrawl({
+      pages: 1,
+      loadJavaScript: true,
+      keywordDensity: true,
+    });
+    expect(density.caveats.join(" ")).toMatch(/independent add-on/i);
   });
 
   it("still adds Lighthouse separately, because it is a separate product", () => {

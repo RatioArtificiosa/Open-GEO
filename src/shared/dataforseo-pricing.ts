@@ -543,26 +543,40 @@ export function estimateCrawl(input: {
   keywordDensity?: boolean;
   lighthousePages?: number;
 }): CostEstimate {
-  // **The highest tier wins, because each tier already contains the ones below
-  // it.** DataForSEO prices these as bundles — "Enable browser rendering" is
-  // "All in Basic + Load resources + Load JavaScript + rendering" — so stacking the
-  // multipliers charged a customer for resources and JavaScript twice, or thirty
-  // times, or a thousand.
+  // **Two rules, not one** — and the first version of this fix had one rule
+  // (`Math.max`) and was wrong, which is the harder mistake to see.
   //
-  // The old code multiplied: `loadResources * loadJavaScript` came to 30x rather
-  // than 10x, and all three flags came to 1,020x — **$0.153 per page where the real
-  // cost is $0.0051**, so a 50-page crawl was quoted at $7.65 instead of $0.26.
+  // 1. **Browser rendering is a bundle.** DataForSEO's `enable_browser_rendering`
+  //    documentation says it *"must be set with `enable_javascript` and
+  //    `load_resources`"*, and the price page prices it as `Basic + 33×Base`. So it
+  //    **replaces** the two individual add-ons rather than adding to them.
+  // 2. **Everything else is an independent add-on.** Keyword density is its own
+  //    `Basic + 1×Base` and stacks with whatever else is on, which is why the
+  //    all-four total is `0.00015 + 33×0.00015 + 1×0.00015 = $0.00525`.
   //
-  // `max` rather than an if-chain because the tiers are ordered and the highest
-  // one subsumes the rest: the same answer, with the reason stated once.
-  const tierMultiplier = Math.max(
-    1,
-    input.loadResources ? DFS_ONPAGE.loadResources : 1,
-    input.loadJavaScript ? DFS_ONPAGE.loadJavaScript : 1,
-    input.browserRendering ? DFS_ONPAGE.browserRendering : 1,
-    input.keywordDensity ? DFS_ONPAGE.keywordDensity : 1,
+  // The original code multiplied, which reached 1,020x — **$0.153 per page where
+  // the real cost is $0.0051**, quoting a 50-page crawl at $7.65 instead of $0.26.
+  // `Math.max` fixed that and quietly dropped the keyword-density charge
+  // whenever it was combined with anything, which CodeRabbit caught.
+  // **In Base units, counting Basic exactly once.** Each option's published
+  // formula already contains Basic, so summing the multipliers counts Basic once
+  // per option. Adding the *increments* is the only form that is right:
+  // resources contributes 2 (not 3), JavaScript 9 (not 10), density 1 (not 2).
+  //
+  // An earlier version subtracted 1 per option from the multipliers, which
+  // removed the duplicated Basic but also removed the vendor's own Basic from
+  // the total — pricing resources + JavaScript at $0.00165 instead of $0.00195.
+  const baseUnits = input.browserRendering
+    ? // The bundle **replaces** resources and JavaScript: the vendor requires both
+      // alongside it and prices all three as 34 units, not 34 on top of them.
+      DFS_ONPAGE.browserRendering
+    : 1 +
+      (input.loadResources ? DFS_ONPAGE.loadResources - 1 : 0) +
+      (input.loadJavaScript ? DFS_ONPAGE.loadJavaScript - 1 : 0);
+  const perPage = round(
+    DFS_ONPAGE.basePage *
+      (baseUnits + (input.keywordDensity ? DFS_ONPAGE.keywordDensity - 1 : 0)),
   );
-  const perPage = round(DFS_ONPAGE.basePage * tierMultiplier);
 
   const crawl = round(perPage * input.pages);
   const lighthouse = round(
@@ -581,13 +595,17 @@ export function estimateCrawl(input: {
     lines,
     caveats: input.browserRendering
       ? [
-          "Browser rendering is 34× the base page price and already includes resource and JavaScript loading — the vendor sells it as one bundle, so combining flags does not add their costs. It is the only mode that yields Core Web Vitals, so it stays an explicit line item.",
+          "Browser rendering is 34× the base page price and already includes resource and JavaScript loading — DataForSEO requires both alongside it and sells it as one bundle, so they are not charged again. Keyword density is a separate add-on and does stack. It is the only mode that yields Core Web Vitals, so it stays an explicit line item.",
         ]
-      : input.loadJavaScript && input.loadResources
+      : input.loadResources && input.loadJavaScript
         ? [
-            "Load JavaScript already includes resource loading at the vendor, so this is priced as the JavaScript tier alone rather than as the two added together.",
+            "Resource loading and JavaScript are separate add-ons at the vendor, so this is priced as both: $0.00045 + $0.0015 per page.",
           ]
-        : [],
+        : input.keywordDensity && (input.loadResources || input.loadJavaScript)
+          ? [
+              "Keyword density is an independent add-on and is charged on top of the load options.",
+            ]
+          : [],
   };
 }
 
