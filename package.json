@@ -40,7 +40,7 @@
     "sync-plugin-skills": "node scripts/sync-plugin-skills.mjs",
     "check:journals": "node scripts/check-migration-journals.mjs",
     "submission:generate": "tsx scripts/generate-app-submission.ts && prettier --write chatgpt-app-submission.json",
-    "submission:check": "node scripts/check-submission-justifications.mjs",
+    "submission:check": "tsx scripts/check-submission-justifications.ts",
     "test": "vitest run",
     "detect:slop": "impeccable detect src/",
     "test:watch": "vitest",
