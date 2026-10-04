@@ -94,6 +94,45 @@ describe("readinessHeadline", () => {
     });
   });
 
+  it("does not call a partial run clean, whatever the fixes say", () => {
+    // **CodeRabbit's major, and the most important finding of this milestone.**
+    // Empty fixes plus an unreadable coverage column used to produce "Nothing to
+    // change" — the false all-clear this panel exists to prevent, reached through
+    // the one branch nobody cross-examined.
+    expect(
+      readinessHeadline(report({ fixes: [], coverage: null })),
+    ).toMatchObject({ kind: "incomplete" });
+    expect(
+      readinessHeadline(
+        report({
+          fixes: [],
+          unavailable: [
+            { what: "3 of 50 pages", because: "they could not be analysed" },
+          ],
+        }),
+      ),
+    ).toMatchObject({ kind: "incomplete" });
+  });
+
+  it("never uses the clean phrasing for a partial run", () => {
+    const partial = readinessHeadline(report({ fixes: [], coverage: null }));
+    const clean = readinessHeadline(report({ fixes: [] }));
+
+    // The sentences, not just the kinds: a reader who sees "Nothing to change"
+    // stops reading, and one who sees this will open the caveats and check.
+    expect(partial.message).not.toMatch(/nothing to change/i);
+    expect(partial.message).toMatch(/could not finish all of them/i);
+    expect(clean.message).toMatch(/nothing to change/i);
+  });
+
+  it("still calls a run clean when the coverage is known and nothing was unavailable", () => {
+    expect(
+      readinessHeadline(report({ fixes: [], coverage: [] })),
+    ).toMatchObject({
+      kind: "clean",
+    });
+  });
+
   it("carries the run's own summary through for the fixes case", () => {
     // The summary is the server's sentence, not one written here — the panel has
     // no opinion about what the site needs.
@@ -121,9 +160,17 @@ describe("coverageNote", () => {
       }),
     );
 
+    // **Gaps only.** The disclosure is headed "what this report could not check",
+    // so counting completed work there made the number wrong in the reader's
+    // favour: one real gap and two successful checks announced "could not check (3)".
     expect(note).toMatchObject({ kind: "caveats", count: 3 });
     expect(note?.kind === "caveats" && note.lines).toContain(
       "3 of 50 pages — they could not be analysed",
+    );
+    // Completed coverage is stated, but explicitly as verified rather than listed
+    // as a failure.
+    expect(note?.kind === "caveats" && note.lines).toContain(
+      "Not verified: robots.txt was read",
     );
   });
 

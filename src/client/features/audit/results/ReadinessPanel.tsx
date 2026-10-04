@@ -46,7 +46,9 @@ export function ReadinessPanel({
                 ? "What to fix first"
                 : headline.kind === "clean"
                   ? "Nothing to change"
-                  : "Readiness report unavailable"}
+                  : headline.kind === "incomplete"
+                    ? "Partly checked"
+                    : "Readiness report unavailable"}
             </h2>
             <p className="text-sm text-base-content/70">{headline.message}</p>
           </div>
@@ -57,6 +59,11 @@ export function ReadinessPanel({
           )}
         </header>
 
+        {/* **The tick only beside a genuinely clean result.** Rendering it for an
+            incomplete run would put a green check beside "we could not finish",
+            which is the visual form of the false all-clear this panel exists to
+            avoid. The condition is `headline.kind === "clean"`, the same one the
+            model decided on, so the two cannot drift apart. */}
         {headline.kind === "clean" && (
           <p className="flex items-center gap-2 text-sm text-base-content/80">
             <CircleCheck className="size-4 shrink-0 text-success" />
