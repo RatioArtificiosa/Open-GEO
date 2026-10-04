@@ -9,6 +9,45 @@ import { analyzeHtml } from "@/server/lib/audit/page-analyzer";
 import { normalizeUrl, isSameOrigin } from "@/server/lib/audit/url-utils";
 import type { PageAnalysis, PageLink } from "@/server/lib/audit/types";
 
+/**
+ * Walks a parsed JSON-LD value for `@type`, the way a schema.org consumer would.
+ *
+ * **Independent of the streaming parser's scanner on purpose.** The parser reads
+ * types with a tolerant regex because real-world JSON-LD is frequently invalid;
+ * this walks actual JSON. The two agreeing on *valid* JSON is the check that has
+ * meaning — if both used the same regex, agreement would prove nothing.
+ */
+function collectTypes(value: unknown, into: string[]): void {
+  if (Array.isArray(value)) {
+    for (const entry of value) collectTypes(entry, into);
+    return;
+  }
+  if (typeof value !== "object" || value === null) return;
+  // **Indexed, not cast.** The lint rule is right: narrowing `object` to
+  // `Record<string, unknown>` asserts something we did not verify. `in` proves a
+  // key exists on an object that JavaScript has already told us is one.
+  if (!("@type" in value)) {
+    // Still walk — the type may be nested under a child key.
+    for (const nested of Object.values(value)) collectTypes(nested, into);
+    return;
+  }
+  const type = value["@type"];
+  for (const name of Array.isArray(type) ? type : [type]) {
+    if (typeof name === "string" && !into.includes(name)) into.push(name);
+  }
+  for (const nested of Object.values(value)) collectTypes(nested, into);
+}
+
+/** The same walk over unparseable text, so the reference is not simply silent. */
+function collectTypesFromText(body: string, into: string[]): void {
+  for (const match of body.matchAll(
+    /"@type"\s*:\s*"([A-Za-z][A-Za-z0-9]{0,63})"/g,
+  )) {
+    const name = match[1];
+    if (name !== undefined && !into.includes(name)) into.push(name);
+  }
+}
+
 /** The previous cheerio implementation, verbatim (minus passthrough fields). */
 function analyzeHtmlWithCheerio(html: string, pageUrl: string): PageAnalysis {
   const $ = cheerio.load(html);
@@ -85,8 +124,28 @@ function analyzeHtmlWithCheerio(html: string, pageUrl: string): PageAnalysis {
   });
 
   let hasStructuredData = false;
-  $('script[type="application/ld+json"]').each(() => {
+  // **A MIME type matches on its essence, not the whole string.** The selector is
+  // written the way a browser resolves it, which is what makes the
+  // `charset=utf-8` case a real test rather than a regex coincidence.
+  const schemaTypes: string[] = [];
+  $("script").each((_, el) => {
+    const type =
+      ($(el).attr("type") ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
+    if (type !== "application/ld+json") return;
     hasStructuredData = true;
+    // Read with a real `JSON.parse` where the block is valid — an independent
+    // implementation is the whole point of this reference. The streaming parser
+    // deliberately uses a tolerant scan, so the two agreeing on *valid* JSON is
+    // the check that matters; on invalid JSON they are expected to differ and the
+    // tolerance is tested directly rather than through parity.
+    const body = $(el).html() ?? "";
+    try {
+      collectTypes(JSON.parse(body), schemaTypes);
+    } catch {
+      // Invalid JSON-LD is routine on the open web; the reference records the
+      // types it can still see without it.
+      collectTypesFromText(body, schemaTypes);
+    }
   });
 
   const hreflangTags: string[] = [];
@@ -115,6 +174,7 @@ function analyzeHtmlWithCheerio(html: string, pageUrl: string): PageAnalysis {
     images,
     links: Array.from(linksByTarget.values()),
     hasStructuredData,
+    schemaTypes,
     hreflangTags,
   };
 }

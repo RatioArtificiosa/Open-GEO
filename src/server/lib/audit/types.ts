@@ -92,6 +92,20 @@ export interface PageAnalysis {
 
   // Structured data
   hasStructuredData: boolean;
+  /**
+   * Schema.org `@type` names found in the page's JSON-LD.
+   *
+   * **Extracted rather than asked of the vendor.** `hasStructuredData` says a
+   * block exists; this says what it declares, which is what the citability
+   * rubric's schema-coverage factor actually needs. The bytes were already being
+   * tokenized by the parser, so reading the types costs nothing.
+   *
+   * Empty means *no types were found*, which is a finding. A page with no JSON-LD
+   * at all is `hasStructuredData: false` with the same empty list, and the
+   * difference between the two is what the rubric cannot currently express —
+   * so `null` is reserved for a caller that never ran a parse.
+   */
+  schemaTypes: string[];
 
   // Hreflang
   hreflangTags: string[];
@@ -177,6 +191,13 @@ export interface CrawledPageResult {
   images: Array<{ src: string | null; alt: string | null }>;
   links: PageLink[];
   hasStructuredData: boolean;
+  /**
+   * Schema.org `@type` names for the page.
+   *
+   * Empty on `emptyPageResult`, which is a distinct state from a parsed page
+   * carrying no types — the first is *not analysed*, the second is a finding.
+   */
+  schemaTypes: string[];
   hreflangTags: string[];
   isIndexable: boolean;
   responseTimeMs: number;

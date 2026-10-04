@@ -43,6 +43,7 @@ function makePage(overrides: Partial<CrawledPageResult>): CrawledPageResult {
       { level: 2, title: "Section" },
       { level: 3, title: "Subsection" },
     ],
+    schemaTypes: ["Article"],
     wordCount: 500,
     contentHash: "abc123",
     isHtml: true,

@@ -228,6 +228,10 @@ export async function crawlPage(
       images: analysis.images,
       links: analysis.links,
       hasStructuredData: analysis.hasStructuredData,
+      // The `@type` names, not just the presence of a block: the rubric asks what
+      // the page *declares itself to be*, and "it has a JSON-LD script" does not
+      // answer that. Free — the script body was already tokenized.
+      schemaTypes: analysis.schemaTypes,
       hreflangTags: analysis.hreflangTags,
       isIndexable,
       responseTimeMs,
@@ -335,6 +339,9 @@ function emptyPageResult(input: {
     images: [],
     links: [],
     hasStructuredData: false,
+    // Empty, and **not** the same claim as a parsed page with no JSON-LD: this
+    // page was never analysed, so nothing is known about its schema.
+    schemaTypes: [],
     hreflangTags: [],
     isIndexable: false,
     responseTimeMs: input.responseTimeMs,

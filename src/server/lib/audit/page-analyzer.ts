@@ -13,6 +13,10 @@
 import { Parser } from "htmlparser2";
 import { normalizeUrl, isSameOrigin } from "./url-utils";
 import type { PageAnalysis, PageLink } from "./types";
+import {
+  flushSchemaTypes,
+  isJsonLdScript,
+} from "@/server/lib/audit/schema-types";
 
 const SKIPPED_LINK_PROTOCOLS = /^(javascript:|mailto:|tel:|#)/;
 /** Subtrees whose text is not visible content. */
@@ -42,6 +46,7 @@ function flushOpenHeading(
   if (open === null) return;
   headings.push({ level: open.level, title: open.text.join("").trim() });
 }
+
 /**
  * Per-page caps on the extracted collections. Crawler-trap and mega-menu
  * pages can carry thousands of links/images per page, and crawled pages sit
@@ -102,6 +107,27 @@ export function analyzeHtml(
    */
   const headings: Array<{ level: number; title: string }> = [];
   let openHeading: { level: number; text: string[] } | null = null;
+
+  /**
+   * The body of the JSON-LD `<script>` currently open, or null.
+   *
+   * **Captured for the same reason headings are: the bytes are already being
+   * tokenized.** The parser walks the whole document including script bodies, so
+   * the `@type` values the citability rubric asks for were passing through and
+   * being dropped — the fourth instance of the same shape in this codebase.
+   *
+   * Bounded rather than accumulated without limit: a crawler-trap page can carry
+   * megabytes of JSON-LD, and this is a list of *type names*, not a document.
+   */
+  let openLdJson: string[] | null = null;
+
+  /**
+   * Schema.org types found across every JSON-LD block on the page, in order and
+   * deduplicated. Empty means *none were found*, which is a different claim from
+   * *no JSON-LD was present* — the rubric scores the first and treats the second
+   * as unmeasured.
+   */
+  const schemaTypes: string[] = [];
 
   const images: Array<{ src: string | null; alt: string | null }> = [];
   const linksByTarget = new Map<string, PageLink>();
@@ -198,8 +224,12 @@ export function analyzeHtml(
             }
             break;
           case "script":
-            if (attribs["type"] === "application/ld+json") {
+            if (isJsonLdScript(attribs["type"])) {
               hasStructuredData = true;
+              // Capturing the body so `@type` can be read from it. A missing or
+              // malformed `@type` is why this is best-effort and never throws:
+              // the page still has structured data, we simply cannot name its type.
+              if (openLdJson === null) openLdJson = [];
             }
             break;
           case "a": {
@@ -227,6 +257,13 @@ export function analyzeHtml(
         }
       },
       ontext(text) {
+        // **Before the `suppressDepth` guard.** `script` is in
+        // `NON_CONTENT_TAGS`, so a JSON-LD body would otherwise be discarded
+        // before anything could read it — the same way heading text used to die.
+        if (openLdJson !== null) {
+          openLdJson.push(text);
+          return;
+        }
         if (suppressDepth > 0) return;
         if (titleDepth > 0) {
           if (title !== null) title += text;
@@ -270,6 +307,10 @@ export function analyzeHtml(
         if (closingLevel !== undefined && openHeading?.level === closingLevel) {
           flushOpenHeading(headings, openHeading);
           openHeading = null;
+        }
+        if (name === "script" && openLdJson !== null) {
+          flushSchemaTypes(schemaTypes, openLdJson);
+          openLdJson = null;
         }
       },
     },
@@ -321,6 +362,7 @@ export function analyzeHtml(
     images,
     links: Array.from(linksByTarget.values()),
     hasStructuredData,
+    schemaTypes,
     hreflangTags,
   };
 }

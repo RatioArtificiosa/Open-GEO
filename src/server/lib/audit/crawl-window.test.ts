@@ -34,6 +34,7 @@ function page(
     h6Count: 0,
     headingOrder: [],
     headings: [],
+    schemaTypes: [],
     wordCount: 0,
     contentHash: null,
     isHtml: true,
