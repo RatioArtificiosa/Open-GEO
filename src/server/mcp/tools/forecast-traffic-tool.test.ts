@@ -151,30 +151,61 @@ describe("forecast_traffic", () => {
     // the two formulas, so a smooth line across the boundary is the more
     // convincing chart and the less true one.
     //
-    // The series is dated up to the day before DataForSEO's cutover, so the
-    // 13-week window is guaranteed to span it. Without that the assertion
-    // would be conditional and could pass without ever checking the warning —
-    // which is how a gate becomes vacuous.
-    useSeries(dailySeries(98, (day) => 100 + day));
+    // **The clock is frozen**, because the tool reads `new Date()`. Left on the
+    // real clock this test would keep passing until 2026-11-01 and then start
+    // failing for a reason that has nothing to do with the code — a test whose
+    // verdict changes with the calendar is a test with an expiry date nobody
+    // wrote down. Four weeks after the cutover the real window no longer spans
+    // it and the assertion becomes permanently red.
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-10-03T09:00:00Z"));
+      useSeries(dailySeries(98, (day) => 100 + day));
 
-    const result = await callTool(forecastTrafficTool, {
-      domain: "acme.com",
-      dry_run: false,
-    });
-    const text = textOf(result);
+      const result = await callTool(forecastTrafficTool, {
+        domain: "acme.com",
+        dry_run: false,
+      });
+      const text = textOf(result);
 
-    expect(result.structuredContent?.basis).toMatchObject({
-      cutoverDate: "2026-11-01",
-      // The window is 13 weeks from today, so it always crosses the cutover
-      // until 2026-11-01 has passed; assert rather than branch.
-      crossesCutover: true,
-    });
-    // The warning must be in the prose, not only the payload — the prose is
-    // what an agent repeats to a user. Asserted against the WARNING line
-    // specifically: `summary` also mentions comparability, so a looser match
-    // would pass with the WARNING removed (and it did, on the first run).
-    expect(text).toContain("WARNING:");
-    expect(text).toMatch(/WARNING:.*no published conversion/is);
+      expect(result.structuredContent?.basis).toMatchObject({
+        cutoverDate: "2026-11-01",
+        crossesCutover: true,
+      });
+      // The warning must be in the prose, not only the payload — the prose is
+      // what an agent repeats to a user. Asserted against the WARNING line
+      // specifically: `summary` also mentions comparability, so a looser match
+      // would pass with the WARNING removed (and it did, on the first run).
+      expect(text).toContain("WARNING:");
+      expect(text).toMatch(/WARNING:.*no published conversion/is);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reports a forecast that no longer crosses the cutover once the date passes", async () => {
+    // The other side of the same boundary, and the reason the first test needs
+    // a frozen clock: after 2026-11-01 a 13-week window does NOT span the
+    // change, so there must be no warning to read. A tool that always emitted
+    // the cutover warning would look careful forever and be wrong after the
+    // date it names.
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-12-01T09:00:00Z"));
+      useSeries(dailySeries(98, (day) => 100 + day));
+
+      const result = await callTool(forecastTrafficTool, {
+        domain: "acme.com",
+        dry_run: false,
+      });
+
+      expect(result.structuredContent?.basis).toMatchObject({
+        crossesCutover: false,
+      });
+      expect(textOf(result)).not.toContain("WARNING:");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("carries the series' own formula version rather than assuming one", async () => {

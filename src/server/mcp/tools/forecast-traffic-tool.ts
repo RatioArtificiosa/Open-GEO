@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sortBy } from "remeda";
 import { forecastTraffic } from "@/server/features/audit/services/trafficForecast";
 import { getEtvSeries } from "@/server/features/geo/services/geoSeriesReads";
 import { mcpResponse } from "@/server/mcp/formatters";
@@ -79,19 +80,31 @@ type Args = z.infer<z.ZodObject<typeof inputSchema>>;
 function toWeeklyHistory(
   points: Array<{ date: string; etv: number | null }>,
 ): Array<number | null> {
-  if (points.length === 0) return [];
+  // Sorted by date rather than trusted to arrive in order, so a week index
+  // cannot go negative and drop a point into the wrong bucket. The read
+  // orders by `capturedAt`, but the tool should not depend on that.
+  // `sortBy` rather than `Array#toSorted`, which crashes Chromium <110 —
+  // see the note on the `lib` line in tsconfig.json.
+  const dated = sortBy(
+    points
+      .map((point) => ({
+        etv: point.etv,
+        at: Date.parse(`${point.date}T00:00:00Z`),
+      }))
+      .filter((point) => !Number.isNaN(point.at)),
+    (point) => point.at,
+  );
 
-  // Anchor the buckets on the first stored point so the series is a fixed set
-  // of weeks rather than a moving window, which would silently drop the oldest
-  // week every time a capture lands.
-  const first = Date.parse(`${points[0]?.date ?? ""}T00:00:00Z`);
-  if (Number.isNaN(first)) return [];
+  if (dated.length === 0) return [];
 
+  // Aligned to the Unix epoch, not to the first stored point. Anchoring on the
+  // first point makes the bucket a property of *when the series started*, so
+  // the same traffic would bucket differently depending on which day the first
+  // capture happened to land — and a forecast could change because a series
+  // grew by one row rather than because traffic moved.
   const buckets = new Map<number, { total: number; measured: boolean }>();
-  for (const point of points) {
-    const at = Date.parse(`${point.date}T00:00:00Z`);
-    if (Number.isNaN(at)) continue;
-    const week = Math.floor((at - first) / MS_PER_WEEK);
+  for (const point of dated) {
+    const week = Math.floor(point.at / MS_PER_WEEK);
     const bucket = buckets.get(week) ?? { total: 0, measured: false };
     if (typeof point.etv === "number") {
       bucket.total += point.etv;
@@ -100,9 +113,10 @@ function toWeeklyHistory(
     buckets.set(week, bucket);
   }
 
+  const firstWeek = Math.min(...buckets.keys());
   const lastWeek = Math.max(...buckets.keys());
   const weeks: Array<number | null> = [];
-  for (let week = 0; week <= lastWeek; week += 1) {
+  for (let week = firstWeek; week <= lastWeek; week += 1) {
     const bucket = buckets.get(week);
     // A week present in the range but never measured is null, not 0.
     weeks.push(bucket?.measured === true ? Math.round(bucket.total) : null);
