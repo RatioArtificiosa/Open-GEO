@@ -253,6 +253,67 @@ describe("runReadinessPhase", () => {
     expect(result).toEqual({ readinessFixCount: 2 });
   });
 
+  it("resolves with a zero count when the report itself fails", async () => {
+    // **The promise the docblock makes, tested.** `It cannot fail the audit` was
+    // written before the catch existed — a guarantee stated where no code
+    // implemented it, which is the exact shape of claim this project keeps
+    // catching. A report that silently comes back empty looks precisely like a
+    // site with nothing to fix, so the audit completing is only half of it: the
+    // failure has to be on the record too.
+    runReadinessMock.mockRejectedValue(new Error("site audit query timed out"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- pgStep is mocked
+    const result = await runReadinessPhase({} as never, PARAMS);
+
+    expect(result).toEqual({ readinessFixCount: 0 });
+    // **Logged, not swallowed.** A silent catch is the same as no catch, with extra
+    // steps.
+    expect(logged).toHaveBeenCalledOnce();
+    logged.mockRestore();
+  });
+
+  it("lets the error escape the step so the platform's retries still apply", async () => {
+    // **The catch placement is the implementation, and this asserts the boundary
+    // * rather than a retry count.**
+    //
+    // A try/catch *inside* the `pgStep` callback would swallow the failure, so the
+    // step would never fail and therefore **never retry** — a transient database
+    // blip would permanently produce an empty report. Catching the *step* leaves
+    // the platform's retry machinery free to do its job.
+    //
+    // The first version of this test asserted three attempts and failed with one,
+    // which is the honest result: `pgStep` is mocked, so the platform's internal
+    // retry loop never runs and a retry *count* here would be asserting the mock.
+    // What can be tested is that the rejection crosses the `pgStep` boundary at
+    // all — and that is precisely the property the placement changes.
+    let reachedPhaseHandler = false;
+    pgStepMock.mockImplementation(
+      async (
+        _step: unknown,
+        _name: string,
+        _config: unknown,
+        fn: () => Promise<unknown>,
+      ) =>
+        // Re-throw rather than catch: this stands in for the platform letting a
+        // step fail, which is what gives the platform's retries something to do.
+        fn(),
+    );
+    runReadinessMock.mockRejectedValue(new Error("transient"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {
+      reachedPhaseHandler = true;
+    });
+
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- pgStep is mocked
+    const result = await runReadinessPhase({} as never, PARAMS);
+
+    // The rejection reached the phase's own handler rather than being absorbed by
+    // the step — which is the whole difference between retrying and not.
+    expect(reachedPhaseHandler).toBe(true);
+    expect(result).toEqual({ readinessFixCount: 0 });
+    logged.mockRestore();
+  });
+
   it("handles an audit whose crawl persisted no pages at all", async () => {
     // A crawl that produced nothing must not throw here — the crawl phase already
     // has an integrity guard for that, and duplicating it would fail the audit
