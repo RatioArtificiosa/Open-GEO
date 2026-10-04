@@ -12,6 +12,7 @@ import {
   resolveIssueSeverity,
 } from "@/client/features/audit/results/IssuesView";
 import { PagesTable } from "@/client/features/audit/results/PagesTable";
+import { ReadinessPanel } from "@/client/features/audit/results/ReadinessPanel";
 import {
   ExportDropdown,
   PerformanceTable,
@@ -30,7 +31,7 @@ export function ResultsView({
   tab: string;
   onTabChange: (tab: ResultsTab) => void;
 }) {
-  const { audit, pages, lighthouse, issues } = data;
+  const { audit, pages, lighthouse, issues, readiness } = data;
   const crawlStopped = issues.some(
     (issue) => issue.issueType === "crawl-rate-limited",
   );
@@ -100,6 +101,12 @@ export function ResultsView({
         averageResponseMs={stats.averageResponseMs}
         lighthouseSummary={stats.lighthouseSummary}
       />
+
+      {/* **Above the tabs, deliberately.** The tabs are the evidence; this is
+          the answer. A precondition buried in a tab is not a precondition, and
+          CL-302's whole argument is that a blocked crawler outranks everything
+          because fixing it makes every other fix possible. */}
+      <ReadinessPanel readiness={readiness} />
 
       <div className="card bg-base-100 border border-base-300">
         <div className="card-body gap-3">
