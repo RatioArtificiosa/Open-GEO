@@ -124,6 +124,14 @@ export const MISSING_TOOL_JUSTIFICATIONS: Record<string, ToolJustifications> = {
     destructive_justification:
       "May use metered DataForSEO credits on dry_run: false, for both the SERP crawl and the summary, and may additionally crawl page content when fetch_content is set. Does not delete, overwrite, revoke access, send, or publish anything.",
   },
+  report_publish: {
+    read_only_justification:
+      "Mints or revokes a public link to one report in the authenticated project. It changes nothing else and reads nothing the caller cannot already read. Publishing is only performed when the caller passes publish: true together with dry_run: false, and the default dry run only describes the exposure.",
+    open_world_justification:
+      "**Publishing places one customer's report on the public internet at an unauthenticated URL that anyone holding the link can read.** Revoking restricts access again and is safe to call at any time. Sharing is refused outright on self-hosted deployments.",
+    destructive_justification:
+      "Publishing creates a bearer credential in the URL and cannot be undone by anyone who has already copied the link; only revoking the token limits further access. It does not delete or overwrite the stored report.",
+  },
 
   // --- Saved keywords. Removing a keyword deletes a stored record, so this is
   // destructive, and it says which project it affects.

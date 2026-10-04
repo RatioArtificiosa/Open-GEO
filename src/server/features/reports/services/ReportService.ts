@@ -238,6 +238,13 @@ type ShareParams = {
   /** From the authenticated context — the telemetry identity, nothing else. */
   userId: string;
   organizationId: string;
+  /**
+   * Which surface minted the link. Never taken from the caller: an MCP tool
+   * passes `mcp`, and anything that let the model choose would make the
+   * telemetry a claim rather than a record — which is the same defect as
+   * `createdBy` in `saveReport`.
+   */
+  source?: "app" | "mcp";
 };
 
 /**
@@ -274,7 +281,7 @@ async function shareReport(params: ShareParams): Promise<ReportMetadata> {
       project_id: params.projectId,
       report_id: params.reportId,
       skill: report.skill,
-      source: "app",
+      source: params.source ?? "app",
     },
   });
   return { ...report, shareToken, sharedAt };
@@ -294,7 +301,7 @@ async function unshareReport(params: ShareParams): Promise<ReportMetadata> {
       project_id: params.projectId,
       report_id: params.reportId,
       skill: report.skill,
-      source: "app",
+      source: params.source ?? "app",
     },
   });
   return { ...report, shareToken: null, sharedAt: null };

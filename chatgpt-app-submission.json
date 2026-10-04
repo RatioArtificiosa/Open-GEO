@@ -871,6 +871,18 @@
         "open_world_justification": "Sends a search term and a question to a private SEO research provider. The question concerns the caller's own research topic and is not published to any public service.",
         "destructive_justification": "May use metered DataForSEO credits on dry_run: false, for both the SERP crawl and the summary, and may additionally crawl page content when fetch_content is set. Does not delete, overwrite, revoke access, send, or publish anything."
       }
+    },
+    "report_publish": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Mints or revokes a public link to one report in the authenticated project. It changes nothing else and reads nothing the caller cannot already read. Publishing is only performed when the caller passes publish: true together with dry_run: false, and the default dry run only describes the exposure.",
+        "open_world_justification": "**Publishing places one customer's report on the public internet at an unauthenticated URL that anyone holding the link can read.** Revoking restricts access again and is safe to call at any time. Sharing is refused outright on self-hosted deployments.",
+        "destructive_justification": "Publishing creates a bearer credential in the URL and cannot be undone by anyone who has already copied the link; only revoking the token limits further access. It does not delete or overwrite the stored report."
+      }
     }
   },
   "test_cases": [
