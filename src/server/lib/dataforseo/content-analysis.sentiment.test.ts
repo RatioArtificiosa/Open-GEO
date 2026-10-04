@@ -205,6 +205,55 @@ describe("fetchSentimentAnalysis", () => {
     expect(data.basis).toMatch(/not an AI engine/i);
   });
 
+  it("returns no dominant polarity when two buckets tie", async () => {
+    // **The finding CodeRabbit made.** `positive` and `neutral` tying is a real
+    // state, and the first version reported whichever came first in the
+    // POLARITIES array — a confident winner read off declaration order rather
+    // than off the data.
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status_code: 20000,
+          tasks: [
+            {
+              status_code: 20000,
+              path: ["v3", "content_analysis", "sentiment_analysis", "live"],
+              cost: 0.02,
+              result: [
+                {
+                  positive_connotation_distribution: {
+                    positive: sentimentBucket(1_000),
+                    negative: sentimentBucket(400),
+                    neutral: sentimentBucket(1_000),
+                  },
+                  sentiment_connotation_distribution: {},
+                },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+
+    const { data } = await fetchSentimentAnalysis({ keyword: "tied" });
+
+    // Both figures are still reported — the tie is in the *verdict*, not in
+    // the data being withheld.
+    expect(data.byPolarity.positive?.totalCount).toBe(1_000);
+    expect(data.byPolarity.neutral?.totalCount).toBe(1_000);
+    expect(data.dominantPolarity).toBeNull();
+  });
+
+  it("still names a dominant polarity when one leads outright", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(sentimentEnvelope())),
+    );
+
+    const { data } = await fetchSentimentAnalysis({ keyword: "logitech" });
+
+    expect(data.dominantPolarity).toBe("positive");
+  });
+
   it("returns a null dominance when fewer than two buckets carry a count", async () => {
     fetchMock.mockResolvedValue(
       new Response(

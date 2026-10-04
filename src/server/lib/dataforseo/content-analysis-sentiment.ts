@@ -192,12 +192,18 @@ type SentimentAnalysisResult = {
 };
 
 /**
- * The polarity with the most citations, or null when fewer than two buckets
- * carry a count.
+ * The polarity with the most citations, or null when that is ambiguous.
  *
- * A count, not a percentage — see the module note on why the buckets overlap
- * and cannot be divided into a share. One bucket is a measurement, not a
- * comparison.
+ * **A tie returns null.** The first version walked `POLARITIES` and kept the
+ * first strict maximum, so two equal buckets reported whichever came first in
+ * the array — a confident winner read off the declaration order rather than
+ * off the data. That is the same defect this product refuses everywhere
+ * else: reporting a finding the measurement did not earn. `positive` and
+ * `neutral` tying is a real state, and the honest reading of it is "no
+ * dominant polarity", not whichever one the code happened to visit first.
+ *
+ * Null rather than zero when fewer than two buckets carry a count: one bucket
+ * is a measurement, not a comparison.
  */
 function dominantOf(
   byPolarity: SentimentAnalysisResult["byPolarity"],
@@ -207,16 +213,21 @@ function dominantOf(
     return typeof count === "number";
   });
   if (present.length < 2) return null;
+
   let best: Polarity | null = null;
   let bestCount = -1;
+  let tied = false;
   for (const key of present) {
     const count = byPolarity[key]?.totalCount ?? -1;
     if (count > bestCount) {
       best = key;
       bestCount = count;
+      tied = false;
+    } else if (count === bestCount) {
+      tied = true;
     }
   }
-  return best;
+  return tied ? null : best;
 }
 
 function clampThreshold(value: number | undefined, fallback: number): number {
