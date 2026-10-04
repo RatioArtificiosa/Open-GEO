@@ -48,8 +48,22 @@ vi.mock(
     ReportTemplateRepository: mocks,
   }),
 );
+// **The reader moved.** `getAuditForProject` is in `auditSummaryQueries`
+// now, because it is a read and `AuditRepository` is the audit lifecycle — a
+// split the 400-line limit required and the boundary deserved. This suite failed
+// on the move, which is the correct outcome: the mock had stopped matching the
+// module the code imports, so the *real* database call ran and every assertion
+// below was passing against an unmocked seam.
+//
+// Mocking the module the code actually uses is the fix. Keeping the old mock too
+// would leave a mock for a module nothing imports — a test asserting a fiction.
 vi.mock("@/server/features/audit/repositories/AuditRepository", () => ({
   AuditRepository: mocks,
+}));
+vi.mock("@/server/features/audit/repositories/auditSummaryQueries", () => ({
+  // **Only what this suite reaches.** A mock declaring members nothing calls is a
+  // mock asserting a fiction — and the bag is typed, so the compiler says so.
+  getAuditForProject: mocks.getAuditForProject,
 }));
 vi.mock("@/server/lib/posthog", () => ({ captureServerEvent: vi.fn() }));
 

@@ -1,6 +1,10 @@
 import { sort } from "remeda";
 import { z } from "zod";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
+import {
+  getAuditForProject,
+  getLatestAuditForProject,
+} from "@/server/features/audit/repositories/auditSummaryQueries";
 import { AuditService } from "@/server/features/audit/services/AuditService";
 import { AppError } from "@/server/lib/errors";
 import { captureServerEvent } from "@/server/lib/posthog";
@@ -26,8 +30,8 @@ const auditIdSchema = z
 
 async function resolveAudit(projectId: string, auditId?: string) {
   const audit = auditId
-    ? await AuditRepository.getAuditForProject(auditId, projectId)
-    : await AuditRepository.getLatestAuditForProject(projectId);
+    ? await getAuditForProject(auditId, projectId)
+    : await getLatestAuditForProject(projectId);
   if (!audit) {
     throw new AppError(
       "NOT_FOUND",

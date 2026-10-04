@@ -2,7 +2,7 @@ import { ProjectRepository } from "@/server/features/projects/repositories/Proje
 import { sort } from "remeda";
 import type { BillingCustomerContext } from "@/server/billing/subscription";
 import { ActivationRepository } from "@/server/features/activation/repositories/ActivationRepository";
-import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
+import { getLatestAuditForProject } from "@/server/features/audit/repositories/auditSummaryQueries";
 import { getIssueTypePageCountsForAudit } from "@/server/features/audit/repositories/auditSummaryQueries";
 import { BacklinkSnapshotRepository } from "@/server/features/dashboard/repositories/BacklinkSnapshotRepository";
 import { Ga4ConnectionRepository } from "@/server/features/ga4/repositories/Ga4ConnectionRepository";
@@ -185,7 +185,7 @@ async function getRankSummary(
 async function getAuditSummary(
   projectId: string,
 ): Promise<DashboardAuditSummary | null> {
-  const audit = await AuditRepository.getLatestAuditForProject(projectId);
+  const audit = await getLatestAuditForProject(projectId);
   if (!audit) return null;
 
   const typeRows = await getIssueTypePageCountsForAudit(audit.id);

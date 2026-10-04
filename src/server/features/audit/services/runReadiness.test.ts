@@ -37,7 +37,11 @@ afterEach(() => {
 
 describe("runReadiness", () => {
   it("passes the origin through so relative llms.txt links resolve", async () => {
-    const result = await runReadiness({ origin: ORIGIN, pages: [] });
+    const result = await runReadiness({
+      origin: ORIGIN,
+      pages: [],
+      pagesAttempted: 0,
+    });
 
     expect(robotsMock).toHaveBeenCalledWith(ORIGIN);
     expect(llmsMock).toHaveBeenCalledWith(ORIGIN);
@@ -50,7 +54,11 @@ describe("runReadiness", () => {
     // not check" would soften a ten-minute job into an open question.
     llmsMock.mockResolvedValue({ status: "absent" });
 
-    const result = await runReadiness({ origin: ORIGIN, pages: [] });
+    const result = await runReadiness({
+      origin: ORIGIN,
+      pages: [],
+      pagesAttempted: 0,
+    });
 
     const note = result.notes.find((entry) => entry.what === "/llms.txt");
     expect(note?.because).toContain("does not publish one");
@@ -65,7 +73,11 @@ describe("runReadiness", () => {
       reason: "ECONNREFUSED",
     });
 
-    const result = await runReadiness({ origin: ORIGIN, pages: [] });
+    const result = await runReadiness({
+      origin: ORIGIN,
+      pages: [],
+      pagesAttempted: 0,
+    });
 
     const note = result.notes.find((entry) => entry.what === "/llms.txt");
     expect(note?.because).toContain("nothing is known about it");
@@ -79,7 +91,11 @@ describe("runReadiness", () => {
     // independent of the others, and a report with fewer findings beats no report.
     robotsMock.mockRejectedValue(new Error("ECONNREFUSED"));
 
-    const result = await runReadiness({ origin: ORIGIN, pages: [] });
+    const result = await runReadiness({
+      origin: ORIGIN,
+      pages: [],
+      pagesAttempted: 0,
+    });
 
     const note = result.notes.find((entry) => entry.what === "robots.txt");
     expect(note?.because).toContain("could not read it");
@@ -98,7 +114,11 @@ describe("runReadiness", () => {
       new Error("upstream said\n\nERROR: forged line"),
     );
 
-    const result = await runReadiness({ origin: ORIGIN, pages: [] });
+    const result = await runReadiness({
+      origin: ORIGIN,
+      pages: [],
+      pagesAttempted: 0,
+    });
 
     const note = result.notes.find((entry) => entry.what === "robots.txt");
     expect(note?.because).not.toMatch(/[\r\n]/);
@@ -108,7 +128,11 @@ describe("runReadiness", () => {
   it("truncates a very long upstream error", async () => {
     robotsMock.mockRejectedValue(new Error("x".repeat(500)));
 
-    const result = await runReadiness({ origin: ORIGIN, pages: [] });
+    const result = await runReadiness({
+      origin: ORIGIN,
+      pages: [],
+      pagesAttempted: 0,
+    });
 
     const note = result.notes.find((entry) => entry.what === "robots.txt");
     expect((note?.because.length ?? 0) < 200).toBe(true);
@@ -166,6 +190,7 @@ describe("runReadiness", () => {
     // the rubric needs. If this stops flowing, the report silently scores less.
     const result = await runReadiness({
       origin: ORIGIN,
+      pagesAttempted: 0,
       pages: [
         {
           url: `${ORIGIN}/guide`,
@@ -196,6 +221,7 @@ describe("runReadiness", () => {
     // would have thrown away a true measurement along with the unknown ones.
     const result = await runReadiness({
       origin: ORIGIN,
+      pagesAttempted: 0,
       pages: [
         {
           url: `${ORIGIN}/broken`,
@@ -220,6 +246,7 @@ describe("runReadiness", () => {
 
     const result = await runReadiness({
       origin: ORIGIN,
+      pagesAttempted: 0,
       pages: [
         {
           url: `${ORIGIN}/broken`,

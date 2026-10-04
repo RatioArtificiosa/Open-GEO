@@ -6,6 +6,8 @@ import {
   type BillingCustomerContext,
 } from "@/server/billing/subscription";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
+import { getAuditForProject } from "@/server/features/audit/repositories/auditSummaryQueries";
+import { getAuditResultsForProject } from "@/server/features/audit/repositories/auditSummaryQueries";
 import {
   AUDIT_LIMITS,
   clampAuditMaxPages,
@@ -137,7 +139,7 @@ async function startAudit(input: {
 }
 
 async function getStatus(auditId: string, projectId: string) {
-  let audit = await AuditRepository.getAuditForProject(auditId, projectId);
+  let audit = await getAuditForProject(auditId, projectId);
   if (!audit)
     throw new AppError("NOT_FOUND", "Audit not found in this project.");
 
@@ -147,8 +149,7 @@ async function getStatus(auditId: string, projectId: string) {
   if (audit.status === "running") {
     const reconciled = await reconcileRunningAudit(audit);
     if (reconciled) {
-      audit =
-        (await AuditRepository.getAuditForProject(auditId, projectId)) ?? audit;
+      audit = (await getAuditForProject(auditId, projectId)) ?? audit;
     }
   }
 
@@ -169,8 +170,10 @@ async function getStatus(auditId: string, projectId: string) {
 }
 
 async function getResults(auditId: string, projectId: string) {
-  const { audit, pages, lighthouse, issues } =
-    await AuditRepository.getAuditResultsForProject(auditId, projectId);
+  const { audit, pages, lighthouse, issues } = await getAuditResultsForProject(
+    auditId,
+    projectId,
+  );
 
   if (!audit) throw new AppError("NOT_FOUND");
 
@@ -217,7 +220,7 @@ async function getHistory(projectId: string) {
 }
 
 async function getCrawlProgress(auditId: string, projectId: string) {
-  const audit = await AuditRepository.getAuditForProject(auditId, projectId);
+  const audit = await getAuditForProject(auditId, projectId);
   if (!audit) {
     throw new AppError("NOT_FOUND");
   }
@@ -226,7 +229,7 @@ async function getCrawlProgress(auditId: string, projectId: string) {
 }
 
 async function remove(auditId: string, projectId: string) {
-  const audit = await AuditRepository.getAuditForProject(auditId, projectId);
+  const audit = await getAuditForProject(auditId, projectId);
   if (!audit) {
     throw new AppError("NOT_FOUND");
   }

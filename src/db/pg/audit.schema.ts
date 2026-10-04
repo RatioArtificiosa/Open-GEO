@@ -89,6 +89,20 @@ export const auditPages = pgTable(
     h5Count: integer("h5_count").notNull().default(0),
     h6Count: integer("h6_count").notNull().default(0),
     headingOrderJson: text("heading_order_json"),
+    /**
+     * Heading **text** with its level, as JSON.
+     *
+     * **Added because the citability rubric asks what a heading said and this
+     * column only ever held its level.** `heading_order_json` answers "how many
+     * headings, in what order"; it cannot answer "does this page lead with an
+     * answer" or "what fraction of subheadings are questions", which is the whole
+     * of the answer-first and question-headers factors.
+     *
+     * Null rather than `'[]'` for a page that was never analysed, because *no
+     * headings found* is a finding and *not analysed* is a gap, and the report
+     * scores them differently.
+     */
+    headingsJson: text("headings_json"),
     // Content
     wordCount: integer("word_count").notNull().default(0),
     // Images
@@ -100,6 +114,18 @@ export const auditPages = pgTable(
     externalLinkCount: integer("external_link_count").notNull().default(0),
     // Structured data
     hasStructuredData: boolean("has_structured_data").notNull().default(false),
+    /**
+     * The schema.org `@type` names the page declares, as JSON.
+     *
+     * **`hasStructuredData` says a block exists; this says what it declares**, and
+     * the citability rubric's schema-coverage factor needs the second — "this page
+     * declares itself an Article" is a finding, "this page has a JSON-LD script" is
+     * not one.
+     *
+     * Null when the page was never analysed. An empty array is a real answer: the
+     * page was parsed and declared nothing.
+     */
+    schemaTypesJson: text("schema_types_json"),
     // Hreflang
     hreflangTagsJson: text("hreflang_tags_json"),
     // Indexability

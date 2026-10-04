@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
+import { getLighthouseResultById } from "@/server/features/audit/repositories/auditLighthouseResults";
 import {
   buildLighthouseExportFile,
   readStoredLighthousePayload,
@@ -16,7 +16,7 @@ async function getAuditLighthouseData(input: {
   projectId: string;
   resultId: string;
 }) {
-  const site = await AuditRepository.getLighthouseResultById({
+  const site = await getLighthouseResultById({
     lighthouseResultId: input.resultId,
     projectId: input.projectId,
   });

@@ -47,3 +47,22 @@ export const MULTIPAGE_CHECKS_STEP: WorkflowStepConfig = {
   retries: { limit: 2, delay: "5 seconds", backoff: "exponential" },
   timeout: "5 minutes",
 };
+
+/**
+ * The citability report: reads every page row and fetches two small files from
+ * the customer's origin.
+ *
+ * **Sized for the reads, not the network.** The page query is the expensive part
+ * on a large audit, and both fetches carry their own 10s timeouts, so the floor is
+ * the query plus up to 10s. Two minutes is generous; a site that needs more is a
+ * site whose robots.txt or llms.txt is hanging, and `runReadiness` already turns
+ * that into a gap rather than a failure.
+ *
+ * **Retries are cheap because nothing here is billed.** No DataForSEO call is in
+ * this step, so replaying it costs a little compute and buys a real retry — the
+ * opposite of `LIGHTHOUSE_FETCH_STEP`, which must never replay.
+ */
+export const READINESS_STEP: WorkflowStepConfig = {
+  retries: { limit: 2, delay: "5 seconds", backoff: "exponential" },
+  timeout: "2 minutes",
+};

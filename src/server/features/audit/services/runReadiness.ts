@@ -61,7 +61,7 @@ type ReadinessRunInput = {
    * the difference between "we checked three pages" and "we checked the site" is
    * the difference between a finding and a sample.
    */
-  pagesAttempted?: number;
+  pagesAttempted: number;
   /** Measured by the caller. Null means "not measured", never zero. */
   schemaCoverageRatio?: number | null;
 };
@@ -154,7 +154,13 @@ export async function runReadiness(
     });
   }
 
-  const attempted = input.pagesAttempted ?? input.pages.length;
+  // **`pagesAttempted` is required, with no default.** An earlier version fell
+  // back to `pages.length`, which meant a caller that forgot to pass it reported
+  // *all N pages analysed* — the gap silently closed and the reader is left
+  // believing a three-page sample is a whole site. **A default that hides an
+  // omission is worse than a type error**, and a mutation that deleted the
+  // forward passed cleanly while this default existed.
+  const attempted = input.pagesAttempted;
   if (input.pages.length < attempted) {
     notes.push({
       what: `${attempted - input.pages.length} of ${attempted} crawled pages`,

@@ -6,6 +6,7 @@
  */
 import { and, count, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
+import { citabilityColumns } from "@/server/features/audit/repositories/auditCitabilityPages";
 import {
   audits,
   auditIssues,
@@ -177,6 +178,10 @@ async function insertCrawledBatch(
       h5Count: page.h5Count,
       h6Count: page.h6Count,
       headingOrderJson: JSON.stringify(page.headingOrder),
+      // **The rule lives in a testable function**, because the inline version was
+      // unreachable without a database and two mutations that stopped these columns
+      // being written left every suite in the repository green.
+      ...citabilityColumns(page),
       wordCount: page.wordCount,
       contentHash: page.contentHash,
       imagesTotal: page.imagesTotal,
@@ -258,19 +263,6 @@ async function insertLighthouseResults(
       target: auditLighthouseResults.id,
       set: dataColumns,
     });
-  });
-}
-
-async function getAuditForProject(auditId: string, projectId: string) {
-  return db.query.audits.findFirst({
-    where: and(eq(audits.id, auditId), eq(audits.projectId, projectId)),
-  });
-}
-
-async function getLatestAuditForProject(projectId: string) {
-  return db.query.audits.findFirst({
-    where: eq(audits.projectId, projectId),
-    orderBy: desc(audits.startedAt),
   });
 }
 
@@ -368,62 +360,6 @@ async function getAuditUsageForOrganization(organizationId: string) {
   };
 }
 
-async function getAuditResultsForProject(auditId: string, projectId: string) {
-  const audit = await getAuditForProject(auditId, projectId);
-  if (!audit) {
-    return { audit: null, pages: [], lighthouse: [], issues: [] };
-  }
-
-  const [pages, lighthouse, issues] = await Promise.all([
-    db.query.auditPages.findMany({
-      where: eq(auditPages.auditId, auditId),
-    }),
-    db.query.auditLighthouseResults.findMany({
-      where: eq(auditLighthouseResults.auditId, auditId),
-    }),
-    db.query.auditIssues.findMany({
-      where: eq(auditIssues.auditId, auditId),
-    }),
-  ]);
-
-  return { audit, pages, lighthouse, issues };
-}
-
-async function getLighthouseResultById(input: {
-  lighthouseResultId: string;
-  projectId: string;
-}) {
-  const lighthouse = await db.query.auditLighthouseResults.findFirst({
-    where: eq(auditLighthouseResults.id, input.lighthouseResultId),
-  });
-
-  if (!lighthouse) {
-    return null;
-  }
-
-  const [parentAudit, page] = await Promise.all([
-    db.query.audits.findFirst({
-      where: and(
-        eq(audits.id, lighthouse.auditId),
-        eq(audits.projectId, input.projectId),
-      ),
-    }),
-    db.query.auditPages.findFirst({
-      where: eq(auditPages.id, lighthouse.pageId),
-    }),
-  ]);
-
-  if (!parentAudit) {
-    return null;
-  }
-
-  return {
-    lighthouse,
-    page,
-    audit: parentAudit,
-  };
-}
-
 async function deleteAuditForProject(auditId: string, projectId: string) {
   await db
     .delete(audits)
@@ -439,15 +375,11 @@ export const AuditRepository = {
   insertCrawledBatch,
   insertIssues,
   insertLighthouseResults,
-  getAuditForProject,
-  getLatestAuditForProject,
   getIssuesForAudit,
   getPagesForAudit,
   countPagesByFetchClass,
   hasPagesForAudit,
   getAuditsByProject,
   getAuditUsageForOrganization,
-  getAuditResultsForProject,
-  getLighthouseResultById,
   deleteAuditForProject,
 } as const;
