@@ -349,7 +349,18 @@ export function stripStringsAndComments(source: string): string {
   return out;
 }
 
-function isNegativeControl(body: string): boolean {
+/**
+ * Exported so a gate elsewhere can be **tested by this survey's own rule**
+ * rather than by re-implementing it.
+ *
+ * `sentimentComparison.test.ts` is a gate — it inspects source — and its
+ * controls were being reported as blind. A copy of this logic written into
+ * that file would drift from this one silently, and the survey's own history
+ * is two versions of confidently-wrong detection; a third copy is how that
+ * happens again. The recogniser is exported so the question "does the survey
+ * count this control?" is answerable with the survey's answer.
+ */
+export function isNegativeControl(body: string): boolean {
   if (!NEGATIVE_CONTROL.reportsFinding.test(body)) return false;
 
   // A test that only reads the repository is asserting "nothing is wrong now",
