@@ -116,6 +116,14 @@ export const MISSING_TOOL_JUSTIFICATIONS: Record<string, ToolJustifications> = {
     open_world_justification: PRIVATE_STATE,
     destructive_justification: NOTHING_DESTRUCTIVE,
   },
+  serp_ask: {
+    read_only_justification:
+      "Posts a Google SERP for one keyword and returns one model's summary of it with the links that summary cited. The response states that the summary is a single model's reading rather than a fact about the web, that DataForSEO does not identify which model produced it, and whether the model also reasoned over the answer box, knowledge graph and featured snippet.",
+    open_world_justification:
+      "Sends a search term and a question to a private SEO research provider. The question concerns the caller's own research topic and is not published to any public service.",
+    destructive_justification:
+      "May use metered DataForSEO credits on dry_run: false, for both the SERP crawl and the summary, and may additionally crawl page content when fetch_content is set. Does not delete, overwrite, revoke access, send, or publish anything.",
+  },
 
   // --- Saved keywords. Removing a keyword deletes a stored record, so this is
   // destructive, and it says which project it affects.
