@@ -143,7 +143,13 @@ export const aiKeywordVolumeTool = {
       // agent reads before it spends, so a literal here is a claim the calculation
       // cannot correct — and it said "$0.002" for as long as the constant said
       // $0.002, which is exactly how the two drifted apart in the first place.
-      const usdPerKeyword = `${AI_KEYWORD_UNIT_COST_USD}`;
+      // **The dollar sign is part of the string.** Writing a bare $ next to an
+      // interpolation makes prettier strip it, so the message would read
+      // "0.0001 per keyword" — a figure with no unit, quoted by an agent
+      // deciding whether to spend. **A price without a currency is not a price**,
+      // and a test built the way I first built one agreed with the bug.
+      const usdPerKeyword = `USD ${AI_KEYWORD_UNIT_COST_USD}`;
+
       return mcpResponse({
         text: [
           `Dry run: AI demand for ${unique.size} keyword(s) will cost approximately ${estimate} credits (${usdPerKeyword} per keyword, DataForSEO AI Keyword Data). Charged amount is what DataForSEO reports at send time.`,

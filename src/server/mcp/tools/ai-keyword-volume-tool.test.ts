@@ -254,7 +254,15 @@ describe("ai_keyword_volume", () => {
     // `$0.002` as a literal while the calculation used the constant, so the two
     // said different things for as long as the price was wrong. It now builds the
     // expected string from the same number the credits came from.
-    expect(textOf(result)).toContain(`${AI_KEYWORD_UNIT_COST_USD} per keyword`);
+    // **Asserted as a sentence an agent would need, not as the implementation's
+    // own string.** The previous version built its expectation the way the code
+    // did, so it agreed with the code when the code dropped the currency — a
+    // test derived from the thing it tests cannot catch that thing being wrong.
+    expect(textOf(result)).toContain(
+      `USD ${AI_KEYWORD_UNIT_COST_USD} per keyword`,
+    );
+    // And explicitly: a bare figure with no unit is not a price.
+    expect(textOf(result)).not.toMatch(/\(\d+\.\d+ per keyword/);
     expect(keywordVolume).not.toHaveBeenCalled();
     expect(createDataforseoClient).not.toHaveBeenCalled();
   });
