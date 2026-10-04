@@ -50,6 +50,14 @@ export function mapDataforseoPathToCreditFeature(
         : "keyword_research";
     case "ai_optimization":
       return mapAiOptimization(normalizedPath[2]);
+    // Content Analysis is citation data about a keyword: which domains cite it,
+    // and how the citing pages were classified. `ai_citations` because that is
+    // what a customer reading the breakdown is looking at — **not** `backlinks`,
+    // which would render as "Backlinks" next to a call that never touched a
+    // backlink, and **not** the `default` of `site_audit`, which is what this
+    // fell through to before.
+    case "content_analysis":
+      return "ai_citations";
     case "business_data":
       return "local_seo";
     case "keywords_data":

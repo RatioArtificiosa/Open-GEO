@@ -52,6 +52,7 @@ import {
   fetchAiSummary,
   postSerpTaskForSummary,
 } from "@/server/lib/dataforseo/ai-summary";
+import { fetchContentAnalysisSummary } from "@/server/lib/dataforseo/content-analysis";
 import { fetchAiModeAnswer } from "@/server/lib/dataforseo/ai-mode";
 import {
   fetchLlmAggregatedMetrics,
@@ -140,6 +141,9 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       // SERP post that yields a task id, and the summary asked against it.
       serpTaskForSummary: meter(customer, postSerpTaskForSummary),
       aiSummary: meter(customer, fetchAiSummary),
+      // Content Analysis: what the open web says about a keyword. Metered as
+      // backlinks because that is the family the price book files it under.
+      contentSummary: meter(customer, fetchContentAnalysisSummary, "backlinks"),
     },
     labs: {
       // Callers (e.g. the keyword-metrics MCP tool) can attribute the spend to

@@ -75,6 +75,23 @@ describe("mapDataforseoPathToCreditFeature", () => {
     }
   });
 
+  it("bills content analysis as citations, not as site audit or backlinks", () => {
+    // Content Analysis answers "which domains cite this keyword, and how were
+    // those pages classified" — citation data. It falls through to the
+    // `default` of `site_audit` otherwise, and a customer would read a line
+    // saying we spent their credits crawling pages, which this never does.
+    // `backlinks` would be equally wrong: it renders as "Backlinks" beside a
+    // call that never touched a backlink.
+    expect(
+      mapDataforseoPathToCreditFeature([
+        "v3",
+        "content_analysis",
+        "summary",
+        "live",
+      ]),
+    ).toBe("ai_citations");
+  });
+
   it("still bills actual model calls as prompt responses", () => {
     // Every provider's `/llm_responses` endpoint. This is the branch that must
     // not widen: adding `ai_demand` was the fix for a mis-billing, and the
