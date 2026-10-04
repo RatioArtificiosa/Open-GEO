@@ -205,6 +205,120 @@ describe("cost estimator", () => {
   });
 });
 
+describe("crawl tier bundling", () => {
+  /**
+   * The vendor sells OnPage tiers as **bundles**, priced by DataForSEO on
+   * 2026-10-04 as `Basic + N x Base`:
+   *
+   * - Load resources — "All in Basic + resources" → 3x
+   * - Load JavaScript — "All in Basic + JavaScript" → 10x
+   * - Browser rendering — "All in Basic + resources + JS + rendering" → 34x
+   *
+   * The old estimator multiplied the multipliers, so a combination cost more than
+   * any single tier: a 50-page crawl with all three flags was quoted at **$7.65
+   * instead of $0.26**. **Options that cost more together than the most expensive
+   * one alone is not a pricing model, it is a multiplication bug** — and only
+   * asking that question finds it.
+   */
+  it("prices each tier at exactly the vendor's multiple of Basic", () => {
+    expect(estimateCrawl({ pages: 1 }).requestCostUsd).toBeCloseTo(0.00015, 6);
+    expect(
+      estimateCrawl({ pages: 1, loadResources: true }).requestCostUsd,
+    ).toBeCloseTo(0.00045, 6);
+    expect(
+      estimateCrawl({ pages: 1, loadJavaScript: true }).requestCostUsd,
+    ).toBeCloseTo(0.0015, 6);
+    expect(
+      estimateCrawl({ pages: 1, browserRendering: true }).requestCostUsd,
+    ).toBeCloseTo(0.0051, 6);
+    expect(
+      estimateCrawl({ pages: 1, keywordDensity: true }).requestCostUsd,
+    ).toBeCloseTo(0.0003, 6);
+  });
+
+  it("does not stack loadJavaScript on loadResources — the vendor bundles them", () => {
+    // Load JavaScript is "All in Basic + JS", so loading resources too adds
+    // nothing. Stacked, it came to 30x and charged for work the vendor does not
+    // bill twice.
+    const combined = estimateCrawl({
+      pages: 1,
+      loadResources: true,
+      loadJavaScript: true,
+    });
+    expect(combined.requestCostUsd).toBeCloseTo(0.0015, 6);
+  });
+
+  it("caps every combination at the highest tier requested", () => {
+    // **The property that makes this a pricing model rather than arithmetic:** no
+    // combination of flags may cost more than the most expensive single tier,
+    // because each tier already contains the ones below it.
+    const tiers = [
+      { loadResources: true },
+      { loadJavaScript: true },
+      { browserRendering: true },
+      { keywordDensity: true },
+    ];
+    const single = tiers.map(
+      (tier) => estimateCrawl({ pages: 1, ...tier }).requestCostUsd,
+    );
+    const mostExpensive = Math.max(...single);
+
+    for (const a of tiers) {
+      for (const b of tiers) {
+        const both = estimateCrawl({ pages: 1, ...a, ...b }).requestCostUsd;
+        expect(both).toBeLessThanOrEqual(mostExpensive + 1e-9);
+      }
+    }
+    const everything = estimateCrawl({
+      pages: 1,
+      loadResources: true,
+      loadJavaScript: true,
+      browserRendering: true,
+      keywordDensity: true,
+    });
+    expect(everything.requestCostUsd).toBeCloseTo(0.0051, 6);
+  });
+
+  it("prices a real crawl at the vendor's number, not a multiple of it", () => {
+    // The regression in the shape a customer would meet it.
+    const crawl = estimateCrawl({
+      pages: 50,
+      loadResources: true,
+      loadJavaScript: true,
+      browserRendering: true,
+    });
+    expect(crawl.requestCostUsd).toBeCloseTo(50 * 0.0051, 6);
+  });
+
+  it("says why combining flags does not add their costs", () => {
+    // The caveat is the user-facing half of the fix: without it, a customer
+    // reading "load resources and JavaScript" cannot tell why the number matches
+    // the JavaScript tier alone.
+    const combined = estimateCrawl({
+      pages: 1,
+      loadResources: true,
+      loadJavaScript: true,
+    });
+    expect(combined.caveats.join(" ")).toMatch(
+      /already includes resource loading/i,
+    );
+
+    const rendering = estimateCrawl({ pages: 1, browserRendering: true });
+    expect(rendering.caveats.join(" ")).toMatch(/one bundle/i);
+  });
+
+  it("still adds Lighthouse separately, because it is a separate product", () => {
+    // Lighthouse is not an OnPage tier — it is its own API — so it keeps adding.
+    const withLighthouse = estimateCrawl({
+      pages: 10,
+      loadJavaScript: true,
+      lighthousePages: 10,
+    });
+    expect(withLighthouse.totalUsd).toBeCloseTo(10 * 0.0015 + 10 * 0.005, 6);
+    expect(withLighthouse.lines).toHaveLength(2);
+  });
+});
+
 describe("crawl estimator", () => {
   it("prices a basic crawl at the base page rate", () => {
     const e = estimateCrawl({ pages: 100 });

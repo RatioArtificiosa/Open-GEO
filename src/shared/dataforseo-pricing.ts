@@ -253,7 +253,20 @@ export const DFS_ROWS = {
 // ---------------------------------------------------------------------------
 export const DFS_ONPAGE = {
   basePage: money(0.00015),
-  /** Multiplier, not an absolute price: Basic + N x Base. */
+  /**
+   * Total multiplier **for that tier alone**, priced by DataForSEO on
+   * 2026-10-04 as `Basic + N x Base`:
+   *
+   * - Load resources — "All in Basic + images/CSS/scripts" → 1 + 2 = **3**
+   * - Load JavaScript — "All in Basic + JS" → 1 + 9 = **10**
+   * - Browser rendering — "All in Basic + resources + JS + rendering" → 1 + 33 = **34**
+   * - Keyword density — "All in Basic + density" → 1 + 1 = **2**
+   *
+   * **These are tier totals, not increments to be stacked.** Each already
+   * contains the tiers above it, which is why rendering is 34× rather than
+   * 2 + 9 + 24 — see `estimateCrawl`, which was multiplying them and so quoted a
+   * 50-page crawl at $7.65 instead of $0.26.
+   */
   loadResources: 3, // $0.00045/page
   loadJavaScript: 10, // $0.0015/page
   browserRendering: 34, // $0.0051/page — only for Core Web Vitals
@@ -530,11 +543,26 @@ export function estimateCrawl(input: {
   keywordDensity?: boolean;
   lighthousePages?: number;
 }): CostEstimate {
-  let perPage = DFS_ONPAGE.basePage;
-  if (input.loadResources) perPage *= DFS_ONPAGE.loadResources;
-  if (input.loadJavaScript) perPage *= DFS_ONPAGE.loadJavaScript;
-  if (input.browserRendering) perPage *= DFS_ONPAGE.browserRendering;
-  if (input.keywordDensity) perPage *= DFS_ONPAGE.keywordDensity;
+  // **The highest tier wins, because each tier already contains the ones below
+  // it.** DataForSEO prices these as bundles — "Enable browser rendering" is
+  // "All in Basic + Load resources + Load JavaScript + rendering" — so stacking the
+  // multipliers charged a customer for resources and JavaScript twice, or thirty
+  // times, or a thousand.
+  //
+  // The old code multiplied: `loadResources * loadJavaScript` came to 30x rather
+  // than 10x, and all three flags came to 1,020x — **$0.153 per page where the real
+  // cost is $0.0051**, so a 50-page crawl was quoted at $7.65 instead of $0.26.
+  //
+  // `max` rather than an if-chain because the tiers are ordered and the highest
+  // one subsumes the rest: the same answer, with the reason stated once.
+  const tierMultiplier = Math.max(
+    1,
+    input.loadResources ? DFS_ONPAGE.loadResources : 1,
+    input.loadJavaScript ? DFS_ONPAGE.loadJavaScript : 1,
+    input.browserRendering ? DFS_ONPAGE.browserRendering : 1,
+    input.keywordDensity ? DFS_ONPAGE.keywordDensity : 1,
+  );
+  const perPage = round(DFS_ONPAGE.basePage * tierMultiplier);
 
   const crawl = round(perPage * input.pages);
   const lighthouse = round(
@@ -553,9 +581,13 @@ export function estimateCrawl(input: {
     lines,
     caveats: input.browserRendering
       ? [
-          "Browser rendering is 34× the base page price — it is the only mode that yields Core Web Vitals, so it stays an explicit line item.",
+          "Browser rendering is 34× the base page price and already includes resource and JavaScript loading — the vendor sells it as one bundle, so combining flags does not add their costs. It is the only mode that yields Core Web Vitals, so it stays an explicit line item.",
         ]
-      : [],
+      : input.loadJavaScript && input.loadResources
+        ? [
+            "Load JavaScript already includes resource loading at the vendor, so this is priced as the JavaScript tier alone rather than as the two added together.",
+          ]
+        : [],
   };
 }
 
