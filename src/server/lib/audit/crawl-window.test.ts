@@ -33,6 +33,7 @@ function page(
     h5Count: 0,
     h6Count: 0,
     headingOrder: [],
+    headings: [],
     wordCount: 0,
     contentHash: null,
     isHtml: true,

@@ -208,6 +208,11 @@ export async function crawlPage(
       h5Count: headingCount(5),
       h6Count: headingCount(6),
       headingOrder: analysis.headingOrder,
+      // **The heading text, carried instead of discarded.** `analysis.h1s` was
+      // reduced to a count two lines up, which is why the citability rubric could
+      // never ask what a heading said. Cheap to keep — the strings are already in
+      // memory and `structuredClone` below detaches them from the HTML body.
+      headings: analysis.headings,
       wordCount: analysis.wordCount,
       contentHash: analysis.bodyText
         ? await sha256Hex(analysis.bodyText)
@@ -316,6 +321,10 @@ function emptyPageResult(input: {
     h5Count: 0,
     h6Count: 0,
     headingOrder: [],
+    // Empty rather than null: the page was not parsed, so there are no headings
+    // **as a finding**, which is different from "no headings found" — the same
+    // distinction `analyzeHtml` makes and the citability rubric scores on.
+    headings: [],
     wordCount: 0,
     contentHash: null,
     isHtml: false,

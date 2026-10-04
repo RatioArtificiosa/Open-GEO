@@ -38,6 +38,11 @@ function makePage(overrides: Partial<CrawledPageResult>): CrawledPageResult {
     h5Count: 0,
     h6Count: 0,
     headingOrder: [1, 2, 3],
+    headings: [
+      { level: 1, title: "Title" },
+      { level: 2, title: "Section" },
+      { level: 3, title: "Subsection" },
+    ],
     wordCount: 500,
     contentHash: "abc123",
     isHtml: true,
@@ -139,6 +144,7 @@ describe("runPageReporters", () => {
       metaDescription: "",
       h1Count: 0,
       headingOrder: [],
+      headings: [],
       wordCount: 0,
       contentHash: null,
     });
@@ -152,6 +158,7 @@ describe("runPageReporters", () => {
       metaDescription: "",
       h1Count: 0,
       headingOrder: [],
+      headings: [],
       wordCount: 0,
       contentHash: null,
     });

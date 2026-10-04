@@ -26,6 +26,22 @@ const HEADING_LEVELS: Record<string, number> = {
   h6: 6,
 };
 const MAX_ANCHOR_CHARS = 200;
+
+/**
+ * Appends a heading's collected text to `headings`, if there is one open.
+ *
+ * A single place pushes, so the EOF flush and the close-tag path cannot disagree
+ * about trimming or about which fields are recorded. Returns nothing: the
+ * caller owns the buffer's lifecycle, because clearing it inside a helper would
+ * need to reassign a `let` the parser closures also write.
+ */
+function flushOpenHeading(
+  headings: Array<{ level: number; title: string }>,
+  open: { level: number; text: string[] } | null,
+): void {
+  if (open === null) return;
+  headings.push({ level: open.level, title: open.text.join("").trim() });
+}
 /**
  * Per-page caps on the extracted collections. Crawler-trap and mega-menu
  * pages can carry thousands of links/images per page, and crawled pages sit
@@ -67,9 +83,25 @@ export function analyzeHtml(
   let hasStructuredData = false;
   const hreflangTags: string[] = [];
 
-  const h1s: string[] = [];
   const headingOrder: number[] = [];
-  let openH1: string[] | null = null;
+  /**
+   * Heading text, paired with its level, in document order.
+   *
+   * **This replaces an h1-only buffer, and the h1 array is kept as a derived
+   * view because four existing callers read it.** The old code opened a buffer
+   * only for `h1`, so h2–h6 text was never captured — and `crawlPage` reduced
+   * even the h1 text to a *count*, discarding the string. Everything needed to
+   * answer "does this page lead with an answer" was therefore already in the
+   * parser and thrown away one layer up.
+   *
+   * One buffer, not a stack: HTML forbids nesting one heading inside another, so
+   * a new heading simply replaces an unclosed one rather than nesting. That
+   * matches how `headingOrder` already behaves — it pushes on open without
+   * tracking depth — so the two arrays cannot disagree about how many headings
+   * a page has.
+   */
+  const headings: Array<{ level: number; title: string }> = [];
+  let openHeading: { level: number; text: string[] } | null = null;
 
   const images: Array<{ src: string | null; alt: string | null }> = [];
   const linksByTarget = new Map<string, PageLink>();
@@ -188,7 +220,10 @@ export function analyzeHtml(
         const headingLevel = HEADING_LEVELS[name];
         if (headingLevel !== undefined) {
           headingOrder.push(headingLevel);
-          if (headingLevel === 1 && openH1 === null) openH1 = [];
+          // Replaces an unclosed heading rather than nesting: HTML forbids one
+          // heading inside another, and a buffer left open by malformed markup
+          // would otherwise swallow every following heading into one string.
+          openHeading = { level: headingLevel, text: [] };
         }
       },
       ontext(text) {
@@ -197,7 +232,7 @@ export function analyzeHtml(
           if (title !== null) title += text;
           return;
         }
-        if (openH1) openH1.push(text);
+        if (openHeading) openHeading.text.push(text);
         if (openAnchor) openAnchor.text.push(text);
         if (bodyDepth > 0) {
           bodyParts.push(text);
@@ -221,9 +256,20 @@ export function analyzeHtml(
         if (name === "head" && headDepth > 0) headDepth -= 1;
         if (name === "body" && bodyDepth > 0) bodyDepth -= 1;
         if (name === "a") closeAnchor();
-        if (name === "h1" && openH1) {
-          h1s.push(openH1.join("").trim());
-          openH1 = null;
+        /**
+         * Closes the open heading, **only when the closing tag is a heading.**
+         *
+         * An earlier version closed on every `onclosetag`, which pushed a
+         * heading the instant any child element ended — so `<h1>Total <b>3</b>`
+         * was recorded as two headings, the second holding `3`. The level is
+         * checked rather than the name because the name is lowercased by the
+         * tokenizer and `HEADING_LEVELS` is the single source of truth for
+         * which tags count as headings.
+         */
+        const closingLevel = HEADING_LEVELS[name];
+        if (closingLevel !== undefined && openHeading?.level === closingLevel) {
+          flushOpenHeading(headings, openHeading);
+          openHeading = null;
         }
       },
     },
@@ -237,6 +283,21 @@ export function analyzeHtml(
   const bodyText = rawText.replace(/\s+/g, " ").trim();
   const wordCount = bodyText ? bodyText.split(/\s+/).length : 0;
 
+  /**
+   * An unclosed heading at EOF still counts. `headingOrder` already recorded its
+   * level when the tag opened, so dropping the text here would leave the two
+   * disagreeing about how many headings the page has — and a count that
+   * disagrees with the list is worse than either being wrong alone.
+   *
+   * **A function rather than an inline `if`.** Every write to `openHeading`
+   * happens inside a parser callback, and TypeScript's control-flow analysis
+   * treats a closure's assignments as invisible — so at this point it narrows
+   * `openHeading` to `null` and `openHeading.level` does not typecheck. Reading
+   * it through a function boundary is the honest description of what this is:
+   * a state the analysis cannot follow, so it is asked for rather than assumed.
+   */
+  flushOpenHeading(headings, openHeading);
+
   return {
     url: pageUrl,
     statusCode,
@@ -249,7 +310,11 @@ export function analyzeHtml(
     ogTitle,
     ogDescription,
     ogImage,
-    h1s,
+    // **Derived, not independently tracked.** Filtering `headings` by level is
+    // the same list `headingOrder` was built from, so the two cannot drift —
+    // which the old parallel h1 buffer could, and did for nested markup.
+    h1s: headings.filter((h) => h.level === 1).map((h) => h.title),
+    headings,
     headingOrder,
     wordCount,
     bodyText,

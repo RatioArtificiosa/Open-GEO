@@ -67,6 +67,18 @@ export interface PageAnalysis {
   // Headings
   h1s: string[];
   headingOrder: number[];
+  /**
+   * Heading text with its level, in document order.
+   *
+   * **Added because everything downstream needed it and the parser already had
+   * it.** The audit's citability rubric asks whether a page leads with an answer
+   * and what fraction of its subheadings are questions — both impossible to
+   * answer from `headingOrder`, which is levels only. Heading text was collected
+   * for h1 and then discarded by `crawlPage`; h2–h6 text was never collected at
+   * all. `h1s` remains because four existing callers read it, and it is now
+   * derived from this list so the two cannot disagree.
+   */
+  headings: Array<{ level: number; title: string }>;
 
   // Content
   wordCount: number;
@@ -130,6 +142,16 @@ export interface CrawledPageResult {
   h5Count: number;
   h6Count: number;
   headingOrder: number[];
+  /**
+   * Heading text with its level, in document order.
+   *
+   * **Carried through `crawlPage` because that is where the text used to die.**
+   * The analyzer collected h1 text and `crawlPage` reduced it to a count, so the
+   * citability rubric had no way to ask what a heading *said* — only how many
+   * there were. Transient, like `isHtml`: persisted as counts and level order,
+   * and consumed in the same run by anything needing the text.
+   */
+  headings: Array<{ level: number; title: string }>;
   wordCount: number;
   contentHash: string | null;
   /**
