@@ -9,4 +9,5 @@ export const FREE_TOOL_PATHS = {
   "spam-score-checker": "/spam-score-checker",
   "domain-age-checker": "/domain-age-checker",
   "serp-simulator": "/serp-simulator",
+  "ask-the-ai": "/ask-the-ai",
 };

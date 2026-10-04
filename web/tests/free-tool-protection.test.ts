@@ -24,6 +24,29 @@ const guard = (turnstileToken: string | undefined = "token", headers = {}) =>
   });
 let fetchMock: ReturnType<typeof vi.fn>;
 let limit: ReturnType<typeof vi.fn>;
+
+/**
+ * The POST handler off a dynamically imported route module.
+ *
+ * `createFileRoute` returns a union of every route shape in the app, so
+ * `.server` is not on the type — and the routes under test are known to be API
+ * routes with a POST handler. Named once here rather than repeated per call
+ * site, because three copies of this cast is three places to update when the
+ * route shape changes.
+ */
+type ApiRouteModule = {
+  Route: unknown;
+};
+async function postTo(importPath: string, request: Request): Promise<Response> {
+  const module = (await import(importPath)) as ApiRouteModule;
+  const route = module.Route as {
+    server: {
+      handlers: { POST: (args: { request: Request }) => Promise<Response> };
+    };
+  };
+  return route.server.handlers.POST({ request });
+}
+
 beforeEach(() => {
   vi.stubEnv("DEV", false);
   for (const key of Object.keys(bindings.value)) delete bindings.value[key];
@@ -180,6 +203,10 @@ describe("every free API protects cache hits and provider calls", () => {
     ["competitor-analysis", { competitor: "opengeo.so", locationCode: 2840 }],
     ["spam-score-checker", { target: "opengeo.so" }],
     ["domain-age-checker", { domains: ["opengeo.so"] }],
+    [
+      "ask-the-ai",
+      { keyword: "best crm", prompt: "which tools do agencies use?" },
+    ],
   ] as const;
   it.each(cases)(
     "%s rejects missing verification before cache or provider access",
@@ -264,6 +291,206 @@ describe("every free API protects cache hits and provider calls", () => {
     expect(reserve).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toContain("/siteverify");
+  });
+});
+
+describe("Ask the AI runs the two-step flow in order", () => {
+  /**
+   * `serp/ai_summary` cannot be called on its own — it needs a `task_id` from a
+   * prior SERP post. So the order is not a style choice: a parallel pair would
+   * ask a summary about a task that does not exist yet, and the provider bills
+   * both attempts.
+   */
+  it("posts the SERP before asking, and reserves both calls up front", async () => {
+    bindings.value.DATAFORSEO_API_KEY = "test-key";
+    const reserve = vi.fn().mockResolvedValue("allowed");
+    bindings.value.FREE_TOOL_BUDGET = { getByName: () => ({ reserve }) };
+    vi.stubGlobal("caches", {
+      default: {
+        match: vi.fn().mockResolvedValue(undefined),
+        put: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({
+          success: true,
+          hostname: "opengeo.so",
+          action: "free_tool",
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          tasks: [
+            {
+              id: "task-123",
+              status_code: 20100,
+              status_message: "Task Created.",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          tasks: [
+            {
+              status_code: 20000,
+              result: [
+                {
+                  items: [
+                    {
+                      summary:
+                        "Agencies use suites. [Reddit](https://reddit.com/r/seo) agrees.",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        }),
+      );
+
+    const response = await postTo(
+      "../src/routes/api/ask-the-ai",
+      new Request("https://opengeo.so/api/ask-the-ai", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "cf-connecting-ip": "203.0.113.9",
+        },
+        body: JSON.stringify({
+          keyword: "best crm",
+          prompt: "which tools do agencies use?",
+          turnstileToken: "token",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    // `toMatchObject` rather than property reads: `response.json()` is
+    // `unknown`, and narrowing it by hand here would be a claim about the
+    // response shape that the matcher already makes.
+    expect(await response.json()).toMatchObject({
+      summary: expect.stringContaining("Agencies use suites"),
+      // The cited link is extracted, and an uncited answer would say so.
+      links: [{ title: "Reddit", url: "https://reddit.com/r/seo" }],
+      uncited: false,
+    });
+
+    // Both calls reserved as one charge, before the provider was contacted.
+    expect(reserve.mock.calls[0][0]).toMatchObject({
+      tool: "ask-the-ai",
+      calls: 2,
+    });
+    expect(reserve.mock.invocationCallOrder[0]).toBeLessThan(
+      fetchMock.mock.invocationCallOrder[1],
+    );
+
+    // The order the two provider calls were made in.
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      "https://api.dataforseo.com/v3/serp/google/organic/task_post",
+    );
+    expect(fetchMock.mock.calls[2][0]).toBe(
+      "https://api.dataforseo.com/v3/serp/ai_summary",
+    );
+    // The summary carries the id the post returned, and not the page content.
+    const summaryBody = JSON.parse(
+      String(fetchMock.mock.calls[2][1]?.body),
+    ) as Array<Record<string, unknown>>;
+    expect(summaryBody[0]).toMatchObject({
+      task_id: "task-123",
+      prompt: "which tools do agencies use?",
+      fetch_content: false,
+    });
+  });
+
+  it("refuses an over-long prompt before spending, because the provider bills rejections", async () => {
+    bindings.value.DATAFORSEO_API_KEY = "test-key";
+    const reserve = vi.fn();
+    bindings.value.FREE_TOOL_BUDGET = { getByName: () => ({ reserve }) };
+    vi.stubGlobal("caches", {
+      default: { match: vi.fn().mockResolvedValue(undefined) },
+    });
+
+    const response = await postTo(
+      "../src/routes/api/ask-the-ai",
+      new Request("https://opengeo.so/api/ask-the-ai", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "cf-connecting-ip": "203.0.113.9",
+        },
+        body: JSON.stringify({
+          keyword: "best crm",
+          prompt: "x".repeat(2001),
+          turnstileToken: "token",
+        }),
+      }),
+    );
+
+    // The length is knowable locally, so the request is refused before
+    // verification, before the cache and before any provider call — the test
+    // wrote `1` here on the assumption Turnstile ran first, and was wrong.
+    expect(response.status).toBe(400);
+    expect(reserve).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reports an uncited answer as uncited rather than as a sourced one", async () => {
+    bindings.value.DATAFORSEO_API_KEY = "test-key";
+    const reserve = vi.fn().mockResolvedValue("allowed");
+    bindings.value.FREE_TOOL_BUDGET = { getByName: () => ({ reserve }) };
+    vi.stubGlobal("caches", {
+      default: {
+        match: vi.fn().mockResolvedValue(undefined),
+        put: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({
+          success: true,
+          hostname: "opengeo.so",
+          action: "free_tool",
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          tasks: [{ id: "task-123", status_code: 20100 }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          tasks: [
+            {
+              status_code: 20000,
+              result: [{ items: [{ summary: "Agencies use suites." }] }],
+            },
+          ],
+        }),
+      );
+
+    const response = await postTo(
+      "../src/routes/api/ask-the-ai",
+      new Request("https://opengeo.so/api/ask-the-ai", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "cf-connecting-ip": "203.0.113.9",
+        },
+        body: JSON.stringify({
+          keyword: "best crm",
+          prompt: "which tools?",
+          turnstileToken: "token",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      links: [],
+      uncited: true,
+    });
   });
 });
 

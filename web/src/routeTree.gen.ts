@@ -27,6 +27,7 @@ import { Route as ApiDomainAgeCheckerRouteImport } from './routes/api/domain-age
 import { Route as ApiCompetitorKeywordFinderRouteImport } from './routes/api/competitor-keyword-finder'
 import { Route as ApiCompetitorAnalysisRouteImport } from './routes/api/competitor-analysis'
 import { Route as ApiBacklinkCheckRouteImport } from './routes/api/backlink-check'
+import { Route as ApiAskTheAiRouteImport } from './routes/api/ask-the-ai'
 import { Route as MarketingWhyOpengeoRouteImport } from './routes/_marketing/why-opengeo'
 import { Route as MarketingWebsiteTrafficCheckerRouteImport } from './routes/_marketing/website-traffic-checker'
 import { Route as MarketingToolsRouteImport } from './routes/_marketing/tools'
@@ -44,6 +45,7 @@ import { Route as MarketingDomainAgeCheckerRouteImport } from './routes/_marketi
 import { Route as MarketingCompetitorKeywordFinderRouteImport } from './routes/_marketing/competitor-keyword-finder'
 import { Route as MarketingCompetitorAnalysisRouteImport } from './routes/_marketing/competitor-analysis'
 import { Route as MarketingBacklinkCheckerRouteImport } from './routes/_marketing/backlink-checker'
+import { Route as MarketingAskTheAiRouteImport } from './routes/_marketing/ask-the-ai'
 import { Route as MarketingAboutRouteImport } from './routes/_marketing/about'
 import { Route as MarketingLibraryIndexRouteImport } from './routes/_marketing/library/index'
 import { Route as MarketingFeaturesIndexRouteImport } from './routes/_marketing/features/index'
@@ -181,6 +183,11 @@ const ApiBacklinkCheckRoute = ApiBacklinkCheckRouteImport.update({
   path: '/api/backlink-check',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAskTheAiRoute = ApiAskTheAiRouteImport.update({
+  id: '/api/ask-the-ai',
+  path: '/api/ask-the-ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MarketingWhyOpengeoRoute = MarketingWhyOpengeoRouteImport.update({
   id: '/why-opengeo',
   path: '/why-opengeo',
@@ -275,6 +282,11 @@ const MarketingBacklinkCheckerRoute =
     path: '/backlink-checker',
     getParentRoute: () => MarketingRoute,
   } as any)
+const MarketingAskTheAiRoute = MarketingAskTheAiRouteImport.update({
+  id: '/ask-the-ai',
+  path: '/ask-the-ai',
+  getParentRoute: () => MarketingRoute,
+} as any)
 const MarketingAboutRoute = MarketingAboutRouteImport.update({
   id: '/about',
   path: '/about',
@@ -549,6 +561,7 @@ const MarketingLibraryAiAgentSeoHumanInTheLoopContentRoute =
 export interface FileRoutesByFullPath {
   '/': typeof MarketingIndexRoute
   '/about': typeof MarketingAboutRoute
+  '/ask-the-ai': typeof MarketingAskTheAiRoute
   '/backlink-checker': typeof MarketingBacklinkCheckerRoute
   '/competitor-analysis': typeof MarketingCompetitorAnalysisRoute
   '/competitor-keyword-finder': typeof MarketingCompetitorKeywordFinderRoute
@@ -566,6 +579,7 @@ export interface FileRoutesByFullPath {
   '/tools': typeof MarketingToolsRoute
   '/website-traffic-checker': typeof MarketingWebsiteTrafficCheckerRoute
   '/why-opengeo': typeof MarketingWhyOpengeoRoute
+  '/api/ask-the-ai': typeof ApiAskTheAiRoute
   '/api/backlink-check': typeof ApiBacklinkCheckRoute
   '/api/competitor-analysis': typeof ApiCompetitorAnalysisRoute
   '/api/competitor-keyword-finder': typeof ApiCompetitorKeywordFinderRoute
@@ -629,6 +643,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/about': typeof MarketingAboutRoute
+  '/ask-the-ai': typeof MarketingAskTheAiRoute
   '/backlink-checker': typeof MarketingBacklinkCheckerRoute
   '/competitor-analysis': typeof MarketingCompetitorAnalysisRoute
   '/competitor-keyword-finder': typeof MarketingCompetitorKeywordFinderRoute
@@ -646,6 +661,7 @@ export interface FileRoutesByTo {
   '/tools': typeof MarketingToolsRoute
   '/website-traffic-checker': typeof MarketingWebsiteTrafficCheckerRoute
   '/why-opengeo': typeof MarketingWhyOpengeoRoute
+  '/api/ask-the-ai': typeof ApiAskTheAiRoute
   '/api/backlink-check': typeof ApiBacklinkCheckRoute
   '/api/competitor-analysis': typeof ApiCompetitorAnalysisRoute
   '/api/competitor-keyword-finder': typeof ApiCompetitorKeywordFinderRoute
@@ -712,6 +728,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_marketing': typeof MarketingRouteWithChildren
   '/_marketing/about': typeof MarketingAboutRoute
+  '/_marketing/ask-the-ai': typeof MarketingAskTheAiRoute
   '/_marketing/backlink-checker': typeof MarketingBacklinkCheckerRoute
   '/_marketing/competitor-analysis': typeof MarketingCompetitorAnalysisRoute
   '/_marketing/competitor-keyword-finder': typeof MarketingCompetitorKeywordFinderRoute
@@ -729,6 +746,7 @@ export interface FileRoutesById {
   '/_marketing/tools': typeof MarketingToolsRoute
   '/_marketing/website-traffic-checker': typeof MarketingWebsiteTrafficCheckerRoute
   '/_marketing/why-opengeo': typeof MarketingWhyOpengeoRoute
+  '/api/ask-the-ai': typeof ApiAskTheAiRoute
   '/api/backlink-check': typeof ApiBacklinkCheckRoute
   '/api/competitor-analysis': typeof ApiCompetitorAnalysisRoute
   '/api/competitor-keyword-finder': typeof ApiCompetitorKeywordFinderRoute
@@ -796,6 +814,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/about'
+    | '/ask-the-ai'
     | '/backlink-checker'
     | '/competitor-analysis'
     | '/competitor-keyword-finder'
@@ -813,6 +832,7 @@ export interface FileRouteTypes {
     | '/tools'
     | '/website-traffic-checker'
     | '/why-opengeo'
+    | '/api/ask-the-ai'
     | '/api/backlink-check'
     | '/api/competitor-analysis'
     | '/api/competitor-keyword-finder'
@@ -876,6 +896,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/about'
+    | '/ask-the-ai'
     | '/backlink-checker'
     | '/competitor-analysis'
     | '/competitor-keyword-finder'
@@ -893,6 +914,7 @@ export interface FileRouteTypes {
     | '/tools'
     | '/website-traffic-checker'
     | '/why-opengeo'
+    | '/api/ask-the-ai'
     | '/api/backlink-check'
     | '/api/competitor-analysis'
     | '/api/competitor-keyword-finder'
@@ -958,6 +980,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_marketing'
     | '/_marketing/about'
+    | '/_marketing/ask-the-ai'
     | '/_marketing/backlink-checker'
     | '/_marketing/competitor-analysis'
     | '/_marketing/competitor-keyword-finder'
@@ -975,6 +998,7 @@ export interface FileRouteTypes {
     | '/_marketing/tools'
     | '/_marketing/website-traffic-checker'
     | '/_marketing/why-opengeo'
+    | '/api/ask-the-ai'
     | '/api/backlink-check'
     | '/api/competitor-analysis'
     | '/api/competitor-keyword-finder'
@@ -1040,6 +1064,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   MarketingRoute: typeof MarketingRouteWithChildren
+  ApiAskTheAiRoute: typeof ApiAskTheAiRoute
   ApiBacklinkCheckRoute: typeof ApiBacklinkCheckRoute
   ApiCompetitorAnalysisRoute: typeof ApiCompetitorAnalysisRoute
   ApiCompetitorKeywordFinderRoute: typeof ApiCompetitorKeywordFinderRoute
@@ -1186,6 +1211,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBacklinkCheckRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ask-the-ai': {
+      id: '/api/ask-the-ai'
+      path: '/api/ask-the-ai'
+      fullPath: '/api/ask-the-ai'
+      preLoaderRoute: typeof ApiAskTheAiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_marketing/why-opengeo': {
       id: '/_marketing/why-opengeo'
       path: '/why-opengeo'
@@ -1303,6 +1335,13 @@ declare module '@tanstack/react-router' {
       path: '/backlink-checker'
       fullPath: '/backlink-checker'
       preLoaderRoute: typeof MarketingBacklinkCheckerRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/_marketing/ask-the-ai': {
+      id: '/_marketing/ask-the-ai'
+      path: '/ask-the-ai'
+      fullPath: '/ask-the-ai'
+      preLoaderRoute: typeof MarketingAskTheAiRouteImport
       parentRoute: typeof MarketingRoute
     }
     '/_marketing/about': {
@@ -1625,6 +1664,7 @@ declare module '@tanstack/react-router' {
 
 interface MarketingRouteChildren {
   MarketingAboutRoute: typeof MarketingAboutRoute
+  MarketingAskTheAiRoute: typeof MarketingAskTheAiRoute
   MarketingBacklinkCheckerRoute: typeof MarketingBacklinkCheckerRoute
   MarketingCompetitorAnalysisRoute: typeof MarketingCompetitorAnalysisRoute
   MarketingCompetitorKeywordFinderRoute: typeof MarketingCompetitorKeywordFinderRoute
@@ -1691,6 +1731,7 @@ interface MarketingRouteChildren {
 
 const MarketingRouteChildren: MarketingRouteChildren = {
   MarketingAboutRoute: MarketingAboutRoute,
+  MarketingAskTheAiRoute: MarketingAskTheAiRoute,
   MarketingBacklinkCheckerRoute: MarketingBacklinkCheckerRoute,
   MarketingCompetitorAnalysisRoute: MarketingCompetitorAnalysisRoute,
   MarketingCompetitorKeywordFinderRoute: MarketingCompetitorKeywordFinderRoute,
@@ -1792,6 +1833,7 @@ const MarketingRouteWithChildren = MarketingRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   MarketingRoute: MarketingRouteWithChildren,
+  ApiAskTheAiRoute: ApiAskTheAiRoute,
   ApiBacklinkCheckRoute: ApiBacklinkCheckRoute,
   ApiCompetitorAnalysisRoute: ApiCompetitorAnalysisRoute,
   ApiCompetitorKeywordFinderRoute: ApiCompetitorKeywordFinderRoute,

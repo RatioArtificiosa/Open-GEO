@@ -108,6 +108,20 @@ export const freeTools = {
       "website-traffic-checker",
     ],
   },
+  "ask-the-ai": {
+    slug: "ask-the-ai",
+    path: FREE_TOOL_PATHS["ask-the-ai"],
+    name: "Ask the AI",
+    // The first GEO free tool: the eight above are all classic SEO, and this is
+    // the sampling that shows an agent what the product is actually for.
+    // `ai-brand-visibility`, not `geo` — the prerender crawls every
+    // `featureHref`, so a plausible-looking path that does not exist fails the
+    // build rather than shipping a 404 from the upsell card.
+    shortDescription:
+      "Ask Google's AI answer a question and read what it says, with the sources it used.",
+    featureHref: "/features/ai-brand-visibility",
+    related: ["serp-simulator", "keyword-generator", "competitor-analysis"],
+  },
 } satisfies Record<FreeToolSlug, FreeTool>;
 
 /** Registry order drives the hub and the footer column. */
