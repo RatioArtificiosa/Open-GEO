@@ -65,7 +65,7 @@ const inputSchema = {
     .max(300)
     .optional()
     .describe(
-      "How many citing pages to return. Defaults to 25; the vendor allows up to 1,000.",
+      "How many citing pages to return. Defaults to 25 and is capped at 300 — the vendor allows 1,000, but each row carries a snippet and two score maps, and a 1,000-row response is not something an agent can read.",
     ),
   sortBy: z
     .enum(["prominence", "anger"])
@@ -247,7 +247,12 @@ export const getWebCitationsTool = {
     }
 
     const lines: string[] = [
-      `${pages.totalCount ?? pages.rows.length} pages in DataForSEO's index cite "${args.keyword}". Showing ${pages.rows.length}, most prominent first.`,
+      `${pages.totalCount ?? pages.rows.length} pages in DataForSEO's index cite "${args.keyword}". Showing ${pages.rows.length}, ${
+        // **The header states the sort that ran**, not the sort that usually
+        // runs: a reader who asked for anger-first and sees "most prominent
+        // first" has been told something false about their own request.
+        sortBy === "anger" ? "most angry first." : "most prominent first."
+      }`,
       "",
     ];
 

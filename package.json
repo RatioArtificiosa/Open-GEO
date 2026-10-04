@@ -40,6 +40,7 @@
     "sync-plugin-skills": "node scripts/sync-plugin-skills.mjs",
     "check:journals": "node scripts/check-migration-journals.mjs",
     "submission:generate": "tsx scripts/generate-app-submission.ts && prettier --write chatgpt-app-submission.json",
+    "submission:check": "node scripts/check-submission-justifications.mjs",
     "test": "vitest run",
     "detect:slop": "impeccable detect src/",
     "test:watch": "vitest",
@@ -57,7 +58,7 @@
     "repair:rank-locations": "tsx scripts/repair-rank-tracking-locations.ts",
     "seed:rank-tracking": "tsx scripts/seed-rank-tracking.ts",
     "seed:projects": "tsx scripts/seed-projects.ts",
-    "ci:check": "prettier --check . && knip && tsc --noEmit && tsc --noEmit -p badseo/tsconfig.json && oxlint . --type-aware && pnpm detect:slop && pnpm sync-plugin-skills",
+    "ci:check": "prettier --check . && knip && tsc --noEmit && tsc --noEmit -p badseo/tsconfig.json && oxlint . --type-aware && pnpm detect:slop && pnpm sync-plugin-skills && pnpm submission:check",
     "geo:unread-fields": "node scripts/unread-response-fields.mjs"
   },
   "cloudflare": {

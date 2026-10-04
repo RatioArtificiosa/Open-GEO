@@ -146,7 +146,7 @@ export const MISSING_TOOL_JUSTIFICATIONS: Record<string, ToolJustifications> = {
     open_world_justification:
       "Sends a topic keyword to a private SEO research provider. The keyword is the caller's own research topic and is not published to any public service.",
     destructive_justification:
-      "May use metered DataForSEO credits on dry_run: false — one request for the page list, one for the aggregate, and optionally one for the trend. Does not delete, overwrite, revoke access, send, or publish anything. Per-page sentiment probabilities and corpus-wide counts are labelled separately and are not combined.",
+      "May use metered DataForSEO credits on dry_run: false — one request for the page list, one for the aggregate, optionally one for the emotion breakdown when includeEmotions is set, and optionally one for the trend. Does not delete, overwrite, revoke access, send, or publish anything. Per-page sentiment probabilities and corpus-wide counts are labelled separately and are not combined.",
   },
 
   // --- Saved keywords. Removing a keyword deletes a stored record, so this is

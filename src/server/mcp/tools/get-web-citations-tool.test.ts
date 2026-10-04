@@ -230,6 +230,33 @@ describe("get_web_citations", () => {
     );
   });
 
+  it("says which sort ran, so a reader is not told the wrong one", async () => {
+    // The header used to hard-code "most prominent first" on every response —
+    // so a caller who asked for anger-first read a sentence describing a
+    // request they did not make.
+    useBothSides();
+
+    const prominent = textOf(
+      await callTool(getWebCitationsTool, {
+        keyword: "crm software",
+        dry_run: false,
+      }),
+    );
+    expect(prominent).toContain("most prominent first");
+    expect(prominent).not.toContain("most angry first");
+
+    useBothSides();
+    const angry = textOf(
+      await callTool(getWebCitationsTool, {
+        keyword: "crm software",
+        sortBy: "anger",
+        dry_run: false,
+      }),
+    );
+    expect(angry).toContain("most angry first");
+    expect(angry).not.toContain("most prominent first");
+  });
+
   it("offers anger-first when the caller is triaging complaints", async () => {
     useBothSides();
 
