@@ -121,6 +121,37 @@ describe("postSerpTaskForSummary", () => {
     expect(requestBody(fetchMock)[0]).toMatchObject({ depth: 10 });
   });
 
+  it("rejects the task when the envelope is OK but the entry was refused", async () => {
+    // **The finding CodeRabbit made.** A request-level 20000 says nothing about
+    // the task: a 40501 "Invalid Field" arrives *inside* a 20000 envelope, and
+    // the post is billed either way. Accepting the id here would hand back a
+    // task that does not exist and spend 10 more credits finding out.
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status_code: 20000,
+          tasks: [
+            {
+              id: "07031739-1535-0139-0000-9d1e639a5b7d",
+              status_code: 40501,
+              status_message: "Invalid Field: check the request data.",
+              path: ["v3", "serp", "google", "organic", "task_post"],
+              cost: 0.002,
+            },
+          ],
+        }),
+      ),
+    );
+
+    await expect(
+      postSerpTaskForSummary({
+        keyword: "best geo tool",
+        locationCode: 2840,
+        languageCode: "en",
+      }),
+    ).rejects.toThrow(/40501[\s\S]*Invalid Field/);
+  });
+
   it("fails loudly when the post returns no id, rather than handing on an empty one", async () => {
     // A post with no id produced no task, so there is nothing to ask. Passing an
     // empty id downstream would turn this into a 40501 on the *next* billed call.

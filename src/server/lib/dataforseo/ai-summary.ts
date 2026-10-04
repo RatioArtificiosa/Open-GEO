@@ -165,6 +165,23 @@ export async function postSerpTaskForSummary(input: {
     );
   }
 
+  // **The envelope being 20000 says nothing about the task.** A request-level
+  // OK with a rejected entry is the documented shape — status 40501 "Invalid
+  // Field" arrives inside a 20000 envelope, and the post is billed either way.
+  // Accepting the id here would hand back a task that does not exist and spend
+  // the customer's 10 credits discovering it on the next call.
+  //
+  // 20100 is what a POST returns on success; 20000 is accepted too because the
+  // vendor has used both, and a completed task is still a task we can ask.
+  if (task.status_code !== 20100 && task.status_code !== 20000) {
+    throw new AppError(
+      "INTERNAL_ERROR",
+      `DataForSEO task_post rejected the task (${task.status_code ?? "no status"}): ${
+        task.status_message ?? "no message"
+      }. No SERP was stored, so there is nothing to ask a question of.`,
+    );
+  }
+
   return {
     data: { taskId: id, keyword: input.keyword },
     billing: buildTaskBilling(task),
