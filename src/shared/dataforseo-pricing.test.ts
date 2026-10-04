@@ -253,12 +253,19 @@ describe("price-book caveats state totals the rates actually produce", () => {
   it("keeps the crawl caveats consistent with the tiers they name", () => {
     // A caveat that describes a multiplier the table no longer holds is a
     // customer-facing contradiction, and the number is the easy half to get wrong.
-    for (const tier of [
+    //
+    // **The list is asserted non-empty before it is iterated.** A loop over an
+    // empty array runs zero times and passes, so the earlier version of this test
+    // was satisfied by *no caveats at all* — the one state it exists to rule out,
+    // and the state a customer would read as a number with no explanation.
+    const tiers = [
       estimateCrawl({ pages: 1, browserRendering: true }),
       estimateCrawl({ pages: 1, loadResources: true, loadJavaScript: true }),
-    ]) {
+    ];
+    for (const tier of tiers) {
+      expect(tier.caveats.length).toBeGreaterThan(0);
       for (const line of tier.caveats) {
-        expect(line.length).toBeGreaterThan(0);
+        expect(line.trim().length).toBeGreaterThan(0);
       }
     }
     // And the tier the rendering caveat names is the one it charges.
