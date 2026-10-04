@@ -150,14 +150,27 @@ function ReportDetailPage() {
     );
   }
 
-  // `?print=1` serves the same document with a print() script appended, so the
-  // new tab opens the print dialog itself.
+  // `?download=1` serves the document as an attachment, so this saves a file and
+  // the reader picks "Save as PDF" in the dialog it opens. `?print=1` is the same
+  // document rendered instead of attached, which is what the Share-link viewer
+  // offers a link holder who has no session.
   const exportPdf = () => {
     captureClientEvent("report:exported_pdf", {
       project_id: projectId,
       report_id: report.id,
     });
-    window.open(`/r/${report.id}?print=1`, "_blank", "noopener");
+    // **An anchor, not `window.open`.** The response carries
+    // `Content-Disposition: attachment`, which only a navigation the browser
+    // attributes to a download will honour; a popup opens the print dialog into a
+    // tab the reader then has to close by hand.
+    const anchor = document.createElement("a");
+    anchor.href = `/r/${report.id}?download=1`;
+    // **`download` with no value**, because the filename comes from the response
+    // header — an empty value tells the browser to take the server's name rather
+    // than inventing one from the URL, which would be `/r/<id>?download=1`.
+    anchor.download = "";
+    anchor.rel = "noopener";
+    anchor.click();
   };
 
   if (full) {

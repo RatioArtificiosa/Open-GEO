@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getArchivedProjectForOrganization: vi.fn(),
   getReportProjectId: vi.fn(),
   getReportHtml: vi.fn(),
+  getReportTitle: vi.fn(),
 }));
 
 vi.mock("cloudflare:workers", () => ({ env: { AUTH_MODE: "hosted" } }));
@@ -24,12 +25,17 @@ vi.mock("@/server/features/reports/repositories/ReportRepository", () => ({
   ReportRepository: {
     getReportProjectId: mocks.getReportProjectId,
     getReportHtml: mocks.getReportHtml,
+    getReportTitle: mocks.getReportTitle,
   },
 }));
 
 const HTML = "<!doctype html><html><body>report</body></html>";
 
 const request = () => new Request("https://app.example.com/r/report-1");
+
+// CL-303: the same document, requested as a download rather than printed.
+const downloadRequest = () =>
+  new Request("https://app.example.com/r/report-1?download=1");
 
 beforeEach(() => {
   mocks.resolveUserContextFromHeaders.mockResolvedValue({
@@ -43,6 +49,7 @@ beforeEach(() => {
   mocks.getProjectForOrganization.mockResolvedValue({ id: "project-1" });
   mocks.getArchivedProjectForOrganization.mockResolvedValue(null);
   mocks.getReportHtml.mockResolvedValue(HTML);
+  mocks.getReportTitle.mockResolvedValue("GEO audit — badseo.dev");
 });
 
 describe("handleReportRequest", () => {
@@ -168,5 +175,72 @@ describe("handleReportRequest", () => {
     await expect(handleReportRequest("report-1", request())).rejects.toThrow(
       "AUTH_CONFIG_MISSING",
     );
+  });
+
+  // CL-303. A download, not a print dialog: the same document, attached, so the
+  // reader receives a file rather than a tab they have to close.
+  describe("download mode", () => {
+    it("serves the document as an attachment named for the report", async () => {
+      const response = await handleReportRequest("report-1", downloadRequest());
+
+      expect(response.status).toBe(200);
+      const disposition = response.headers.get("content-disposition") ?? "";
+      expect(disposition).toContain("attachment");
+      // **Named for the report, not the id.** An agency sending a client
+      // "report-7f3a.html" has already lost the first impression.
+      expect(disposition).toContain("GEO-audit-badseo.dev.html");
+    });
+
+    it("injects the print script so the save-as dialog opens itself", async () => {
+      const body = await (
+        await handleReportRequest("report-1", downloadRequest())
+      ).text();
+
+      // The same constant `?print=1` uses, so a download and a print cannot
+      // diverge in how they expand collapsed <details> or when they snapshot.
+      expect(body).toContain(`addEventListener("load"`);
+    });
+
+    it("keeps the report's own scripts blocked", async () => {
+      const response = await handleReportRequest("report-1", downloadRequest());
+      const csp = response.headers.get("content-security-policy") ?? "";
+
+      // **A download that ran the report's scripts would be the sandbox bypass
+      // this system exists to prevent.** The hash is what keeps them blocked.
+      expect(csp).toContain("allow-scripts");
+      expect(csp).toMatch(/script-src 'sha256-[A-Za-z0-9+/=]+'/);
+      expect(csp).not.toContain("script-src 'unsafe-inline'");
+    });
+
+    it("names the file from the id when the title cannot make one", async () => {
+      mocks.getReportTitle.mockResolvedValue(null);
+
+      const response = await handleReportRequest("report-1", downloadRequest());
+
+      expect(response.headers.get("content-disposition")).toContain(
+        'filename="report-report-1.html"',
+      );
+    });
+
+    // The title reaches a response header, so reading it before authorizing would
+    // disclose a report's name to someone who cannot open it.
+    it.each([
+      [
+        "an unknown report",
+        () => mocks.getReportProjectId.mockResolvedValue(null),
+      ],
+      [
+        "a project the viewer cannot access",
+        () => mocks.getProjectForOrganization.mockResolvedValue(null),
+      ],
+    ])("does not read the title for %s", async (_case, arrange) => {
+      arrange();
+
+      const response = await handleReportRequest("report-1", downloadRequest());
+
+      expect(response.status).toBe(404);
+      expect(mocks.getReportTitle).not.toHaveBeenCalled();
+      expect(mocks.getReportHtml).not.toHaveBeenCalled();
+    });
   });
 });

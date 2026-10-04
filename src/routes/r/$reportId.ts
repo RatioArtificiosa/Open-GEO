@@ -5,6 +5,7 @@ import { resolveUserContextFromHeaders } from "@/middleware/ensure-user/resolve"
 import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
 import { ReportRepository } from "@/server/features/reports/repositories/ReportRepository";
 import { asAppError } from "@/server/lib/errors";
+import { printableDocument } from "@/server/features/reports/printableReport";
 import { reportDocumentResponse, textResponse } from "@/shared/report-sandbox";
 
 // The report viewer: the stored document, served byte for byte from the app's
@@ -76,6 +77,20 @@ async function handleReportRequest(
 
   const html = await ReportRepository.getReportHtml(projectId, reportId);
   if (html === null) return reportNotFound();
+
+  // Download mode, CL-303. `?download=1` serves the same document as an
+  // attachment, so the reader gets a file rather than a print dialog. It is
+  // answered **after** the authorization above, never before: the title becomes a
+  // `Content-Disposition` filename, and a header carrying a report's title to
+  // someone who cannot read the report is a disclosure no sandbox covers.
+  if (new URL(request.url).searchParams.get("download") === "1") {
+    const title = await ReportRepository.getReportTitle(projectId, reportId);
+    // **An empty title, not a placeholder.** "report" is a usable filename, so
+    // passing it here would suppress the id fallback that `printableFilename` has
+    // for a title that cannot make a name — and the fallback is the better of the
+    // two, because a unique id beats a generic word.
+    return printableDocument(html, title ?? "", reportId);
+  }
 
   // Print mode. "Export" in the app opens `/r/<id>?print=1`, and the appended
   // script is the only thing that makes that a one-click path: the tab opens

@@ -69,6 +69,10 @@ async function getReportProjectId(reportId: string): Promise<string | null> {
   return row?.projectId ?? null;
 }
 
+// The document alone. Kept separate from getReportTitle on purpose: this is the
+// column the sandbox rules protect, and a reader that returns exactly one column
+// cannot be widened by accident to carry a report's metadata into a place that
+// does not need it.
 async function getReportHtml(
   projectId: string,
   reportId: string,
@@ -79,6 +83,22 @@ async function getReportHtml(
     .where(and(eq(reports.id, reportId), eq(reports.projectId, projectId)))
     .limit(1);
   return row?.html ?? null;
+}
+
+// The title alone, for the download's `Content-Disposition` filename. A download
+// named for the report id rather than the report's title is a worse artefact, and
+// an agency sending a client a file called "report-7f3a.html" is a bad first
+// impression of the deliverable.
+async function getReportTitle(
+  projectId: string,
+  reportId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ title: reports.title })
+    .from(reports)
+    .where(and(eq(reports.id, reportId), eq(reports.projectId, projectId)))
+    .limit(1);
+  return row?.title ?? null;
 }
 
 // Metadata and document in one read, for get_report's includeHtml path — the
@@ -254,6 +274,7 @@ export const ReportRepository = {
   getReport,
   getReportProjectId,
   getReportHtml,
+  getReportTitle,
   getReportWithHtml,
   getSharedReportByToken,
   setShareToken,
