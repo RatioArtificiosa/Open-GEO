@@ -1,14 +1,39 @@
-// DataForSEO price book — VERIFIED 2026-09-28 from rendered pricing pages.
+// DataForSEO price book — read off rendered pricing pages, never recalled.
 // Source of truth: OPENGEO_MASTER_REFERENCE.md §A.1 (Addendum A).
 //
-// Every figure here was read off a live pricing page in a browser, not recalled.
 // Prices are USD per request ("task") plus, where the vendor bills per row/item,
 // a per-unit rate. Queues: Standard < Priority < Live.
+//
+// ## What has been re-read, and when
+//
+// A blanket "verified on <date>" is a claim about rows nobody checked, so this
+// names what was actually looked at:
+//
+//   - **AI Optimization** (LLM Mentions, AI Keyword Search Volume) — 2026-10-04.
+//     The AI Keyword page publishes its own arithmetic — `1,000*0.01 +
+//     1,000,000*0.0001 = $110` — which settles the model this file assumes:
+//     **the request fee and the per-item fee both apply**. The LLM Mentions
+//     caveat's "$1.10 for 1,000 rows" was checked against that rule rather than
+//     against the page's own calculator widget, which shows a different row
+//     count and reads as a contradiction.
+//   - **OnPage** (every tier, Lighthouse, content parsing) — 2026-10-04. The
+//     tiers are **bundles**: `enable_browser_rendering` "must be set with
+//     `enable_javascript` and `load_resources`" and is priced
+//     `Basic + 33 x Base`, so it replaces the two individual add-ons, while
+//     `calculate_keyword_density` is an independent add-on that stacks. `Basic`
+//     is a shared component, not a per-option charge.
+//   - **Everything else** — as at the original pass on 2026-09-28. Not re-checked
+//     since; treat those rows as the least-verified part of this file rather than
+//     as covered by the two dates above.
 //
 // This file is deliberately data, not logic: the estimator below is trivial, but
 // the numbers are the product. Changing one of these values changes what the
 // pricing slider promises a user, so treat edits as pricing changes and re-verify
 // against the vendor's pricing page before shipping.
+//
+// **Reading the page beats reasoning about it.** The 1,020x crawl-multiplier bug
+// and the `Math.max` fix that replaced it were both settled by re-reading what
+// DataForSEO prints, not by working it out from the tier names.
 
 import { ETV_BEARING_LABS_ENDPOINTS } from "@/shared/etv-versioning";
 
