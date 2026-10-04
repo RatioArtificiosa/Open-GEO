@@ -85,22 +85,31 @@ type ReadinessResult = ReturnType<typeof runAudit> & {
 /**
  * Fetch the two site-level files, then produce the report.
  *
- * **Sequential, not parallel, and that is a cost decision.** Both are 10-second
- * timeouts against arbitrary customer servers; running them together doubles the
- * chance a slow host turns one check into two failures and doubles the
- * connections a single audit opens against that host. The crawl's sitemap fetch
- * does fan out, but it fans out over *our* known shard list rather than probing a
- * customer's site twice at once.
+ * ## Concurrent, and why that is the right call here
+ *
+ * Both fetches have a 10-second timeout, so running them in sequence gives a slow
+ * host a 20-second worst case for a report whose two halves are independent.
+ * They go out together for the same reason the crawl's sitemap fetch fans out:
+ * these are two paths on **one host we already have a connection to**, not a
+ * probe of an unknown network — so the connection cost is one socket, not a
+ * burst. **A sequence here would double the latency of every audit to save
+ * nothing.**
+ *
+ * The comment this replaced said "sequential", which the code did not do. **A
+ * comment describing a decision the code contradicts is worse than no comment**,
+ * because the next reader trusts it and reasons about a design that is not there.
  */
 export async function runReadiness(
   input: ReadinessRunInput,
 ): Promise<ReadinessResult> {
   const notes: ReadinessNote[] = [];
 
-  const [robotsText, llmsTxtBody] = await Promise.all([
-    // Each fetch resolves rather than rejects by construction — both catch and
-    // return null — so the allSettled below is about a future caller that adds a
-    // throwing source, not about these two today.
+  const [robotsText, llmsTxt] = await Promise.all([
+    // **Both are caught, and the catch is not redundant.** `fetchLlmsTxt` resolves
+    // for every HTTP outcome it knows about, but a bug inside the reader — a
+    // throwing `getReader`, say — would reject, and an unhandled rejection here
+    // fails the whole audit over a file that is a nice-to-have. The catch converts
+    // that into a gap, which is what it actually is.
     fetchRobotsTxtText(input.origin).catch((error: unknown) => {
       notes.push({
         what: "robots.txt",
@@ -108,13 +117,13 @@ export async function runReadiness(
       });
       return null;
     }),
-    fetchLlmsTxt(input.origin).catch((error: unknown) => {
-      notes.push({
-        what: "/llms.txt",
-        because: `we could not fetch it (${describe(error)})`,
-      });
-      return null;
-    }),
+    // **The tagged result carries the distinction**, so no catch is needed
+    // here: a rejected promise would mean the fetcher itself broke, and that is
+    // worth surfacing as a gap rather than as a finding about the site.
+    fetchLlmsTxt(input.origin).catch((error: unknown) => ({
+      status: "unreachable" as const,
+      reason: describe(error),
+    })),
   ]);
 
   if (
@@ -126,14 +135,22 @@ export async function runReadiness(
       because: "the site did not serve one, or served an error",
     });
   }
-  if (
-    llmsTxtBody === null &&
-    !notes.some((note) => note.what === "/llms.txt")
-  ) {
+  // **Three outcomes, three different sentences.** "Does not publish one" is a
+  // finding the owner can fix. "We could not check" is a gap in our coverage and
+  // claims nothing about their site. A third state that blurred the two would
+  // report a passing network as a defect, which is the bug this shape exists to
+  // prevent.
+  if (llmsTxt.status === "absent") {
     notes.push({
       what: "/llms.txt",
       because:
         "the site does not publish one, which is a finding rather than a failure",
+    });
+  }
+  if (llmsTxt.status === "unreachable") {
+    notes.push({
+      what: "/llms.txt",
+      because: `we could not check it, so nothing is known about it (${llmsTxt.reason})`,
     });
   }
 
@@ -149,7 +166,7 @@ export async function runReadiness(
   const result = runAudit({
     origin: input.origin,
     robotsText,
-    llmsTxtBody,
+    llmsTxtBody: llmsTxt.status === "found" ? llmsTxt.body : null,
     unavailable: notes.map((note) => `${note.what}: ${note.because}`),
     pages: input.pages,
   });

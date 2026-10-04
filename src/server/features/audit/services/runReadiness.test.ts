@@ -25,7 +25,10 @@ beforeEach(() => {
   robotsMock.mockReset();
   llmsMock.mockReset();
   robotsMock.mockResolvedValue(ROBOTS_ALLOWING);
-  llmsMock.mockResolvedValue("# Acme\n\n- [Docs](https://acme.com/docs)\n");
+  llmsMock.mockResolvedValue({
+    status: "found",
+    body: "# Acme\n\n- [Docs](https://acme.com/docs)\n",
+  });
 });
 
 afterEach(() => {
@@ -41,16 +44,34 @@ describe("runReadiness", () => {
     expect(result.fixes.length).toBeGreaterThan(0);
   });
 
-  it("reads a site with no llms.txt without treating it as our failure", async () => {
+  it("reads a site with no llms.txt as a finding, not as our failure", async () => {
     // The two are different facts about different problems: a site that does not
-    // publish one is a *finding*, and reporting it as "we could not check" would
-    // soften a fixable problem into a gap in our coverage.
-    llmsMock.mockResolvedValue(null);
+    // publish one is a *finding* the owner can fix, and reporting it as "we could
+    // not check" would soften a ten-minute job into an open question.
+    llmsMock.mockResolvedValue({ status: "absent" });
 
     const result = await runReadiness({ origin: ORIGIN, pages: [] });
 
     const note = result.notes.find((entry) => entry.what === "/llms.txt");
     expect(note?.because).toContain("does not publish one");
+  });
+
+  it("reports an unreachable llms.txt as a gap, claiming nothing about the site", async () => {
+    // **The bug the tagged result fixed.** With one `null` for both cases this read
+    // as "the site does not publish one" — telling a customer their markup is at
+    // fault when the truth was that our network failed.
+    llmsMock.mockResolvedValue({
+      status: "unreachable",
+      reason: "ECONNREFUSED",
+    });
+
+    const result = await runReadiness({ origin: ORIGIN, pages: [] });
+
+    const note = result.notes.find((entry) => entry.what === "/llms.txt");
+    expect(note?.because).toContain("nothing is known about it");
+    expect(note?.because).toContain("ECONNREFUSED");
+    // Explicitly not the finding wording.
+    expect(note?.because).not.toContain("does not publish one");
   });
 
   it("records a fetch that threw as a gap, and still reports the rest", async () => {

@@ -77,33 +77,64 @@ export async function fetchRobotsTxtText(
 }
 
 /**
+ * What fetching `/llms.txt` produced.
+ *
+ * ## Why this is a tagged result and not `string | null`
+ *
+ * **Because the difference is the whole point of the finding, and `null` threw it
+ * away.** A site that returns 404 has *decided* not to publish a map for agents —
+ * that is a finding the owner can fix in ten minutes. A request we could not
+ * complete is a gap in *our* coverage, and telling a customer "your site does not
+ * publish an llms.txt" when the truth is "we could not reach it" is a confident
+ * wrong answer about their site, produced by our own network.
+ *
+ * The first version returned `null` for both and carried the distinction in a
+ * comment that described intent the code did not implement — and then
+ * `runReadiness` had to guess which case it was looking at, so it guessed "the site
+ * does not publish one" and **reported a passing network as a defect in the
+ * customer's site.** A comment claiming a guarantee is worth exactly nothing
+ * against code that does not provide it.
+ */
+type LlmsTxtFetch =
+  /** A usable body was fetched. Possibly empty — an empty file is a real answer. */
+  | { status: "found"; body: string }
+  /** The server answered, and the answer was "no such file". A finding. */
+  | { status: "absent" }
+  /**
+   * We could not get an answer: a network error, a timeout, a 5xx.
+   *
+   * **Not a finding about the site.** Nothing is claimed about the customer's
+   * markup, because nothing is known about it.
+   */
+  | { status: "unreachable"; reason: string };
+
+/**
  * Fetch `/llms.txt`, the agent-facing outline a site may publish.
  *
  * ## Why this had to be written
  *
  * `auditLlmsTxt` (CL-300a) has shipped since it was written and **nothing could
- * ever call it**, because no code fetched the file it grades. This is the fifth
- * instance of that shape in this codebase — a capability that exists, is
- * tested, and is unreachable — and the second time the fix turned out to be
+ * ever call it**, because no code fetched the file it grades — the sixth instance
+ * of that shape in this codebase, and the second time the fix turned out to be
  * free rather than a new dependency.
  *
- * ## The three states, and why a 404 is not the same as an error
+ * ## The byte cap is enforced while reading, not after
  *
- * `null` here means *no usable body*, and the check downstream distinguishes
- * "the site does not publish one" (a finding) from "we could not ask" (a gap in
- * our own coverage). So a non-OK response and a thrown error both yield `null`,
- * for the same reason `fetchRobotsTxtText` does — **and neither is reported as a
- * pass**, because a site that silently 404s `/llms.txt` and one we failed to
- * reach are different facts about different problems.
+ * `response.text()` buffers the **entire** body into memory before anything can
+ * trim it, so slicing afterwards caps what we *return* and not what we *hold*. A
+ * server answering `/llms.txt` with a gigabyte would be read into a Worker before
+ * the cap ever applied. So the stream is read incrementally and the reader is
+ * **cancelled** the moment the limit is reached — which also closes the socket,
+ * because a cancelled reader tells the origin we are done rather than letting it
+ * keep pushing into a buffer nobody will read. Releasing the lock instead would
+ * hand the stream back with the connection still open, and the cost would be
+ * invisible until somebody wondered why audits held so many sockets.
  *
- * ## Byte cap
- *
- * A quarter of the robots.txt budget, and deliberately generous for what is
- * meant to be a short outline. The file is truncated rather than rejected
- * because a long one is still readable, and a page that describes itself for
- * 300 KiB should not be reported as undescribed.
+ * The limit is deliberately generous for what is meant to be a short outline, and
+ * the body is truncated rather than rejected: a long one is still readable, and a
+ * page that describes itself for 300 KiB should not be reported as undescribed.
  */
-export async function fetchLlmsTxt(origin: string): Promise<string | null> {
+export async function fetchLlmsTxt(origin: string): Promise<LlmsTxtFetch> {
   try {
     const response = await fetch(`${origin}/llms.txt`, {
       headers: { "User-Agent": AUDIT_USER_AGENT },
@@ -111,12 +142,83 @@ export async function fetchLlmsTxt(origin: string): Promise<string | null> {
       signal: AbortSignal.timeout(10_000),
     });
 
-    if (!response.ok) return null;
-    return (await response.text()).slice(0, MAX_LLMS_TXT_BYTES);
+    // **404 is a decision, not a failure.** So is 410. Everything else non-OK is
+    // our problem or the server's, and claims nothing about the customer's markup.
+    if (response.status === 404 || response.status === 410) {
+      return { status: "absent" };
+    }
+    if (!response.ok) {
+      return {
+        status: "unreachable",
+        reason: `the server answered ${response.status}`,
+      };
+    }
+
+    return {
+      status: "found",
+      body: await readAtMost(response, MAX_LLMS_TXT_BYTES),
+    };
   } catch (error) {
     console.warn("Failed to fetch llms.txt:", error);
-    return null;
+    return { status: "unreachable", reason: describeFetchFailure(error) };
   }
+}
+
+/**
+ * Reads at most `limit` bytes from a response and stops reading.
+ *
+ * **The cap is the reason this is a function.** `text()` has no ceiling, so any
+ * caller who forgets to think about this reads whatever the server sends.
+ */
+async function readAtMost(response: Response, limit: number): Promise<string> {
+  const body = response.body;
+  // No stream (a synthetic Response in a test, or a runtime without one): fall
+  // back to the buffered read. The cap still applies to the result.
+  if (body === null) return (await response.text()).slice(0, limit);
+
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value === undefined) continue;
+      chunks.push(value);
+      total += value.byteLength;
+      if (total >= limit) break;
+    }
+  } finally {
+    // **`cancel()`, not `releaseLock()`** — cancelling closes the connection and
+    // tells the origin to stop; releasing merely hands the stream back and leaves
+    // it open. A body we have decided not to finish is a body we should stop
+    // receiving. The catch is because a reader can already be errored, and a
+    // cleanup path must not become the thing that throws.
+    await reader.cancel().catch(() => {});
+  }
+
+  const merged = new Uint8Array(Math.min(total, limit));
+  let offset = 0;
+  for (const chunk of chunks) {
+    if (offset >= limit) break;
+    const slice = chunk.subarray(0, limit - offset);
+    merged.set(slice, offset);
+    offset += slice.byteLength;
+  }
+  return new TextDecoder().decode(merged);
+}
+
+/**
+ * An error phrased for a customer-facing report.
+ *
+ * **Newlines stripped, because this string is rendered.** A proxy returning an
+ * HTML error page would otherwise put arbitrary text — and a forged line — into a
+ * report a site owner reads.
+ */
+function describeFetchFailure(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const single = message.replace(/[\r\n\t]+/g, " ").trim();
+  return single.length === 0 ? "the request failed" : single.slice(0, 120);
 }
 
 /** Deterministic: same text in, same result out. Null = everything allowed. */
