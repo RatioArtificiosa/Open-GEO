@@ -1,15 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { pgStepMock, getPagesForCitabilityMock, runReadinessMock } = vi.hoisted(
-  () => ({
-    pgStepMock: vi.fn(),
-    getPagesForCitabilityMock: vi.fn(),
-    // **Typed by the seam's own signature.** A bare `vi.fn()` gives `mock.calls`
-    // the type `any[]`, so every read off it needs an assertion — and an
-    // assertion in a test is an unchecked claim about the code under test.
-    runReadinessMock: vi.fn<typeof runReadiness>(),
-  }),
-);
+const {
+  pgStepMock,
+  getPagesForCitabilityMock,
+  runReadinessMock,
+  saveReadinessReportMock,
+} = vi.hoisted(() => ({
+  pgStepMock: vi.fn(),
+  getPagesForCitabilityMock: vi.fn(),
+  // **Typed by the seam's own signature.** A bare `vi.fn()` gives `mock.calls`
+  // the type `any[]`, so every read off it needs an assertion — and an
+  // assertion in a test is an unchecked claim about the code under test.
+  runReadinessMock: vi.fn<typeof runReadiness>(),
+  saveReadinessReportMock: vi.fn(),
+}));
 
 vi.mock("cloudflare:workers", () => ({ env: {} }));
 // **The reader lives in its own module now**, so the mock has to name that
@@ -25,11 +29,15 @@ vi.mock("@/server/features/audit/repositories/auditCitabilityPages", () => ({
 vi.mock("@/server/features/audit/services/runReadiness", () => ({
   runReadiness: runReadinessMock,
 }));
+vi.mock("@/server/features/audit/repositories/auditReadinessReports", () => ({
+  saveReadinessReport: saveReadinessReportMock,
+}));
 vi.mock("@/server/workflows/pgStep", () => ({ pgStep: pgStepMock }));
 
 import { runReadinessPhase } from "@/server/workflows/siteAuditWorkflowReadiness";
 import type { WorkflowStepConfig } from "cloudflare:workers";
 import type { runReadiness } from "@/server/features/audit/services/runReadiness";
+import type { saveReadinessReport } from "@/server/features/audit/repositories/auditReadinessReports";
 
 /**
  * The seam's input shape, derived from its signature.
@@ -103,6 +111,7 @@ beforeEach(() => {
   pgStepMock.mockReset();
   getPagesForCitabilityMock.mockReset();
   runReadinessMock.mockReset();
+  saveReadinessReportMock.mockReset();
   // pgStep is mocked, so the opaque WorkflowStep is never read. Passthrough lets
   // each test assert on the *config* the phase chose, which is the decision worth
   // pinning.
@@ -119,6 +128,58 @@ beforeEach(() => {
 });
 
 describe("runReadinessPhase", () => {
+  /**
+   * The payload the phase wrote.
+   *
+   * **One cast, here, rather than six `any` reads below.** Vitest types
+   * `mock.calls` as `any[]` regardless of the `vi.fn<T>()` type argument, so
+   * every read off it is an unsafe access. Casting once, at the boundary where the
+   * mock's value becomes the writer's declared input, keeps the assertion checked
+   * against a real type.
+   */
+  function written() {
+    const call = saveReadinessReportMock.mock.calls[0];
+    if (call === undefined)
+      throw new Error("saveReadinessReport was never called");
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- vitest types mock.calls as any[]; the cast is the mock's, not the assertion's
+    return call[0] as Parameters<typeof saveReadinessReport>[0];
+  }
+
+  it("persists the report, because a computed report nobody can read is nobody's report", async () => {
+    // **The reason `audit_readiness` exists.** An earlier version computed the
+    // report and returned only a count, so the whole pipeline ended at a number in
+    // a checkpoint — which is the same defect one layer up from the one the
+    // phase's docblock used to describe.
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- pgStep is mocked
+    await runReadinessPhase({} as never, PARAMS);
+
+    expect(saveReadinessReportMock).toHaveBeenCalledOnce();
+    const payload = written();
+    // The identifying fields, not the whole payload: `whyNoScore` is required by
+    // the schema, and a write that omitted it would fail at the database rather
+    // than here.
+    expect(payload.auditId).toBe("audit-1");
+    expect(payload.whyNoScore.length).toBeGreaterThan(0);
+    expect(Array.isArray(payload.fixes)).toBe(true);
+    // **Zero, and that is right.** The fixture's result carries `pages: []`, so a
+    // scored page count of zero is what the phase should persist — the count
+    // describes the *report*, not the fixture's page input.
+    expect(payload.pageCount).toBe(0);
+  });
+
+  it("writes nothing when the report itself failed", async () => {
+    // **A failed run must not leave a stale report behind.** Persisting an empty
+    // one would tell the next reader that this audit found nothing to fix, when
+    // the truth is that it never finished.
+    runReadinessMock.mockRejectedValue(new Error("boom"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- pgStep is mocked
+    await runReadinessPhase({} as never, PARAMS);
+
+    expect(saveReadinessReportMock).not.toHaveBeenCalled();
+    logged.mockRestore();
+  });
   /**
    * The input `runReadiness` actually received.
    *

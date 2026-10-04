@@ -8,6 +8,7 @@ import {
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
 import { getAuditForProject } from "@/server/features/audit/repositories/auditSummaryQueries";
 import { getAuditResultsForProject } from "@/server/features/audit/repositories/auditSummaryQueries";
+import { parseStoredReadiness } from "@/server/features/audit/repositories/auditReadinessReports.parse";
 import {
   AUDIT_LIMITS,
   clampAuditMaxPages,
@@ -170,10 +171,8 @@ async function getStatus(auditId: string, projectId: string) {
 }
 
 async function getResults(auditId: string, projectId: string) {
-  const { audit, pages, lighthouse, issues } = await getAuditResultsForProject(
-    auditId,
-    projectId,
-  );
+  const { audit, pages, lighthouse, issues, readiness } =
+    await getAuditResultsForProject(auditId, projectId);
 
   if (!audit) throw new AppError("NOT_FOUND");
 
@@ -196,6 +195,12 @@ async function getResults(auditId: string, projectId: string) {
     pages,
     lighthouse,
     issues,
+    /**
+     * The prioritised readiness report, or `null` when the phase did not
+     * complete. **Parsed, not raw**, so the distinction between *no report* and
+     * *a report with nothing to fix* survives to the caller.
+     */
+    readiness: parseStoredReadiness(readiness),
   };
 }
 

@@ -177,6 +177,53 @@ export const auditIssues = sqliteTable(
   ],
 );
 
+// One row per audit: the prioritised readiness report (CL-300/CL-302).
+//
+// **One row, not one per fix.** The report is a single ordered list whose whole
+// claim is its *ordering* — a blocked crawler outranks everything because it is a
+// precondition — so storing fixes as rows would lose the one thing that matters and
+// make the order a reconstruction. `fixes_json` keeps the array as written.
+//
+// **No score column, and that is enforced rather than merely intended.** CL-302's
+// own test fails on any key matching `/^(score|grade|rating|points)$/`, because a
+// site with a blocked crawler and perfect content averages to a healthy-looking
+// middle with the one thing that matters still switched off. `why_no_score` is
+// required instead: the reason there is no headline number is the report's most
+// useful sentence.
+export const auditReadiness = sqliteTable(
+  "audit_readiness",
+  {
+    id: text("id").primaryKey(),
+    auditId: text("audit_id")
+      .notNull()
+      .references(() => audits.id, { onDelete: "cascade" }),
+    /** One sentence describing the run. Not a verdict. */
+    summary: text("summary").notNull(),
+    /** Why there is no overall number, in words. Never empty. */
+    whyNoScore: text("why_no_score").notNull(),
+    /** The prioritised fixes, in order. `[]` is a real answer — nothing to fix. */
+    fixesJson: text("fixes_json"),
+    /**
+     * What the run could **not** check.
+     *
+     * Stored beside the fixes rather than folded into them, because "we did not
+     * look" and "we looked and found nothing" need opposite advice — and an empty
+     * fix list with full coverage is the one output a customer reads as good news.
+     */
+    coverageJson: text("coverage_json"),
+    /** Per-page inputs the rubric could not evaluate, with reasons. */
+    unavailableJson: text("unavailable_json"),
+    /** How many fixes the report carries. Denormalised for a list query. */
+    fixCount: integer("fix_count").notNull().default(0),
+    /** How many pages contributed a score. Denormalised the same way. */
+    pageCount: integer("page_count").notNull().default(0),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [index("audit_readiness_audit_id_idx").on(table.auditId)],
+);
+
 // One row per Lighthouse test (mobile + desktop per page).
 export const auditLighthouseResults = sqliteTable(
   "audit_lighthouse_results",

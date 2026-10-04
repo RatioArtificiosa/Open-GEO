@@ -4,6 +4,7 @@ import {
   auditIssues,
   auditLighthouseResults,
   auditPages,
+  auditReadiness,
   audits,
 } from "@/db/schema";
 
@@ -40,7 +41,7 @@ export async function getAuditResultsForProject(
   auditId: string,
   projectId: string,
 ) {
-  const [audit, pages, lighthouse, issues] = await Promise.all([
+  const [audit, pages, lighthouse, issues, readiness] = await Promise.all([
     db.query.audits.findFirst({
       where: and(eq(audits.id, auditId), eq(audits.projectId, projectId)),
     }),
@@ -53,9 +54,15 @@ export async function getAuditResultsForProject(
     db.query.auditIssues.findMany({
       where: eq(auditIssues.auditId, auditId),
     }),
+    // **One row, read with the rest.** `null` when the phase did not complete —
+    // which is a different fact from an empty report, and the reader keeps them
+    // apart so a reader can too.
+    db.query.auditReadiness.findFirst({
+      where: eq(auditReadiness.auditId, auditId),
+    }),
   ]);
 
-  return { audit, pages, lighthouse, issues };
+  return { audit, pages, lighthouse, issues, readiness };
 }
 
 export async function getAuditForProject(auditId: string, projectId: string) {

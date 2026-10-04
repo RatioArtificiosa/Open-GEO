@@ -132,6 +132,7 @@ export const {
   auditPages,
   auditIssues,
   auditLighthouseResults,
+  auditReadiness,
   samSessions,
   user,
   session,

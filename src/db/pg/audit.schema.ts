@@ -176,6 +176,44 @@ export const auditIssues = pgTable(
   ],
 );
 
+// One row per audit: the prioritised readiness report (CL-300/CL-302).
+//
+// **One row, not one per fix.** The report is a single ordered list whose whole
+// claim is its *ordering* — a blocked crawler outranks everything because it is a
+// precondition — so storing fixes as rows would lose the one thing that matters and
+// make the order a reconstruction.
+//
+// **No score column.** CL-302's own test fails on any key matching
+// `/^(score|grade|rating|points)$/`, because a site with a blocked crawler and
+// perfect content averages to a healthy-looking middle with the one thing that
+// matters still switched off. `why_no_score` is required instead.
+export const auditReadiness = pgTable(
+  "audit_readiness",
+  {
+    id: text("id").primaryKey(),
+    auditId: text("audit_id")
+      .notNull()
+      .references(() => audits.id, { onDelete: "cascade" }),
+    summary: text("summary").notNull(),
+    whyNoScore: text("why_no_score").notNull(),
+    /** The prioritised fixes, in order. `[]` is a real answer. */
+    fixesJson: text("fixes_json"),
+    /** What the run could not check — "did not look" and "found nothing" differ. */
+    coverageJson: text("coverage_json"),
+    unavailableJson: text("unavailable_json"),
+    fixCount: integer("fix_count").notNull().default(0),
+    pageCount: integer("page_count").notNull().default(0),
+    // **ISO text, not a `timestamp` column** — the same choice every other audit
+    // table makes, and the reason is in `pg/app.schema.ts`: DB-defaulted and
+    // app-written values have to sort together, and `isoNow` emits exactly what
+    // `new Date().toISOString()` does. A native `timestamptz` would parse and
+    // reorder the two, and the parity test compares `dataType`, so it caught this
+    // on the first run. **The gate working is the point of the gate.**
+    createdAt: timestampColumn("created_at").notNull().default(isoNow),
+  },
+  (table) => [index("audit_readiness_audit_id_idx").on(table.auditId)],
+);
+
 // One row per Lighthouse test (mobile + desktop per page).
 export const auditLighthouseResults = pgTable(
   "audit_lighthouse_results",

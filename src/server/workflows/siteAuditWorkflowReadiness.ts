@@ -1,6 +1,7 @@
 import type { WorkflowStep } from "cloudflare:workers";
 import { getOrigin } from "@/server/lib/audit/url-utils";
 import { getPagesForCitability } from "@/server/features/audit/repositories/auditCitabilityPages";
+import { saveReadinessReport } from "@/server/features/audit/repositories/auditReadinessReports";
 import { runReadiness } from "@/server/features/audit/services/runReadiness";
 import { pgStep } from "@/server/workflows/pgStep";
 import { READINESS_STEP } from "@/server/workflows/auditStepConfigs";
@@ -79,10 +80,21 @@ export async function runReadinessPhase(
 
       const result = await runReadiness({ origin, pages, pagesAttempted });
 
-      // The report is returned, not persisted: `audit_readiness` does not exist yet,
-      // and **a migration invented before anything reads it is a column nobody
-      // queries.** The count is checkpointed so the step is observably doing work,
-      // and the next piece of work is the table plus the reader.
+      // **Persisted, not just returned.** A report nobody can read is a report
+      // nobody reads, and returning it only to a step result meant the whole
+      // pipeline ended at a number in a checkpoint. The write is inside the step so
+      // a retry replaces the row rather than accumulating duplicates — the id is
+      // derived from the audit, which is what makes that true.
+      await saveReadinessReport({
+        auditId,
+        summary: result.summary,
+        whyNoScore: result.whyNoScore,
+        fixes: result.fixes,
+        coverage: result.coverage,
+        unavailable: result.notes,
+        pageCount: result.pages.length,
+      });
+
       return { readinessFixCount: result.fixes.length };
     });
   } catch (error) {
