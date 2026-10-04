@@ -238,12 +238,32 @@ export const Route = createFileRoute("/api/ask-the-ai")({
           console.error("Ask the AI error:", err);
           const message =
             "Could not read the AI answer for that question. Please try again.";
-          await writeCached(
-            TOOL.slug,
-            cacheKey,
-            { ok: false, error: message },
-            120,
-          );
+
+          // **Only a deterministic failure is cached.** A refused task — an
+          // off-topic prompt, a rejected field — will be refused identically for
+          // the same input, so caching it saves two billable calls per retry.
+          // A timeout or a 5xx will not: caching those turns a thirty-second
+          // network blip into a two-minute "this question failed" that the
+          // visitor sees as the answer, which is the failure this whole tool is
+          // built to avoid. Transient failures stay uncached so a retry can
+          // actually work.
+          //
+          // The split is on the message, because the provider's status text is
+          // the only thing that distinguishes them — and it is the same text
+          // `fetchDataforseoResult` and `postSerpTask` already branch on.
+          const detail = err instanceof Error ? err.message : String(err);
+          const deterministic =
+            /status_code \(40\d\d\d\)|Invalid Field|Task .*rejected|no task created/i.test(
+              detail,
+            );
+          if (deterministic) {
+            await writeCached(
+              TOOL.slug,
+              cacheKey,
+              { ok: false, error: message },
+              120,
+            );
+          }
           return failureResponse(message);
         }
       },

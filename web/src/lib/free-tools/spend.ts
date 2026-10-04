@@ -57,7 +57,11 @@ export const reservedMicroDollarsPerCall = {
   "spam-score-checker": 25_000,
   /**
    * A SERP post at depth 10 (~$0.002) plus `serp/ai_summary` (~$0.01) is
-   * ~12 cents, so 12_000 microdollars per call is the ceiling for the pair.
+   * **$0.012 — 1.2 cents**, so 12_000 microdollars is the reservation for the
+   * pair. (An earlier version of this comment said "12 cents", which is 10×
+   * the real figure; the number was right and the prose was not, which is the
+   * dangerous order for a comment that sits above a spend ceiling.)
+   *
    * **Not 10_000:** that is the summary alone, and the crawl is billed whether
    * or not the summary is ever requested — under-reserving here means the daily
    * dollar ceiling can be exceeded by exactly the calls nobody asked for.

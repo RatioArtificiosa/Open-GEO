@@ -494,6 +494,74 @@ describe("Ask the AI runs the two-step flow in order", () => {
   });
 });
 
+describe("Ask the AI caches only failures that will recur", () => {
+  /** Turnstile ok, then a provider failure with the given detail message. */
+  function failingRun(failure: string) {
+    bindings.value.DATAFORSEO_API_KEY = "test-key";
+    const reserve = vi.fn().mockResolvedValue("allowed");
+    bindings.value.FREE_TOOL_BUDGET = { getByName: () => ({ reserve }) };
+    const put = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("caches", {
+      default: { match: vi.fn().mockResolvedValue(undefined), put },
+    });
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({
+          success: true,
+          hostname: "opengeo.so",
+          action: "free_tool",
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          tasks: [{ id: "task-123", status_code: 20100 }],
+        }),
+      )
+      .mockRejectedValueOnce(new Error(failure));
+    return put;
+  }
+
+  const ask = () =>
+    postTo(
+      "../src/routes/api/ask-the-ai",
+      new Request("https://opengeo.so/api/ask-the-ai", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "cf-connecting-ip": "203.0.113.9",
+        },
+        body: JSON.stringify({
+          keyword: "best crm",
+          prompt: "which tools?",
+          turnstileToken: "token",
+        }),
+      }),
+    );
+
+  it("caches a refused task, which will be refused identically on a retry", async () => {
+    const put = failingRun("DataForSEO task_post (40501): Invalid Field");
+
+    const response = await ask();
+
+    expect(response.status).toBe(502);
+    // Cached, so the retry does not spend two more billable calls to learn
+    // the same thing.
+    expect(put).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not cache a timeout, because the next attempt will succeed", async () => {
+    // The failure this tool must not manufacture: a thirty-second network blip
+    // turned into a two-minute "this question failed" the visitor reads as the
+    // answer.
+    const put = failingRun("DataForSEO HTTP 503 on serp/ai_summary");
+
+    const response = await ask();
+
+    expect(response.status).toBe(502);
+    expect(put).not.toHaveBeenCalled();
+  });
+});
+
 describe("keyword discovery provider contracts", () => {
   const cases = [
     {
