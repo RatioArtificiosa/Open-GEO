@@ -49,6 +49,10 @@ import {
 } from "@/server/lib/dataforseo/serp";
 import { fetchLighthouseResult } from "@/server/lib/dataforseo/lighthouse";
 import {
+  fetchOnPageContentParsing,
+  postOnPageTaskForContentParsing,
+} from "@/server/lib/dataforseo/on-page-content-parsing";
+import {
   fetchAiSummary,
   postSerpTaskForSummary,
 } from "@/server/lib/dataforseo/ai-summary";
@@ -174,6 +178,17 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
     },
     lighthouse: {
       live: meter(customer, fetchLighthouseResult),
+    },
+    // OnPage: the two halves of a page parse. **Both metered**, which is the
+    // opposite of the `task_get` collectors — a `content_parsing` read carries
+    // its own cost and the vendor prices it separately, so calling it free
+    // undercharges every audit by an amount the ledger never sees. No
+    // `defaultFeature` on either: `mapDataforseoPathToCreditFeature` already
+    // sends every `on_page` path to `site_audit`, and a default here would
+    // override that for any caller that omits `creditFeature`.
+    onPage: {
+      taskForContentParsing: meter(customer, postOnPageTaskForContentParsing),
+      contentParsing: meter(customer, fetchOnPageContentParsing),
     },
     aiSearch: {
       mentionsSearch: meter(customer, fetchLlmMentionsSearch),

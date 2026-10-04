@@ -92,6 +92,10 @@ vi.mock("@/server/lib/dataforseo/backlinks", () => ({
 vi.mock("@/server/lib/dataforseo/lighthouse", () => ({
   fetchLighthouseResult: vi.fn(),
 }));
+vi.mock("@/server/lib/dataforseo/on-page-content-parsing", () => ({
+  fetchOnPageContentParsing: vi.fn(),
+  postOnPageTaskForContentParsing: vi.fn(),
+}));
 vi.mock("@/server/lib/dataforseo/ai", () => ({
   fetchLlmMentionsSearch: vi.fn(),
   fetchLlmAggregatedMetrics: vi.fn(),
