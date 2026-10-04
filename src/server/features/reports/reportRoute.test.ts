@@ -191,25 +191,41 @@ describe("handleReportRequest", () => {
       expect(disposition).toContain("GEO-audit-badseo.dev.html");
     });
 
-    it("injects the print script so the save-as dialog opens itself", async () => {
+    // CodeRabbit's second finding: a download is not rendered, so a `print()`
+    // call in the saved file could never fire. It was dead code in the artefact
+    // and a live risk in it, because a file opened from disk arrives with no CSP.
+    it("injects no print script, because a download is never rendered", async () => {
       const body = await (
         await handleReportRequest("report-1", downloadRequest())
       ).text();
 
-      // The same constant `?print=1` uses, so a download and a print cannot
-      // diverge in how they expand collapsed <details> or when they snapshot.
-      expect(body).toContain(`addEventListener("load"`);
+      expect(body).not.toContain("print()");
+      expect(body).not.toContain("<script");
     });
 
-    it("keeps the report's own scripts blocked", async () => {
+    it("sends the locked-down policy, because the file has no script", async () => {
       const response = await handleReportRequest("report-1", downloadRequest());
       const csp = response.headers.get("content-security-policy") ?? "";
 
-      // **A download that ran the report's scripts would be the sandbox bypass
-      // this system exists to prevent.** The hash is what keeps them blocked.
-      expect(csp).toContain("allow-scripts");
-      expect(csp).toMatch(/script-src 'sha256-[A-Za-z0-9+/=]+'/);
-      expect(csp).not.toContain("script-src 'unsafe-inline'");
+      // **Not the print policy.** The saved document is inert — every script is
+      // stripped — so `allow-scripts` here would authorise a script that is not
+      // there, and would be the one place the download is permissive if the
+      // stripping ever regressed.
+      expect(csp).toBe(REPORT_CSP);
+      expect(csp).not.toContain("allow-scripts");
+    });
+
+    it("sends a document that cannot execute anything", async () => {
+      const body = await (
+        await handleReportRequest("report-1", downloadRequest())
+      ).text();
+
+      // **The header does not travel with the file**, so the file has to be safe
+      // on its own. A report is written by a model from crawled pages, SERP titles
+      // and GSC queries, all attacker-influenceable, and a client opening the file
+      // from disk is executing whatever was in it.
+      expect(body).not.toContain("<script");
+      expect(body).toContain('http-equiv="Content-Security-Policy"');
     });
 
     it("names the file from the id when the title cannot make one", async () => {

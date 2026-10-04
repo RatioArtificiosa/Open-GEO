@@ -30,7 +30,7 @@
  * change"*, and the `.byline`. **So the branding is read out of the stored HTML**,
  * because that is where it lives and no other place knows about it.
  */
-import { PRINT_SCRIPT, reportCsp } from "@/shared/report-sandbox";
+import { REPORT_CSP, reportCsp } from "@/shared/report-sandbox";
 
 /**
  * Matches an `--accent` declaration whose value is a hex colour **and nothing
@@ -170,33 +170,43 @@ export function printableFilename(title: string, id: string): string {
 /**
  * The document served as a download.
  *
- * **The stored HTML is served unchanged.** It is what the report is, it is already
- * a full document with its own print CSS, and re-serialising it would be the one
- * change that could make the download differ from what prints. The one thing added
- * is the print script, because a download needs the dialog to open itself — the
- * same one `?print=1` injects, from the same constant, so the two cannot diverge.
+ * ## The artefact is inert by construction, not by header
  *
- * ## Why `attachment`, and why the sandbox is widened
+ * CodeRabbit's finding, and it is correct: **an HTTP header does not travel with a
+ * file.** A recipient opens `report.html` from disk, no `Content-Security-Policy`
+ * arrives with it, and a report written from attacker-influenceable inputs —
+ * crawled pages, SERP titles — could run its own scripts against a client who
+ * opened the file. The response header protects the *response*; the saved
+ * document needs its own policy.
  *
- * `attachment` is what makes it a file rather than a navigation. The CSP is the
- * print policy for the same reason `?print=1` uses it: the script needs
- * `allow-scripts` and `allow-modals`, and the `script-src` hash is what keeps the
- * report's *own* scripts blocked. **A download that ran the report's scripts would
- * be the sandbox bypass this system exists to prevent.**
+ * So the document is made non-executable **before** it leaves the server:
+ *
+ * - **A `<meta http-equiv>` policy is injected into the saved file**, built from
+ *   the same `reportCsp` constant the header uses, so the two cannot drift.
+ * - **Every script is removed outright**, so the file does not depend on the
+ *   policy being honoured. A `meta` CSP is not a boundary — a browser with it
+ *   disabled, or a reader that re-saves the file, gets a live script without it.
+ * - **The app's own print script is dropped too**, and that is CodeRabbit's second
+ *   finding: a download is not rendered, so a `print()` call in the saved file
+ *   could never fire anyway. It would have been dead code and a live risk at once.
+ *
+ * The trade is named rather than hidden: a report can no longer carry an
+ * interactive chart in its downloaded copy. **A client deliverable that cannot
+ * execute anything is worth more than one that can**, and the chart still works in
+ * the app and in the shared link, which are the surfaces that are sandboxed.
  */
 export function printableDocument(
   html: string,
   title: string,
   id: string,
 ): Response {
-  return new Response(withPrintScript(html), {
+  return new Response(printableHtml(html), {
     status: 200,
     headers: {
       "Content-Type": "text/html; charset=utf-8",
-      // **The print policy, byte for byte what `?print=1` sends.** The script needs
-      // `allow-scripts` and `allow-modals`; the `script-src` hash is what keeps the
-      // report's *own* scripts blocked, which is the whole point of the sandbox.
-      "Content-Security-Policy": reportCsp(true),
+      // Kept as well as embedded: the policy governs the response for a browser
+      // that previews it inline, and the meta tag governs the saved file.
+      "Content-Security-Policy": reportCsp(false),
       // An ASCII-safe filename plus RFC 5987 for the real one: `Content-Disposition`
       // headers are latin-1, so a title with an accent silently truncates without
       // the `filename*` form.
@@ -208,19 +218,62 @@ export function printableDocument(
 }
 
 /**
- * Appends PRINT_SCRIPT the way `?print=1` does: last, and without parsing a
- * document we did not write. A dangling `<script src="…` in a report absorbs any
- * attribute on our tag, so ours carries none.
+ * The policy the saved document carries, as a meta tag.
+ *
+ * **`REPORT_CSP` and not the print policy**, because the print policy authorises
+ * the one script this document does not have. `sandbox` is meaningful in a meta
+ * tag and would make the file inert even if the policy were ignored.
  */
-function withPrintScript(html: string): string {
-  const tag = `<script>${PRINT_SCRIPT}</script>`;
-  const bodyClose = html.lastIndexOf("</body>");
-  if (bodyClose !== -1)
-    return html.slice(0, bodyClose) + tag + html.slice(bodyClose);
-  const htmlClose = html.lastIndexOf("</html>");
-  if (htmlClose !== -1)
-    return html.slice(0, htmlClose) + tag + html.slice(htmlClose);
-  return html + tag;
+const DOWNLOAD_META_CSP =
+  '<meta http-equiv="Content-Security-Policy" content="' +
+  REPORT_CSP.replace(/"/g, "&quot;") +
+  '">';
+
+/**
+ * The saved document: no scripts, and a policy of its own.
+ *
+ * **The meta tag goes first in `<head>`, because that is where a policy has to
+ * be** — a `meta` CSP applies only to what follows it, so a document whose first
+ * element is a `<script>` would have run it before reading the policy.
+ *
+ * **The removal is a regex over the document we did not write**, so it is
+ * deliberately blunt: a `<script>` that survives would execute against a client.
+ * `htmlparser2` would parse and re-serialise properly, but re-serialising
+ * model-authored HTML risks changing the thing being delivered, and a policy the
+ * reader must honour is a weaker guarantee than a script that is not there.
+ */
+function printableHtml(html: string): string {
+  return stripScripts(withDownloadPolicy(html));
+}
+
+/** Removes every script element and its contents, and every inline handler. */
+function stripScripts(html: string): string {
+  return (
+    html
+      // The element and whatever it contains, including a src.
+      .replace(/<script\b[\s\S]*?<\/script\s*>/gi, "")
+      // An unterminated one, which is the shape a truncated document ends in.
+      .replace(/<script\b[\s\S]*?$/gi, "")
+      // Inline handlers, which run without a script element at all.
+      .replace(/\son\w+\s*=\s*"[^"]*"/gi, "")
+      .replace(/\son\w+\s*=\s*'[^']*'/gi, "")
+  );
+}
+
+/** Adds the policy to `<head>`, or to the front of the document if it has none. */
+function withDownloadPolicy(html: string): string {
+  const head = html.indexOf("<head");
+  if (head === -1) {
+    // **No `<head>` means the policy must precede everything**, or a leading
+    // element could run before the browser read it.
+    return html.replace(
+      /<html[^>]*>/i,
+      (tag) => `${tag}<head>${DOWNLOAD_META_CSP}</head>`,
+    );
+  }
+  const open = html.indexOf(">", head);
+  if (open === -1) return DOWNLOAD_META_CSP + html;
+  return html.slice(0, open + 1) + DOWNLOAD_META_CSP + html.slice(open + 1);
 }
 
 /**

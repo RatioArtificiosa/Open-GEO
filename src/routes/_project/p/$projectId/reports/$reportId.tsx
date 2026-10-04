@@ -150,19 +150,23 @@ function ReportDetailPage() {
     );
   }
 
-  // `?download=1` serves the document as an attachment, so this saves a file and
-  // the reader picks "Save as PDF" in the dialog it opens. `?print=1` is the same
-  // document rendered instead of attached, which is what the Share-link viewer
-  // offers a link holder who has no session.
-  const exportPdf = () => {
+  // `?download=1` saves the report as a file, named for the report and stripped
+  // of every script so it is inert when the recipient opens it from disk. The
+  // reader then opens that file and picks "Save as PDF".
+  //
+  // **The label says "Download report", not "Export PDF".** A download is not
+  // rendered, so nothing about it is a PDF until the reader makes it one — and
+  // calling an `.html` file a PDF export is the kind of overclaim that only
+  // surfaces when a client asks why their file opens in a browser.
+  const downloadReport = () => {
     captureClientEvent("report:exported_pdf", {
       project_id: projectId,
       report_id: report.id,
     });
     // **An anchor, not `window.open`.** The response carries
     // `Content-Disposition: attachment`, which only a navigation the browser
-    // attributes to a download will honour; a popup opens the print dialog into a
-    // tab the reader then has to close by hand.
+    // attributes to a download will honour; a popup opens a tab the reader then
+    // has to close by hand.
     const anchor = document.createElement("a");
     anchor.href = `/r/${report.id}?download=1`;
     // **`download` with no value**, because the filename comes from the response
@@ -234,7 +238,7 @@ function ReportDetailPage() {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {/* Share links are hosted-only (see shareAccess.ts), so a
-                self-hosted deployment keeps Export as its primary action
+                self-hosted deployment keeps Download as its primary action
                 rather than offering a button the server would refuse. The
                 icon carries the state: a globe once a public link is live, a
                 lock while only members can open it. */}
@@ -255,10 +259,10 @@ function ReportDetailPage() {
               <button
                 type="button"
                 className="btn btn-primary btn-sm gap-1.5"
-                onClick={exportPdf}
+                onClick={downloadReport}
               >
                 <FileDown className="size-4" />
-                Export
+                Download report
               </button>
             )}
             <PortalMenu
@@ -275,11 +279,11 @@ function ReportDetailPage() {
                         <button
                           onClick={() => {
                             close();
-                            exportPdf();
+                            downloadReport();
                           }}
                         >
                           <FileDown className="size-4" />
-                          Export
+                          Download report
                         </button>
                       </li>
                       <li
