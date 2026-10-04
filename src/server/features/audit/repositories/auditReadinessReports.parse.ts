@@ -116,7 +116,26 @@ export function parseStoredReadiness(
  * *absence* of it is itself information.
  */
 function parseFixes(raw: string | null): StoredReadinessFix[] {
-  return parseArray<StoredReadinessFix>(raw);
+  const parsed = parseArray<{ [key: string]: unknown }>(raw);
+  const fixes: StoredReadinessFix[] = [];
+  for (const entry of parsed) {
+    // **Validated, not cast.** A fix is rendered verbatim to a customer, so an
+    // entry missing `fix` or `because` is not a degraded row — it is one that
+    // would render as an empty instruction with no reason attached, which is worse
+    // than absent because it looks actionable. Every field the type promises is
+    // checked, and a bad entry is dropped rather than half-rendered.
+    if (typeof entry?.fix !== "string") continue;
+    if (typeof entry?.because !== "string") continue;
+    fixes.push({
+      id: typeof entry.id === "string" ? entry.id : "",
+      kind: typeof entry.kind === "string" ? entry.kind : "",
+      fix: entry.fix,
+      because: entry.because,
+      example: typeof entry.example === "string" ? entry.example : null,
+      order: typeof entry.order === "number" ? entry.order : 0,
+    });
+  }
+  return fixes;
 }
 
 /** Parsed JSON array, or `[]` for null, malformed, or a non-array. */
@@ -160,7 +179,14 @@ function parseStrings(raw: string | null): string[] | null {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return null;
-    return parsed.filter((line): line is string => typeof line === "string");
+    // **Any non-string entry makes the whole column `null`, rather than being
+    // filtered out.** Asymmetric with the fixes above on purpose: a coverage list
+    // whose length is wrong is a claim about how much was checked, and silently
+    // dropping an unreadable line would *understate* that — telling a reader less
+    // was verified than the run actually recorded. `null` says "we cannot tell",
+    // which is the truth. An empty array here is preserved as empty.
+    if (!parsed.every((line) => typeof line === "string")) return null;
+    return parsed;
   } catch {
     return null;
   }

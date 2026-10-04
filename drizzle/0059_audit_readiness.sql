@@ -11,4 +11,7 @@ CREATE TABLE `audit_readiness` (
 	FOREIGN KEY (`audit_id`) REFERENCES `audits`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `audit_readiness_audit_id_idx` ON `audit_readiness` (`audit_id`);
+-- **Unique, not a plain index.** The row id is already derived from the audit id, so
+-- uniqueness is implied — but implied by a convention three files away, and this is
+-- where it stops being a habit and becomes a guarantee.
+CREATE UNIQUE INDEX `audit_readiness_audit_id_idx` ON `audit_readiness` (`audit_id`);

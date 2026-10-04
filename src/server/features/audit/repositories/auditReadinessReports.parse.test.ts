@@ -128,6 +128,85 @@ describe("parseStoredReadiness", () => {
     expect(parsed?.fixes).toEqual([]);
   });
 
+  it("drops a fix missing the words a reader needs, rather than half-rendering it", () => {
+    // **A fix is rendered verbatim.** An entry with no `fix` or no `because` is
+    // not a degraded row — it renders as an empty instruction with no reason
+    // attached, which is worse than absent because it *looks* actionable.
+    const parsed = parseStoredReadiness({
+      id: "r1",
+      auditId: "a1",
+      summary: "s",
+      whyNoScore: "w",
+      fixesJson: JSON.stringify([
+        {
+          id: "good",
+          kind: "switch",
+          fix: "Allow GPTBot",
+          because: "nothing else works",
+          order: 0,
+        },
+        {
+          id: "no-fix",
+          kind: "switch",
+          because: "a reason with no instruction",
+          order: 1,
+        },
+        {
+          id: "no-because",
+          kind: "switch",
+          fix: "an instruction with no reason",
+          order: 2,
+        },
+      ]),
+      coverageJson: "[]",
+      unavailableJson: "[]",
+      fixCount: 3,
+      pageCount: 1,
+      createdAt: "2026-10-04T00:00:00.000Z",
+    });
+
+    expect(parsed?.fixes.map((f) => f.id)).toEqual(["good"]);
+  });
+
+  it("keeps a whole coverage list null if any entry is unreadable", () => {
+    // **Asymmetric with the fixes above, on purpose.** Dropping the bad line would
+    // *understate* how much was checked — telling a reader less was verified than
+    // the run actually recorded. Null says "we cannot tell", which is the truth.
+    const parsed = parseStoredReadiness({
+      id: "r1",
+      auditId: "a1",
+      summary: "s",
+      whyNoScore: "w",
+      fixesJson: "[]",
+      coverageJson: JSON.stringify(["robots.txt was read", 42]),
+      unavailableJson: "[]",
+      fixCount: 0,
+      pageCount: 1,
+      createdAt: "2026-10-04T00:00:00.000Z",
+    });
+
+    expect(parsed?.coverage).toBeNull();
+  });
+
+  it("still preserves a genuinely empty coverage list as empty, not null", () => {
+    // The counterpart: an empty list *is* a real answer, and turning it into null
+    // would claim we could not read a column we read perfectly.
+    const parsed = parseStoredReadiness({
+      id: "r1",
+      auditId: "a1",
+      summary: "s",
+      whyNoScore: "w",
+      fixesJson: "[]",
+      coverageJson: "[]",
+      unavailableJson: "[]",
+      fixCount: 0,
+      pageCount: 1,
+      createdAt: "2026-10-04T00:00:00.000Z",
+    });
+
+    expect(parsed?.coverage).toEqual([]);
+  });
+
   it("preserves the fix order rather than re-sorting it", () => {
     // The ordering is the report's claim — a blocked crawler outranks everything
     // because it is a precondition. Re-sorting on read would quietly discard it.

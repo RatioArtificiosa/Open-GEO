@@ -191,8 +191,16 @@ export const auditReadiness = pgTable(
   "audit_readiness",
   {
     id: text("id").primaryKey(),
+    /**
+     * **Unique, so "one report per audit" is enforced rather than derived.**
+     *
+     * See the SQLite schema for why the invariant is duplicated here rather than
+     * left to the row-id derivation: a constraint is a guarantee and a derivation
+     * is a habit.
+     */
     auditId: text("audit_id")
       .notNull()
+      .unique()
       .references(() => audits.id, { onDelete: "cascade" }),
     summary: text("summary").notNull(),
     whyNoScore: text("why_no_score").notNull(),
@@ -211,7 +219,9 @@ export const auditReadiness = pgTable(
     // on the first run. **The gate working is the point of the gate.**
     createdAt: timestampColumn("created_at").notNull().default(isoNow),
   },
-  (table) => [index("audit_readiness_audit_id_idx").on(table.auditId)],
+  // The unique constraint above already indexes `audit_id`; a second index here
+  // would be a duplicate the query planner has to choose between.
+  () => [],
 );
 
 // One row per Lighthouse test (mobile + desktop per page).

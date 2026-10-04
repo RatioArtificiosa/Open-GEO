@@ -194,8 +194,18 @@ export const auditReadiness = sqliteTable(
   "audit_readiness",
   {
     id: text("id").primaryKey(),
+    /**
+     * **Unique, so "one report per audit" is enforced rather than derived.**
+     *
+     * The row id is a hash of the audit id, which already implies uniqueness — but
+     * that invariant lives in a derivation function three files from here, and a
+     * plain index would let a second row exist the moment anyone changed that
+     * derivation or wrote the row by hand. A database constraint is a guarantee;
+     * a derivation function is a habit.
+     */
     auditId: text("audit_id")
       .notNull()
+      .unique()
       .references(() => audits.id, { onDelete: "cascade" }),
     /** One sentence describing the run. Not a verdict. */
     summary: text("summary").notNull(),
@@ -221,7 +231,9 @@ export const auditReadiness = sqliteTable(
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
   },
-  (table) => [index("audit_readiness_audit_id_idx").on(table.auditId)],
+  // The unique constraint above already indexes `audit_id`; a second index here
+  // would be a duplicate the query planner has to choose between.
+  () => [],
 );
 
 // One row per Lighthouse test (mobile + desktop per page).

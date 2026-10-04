@@ -57,5 +57,10 @@ export async function saveReadinessReport(input: {
   await db
     .insert(auditReadiness)
     .values({ id, auditId: input.auditId, ...columns })
-    .onConflictDoUpdate({ target: auditReadiness.id, set: columns });
+    // **Targeted at `audit_id`, not the derived `id`.** The unique constraint
+    // on `audit_id` is what makes this conflict reachable: a second write for one
+    // audit cannot insert a second row, so the collision is always on the audit.
+    // Targeting the derived id would work today and break the day the derivation
+    // changed — the constraint would fire and this upsert would not catch it.
+    .onConflictDoUpdate({ target: auditReadiness.auditId, set: columns });
 }
