@@ -56,6 +56,7 @@ import { aiKeywordVolumeTool } from "@/server/mcp/tools/ai-keyword-volume-tool";
 import { forecastTrafficTool } from "@/server/mcp/tools/forecast-traffic-tool";
 import { serpAskTool } from "@/server/mcp/tools/serp-ask-tool";
 import { reportPublishTool } from "@/server/mcp/tools/report-publish-tool";
+import { compareSentimentTool } from "@/server/mcp/tools/compare-ai-web-sentiment-tool";
 import { computeShareOfVoiceTool } from "@/server/mcp/tools/compute-share-of-voice";
 import {
   getProjectContextTool,
@@ -233,6 +234,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(forecastTrafficTool);
   register(serpAskTool);
   register(reportPublishTool);
+  register(compareSentimentTool);
   register(searchSerpLocationsTool);
   register(createRankTrackerTool);
   register(getRankTrackerTool);

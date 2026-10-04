@@ -43,6 +43,7 @@ import * as aiKeywordVolumeTool from "./ai-keyword-volume-tool";
 import * as forecastTrafficTool from "./forecast-traffic-tool";
 import * as serpAskTool from "./serp-ask-tool";
 import * as reportPublishTool from "./report-publish-tool";
+import * as compareAiWebSentimentTool from "./compare-ai-web-sentiment-tool";
 import * as googleAnalyticsTools from "./google-analytics-tools";
 import * as listProjects from "./list-projects";
 import * as listSavedKeywords from "./list-saved-keywords";
@@ -81,6 +82,7 @@ const toolExports: Record<string, unknown> = {
   ...forecastTrafficTool,
   ...serpAskTool,
   ...reportPublishTool,
+  ...compareAiWebSentimentTool,
   ...googleAnalyticsTools,
   ...listProjects,
   ...listSavedKeywords,

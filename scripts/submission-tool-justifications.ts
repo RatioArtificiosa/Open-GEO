@@ -132,6 +132,14 @@ export const MISSING_TOOL_JUSTIFICATIONS: Record<string, ToolJustifications> = {
     destructive_justification:
       "Publishing creates a bearer credential in the URL and cannot be undone by anyone who has already copied the link; only revoking the token limits further access. It does not delete or overwrite the stored report.",
   },
+  compare_ai_web_sentiment: {
+    read_only_justification:
+      "Reports how a search provider's index classified pages citing a keyword, alongside what AI engines say when asked about it, and returns the AI answer as prose. It stores nothing and reads nothing the caller could not read elsewhere.",
+    open_world_justification:
+      "Sends a keyword and a generated question to a private SEO research provider. The keyword is the caller's own research topic and is not published to any public service.",
+    destructive_justification:
+      "May use metered DataForSEO credits on dry_run: false, for up to three provider calls. Does not delete, overwrite, revoke access, send, or publish anything. The response deliberately contains no combined sentiment figure, because the two sources are not measured in the same units.",
+  },
 
   // --- Saved keywords. Removing a keyword deletes a stored record, so this is
   // destructive, and it says which project it affects.
