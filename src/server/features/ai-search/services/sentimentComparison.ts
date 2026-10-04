@@ -48,17 +48,152 @@
  * reported as two violations — both false, both from the prose written to
  * explain the rule.
  */
+/**
+ * Does this expression combine two shares into one number?
+ *
+ * **Any division, not just `/ 2`.** An earlier version matched `/\s*2\b/`, which
+ * caught the careless `(a + b) / 2` and walked past `(a + b) / total` — the
+ * weighted blend, which is what someone writes when they are being careful
+ * about it. A rule that only catches the careless version of a mistake
+ * survives the careful version, which is the one that ships.
+ *
+ * The window is bounded rather than the whole file, and the bound is what
+ * caused two rounds of false positives here: a regex literal is code, so
+ * `/\/\*[\s\S]*?\*\//g` reads as a division, and this module's own blanking
+ * chain is flagged by the rule living inside it. Rather than enumerate the
+ * shapes that are not arithmetic, the window must contain **both sides and an
+ * arithmetic operator**, and a `.replace(/regex/` chain contains neither side.
+ */
+function combinesTwoShares(window: string): boolean {
+  if (/(\.reduce|\bsum[A-Z_a-z0-9]*\s*\()/.test(window)) return true;
+  if (/(\+=|\*=)/.test(window)) return true;
+  // A `/` with an operand on both sides: `a / b`, `) / 1`, `(a + b) / total`.
+  return /\S\s*\/\s*[(\dA-Za-z_$]/.test(window);
+}
+
+/**
+ * Strip everything that is not executable code — comments, string literals and
+ * regex literals — for a caller reading a **file**.
+ *
+ * The regex half is what this needed after four attempts. A regex literal is
+ * code to a substring scan, so `/\/\*[\s\S]*?\*\//g` reads as a division and
+ * `[ai]` reads as the `ai` side — and the rule ended up flagging the module
+ * that defines it while missing `(web.share + ai.share) / 2`, which is the
+ * defect it exists to catch. Patching the side patterns made the false
+ * positives worse and the true negatives worse at the same time.
+ *
+ * The generalisable part: **a source scan has to decide what is code, and a
+ * pattern that only handles the delimiter kinds it has already met will
+ * misreport its own source.** Comments and strings were handled; regexes were
+ * the third kind, missed by someone who had only written regexes into *other*
+ * files. `platform-card-rule` has the same shape and the same note about its
+ * own `strip`.
+ */
+export function blankNonCode(source: string): string {
+  let out = "";
+  let i = 0;
+  while (i < source.length) {
+    const two = source.slice(i, i + 2);
+    if (two === "/*") {
+      const end = source.indexOf("*/", i + 2);
+      i = end === -1 ? source.length : end + 2;
+      continue;
+    }
+    if (two === "//") {
+      const end = source.indexOf("\n", i);
+      i = end === -1 ? source.length : end;
+      continue;
+    }
+    const ch = source[i] ?? "";
+    if (ch === '"' || ch === "'" || ch === "`") {
+      i = skipLiteral(source, i, ch);
+      continue;
+    }
+    // A regex literal opens with a `/` that cannot follow an operand;
+    // division always does. That is the only reliable discriminator, and it
+    // is why this scans statefully rather than with a pattern.
+    if (ch === "/" && !/[\w$)\]]/.test(source[i - 1] ?? " ")) {
+      i = skipRegex(source, i);
+      continue;
+    }
+    out += ch;
+    i += 1;
+  }
+  return out;
+}
+
+/**
+ * Past the end of a quoted or backticked literal starting at `start`.
+ *
+ * **Template holes are kept**, because `${pct(webShare)}` is executable and
+ * blanking it would hide the arithmetic the rule exists to find. That is the
+ * one place a "blank the literal" rule has to stop, and getting it wrong in
+ * either direction produces a gate that misses the defect or flags prose.
+ */
+function skipLiteral(source: string, start: number, quote: string): number {
+  let i = start + 1;
+  while (i < source.length) {
+    const c = source[i];
+    if (c === "\\") {
+      i += 2;
+      continue;
+    }
+    if (c === quote) return i + 1;
+    if (quote === "`" && c === "$" && source[i + 1] === "{") {
+      i = skipTemplateHole(source, i + 1);
+      continue;
+    }
+    i += 1;
+  }
+  return source.length;
+}
+
+/** Past the closing `}` of a `${…}` hole, keeping everything inside it. */
+function skipTemplateHole(source: string, braceAt: number): number {
+  let depth = 0;
+  let i = braceAt;
+  while (i < source.length) {
+    const c = source[i];
+    if (c === "{") depth += 1;
+    else if (c === "}") {
+      depth -= 1;
+      if (depth === 0) return i + 1;
+    }
+    i += 1;
+  }
+  return source.length;
+}
+
+/** Past the closing `/` and flags of a regex literal opening at `start`. */
+function skipRegex(source: string, start: number): number {
+  let i = start + 1;
+  let inClass = false;
+  while (i < source.length) {
+    const c = source[i];
+    if (c === "\\") {
+      i += 2;
+      continue;
+    }
+    if (c === "[") inClass = true;
+    else if (c === "]") inClass = false;
+    else if (c === "/" && !inClass) return i + 1;
+    else if (c === "\n") break;
+    i += 1;
+  }
+  return i;
+}
+
 export function findCombiningSentiment(source: string): string[] {
-  const code = source
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|[^:])\/\/.*$/gm, "$1")
-    .replace(/`(?:[^`\\]|\\.)*`/g, '""')
-    .replace(/"(?:[^"\\]|\\.)*"/g, '""')
-    .replace(/'(?:[^'\\]|\\.)*'/g, '""');
+  // **The `source` argument is code, verbatim.** It is not run through
+  // `blankNonCode`: that would blank the string literals of a *fixture*, whose
+  // whole content is a blend written as a string, and a rule that discards its
+  // own input reports "clean" on the defect it was built to find. Callers
+  // reading a file pass file contents; callers passing a fixture pass the
+  // fixture text, which is code by definition.
+  const code = source;
 
   const lines = code.split("\n");
   const offenders: string[] = [];
-
   for (let i = 0; i < lines.length; i++) {
     const window = lines
       .slice(i, i + 6)
@@ -68,15 +203,15 @@ export function findCombiningSentiment(source: string): string[] {
       .filter((line) => !/^[A-Za-z_$][\w$]*\??\s*:\s*[^=;]+[;,]$/.test(line))
       .join("\n");
 
-    const touchesBoth =
-      /web/i.test(window) &&
-      /ai/i.test(window) &&
-      /(share|positive|count)/i.test(window);
-    const combines =
-      /(\.reduce|\bsum[A-Z_a-z0-9]*\s*\(|\+=|\*=|\/\s*2\b|\*\s*0\.5\b)/.test(
-        window,
-      );
-    if (touchesBoth && combines) offenders.push(window.slice(0, 120));
+    // Both sides, a share-shaped field, and arithmetic. Regex literals and
+    // string literals are already blanked, so a plain substring test is safe
+    // here — the identifier-shaped patterns that replaced it missed
+    // `aiShare`, which is exactly the form a real blend is written in.
+    const mentionsBoth = /web/i.test(window) && /ai/i.test(window);
+    const shareField = /(share|positive|count)/i.test(window);
+    if (mentionsBoth && shareField && combinesTwoShares(window)) {
+      offenders.push(window.slice(0, 120));
+    }
   }
 
   // A derived scalar named plausibly: the blend arrives under a reasonable
@@ -171,8 +306,11 @@ function describe(input: {
   direction: SentimentComparison["direction"];
   webShare: number | null;
   aiShare: number | null;
+  /** The caller's own statement of what each side counted. */
+  webBasis: string;
+  aiBasis: string;
 }): string {
-  const { keyword, direction, webShare, aiShare } = input;
+  const { keyword, direction, webShare, aiShare, webBasis, aiBasis } = input;
 
   if (direction === null) {
     const missing = [
@@ -181,12 +319,17 @@ function describe(input: {
     ]
       .filter((value): value is string => value !== null)
       .join(" and ");
-    return `Cannot compare sentiment for "${keyword}: we have no reading for ${missing}. These are two different measurements, so half of the comparison is missing rather than low.`;
+    return `Cannot compare sentiment for "${keyword}": we have no reading for ${missing}. These are two different measurements, so half of the comparison is missing rather than low.`;
   }
 
+  // **The bases are the caller's, not prose written here.** Each side names
+  // what it counted, and the summary quotes those names — so a reader holding
+  // both figures learns *why* they are not comparable from the sentence
+  // itself, rather than being told they are not comparable while the sentence
+  // quietly asserts a denominator nobody chose.
   const shared =
-    `The open web classifies ${percent(webShare)} of citing pages as positive for "${keyword}"; ` +
-    `the AI engines' own reading is ${percent(aiShare)}. `;
+    `The open web classifies ${percent(webShare)} as positive for "${keyword}" — ${webBasis} ` +
+    `The AI engines' own reading is ${percent(aiShare)} — ${aiBasis} `;
 
   const verdict =
     direction === "warmer"
@@ -249,6 +392,8 @@ export function compareSentiment(input: {
       direction,
       webShare: web.share,
       aiShare: ai.share,
+      webBasis: input.webBasis,
+      aiBasis: input.aiBasis,
     }),
     // The type is `false` and the value is `false`: neither can change without
     // this module being rewritten, which is the point.

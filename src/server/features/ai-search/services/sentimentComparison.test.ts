@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  blankNonCode,
   compareSentiment,
   findCombiningSentiment,
 } from "./sentimentComparison";
@@ -85,6 +86,25 @@ describe("compareSentiment", () => {
     expect(noAi.ai.unavailable).toBe(true);
   });
 
+  it("quotes each side's own basis in the summary, not prose the module invented", async () => {
+    // The finding CodeRabbit made: the sentence said "of citing pages" and "the
+    // AI engines' own reading" regardless of what the caller actually counted.
+    // A summary that asserts a denominator nobody supplied is exactly the
+    // confident-empty-answer shape this product refuses elsewhere.
+    const result = compareSentiment({
+      keyword: "crm software",
+      webPositiveShare: 0.8,
+      webCounts: { positive: 800 },
+      webBasis: WEB_BASIS,
+      aiPositiveShare: 0.4,
+      aiCounts: { positive: 40 },
+      aiBasis: AI_BASIS,
+    });
+
+    expect(result.summary).toContain("DataForSEO's index");
+    expect(result.summary).toContain("AI engine answers about the brand");
+  });
+
   it("states that the two figures are deliberately not combined", () => {
     expect(both().summary).toMatch(/deliberately not combined/i);
   });
@@ -97,14 +117,18 @@ describe("the shape that forbids combining them", () => {
   // scan over the working copy passes identically when the scanner matches
   // nothing at all.
   it("finds no combining arithmetic in this module", () => {
-    const source = readFileSync(
+    const raw = readFileSync(
       join(
         process.cwd(),
         "src/server/features/ai-search/services/sentimentComparison.ts",
       ),
       "utf8",
     );
-    expect(findCombiningSentiment(source)).toEqual([]);
+    // Blank first, then judge. The module's own regex literals contain
+    // slashes that read as division, so judging the raw file would flag the
+    // code that defines the rule — while the negative controls below pass
+    // fixture text straight in, because a fixture *is* the code under test.
+    expect(findCombiningSentiment(blankNonCode(raw))).toEqual([]);
   });
 
   it("would catch a blend written inline", () => {
@@ -130,6 +154,19 @@ describe("the shape that forbids combining them", () => {
     const offenders = findCombiningSentiment(theBugThatWouldShip);
     expect(offenders.length > 0).toBe(true);
     expect(offenders[0]).toBeTruthy();
+  });
+
+  it("would catch a blend normalised by a variable, not only by two", () => {
+    // **The finding CodeRabbit made.** The rule matched `/ 2`, so it caught the
+    // careless `(a + b) / 2` and walked past `(a + b) / total` — the weighted
+    // blend, which is the form someone writes when they are being careful.
+    // A rule that only catches the careless version of a mistake survives the
+    // careful version, which is the one that ships.
+    const weighted = [
+      "const positiveShare = ((web.share ?? 0) * 0.7 + (ai.share ?? 0) * 0.3) / 1;",
+      "return { positiveShare, direction: directionOf(web.share, ai.share) };",
+    ].join("\n");
+    expect(findCombiningSentiment(weighted).length > 0).toBe(true);
   });
 
   it("would catch a blend written through a sum helper", () => {
