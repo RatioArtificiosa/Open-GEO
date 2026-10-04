@@ -145,11 +145,38 @@ async function postSerpTask(input: {
   // The envelope being present says nothing about the task: a refused entry
   // arrives inside a successful response, and both calls are billed.
   if (task.status_code !== 20100 || !task.id) {
-    throw new Error(
-      `DataForSEO task_post (${task.status_code ?? "no status"}): ${task.status_message ?? "no task created"}`,
+    // **The status code travels on the error, not only in the prose.** The
+    // caller decides whether to cache this failure by reading `status`, and
+    // pattern-matching a message is how "no task created" ends up classifying a
+    // transport oddity as a permanent rejection — a `20100` response with no id
+    // is not a refusal, it is a response we could not read, and caching it
+    // locks a visitor out over something that would succeed on retry.
+    throw Object.assign(
+      new Error(
+        `DataForSEO task_post (${task.status_code ?? "no status"}): ${task.status_message ?? "no task created"}`,
+      ),
+      { dfsStatus: task.status_code ?? null },
     );
   }
   return task.id;
+}
+
+/**
+ * Would this failure recur identically for the same input?
+ *
+ * Read off the structured status, never off the message text. A 4xxxx from the
+ * provider is a decision about the request — a rejected field, an off-topic
+ * prompt — and will be repeated for the same input. Everything else (a 5xx, a
+ * timeout, an unreadable response) is transient, and caching it would convert a
+ * momentary failure into a two-minute "this question failed" that the visitor
+ * reads as the answer.
+ */
+function isDeterministicFailure(err: unknown): boolean {
+  if (typeof err !== "object" || err === null || !("dfsStatus" in err)) {
+    return false;
+  }
+  const status = (err as { dfsStatus: unknown }).dfsStatus;
+  return typeof status === "number" && status >= 40000 && status < 50000;
 }
 
 export const Route = createFileRoute("/api/ask-the-ai")({
@@ -242,21 +269,11 @@ export const Route = createFileRoute("/api/ask-the-ai")({
           // **Only a deterministic failure is cached.** A refused task — an
           // off-topic prompt, a rejected field — will be refused identically for
           // the same input, so caching it saves two billable calls per retry.
-          // A timeout or a 5xx will not: caching those turns a thirty-second
-          // network blip into a two-minute "this question failed" that the
-          // visitor sees as the answer, which is the failure this whole tool is
-          // built to avoid. Transient failures stay uncached so a retry can
-          // actually work.
-          //
-          // The split is on the message, because the provider's status text is
-          // the only thing that distinguishes them — and it is the same text
-          // `fetchDataforseoResult` and `postSerpTask` already branch on.
-          const detail = err instanceof Error ? err.message : String(err);
-          const deterministic =
-            /status_code \(40\d\d\d\)|Invalid Field|Task .*rejected|no task created/i.test(
-              detail,
-            );
-          if (deterministic) {
+          // A timeout, a 5xx or an unreadable response will not, and caching
+          // those turns a thirty-second network blip into a two-minute "this
+          // question failed" that the visitor sees as the answer — the failure
+          // this whole tool is built to avoid.
+          if (isDeterministicFailure(err)) {
             await writeCached(
               TOOL.slug,
               cacheKey,

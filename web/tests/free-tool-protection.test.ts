@@ -495,8 +495,7 @@ describe("Ask the AI runs the two-step flow in order", () => {
 });
 
 describe("Ask the AI caches only failures that will recur", () => {
-  /** Turnstile ok, then a provider failure with the given detail message. */
-  function failingRun(failure: string) {
+  function runWith(taskEntry: Record<string, unknown>) {
     bindings.value.DATAFORSEO_API_KEY = "test-key";
     const reserve = vi.fn().mockResolvedValue("allowed");
     bindings.value.FREE_TOOL_BUDGET = { getByName: () => ({ reserve }) };
@@ -512,12 +511,7 @@ describe("Ask the AI caches only failures that will recur", () => {
           action: "free_tool",
         }),
       )
-      .mockResolvedValueOnce(
-        Response.json({
-          tasks: [{ id: "task-123", status_code: 20100 }],
-        }),
-      )
-      .mockRejectedValueOnce(new Error(failure));
+      .mockResolvedValueOnce(Response.json({ tasks: [taskEntry] }));
     return put;
   }
 
@@ -538,22 +532,44 @@ describe("Ask the AI caches only failures that will recur", () => {
       }),
     );
 
-  it("caches a refused task, which will be refused identically on a retry", async () => {
-    const put = failingRun("DataForSEO task_post (40501): Invalid Field");
+  it("caches a refused task, which the provider will refuse again identically", async () => {
+    // A 4xxxx is a decision about the request, not about the network, so a
+    // retry would spend two more billable calls to learn the same thing.
+    const put = runWith({
+      status_code: 40501,
+      status_message: "Invalid Field: check the request data.",
+    });
 
     const response = await ask();
 
     expect(response.status).toBe(502);
-    // Cached, so the retry does not spend two more billable calls to learn
-    // the same thing.
     expect(put).toHaveBeenCalledTimes(1);
   });
 
-  it("does not cache a timeout, because the next attempt will succeed", async () => {
-    // The failure this tool must not manufacture: a thirty-second network blip
+  it("does not cache a 20100 post that carried no id, because that is not a refusal", async () => {
+    // The case CodeRabbit caught. The task *was* created — 20100 says so — but
+    // the response did not carry the id we asked for. That is a response we
+    // could not read, and the same request would very likely succeed on retry,
+    // so caching it would lock the visitor out over a transport oddity.
+    const put = runWith({
+      status_code: 20100,
+      status_message: "Task Created.",
+    });
+
+    const response = await ask();
+
+    expect(response.status).toBe(502);
+    expect(put).not.toHaveBeenCalled();
+  });
+
+  it("does not cache a 5xx, because the next attempt will succeed", async () => {
+    // The failure this tool must not manufacture: a thirty-second provider blip
     // turned into a two-minute "this question failed" the visitor reads as the
     // answer.
-    const put = failingRun("DataForSEO HTTP 503 on serp/ai_summary");
+    const put = runWith({
+      status_code: 50000,
+      status_message: "Internal Server Error.",
+    });
 
     const response = await ask();
 
