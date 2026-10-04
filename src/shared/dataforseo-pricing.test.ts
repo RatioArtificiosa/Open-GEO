@@ -228,12 +228,16 @@ describe("price-book caveats state totals the rates actually produce", () => {
    * from that one published fact rather than from our reasoning about it.
    */
 
-  it("reproduces the vendor's own published total for 1M AI keywords", () => {
-    // "1,000*0.01 + 1,000,000*0.0001 = $110" — straight off the pricing page.
+  it("states the rates the vendor published, and delegates the sum", () => {
+    // **The caveat no longer quotes a total, and that is deliberate.** It carried
+    // `1,000*0.01 + 1,000,000*0.0001 = $110` in prose, and prose about prices goes
+    // stale silently — it read correctly long after the rate beneath it had been
+    // corrected. `estimateAiKeywordBatch` does that sum, and it lives in its own
+    // module: **a price table states prices, a function does sums.** The proof that
+    // the two still agree is beside the function, not here.
     const kw = DFS_AI_OPTIMIZATION.aiKeywordSearchVolume;
-    const total = 1000 * (kw.perRequest ?? 0) + 1_000_000 * (kw.perUnit ?? 0);
-    expect(total).toBe(110);
-    expect(claimedTotals(kw.caveat)).toContain(110);
+    expect(kw.perRequest).toBeCloseTo(0.01, 6);
+    expect(kw.perUnit).toBeCloseTo(0.0001, 6);
   });
 
   it("reproduces every total the AI-Optimization caveats quote", () => {

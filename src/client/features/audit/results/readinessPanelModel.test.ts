@@ -191,21 +191,35 @@ describe("coverageNote", () => {
 });
 
 describe("fixBorderRule", () => {
-  it("gives a switch the loudest edge, because it is a precondition", () => {
+  it("gives a switch the strongest accent, because it is a precondition", () => {
     // A reader should be able to find the blocking problem without reading every
-    // row, which is what the left border is for.
-    expect(fixBorderRule("switch")).toBe("border-l-error");
+    // row, which is what the accent is for.
+    expect(fixBorderRule("switch")).toContain("border-l-error");
+    expect(fixBorderRule("switch")).toContain("bg-error/5");
   });
 
-  it("gives convention and quality different but not-severe edges", () => {
+  it("keeps every accent at 2px, because a thick slab is AI-slop", () => {
+    // `detect:slop` flags `border-l-4` as the most recognisable tell of a
+    // machine-generated interface, and it flagged this project's own panel for
+    // exactly that. **The accent carries information; the volume is what shouts.**
+    for (const kind of ["switch", "convention", "quality", "unknown-kind"]) {
+      expect(fixBorderRule(kind)).toContain("border-l-2");
+      expect(fixBorderRule(kind)).not.toContain("border-l-4");
+    }
+  });
+
+  it("gives convention and quality different but not-severe accents", () => {
     // **A third colour would imply a severity the report does not claim**: how to
-    // fix something is a matter of taste, not of consequence.
-    expect(fixBorderRule("convention")).toBe("border-l-warning");
-    expect(fixBorderRule("quality")).toBe("border-l-base-content/20");
+    // fix something is a matter of taste, not consequence.
+    expect(fixBorderRule("convention")).toContain("border-l-warning");
+    expect(fixBorderRule("quality")).toContain("border-l-base-content/20");
   });
 
-  it("falls back to the quiet edge for a kind it does not know", () => {
+  it("falls back to the quiet accent for a kind it does not know", () => {
     // A new kind from the server must not render as a precondition.
-    expect(fixBorderRule("something-new")).toBe("border-l-base-content/20");
+    expect(fixBorderRule("something-new")).toContain(
+      "border-l-base-content/20",
+    );
+    expect(fixBorderRule("something-new")).not.toContain("border-l-error");
   });
 });

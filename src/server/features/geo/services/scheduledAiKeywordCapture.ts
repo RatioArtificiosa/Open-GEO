@@ -44,7 +44,7 @@
  *    exactly as `aiModeMonitor` does, because a retry after an unknown-outcome
  *    request is how a budget disappears without a trace.
  */
-import { AI_KEYWORD_UNIT_COST_USD } from "@/shared/dataforseo-pricing";
+import { estimateAiKeywordBatch } from "@/shared/ai-keyword-batch-cost";
 import { and, eq, max, sql } from "drizzle-orm";
 import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import type { BudgetedCaptureReport } from "@/server/features/geo/services/captureReport";
@@ -565,7 +565,9 @@ export async function runDueAiKeywordCaptures(input?: {
      * expression that returns 1 either way.
      */
     const calls = 1;
-    const cost = calls * AI_KEYWORD_UNIT_COST_USD;
+    // **Read from the module that prices a batch**, rather than a second hand-rolled
+    // sum here: a second `+` is how this cost went wrong in the first place.
+    const cost = estimateAiKeywordBatch(keywords.length).totalUsd;
 
     if (cost > remaining) {
       report.droppedForBudget += keywords.length;

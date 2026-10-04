@@ -76,12 +76,20 @@ export const DFS_AI_OPTIMIZATION = {
       "One brand checked daily for a month with 10 rows returned = $3.30.",
   } satisfies DfsPrice,
 
-  /** AI Keyword Data — AI search volume + 12-month trend. */
+  /**
+   * AI Keyword Data — AI search volume + 12-month trend.
+   *
+   * **Live mode only**, so a caller cannot trade cost for latency or queue it.
+   * A request carries at most 1,000 keywords and **the task fee is added**, not
+   * amortised by filling the batch — `estimateAiKeywordBatch` does that sum.
+   */
   aiKeywordSearchVolume: {
     perRequest: money(0.01),
     perUnit: money(0.0001),
     unitName: "keyword",
-    caveat: "1,000 keywords per request. 1M keywords = $110.",
+    caveat:
+      "Live mode only. Pay-as-you-go; a $50 minimum initial top-up, and credits " +
+      "do not expire.",
   } satisfies DfsPrice,
 
   /** LLM Responses — generation, charged on top of the provider's own bill. */
@@ -697,46 +705,26 @@ export const PER_PROJECT_NIGHTLY_CAP = {
 } as const;
 
 /**
- * The AI keyword call's price, USD.
+ * The AI keyword's **per-keyword** price, USD.
  *
- * ## This is now verified, and the previous value was 20x too high
+ * ## Verified against the pricing page, 2026-10-04
  *
- * The old note said this figure had never been checked against the vendor because
- * only a billable call could price it. **The pricing page publishes its own
- * arithmetic**, checked 2026-10-04:
+ * The page publishes its own arithmetic — `1,000*0.01 + 1,000,000*0.0001 = $110`
+ * — so the per-item rate is **$0.0001**. The previous `$0.002` was twenty times
+ * that, described as deliberately conservative. **Twenty times conservative is not
+ * caution; it is a twentieth of the feature.**
  *
- * > "Price per task $0.01, Price per item $0.0001 ... The number of keywords you
- * > can get in response is limited to 1000 ... 1,000*0.01 + 1,000,000*0.0001 =
- * > $110"
+ * ## The request fee is separate, and callers must add it
  *
- * So the **per-item rate is $0.0001**, and the old `0.002` was twenty times it.
- * That mattered in both directions, because this is **the ceiling's denominator**:
+ * A call also pays a **request fee** on top, so a batch of *n* keywords costs
+ * `n * this + the request fee` — a full 1,000-keyword batch is
+ * **$0.11, not $0.10**. This constant is the right basis only for a
+ * *per-keyword* estimate, which is what the MCP tool's credit quote uses
+ * ($0.1 credits a keyword). Anything budgeting a **batch** or a **night**
+ * must add the request fee, and a batch is dominated by it.
  *
- * | | at the old $0.002 | at the verified $0.0001 |
- * |---|---|---|
- * | keywords one $5 night admits | 2,500 | 50,000 |
- * | a tool's per-keyword credit estimate | 2 | 0.1 |
- *
- * **The old figure was described as deliberately conservative** — chosen high so
- * an over-estimate would make the planner drop work it could afford. But twenty
- * times conservative is not caution, it is **a twentieth of the feature**: a
- * nightly budget that admits 2,500 keywords when it could afford 50,000 is not
- * protecting anyone, it is simply not working.
- *
- * ## The per-task fee is deliberately not in here
- *
- * `$0.01` per request is real, and a request carries up to 1,000 keywords, so at
- * any batch size a caller actually uses the task fee is under 1% of the total.
- * **This is a per-keyword cost**, and `estimateCost` handles the task fee where the
- * request count is known.
- *
- * ## Still a price, not an invoice
- *
- * Billing reads the task's own `cost`, so this bounds the planner and the
- * tool's dry-run estimate and **never charges anyone**. The DataForSEO account is
- * still unverified (40104), so no live billable call has confirmed it — the
- * vendor's printed arithmetic is the strongest evidence available, and it is
- * stronger than a guess dressed as caution.
+ * Billing reads the task's own `cost`, so this bounds a planner and a dry run
+ * and never charges anyone.
  */
 export const AI_KEYWORD_UNIT_COST_USD = 0.0001;
 

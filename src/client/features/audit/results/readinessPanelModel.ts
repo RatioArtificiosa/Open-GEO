@@ -127,21 +127,30 @@ export function coverageNote(readiness: Report): CoverageNoteState | null {
 }
 
 /**
- * The border rule for one fix.
+ * The accent rule for one fix.
  *
- * **A `switch` is a precondition** — the thing that makes the other fixes
- * possible — so it gets the loudest edge, and a reader can find it without
- * reading. `convention` and `quality` share a quieter rule on purpose: the
- * distinction between them is a matter of taste about *how* to fix something, and
- * giving it a third colour would imply a severity the report does not claim.
+ * ## A 2px rule and a tint, not a thick slab
+ *
+ * `detect:slop` flags a thick coloured side-border as the most recognisable tell
+ * of AI-generated UI, and it is right: a 4px slab shouts, and shouting is the
+ * problem rather than the fix. **`KeywordResearchDesktopTable` and `IssuesView`
+ * already have this project's grammar** — a 2px rule plus a faint background —
+ * so matching it makes the fix consistency rather than invention.
+ *
+ * **The kind still carries information.** A `switch` is a precondition and has to
+ * be findable without reading every row, so it keeps the strongest tint.
+ *
+ * `convention` and `quality` share a quieter rule on purpose: the difference is a
+ * matter of taste about *how* to fix something, and a third colour would imply a
+ * severity the report does not claim.
  */
 export function fixBorderRule(kind: string): string {
   switch (kind) {
     case "switch":
-      return "border-l-error";
+      return "border-l-2 border-l-error bg-error/5";
     case "convention":
-      return "border-l-warning";
+      return "border-l-2 border-l-warning bg-warning/5";
     default:
-      return "border-l-base-content/20";
+      return "border-l-2 border-l-base-content/20 bg-base-200/40";
   }
 }
