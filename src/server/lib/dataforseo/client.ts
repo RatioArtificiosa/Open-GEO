@@ -57,6 +57,7 @@ import {
   fetchPhraseTrends,
 } from "@/server/lib/dataforseo/content-analysis";
 import { fetchSentimentAnalysis } from "@/server/lib/dataforseo/content-analysis-sentiment";
+import { fetchContentSearch } from "@/server/lib/dataforseo/content-analysis-search";
 import { fetchAiModeAnswer } from "@/server/lib/dataforseo/ai-mode";
 import {
   fetchLlmAggregatedMetrics,
@@ -161,6 +162,8 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       // Two overlapping distributions over the same corpus. `ai_citations`
       // again — citing pages classified by sentiment, still not prompts.
       contentSentiment: meter(customer, fetchSentimentAnalysis, "ai_citations"),
+      // The individual citing pages. Same feature: citing pages, not prompts.
+      contentSearch: meter(customer, fetchContentSearch, "ai_citations"),
     },
     labs: {
       // Callers (e.g. the keyword-metrics MCP tool) can attribute the spend to
