@@ -8,6 +8,11 @@ import {
   buildTaskBilling,
   type DataforseoApiResponse,
 } from "@/server/lib/dataforseo/envelope";
+import {
+  countMap,
+  countsOf,
+  toDomainRows,
+} from "@/server/lib/dataforseo/content-analysis-shapes";
 
 /**
  * Content Analysis — what the open web says about a topic, and who says it.
@@ -67,14 +72,6 @@ const classifyContentAnalysisError = createDataforseoBillingClassifier({
   billingIssueMessage:
     "The connected DataForSEO account has a billing or balance issue",
 });
-
-const countMap = z
-  .object({
-    positive: z.number().nullish(),
-    negative: z.number().nullish(),
-    neutral: z.number().nullish(),
-  })
-  .passthrough();
 
 const resultSchema = z
   .object({
@@ -146,16 +143,13 @@ type ContentAnalysisInput = {
   sentimentsConnotationThreshold?: number;
 };
 
-/** Drop nullish entries so an absent label is not reported as a measured zero. */
-function countsOf(
-  raw: Record<string, number | null | undefined> | null | undefined,
-): Record<string, number> {
-  const out: Record<string, number> = {};
-  if (!raw) return out;
-  for (const [key, value] of Object.entries(raw)) {
-    if (typeof value === "number") out[key] = value;
-  }
-  return out;
+/** 0-1 thresholds are clamped rather than passed through: an out-of-range
+ *  value is a billed rejection, and the useful reading is "clamped", not
+ *  "the server refused it". */
+function clampThreshold(value: number | undefined, fallback: number): number {
+  if (value === undefined) return fallback;
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(1, Math.max(0, value));
 }
 
 export async function fetchContentAnalysisSummary(
@@ -241,12 +235,6 @@ export async function fetchContentAnalysisSummary(
     },
     billing: buildTaskBilling(task),
   };
-}
-
-function clampThreshold(value: number | undefined, fallback: number): number {
-  if (value === undefined) return fallback;
-  if (!Number.isFinite(value)) return fallback;
-  return Math.min(1, Math.max(0, value));
 }
 
 /**
@@ -447,10 +435,7 @@ export async function fetchPhraseTrends(input: {
       rank: row.rank ?? null,
       positiveShare: classified > 0 ? positive / classified : null,
       polarity: { positive, negative, neutral },
-      topDomains: (row.top_domains ?? []).filter(
-        (entry): entry is { domain: string; count: number } =>
-          typeof entry.domain === "string" && typeof entry.count === "number",
-      ),
+      topDomains: toDomainRows(row.top_domains),
     };
   });
 
