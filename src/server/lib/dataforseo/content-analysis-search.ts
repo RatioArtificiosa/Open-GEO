@@ -43,17 +43,24 @@ import { AppError } from "@/server/lib/errors";
  * The documented sample has `"semantic_location": 90` and
  * `"content_quality_score": 94` — identical values, in a field whose documented
  * type is a string like `"article"`. **The vendor appears to be returning a
- * quality score in that field**, so it is captured as an opaque string and not
- * interpreted: a number where a semantic element is documented is a vendor
- * inconsistency, and guessing which reading is right would be a claim about
- * data we cannot verify.
+ * quality score in that field**, so it is typed as a union and carried through
+ * as a string without interpretation: a number where a semantic element is
+ * documented is a vendor inconsistency, and guessing which reading is right
+ * would be a claim about data we cannot verify. A `string`-only schema would
+ * reject the vendor's own payload and throw on every live call.
  *
  * ## The default sort is a trap for a reputation view
  *
  * `order_by` defaults to `content_info.sentiment_connotations.anger,desc` —
  * **most-angry citations first.** That is a reasonable default for someone
  * triaging complaints and the wrong one for a brand watching its
- * representation, so prominence is sent explicitly instead.
+ * representation.
+ *
+ * So `DEFAULT_ORDER_BY` holds that anger-first rule as the **fallback** rather
+ * than being overridden blindly: a caller who names no sort gets a reproducible
+ * answer and `orderBy` in the result records which order actually ran. Sending
+ * nothing and letting the vendor decide would leave the choice invisible, and
+ * an invisible default is the thing this note exists to prevent.
  *
  * Verified against the live documentation on 2026-10-04.
  */
@@ -137,10 +144,19 @@ const itemSchema = z
         content_quality_score: z.number().nullish(),
         date_published: z.string().nullish(),
         /**
-         * Documented as a semantic element (`"article"`), returned as a number.
-         * Kept opaque — see the module note.
+         * Documented as a semantic element (`"article"`), **returned as a
+         * number** — the documented sample carries `90`, identical to
+         * `content_quality_score`.
+         *
+         * Typed `z.union([z.string(), z.number()])` rather than `z.string()`
+         * because a `string`-only schema **rejects the vendor's own payload**:
+         * the result would throw `INTERNAL_ERROR` on every live call instead
+         * of passing the value through as the documentation of this field
+         * promises. A schema that contradicts the comment above it is worse
+         * than no schema. Normalised to a string on the way out, because the
+         * reading is unknown and only the raw value is trustworthy.
          */
-        semantic_location: z.string().nullish(),
+        semantic_location: z.union([z.string(), z.number()]).nullish(),
         group_date: z.string().nullish(),
       })
       .passthrough()
@@ -318,7 +334,14 @@ export async function fetchContentSearch(input: {
       item.content_info?.sentiment_connotations,
     ),
     contentQualityScore: item.content_info?.content_quality_score ?? null,
-    semanticLocation: item.content_info?.semantic_location ?? null,
+    // Normalised to a string rather than left as a union, because the reading
+    // is unknown: only the raw value is trustworthy, and a caller should not
+    // have to narrow `string | number` to print it.
+    semanticLocation:
+      item.content_info?.semantic_location === null ||
+      item.content_info?.semantic_location === undefined
+        ? null
+        : String(item.content_info.semantic_location),
     groupDate: item.content_info?.group_date ?? null,
   }));
 

@@ -84,8 +84,11 @@ function citationRow(overrides?: {
         neutral: 0.4645,
       },
       content_quality_score: 90,
-      // Documented as a semantic element string; returned as a number.
-      semantic_location: "90",
+      // **A number, as the vendor sends it.** The first version of this
+      // fixture wrote `"90"`, which matched a `z.string()` schema and so
+      // passed while the real payload — numeric — would have been rejected
+      // outright. The fixture has to mirror what actually arrives.
+      semantic_location: 90,
       group_date: "2021-09-08 20:23:59 +00:00",
     },
   };
@@ -247,14 +250,17 @@ describe("fetchContentSearch", () => {
     expect(requestBody(fetchMock)[0]).toMatchObject({ limit: 1000 });
   });
 
-  it("keeps semantic_location opaque, because the vendor sends a number where a label is documented", async () => {
+  it("accepts the numeric semantic_location the vendor actually sends, and does not interpret it", async () => {
     // Documented as `"article"`; the sample carries `90`, identical to
-    // `content_quality_score`. Guessing which reading is right would be a claim
-    // about data we cannot verify, so it is carried through and not interpreted.
+    // `content_quality_score`. A `z.string()` schema would reject the real
+    // payload and throw on every live call — so this fixture is **numeric**, and
+    // the test that a wrong schema would fail is the one asserting the shape.
     fetchMock.mockResolvedValue(new Response(JSON.stringify(searchEnvelope())));
 
     const { data } = await fetchContentSearch({ keyword: "logitech" });
 
+    // Carried through as the raw value, normalised to a string because the
+    // reading is unknown — only the value itself is trustworthy.
     expect(data.rows[0]?.semanticLocation).toBe("90");
     expect(data.rows[0]?.contentQualityScore).toBe(90);
   });
