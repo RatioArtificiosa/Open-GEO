@@ -142,8 +142,15 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       serpTaskForSummary: meter(customer, postSerpTaskForSummary),
       aiSummary: meter(customer, fetchAiSummary),
       // Content Analysis: what the open web says about a keyword. Metered as
-      // backlinks because that is the family the price book files it under.
-      contentSummary: meter(customer, fetchContentAnalysisSummary, "backlinks"),
+      // AI citations — **the same answer `mapDataforseoPathToCreditFeature`
+      // gives for this path**, because the meter's `defaultFeature` wins
+      // whenever a caller does not pass one, so the two must agree or the
+      // mapping fix is bypassed by every call that does not opt out.
+      contentSummary: meter(
+        customer,
+        fetchContentAnalysisSummary,
+        "ai_citations",
+      ),
     },
     labs: {
       // Callers (e.g. the keyword-metrics MCP tool) can attribute the spend to
