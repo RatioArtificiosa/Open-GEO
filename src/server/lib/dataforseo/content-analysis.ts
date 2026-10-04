@@ -378,6 +378,29 @@ export async function fetchPhraseTrends(input: {
 
   const dateGroup = input.dateGroup ?? "month";
   const searchMode = input.searchMode ?? "as_is";
+
+  // **Validated before the billed post, like `dateFrom`.** A malformed
+  // `date_to` is a rejection the customer pays for, and a `date_to` earlier
+  // than `date_from` is a range that cannot exist — which would come back as
+  // an empty series and read as "nothing was ever said" rather than "that
+  // range is backwards". Normalised once here and used for both the request
+  // and the returned record, so the two cannot disagree.
+  const dateTo = input.dateTo?.trim() || null;
+  if (dateTo !== null) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "date_to must be YYYY-MM-DD when supplied. A malformed date is a billed rejection, not a default.",
+      );
+    }
+    if (dateTo < dateFrom) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        `date_to (${dateTo}) is earlier than date_from (${dateFrom}). That range contains no months, and DataForSEO would return an empty series that reads as "nothing was ever said".`,
+      );
+    }
+  }
+
   const listLimit = Math.min(
     MAX_TRENDS_LIST_LIMIT,
     Math.max(1, Math.floor(input.internalListLimit ?? 10)),
@@ -389,7 +412,7 @@ export async function fetchPhraseTrends(input: {
       {
         keyword,
         date_from: dateFrom,
-        ...(input.dateTo ? { date_to: input.dateTo } : {}),
+        ...(dateTo ? { date_to: dateTo } : {}),
         date_group: dateGroup,
         search_mode: searchMode,
         // Sent explicitly: the default is 1, so a caller who does not ask gets
@@ -435,7 +458,7 @@ export async function fetchPhraseTrends(input: {
     data: {
       keyword,
       dateFrom,
-      dateTo: input.dateTo ?? null,
+      dateTo,
       dateGroup,
       searchMode,
       points,

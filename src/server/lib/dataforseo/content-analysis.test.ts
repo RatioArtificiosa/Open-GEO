@@ -321,6 +321,49 @@ describe("fetchPhraseTrends", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("refuses a malformed date_to, because that is a billed rejection", async () => {
+    // `dateFrom` was validated and `dateTo` was not — the same defect twice: a
+    // bad date reaching a paid endpoint costs money to learn something
+    // knowable locally.
+    await expect(
+      fetchPhraseTrends({ ...base, dateTo: "01/09/2026" }),
+    ).rejects.toThrow(/date_to must be YYYY-MM-DD/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a date_to before date_from, which is a range that cannot exist", async () => {
+    // It would succeed at the provider and return an empty series, which reads
+    // as "nothing was ever said about this topic" rather than "that range is
+    // backwards".
+    await expect(
+      fetchPhraseTrends({ ...base, dateTo: "2026-01-01" }),
+    ).rejects.toThrow(/earlier than date_from/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("normalises date_to once, so the request and the record cannot disagree", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(trendsEnvelope())));
+
+    const { data } = await fetchPhraseTrends({
+      ...base,
+      dateTo: "  2026-09-01  ",
+    });
+
+    expect(requestBody(fetchMock)[0]).toMatchObject({ date_to: "2026-09-01" });
+    expect(data.dateTo).toBe("2026-09-01");
+  });
+
+  it("omits date_to entirely when none is supplied, rather than sending an empty one", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(trendsEnvelope())));
+
+    const { data } = await fetchPhraseTrends(base);
+
+    // The vendor defaults `date_to` to today, so sending nothing is correct —
+    // and `data.dateTo` stays null rather than claiming a range we did not set.
+    expect(requestBody(fetchMock)[0]).not.toHaveProperty("date_to");
+    expect(data.dateTo).toBeNull();
+  });
+
   it("sends internal_list_limit explicitly, because this endpoint's default is 1", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify(trendsEnvelope())));
 
