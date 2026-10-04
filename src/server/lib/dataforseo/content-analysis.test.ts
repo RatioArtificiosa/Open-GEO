@@ -5,7 +5,11 @@ vi.mock("@/server/lib/runtime-env", () => ({
   getOptionalEnvValue: vi.fn(async () => undefined),
 }));
 
-import { fetchContentAnalysisSummary } from "@/server/lib/dataforseo/content-analysis";
+import {
+  PHRASE_TRENDS_HISTORY_FLOOR,
+  fetchContentAnalysisSummary,
+  fetchPhraseTrends,
+} from "@/server/lib/dataforseo/content-analysis";
 import { requestBody, requestUrl } from "./test-support";
 
 /** The documented example response, trimmed to the fields we read. */
@@ -223,5 +227,185 @@ describe("fetchContentAnalysisSummary", () => {
     });
 
     expect(billing.costUsd).toBe(0.02003);
+  });
+});
+
+/** The documented trends example, two date buckets, trimmed. */
+function trendsEnvelope() {
+  return {
+    status_code: 20000,
+    tasks: [
+      {
+        id: "t-1",
+        status_code: 20000,
+        path: ["v3", "content_analysis", "phrase_trends", "live"],
+        cost: 0.02009,
+        result_count: 2,
+        result: [
+          {
+            type: "content_analysis_trends",
+            date: "2026-08-01",
+            total_count: 1159252,
+            rank: 590,
+            top_domains: [{ domain: "xsplit.com", count: 53678 }],
+            sentiment_connotations: { happiness: 32457, fun: 1212 },
+            connotation_types: {
+              positive: 390289,
+              negative: 135916,
+              neutral: 589516,
+            },
+            page_types: { blogs: 622032 },
+            countries: { US: 86504 },
+            languages: { en: 712751 },
+          },
+          {
+            type: "content_analysis_trends",
+            date: "2026-09-01",
+            total_count: 1430023,
+            rank: 613,
+            top_domains: [{ domain: "vdsitsolutions.com", count: 341567 }],
+            sentiment_connotations: { happiness: 36007, fun: 971 },
+            connotation_types: {
+              positive: 735206,
+              negative: 175341,
+              neutral: 468693,
+            },
+            page_types: { blogs: 809466 },
+            countries: { BE: 344693 },
+            languages: { en: 963542 },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+describe("fetchPhraseTrends", () => {
+  const base = { keyword: "logitech", dateFrom: "2026-08-01" };
+
+  it("posts to phrase_trends/live, with the path pinned", async () => {
+    // Same reason as `summary`: a plausible wrong path here is
+    // `content_analysis_trends/live`, which reads like the response's `type`.
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(trendsEnvelope())));
+
+    await fetchPhraseTrends(base);
+
+    expect(requestUrl(fetchMock)).toContain(
+      "/v3/content_analysis/phrase_trends/live",
+    );
+    expect(requestBody(fetchMock)[0]).toMatchObject({
+      keyword: "logitech",
+      date_from: "2026-08-01",
+      date_group: "month",
+    });
+  });
+
+  it("requires date_from, because the vendor treats it as a billed rejection", async () => {
+    await expect(
+      fetchPhraseTrends({ keyword: "logitech", dateFrom: "" }),
+    ).rejects.toThrow(/date_from is required/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a range starting before the vendor's history", async () => {
+    // Without this the request succeeds and returns an **empty series**, which
+    // reads as "nothing was ever said about this topic" rather than "we hold
+    // no data that far back". Those are different answers and only the second
+    // is true.
+    await expect(
+      fetchPhraseTrends({
+        keyword: "logitech",
+        dateFrom: "2020-01-01",
+      }),
+    ).rejects.toThrow(new RegExp(PHRASE_TRENDS_HISTORY_FLOOR));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sends internal_list_limit explicitly, because this endpoint's default is 1", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(trendsEnvelope())));
+
+    await fetchPhraseTrends(base);
+
+    expect(requestBody(fetchMock)[0]).toMatchObject({
+      internal_list_limit: 10,
+    });
+  });
+
+  it("words the direction rather than reporting a percentage", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(trendsEnvelope())));
+
+    const { data } = await fetchPhraseTrends(base);
+
+    // `total_count` swings by 23% between these two buckets, so a change in
+    // *share* is not a change in *volume* — and a ratio of two ratios whose
+    // denominators moved is not a finding.
+    expect(data.direction).toBe("rising");
+    expect(JSON.stringify(data)).not.toMatch(/"(change|delta|growthPct)"/i);
+  });
+
+  it("says the series is the open web, never an AI reading", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(trendsEnvelope())));
+
+    const { data } = await fetchPhraseTrends(base);
+
+    expect(data.basis).toMatch(/open web/i);
+    expect(data.basis).toMatch(/not an AI engine/i);
+  });
+
+  it("returns a null direction when there is only one usable bucket", async () => {
+    // One point is a measurement, not a direction.
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status_code: 20000,
+          tasks: [
+            {
+              status_code: 20000,
+              path: ["v3", "content_analysis", "phrase_trends", "live"],
+              cost: 0.02,
+              result: [
+                {
+                  date: "2026-08-01",
+                  total_count: 10,
+                  connotation_types: {
+                    positive: 5,
+                    negative: 3,
+                    neutral: 2,
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+
+    const { data } = await fetchPhraseTrends(base);
+
+    expect(data.points).toHaveLength(1);
+    expect(data.direction).toBeNull();
+  });
+
+  it("returns an empty series rather than inventing a direction when nothing came back", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status_code: 20000,
+          tasks: [
+            {
+              status_code: 20000,
+              path: ["v3", "content_analysis", "phrase_trends", "live"],
+              cost: 0.02,
+              result: [],
+            },
+          ],
+        }),
+      ),
+    );
+
+    const { data } = await fetchPhraseTrends(base);
+
+    expect(data.points).toEqual([]);
+    expect(data.direction).toBeNull();
   });
 });

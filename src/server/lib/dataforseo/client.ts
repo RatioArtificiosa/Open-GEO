@@ -52,7 +52,10 @@ import {
   fetchAiSummary,
   postSerpTaskForSummary,
 } from "@/server/lib/dataforseo/ai-summary";
-import { fetchContentAnalysisSummary } from "@/server/lib/dataforseo/content-analysis";
+import {
+  fetchContentAnalysisSummary,
+  fetchPhraseTrends,
+} from "@/server/lib/dataforseo/content-analysis";
 import { fetchAiModeAnswer } from "@/server/lib/dataforseo/ai-mode";
 import {
   fetchLlmAggregatedMetrics,
@@ -151,6 +154,9 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
         fetchContentAnalysisSummary,
         "ai_citations",
       ),
+      // The same citation data with a time axis. Also `ai_citations`, and for
+      // the same reason: it measures citing pages, not prompts.
+      contentPhraseTrends: meter(customer, fetchPhraseTrends, "ai_citations"),
     },
     labs: {
       // Callers (e.g. the keyword-metrics MCP tool) can attribute the spend to

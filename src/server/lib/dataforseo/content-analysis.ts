@@ -248,3 +248,222 @@ function clampThreshold(value: number | undefined, fallback: number): number {
   if (!Number.isFinite(value)) return fallback;
   return Math.min(1, Math.max(0, value));
 }
+
+/**
+ * `content_analysis/phrase_trends` — the same citation data over a date range.
+ *
+ * ## This is the web side over time, not an AI reading
+ *
+ * `phrase_trends` returns one result per date bucket, each carrying the *same*
+ * `connotation_types` / `top_domains` shape as `summary`. So it is
+ * `summary` with a time axis — and **it says nothing about what AI engines
+ * think.** Worth stating plainly, because it is tempting to read a
+ * per-date series as "how sentiment is moving" and quote it as though it
+ * covered both audiences. It covers the vendor's index of citing pages,
+ * which is the web half of CL-306's comparison and only that half.
+ *
+ * ## `date_from` is REQUIRED and `date_to` defaults to today
+ *
+ * Unlike every sibling, an omitted `date_from` is a **billed rejection**
+ * rather than a default. Historical data starts **2022-10-31**, so a range
+ * starting earlier is asking for months that do not exist — which would
+ * come back as an empty series rather than an error, and read as "nothing
+ * was ever said about this topic". So the floor is enforced here and named
+ * in the error, because "no data" and "you asked for a year we do not have"
+ * are different answers.
+ *
+ * **`internal_list_limit` defaults to 1 here too**, as on `summary`.
+ *
+ * Verified against the live documentation on 2026-10-04.
+ */
+
+const TRENDS_PATH = "/v3/content_analysis/phrase_trends/live";
+
+/** Documented start of the vendor's history for this endpoint. */
+export const PHRASE_TRENDS_HISTORY_FLOOR = "2022-10-31";
+
+/** Documented maximum for the internal arrays, same as `summary`. */
+const MAX_TRENDS_LIST_LIMIT = 20;
+
+const trendsResultSchema = z
+  .object({
+    type: z.string().optional(),
+    /** The bucket this row covers: `YYYY-MM-DD`, per `date_group`. */
+    date: z.string().nullish(),
+    total_count: z.number().nullish(),
+    rank: z.number().nullish(),
+    top_domains: z
+      .array(
+        z
+          .object({
+            domain: z.string().nullish(),
+            count: z.number().nullish(),
+          })
+          .passthrough(),
+      )
+      .nullish(),
+    sentiment_connotations: z
+      .record(z.string(), z.number().nullish())
+      .nullish(),
+    connotation_types: countMap.nullish(),
+    page_types: z.record(z.string(), z.number().nullish()).nullish(),
+    countries: z.record(z.string(), z.number().nullish()).nullish(),
+    languages: z.record(z.string(), z.number().nullish()).nullish(),
+  })
+  .passthrough();
+
+type PhraseTrendPoint = {
+  /** The bucket start, ISO. */
+  date: string | null;
+  totalCount: number | null;
+  rank: number | null;
+  positiveShare: number | null;
+  polarity: { positive: number; negative: number; neutral: number };
+  topDomains: Array<{ domain: string; count: number }>;
+};
+
+/** Module-private until a caller names it; knip enforces that an export nobody
+ *  consumes is a lie about the API surface. */
+type PhraseTrendsResult = {
+  keyword: string;
+  dateFrom: string;
+  dateTo: string | null;
+  dateGroup: "day" | "week" | "month";
+  searchMode: "as_is" | "one_per_domain";
+  points: PhraseTrendPoint[];
+  /**
+   * A worded direction, never a percentage: "rising" / "falling" / "flat".
+   *
+   * The same refusal as `sentimentComparison`: a percentage over these counts
+   * would be arithmetic whose denominator changes month to month, since
+   * `total_count` swings by an order of magnitude between buckets. The words
+   * are defensible; the ratio is not.
+   */
+  direction: "rising" | "falling" | "flat" | null;
+  basis: string;
+};
+
+export async function fetchPhraseTrends(input: {
+  keyword: string;
+  /** Required by the vendor. ISO `YYYY-MM-DD`. */
+  dateFrom: string;
+  /** Defaults to today server-side; recorded either way. */
+  dateTo?: string;
+  dateGroup?: "day" | "week" | "month";
+  searchMode?: "as_is" | "one_per_domain";
+  internalListLimit?: number;
+}): Promise<DataforseoApiResponse<PhraseTrendsResult>> {
+  const keyword = input.keyword.trim();
+  if (keyword.length === 0) {
+    throw new AppError("VALIDATION_ERROR", "keyword is required");
+  }
+
+  const dateFrom = input.dateFrom.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateFrom)) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "date_from is required by DataForSEO and must be YYYY-MM-DD. An omitted date_from is a billed rejection, not a default.",
+    );
+  }
+  // The floor is enforced here rather than discovered as an empty series: a
+  // range that starts before the vendor's history returns nothing, and
+  // "nothing" reads as "nothing was ever said" rather than "we have no data
+  // for that year".
+  if (dateFrom < PHRASE_TRENDS_HISTORY_FLOOR) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      `DataForSEO holds phrase_trends history from ${PHRASE_TRENDS_HISTORY_FLOOR}; ${dateFrom} is before it. Asking for earlier data returns an empty series, which reads as "nothing was ever said about this topic".`,
+    );
+  }
+
+  const dateGroup = input.dateGroup ?? "month";
+  const searchMode = input.searchMode ?? "as_is";
+  const listLimit = Math.min(
+    MAX_TRENDS_LIST_LIMIT,
+    Math.max(1, Math.floor(input.internalListLimit ?? 10)),
+  );
+
+  const response = await dataforseoPost(
+    TRENDS_PATH,
+    [
+      {
+        keyword,
+        date_from: dateFrom,
+        ...(input.dateTo ? { date_to: input.dateTo } : {}),
+        date_group: dateGroup,
+        search_mode: searchMode,
+        // Sent explicitly: the default is 1, so a caller who does not ask gets
+        // one domain and reads it as a leaderboard.
+        internal_list_limit: listLimit,
+      },
+    ],
+    NO_RETRY_BILLED_POST,
+  );
+
+  const task = assertOk(response, {
+    classify: classifyContentAnalysisError,
+    classifyPath: TRENDS_PATH,
+  });
+
+  const raw = z.array(trendsResultSchema).safeParse(task.result ?? []);
+  if (!raw.success) {
+    throw new AppError(
+      "INTERNAL_ERROR",
+      "DataForSEO content_analysis/phrase_trends returned an unexpected payload",
+    );
+  }
+
+  const points: PhraseTrendPoint[] = raw.data.map((row) => {
+    const positive = row.connotation_types?.positive ?? 0;
+    const negative = row.connotation_types?.negative ?? 0;
+    const neutral = row.connotation_types?.neutral ?? 0;
+    const classified = positive + negative + neutral;
+    return {
+      date: row.date ?? null,
+      totalCount: row.total_count ?? null,
+      rank: row.rank ?? null,
+      positiveShare: classified > 0 ? positive / classified : null,
+      polarity: { positive, negative, neutral },
+      topDomains: (row.top_domains ?? []).filter(
+        (entry): entry is { domain: string; count: number } =>
+          typeof entry.domain === "string" && typeof entry.count === "number",
+      ),
+    };
+  });
+
+  return {
+    data: {
+      keyword,
+      dateFrom,
+      dateTo: input.dateTo ?? null,
+      dateGroup,
+      searchMode,
+      points,
+      direction: trendDirection(points),
+      basis: `Citing pages in DataForSEO's index for "${keyword}", grouped by ${dateGroup}. This is the open web, not an AI engine's reading.`,
+    },
+    billing: buildTaskBilling(task),
+  };
+}
+
+/**
+ * Word the direction, by comparing the first and last buckets that carry a
+ * share — and only when they are far enough apart to be worth saying.
+ *
+ * **No percentage.** `total_count` swings by an order of magnitude between
+ * months for the same keyword, so a change in *share* is not a change in
+ * *volume*, and reporting "sentiment fell 12%" would be reading a ratio of
+ * two ratios whose denominators moved. Null rather than zero when there are
+ * fewer than two usable buckets: one point is a measurement, not a direction.
+ */
+function trendDirection(
+  points: readonly PhraseTrendPoint[],
+): PhraseTrendsResult["direction"] {
+  const usable = points.filter((point) => point.positiveShare !== null);
+  if (usable.length < 2) return null;
+  const first = usable[0]?.positiveShare ?? 0;
+  const last = usable[usable.length - 1]?.positiveShare ?? 0;
+  const gap = last - first;
+  if (Math.abs(gap) < 0.02) return "flat";
+  return gap > 0 ? "rising" : "falling";
+}
