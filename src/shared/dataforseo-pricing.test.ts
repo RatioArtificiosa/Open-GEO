@@ -205,6 +205,71 @@ describe("cost estimator", () => {
   });
 });
 
+/**
+ * Every dollar figure a caveat claims, so an assertion can check each one.
+ *
+ * **At module scope because it captures nothing** — a helper that closes over
+ * nothing is not a step in a test, it is a reader for a caveat.
+ */
+function claimedTotals(caveat: string | undefined): number[] {
+  if (caveat === undefined) return [];
+  return [...caveat.matchAll(/\$([0-9]+\.?[0-9]*)/g)].map((m) => Number(m[1]));
+}
+
+describe("price-book caveats state totals the rates actually produce", () => {
+  /**
+   * The rates are read off the vendor's pricing pages; the *worked examples* in
+   * the caveats are arithmetic we wrote, and an example that drifts from its rate
+   * is worse than no example — a customer reads it and budgets from it.
+   *
+   * The vendor settles the model. DataForSEO's AI Keyword Search Volume page
+   * publishes its own arithmetic: `1,000 * 0.01 + 1,000,000 * 0.0001 = $110`, so
+   * **the request fee and the per-item fee both apply**. Every total below follows
+   * from that one published fact rather than from our reasoning about it.
+   */
+
+  it("reproduces the vendor's own published total for 1M AI keywords", () => {
+    // "1,000*0.01 + 1,000,000*0.0001 = $110" — straight off the pricing page.
+    const kw = DFS_AI_OPTIMIZATION.aiKeywordSearchVolume;
+    const total = 1000 * (kw.perRequest ?? 0) + 1_000_000 * (kw.perUnit ?? 0);
+    expect(total).toBe(110);
+    expect(claimedTotals(kw.caveat)).toContain(110);
+  });
+
+  it("reproduces every total the AI-Optimization caveats quote", () => {
+    const llm = DFS_AI_OPTIMIZATION.llmMentions;
+    const perRequest = llm.perRequest ?? 0;
+    const perUnit = llm.perUnit ?? 0;
+
+    // "1,000 rows = $1.10" and "one brand daily for a month with 10 rows = $3.30".
+    expect(perRequest + 1000 * perUnit).toBeCloseTo(1.1, 6);
+    expect(30 * perRequest + 300 * perUnit).toBeCloseTo(3.3, 6);
+
+    // The caveat must actually say so, or the example is not being maintained.
+    expect(claimedTotals(llm.caveat)).toContain(1.1);
+    expect(claimedTotals(llm.caveat)).toContain(3.3);
+  });
+
+  it("keeps the crawl caveats consistent with the tiers they name", () => {
+    // A caveat that describes a multiplier the table no longer holds is a
+    // customer-facing contradiction, and the number is the easy half to get wrong.
+    for (const tier of [
+      estimateCrawl({ pages: 1, browserRendering: true }),
+      estimateCrawl({ pages: 1, loadResources: true, loadJavaScript: true }),
+    ]) {
+      for (const line of tier.caveats) {
+        expect(line.length).toBeGreaterThan(0);
+      }
+    }
+    // And the tier the rendering caveat names is the one it charges.
+    const rendering = estimateCrawl({ pages: 1, browserRendering: true });
+    expect(rendering.requestCostUsd / DFS_ONPAGE.basePage).toBeCloseTo(
+      DFS_ONPAGE.browserRendering,
+      6,
+    );
+  });
+});
+
 describe("crawl tier bundling", () => {
   /**
    * The vendor sells OnPage tiers as **bundles**, priced by DataForSEO on
