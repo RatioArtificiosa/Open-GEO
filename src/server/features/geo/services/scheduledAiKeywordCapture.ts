@@ -44,6 +44,7 @@
  *    exactly as `aiModeMonitor` does, because a retry after an unknown-outcome
  *    request is how a budget disappears without a trace.
  */
+import { AI_KEYWORD_UNIT_COST_USD } from "@/shared/dataforseo-pricing";
 import { and, eq, max, sql } from "drizzle-orm";
 import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import type { BudgetedCaptureReport } from "@/server/features/geo/services/captureReport";
@@ -73,26 +74,6 @@ import { GeoRunRepository } from "@/server/features/geo/repositories/GeoRunRepos
  * by that guard rather than duplicated by a caller.
  */
 const VENDOR_MAX_KEYWORDS = 1000;
-
-/**
- * One keyword-demand call, in USD.
- *
- * **A placeholder, deliberately, and this is the honest state of it.** The price
- * book has no verified figure for
- * `/v3/ai_optimization/ai_keyword_data/keywords_search_volume/live` — the live
- * verification is blocked on the account being funded. `aiModeMonitor`'s $0.004 was
- * *verified against the vendor's own example response*; quoting a similar-looking
- * number here would put an unverified figure in the one place that bounds spending,
- * which is the failure this repository has repeatedly declined to accept.
- *
- * Until it is verified against a real invoice, the conservative reading is the
- * **highest plausible** one: `ai_keyword_data` is priced per task, and the sibling
- * `llm_mentions` family is $0.0006/task. Over-estimating here makes the planner
- * drop keywords it could have afforded; under-estimating makes the bill surprising.
- * **Refusing to run is worse than either**, so the conservative error is the right
- * direction — and the note says which direction it errs.
- */
-const AI_KEYWORD_UNIT_COST_USD = 0.002;
 
 /** The night's ceiling, in USD. Same reasoning as the AI Mode cap: a constant, not an invented setting. */
 /**

@@ -555,6 +555,8 @@ describe("nightly budgets and caps", () => {
     // **The only figure here that no live call has confirmed.** It is the keyword
     // capture's ceiling denominator, so a wrong price makes the budget wrong in both
     // directions — and account verification is what would replace it.
-    expect(AI_KEYWORD_UNIT_COST_USD).toBe(0.002);
+    // The vendor's published per-item rate, re-read 2026-10-04. The old 0.002
+    // was a guess described as caution; it was twenty times this.
+    expect(AI_KEYWORD_UNIT_COST_USD).toBe(0.0001);
   });
 });

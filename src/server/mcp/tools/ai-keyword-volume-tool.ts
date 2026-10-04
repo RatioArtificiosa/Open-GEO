@@ -36,11 +36,16 @@ import { AI_KEYWORD_UNIT_COST_USD } from "@/shared/dataforseo-pricing";
  *
  * ## The monthly series is optional, and the cost is per keyword either way
  *
- * DataForSEO bills `$0.002` per keyword, whether or not the 12-month series is
- * requested — so `includeMonthlyTrend` is a response-size decision, not a cost
- * one, and the dry run quotes the keyword count only. It is off by default
- * because the 12-row array is the bulk of the bytes and nothing at the call
- * site is known to need it.
+ * DataForSEO bills **per keyword** whether or not the 12-month series is requested
+ * — so `includeMonthlyTrend` is a response-size decision, not a cost one, and
+ * the dry run quotes the keyword count only. It is off by default because the
+ * 12-row array is the bulk of the bytes and nothing at the call site is known
+ * to need it.
+ *
+ * **The rate is not written here.** It is `AI_KEYWORD_UNIT_COST_USD`, and this
+ * comment used to carry its own copy of the number — which is how the prose kept
+ * claiming $0.002 after the constant had been corrected to $0.0001. **One fact,
+ * one place.**
  */
 
 type AiKeywordRow = {
@@ -134,9 +139,14 @@ export const aiKeywordVolumeTool = {
 
     if (args.dry_run !== false) {
       const estimate = unique.size * CREDITS_PER_KEYWORD;
+      // **Derived from the constant, not typed beside it.** This string is what an
+      // agent reads before it spends, so a literal here is a claim the calculation
+      // cannot correct — and it said "$0.002" for as long as the constant said
+      // $0.002, which is exactly how the two drifted apart in the first place.
+      const usdPerKeyword = `${AI_KEYWORD_UNIT_COST_USD}`;
       return mcpResponse({
         text: [
-          `Dry run: AI demand for ${unique.size} keyword(s) will cost approximately ${estimate} credits ($0.002 per keyword, DataForSEO AI Keyword Data). Charged amount is what DataForSEO reports at send time.`,
+          `Dry run: AI demand for ${unique.size} keyword(s) will cost approximately ${estimate} credits (${usdPerKeyword} per keyword, DataForSEO AI Keyword Data). Charged amount is what DataForSEO reports at send time.`,
           `Re-run with dry_run: false to spend credits and fetch the volumes.`,
           `AI volume is a People-Also-Ask-derived model, not comparable with Google search volume or with the same-named field from other AI tools.`,
         ].join("\n"),

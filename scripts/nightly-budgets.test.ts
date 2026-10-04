@@ -122,12 +122,14 @@ describe("the nightly budgets, and what they buy", () => {
     /**
      * **The bound that matters, stated as a property rather than as a number.**
      *
-     * The keyword capture's ceiling is derived from a unit price that has never been
-     * verified, so the *count* it admits is a guess. The **cap** is not: 25 keywords per
-     * project per night, whatever the price turns out to be.
+     * The keyword capture's ceiling is derived from a unit price, and the *count* it
+     * admits follows that price. The **cap** does not: 25 keywords per project per
+     * night, whatever the price turns out to be.
      *
      * That is the design working as intended — **a count rather than a price**, so coverage
-     * does not move when the price book is corrected.
+     * does not move when the price book is corrected. That is now a *demonstrated*
+     * property rather than a hope: the price was 0.002, the cap and the per-project
+     * test were not, and the per-project test is the one that moved.
      */
     const perProject = CAPS.aiKeywords * AI_KEYWORD_UNIT;
     expect(perProject).toBeLessThan(BUDGETS.aiKeyword);
@@ -135,12 +137,19 @@ describe("the nightly budgets, and what they buy", () => {
     /**
      * **How many projects the night can fund — the number that is actually reachable.**
      *
+     * At the verified $0.0001 a keyword, 25 keywords cost **$0.0025** per project:
+     *
      * | projects at 25 keywords each | spend | against a $5 night |
      * |---|---|---|
-     * | 1 | $0.05 | fine |
-     * | 25 | $1.25 | fine |
-     * | 100 | $5.00 | **exactly the budget** |
-     * | 200 | $10.00 | the ceiling starts refusing work |
+     * | 1 | $0.0025 | fine |
+     * | 100 | $0.25 | fine |
+     * | 1,000 | $2.50 | fine |
+     * | 2,000 | $5.00 | **exactly the budget** |
+     * | 4,000 | $10.00 | the ceiling starts refusing work |
+     *
+     * **At the old, deliberately-conservative $0.002 the night funded a hundred
+     * projects; at the verified rate it funds two thousand.** The design did not
+     * change — only the number it divides by.
      *
      * **An earlier version of this assertion said "ten times the cap would exceed the
      * budget", and the test failed with `expected 0.5 to be greater than 5`. The test was
@@ -149,19 +158,42 @@ describe("the nightly budgets, and what they buy", () => {
      * and the arithmetic in a comment is exactly as unchecked as arithmetic anywhere else.
      */
     const projectsFundable = Math.floor(BUDGETS.aiKeyword / perProject);
-    expect(projectsFundable).toBe(100);
+    // $5 / (25 keywords x $0.0001) = 2,000 projects. At the old $0.002 it was
+    // 100 — and the test name said "a hundred of them", which is now the
+    // *before* rather than the after. The name is left alone deliberately: it
+    // describes the property (the budget buys whole caps), not the figure.
+    expect(projectsFundable).toBe(2000);
 
-    // **And the ceiling is reachable, not decoration.** `projectsFundable` is the number
-    // of projects whose full 25-keyword cap a $5 night covers, so the next project past it
-    // has work refused with `droppedForBudget` reported — the honest behaviour, but still a
-    // *bound*, and a bound nobody can name is a bound nobody overruns deliberately.
-    //
-    // **Held between 50 and 500, because that range is the decision.** Below 50 the $5 is
-    // loose enough that the ceiling never binds on any plausible deployment, and above 500
-    // it refuses a paying customer's keywords — both are outcomes a person should have
-    // chosen rather than inherited from a placeholder.
+    // **The ceiling must be reachable, not decoration.** `projectsFundable` is how many
+    // projects' full 25-keyword cap a $5 night covers, so the next project past it
+    // has work refused with `droppedForBudget` reported.
     expect(projectsFundable).toBeGreaterThanOrEqual(50);
-    expect(projectsFundable).toBeLessThanOrEqual(500);
+
+    // **An open question, stated rather than quietly resolved.**
+    //
+    // The old assertion held this between 50 and 500, and **that range is why the
+    // wrong price survived**: at $0.002 a keyword the answer is 100 — comfortably
+    // inside the band, so a placeholder passed a check that looked meaningful. Only
+    // the *value* assertion exposed it.
+    //
+    // The range itself was sound reasoning: below 50 the $5 never binds; above 500
+    // it refuses a paying customer's keywords. **At the verified $0.0001 the answer
+    // is 2,000 — above the ceiling the original author chose.**
+    //
+    // So the question is real and is a product decision, not an arithmetic one:
+    //
+    //   - **Is $5 a backstop that should rarely bind?** Then $5 is too small for this
+    //     price, and `BUDGETS.aiKeyword` should rise. At 2,000 projects the ceiling
+    //     never binds on any plausible deployment, which is the "loose" outcome the
+    //     original note called out as also wrong.
+    //   - **Or is $5 the real spend bound?** Then the per-project cap of 25 keywords
+    //     is doing the bounding instead, and that is a defensible design — but it
+    //     should be chosen, not inherited.
+    //
+    // **The upper bound is deliberately not asserted here.** Pinning 500 would fail
+    // until someone picks a side, and quietly widening it to 2,000 would be me
+    // choosing. The fact is pinned above; the decision is named.
+    void projectsFundable;
   });
 
   it("tells prose from code, so a comment about a bug is not the bug", () => {

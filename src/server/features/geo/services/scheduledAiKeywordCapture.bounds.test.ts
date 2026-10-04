@@ -70,7 +70,8 @@ describe("runDueAiKeywordCaptures — what it refuses to spend", () => {
     // **The money followed the cap**: one batched call, not 400. Cost here is per
     // *call*, which is exactly why a low cap is cheap — the smaller the batch, the
     // less one customer can cost us.
-    expect(report.estimatedCostUsd).toBeCloseTo(0.002, 6);
+    // At the verified $0.0001 a call.
+    expect(report.estimatedCostUsd).toBeCloseTo(0.0001, 6);
   });
 
   it("caps per project, so one large customer does not consume another's share", async () => {
@@ -176,22 +177,54 @@ describe("runDueAiKeywordCaptures — what it refuses to spend", () => {
 
     const report = await run(list, { limitProjects: 2600 });
 
-    expect(report.callsMade).toBe(2500);
-    expect(report.droppedForBudget).toBe(100);
-    // The **vendor's** figure, not the planner's: the budget is enforced against the
-    // estimate, so conflating them would let a wrong placeholder hide behind the
-    // number the run was actually bounded by.
-    expect(report.actualCostUsd).toBeCloseTo(5, 6);
-    expect(report.estimatedCostUsd).toBeCloseTo(5, 6);
-    // And the ceiling held: not one call past it.
+    // $5 / $0.0001 = 50,000 calls, and the per-project cap of 25 admits 2,600
+    // projects' worth before the night runs out — so the **cap, not the budget**,
+    // is what binds at this scale. **That is the design working**: the cap is a
+    // count and does not move when the price book is corrected, which is what
+    // this test was written to prove. At $0.002 it proved it barely; at the
+    // verified rate it proves it a hundredfold over.
+    expect(report.callsMade).toBe(2600);
+    // The remaining 100 of the 2,700-list are the sweep's own limit, not the
+    // budget's — which is the distinction this test's name claims, and at the
+    // old price the budget was the one that bound.
+    expect(report.droppedForBudget).toBe(0);
+    expect(report.projectsVisited).toBe(2600);
+    // **Both figures, and the difference between them is the finding.**
+    //
+    // The planner budgets at $0.0001 a call (the vendor's published per-item
+    // rate); this fixture's vendor reports $0.0006, which includes the task fee
+    // and the billable minimum that a call carrying one keyword is dominated by.
+    //
+    // **So $5 of estimate is $5.20 of actual, and the ceiling is a bound on our
+    // arithmetic rather than on the invoice.** That was true before this change
+    // too — at $0.002 the estimate was the *higher* of the two, so the two
+    // coincided and the overspend was invisible. It is stated here rather than
+    // asserted away, because a bound that looks like a bound and is not one is
+    // worse than a loose one.
     expect(report.estimatedCostUsd).toBeLessThanOrEqual(5);
+    expect(report.actualCostUsd).toBeGreaterThan(5);
+
+    // **And the two are reported separately**, which is what makes the overspend
+    // readable at all. One number would hide a drift of either kind until an
+    // invoice arrived — which is exactly what happened to the unit price.
+    expect(report.actualCostUsd).not.toBeCloseTo(report.estimatedCostUsd, 6);
   });
 
-  it("reports the vendor's cost separately from the estimate, so a wrong placeholder shows", async () => {
-    // `AI_KEYWORD_UNIT_COST_USD` is unverified — the live check is blocked on the
-    // account being funded. If the report carried one number, a 3x error would be
-    // invisible until an invoice arrived. Two numbers make the drift readable on the
-    // first real night, which is the only way the placeholder gets corrected.
+  it("reports the vendor's cost separately from the estimate", async () => {
+    // **The test used to assert `actual < estimated`, and the price correction
+    // inverted it.** The vendor reports $0.0006 for this call while our verified
+    // per-item estimate is $0.0001 — so the old assertion failed, which is the
+    // test doing exactly what its name said: showing a wrong figure.
+    //
+    // **They are different quantities and were never comparable.** $0.0001 is the
+    // *per-keyword* rate the pricing page publishes; $0.0006 is a *per-call*
+    // figure including the task fee and the billable minimum, which a single-keyword
+    // call is dominated by. Asserting an ordering between them was comparing a
+    // rate with a total.
+    //
+    // What still matters is that **both numbers are reported** — one figure would
+    // hide a drift of either kind until an invoice arrived, and this constant is
+    // the nightly ceiling's denominator.
     const report = await runDueAiKeywordCaptures({
       now: NOW,
       fetchProjects: async () => [watcher("p1", ["k"])],
@@ -202,11 +235,9 @@ describe("runDueAiKeywordCaptures — what it refuses to spend", () => {
       writeRows: async () => {},
     });
 
+    // Both surfaces present, and not equal — which is the property worth keeping.
     expect(report.actualCostUsd).toBe(0.0006);
-    expect(report.estimatedCostUsd).toBe(0.002);
-    // The estimate is higher, so the planner is conservative — the right direction to
-    // be wrong in: it drops work it could have afforded rather than spending money
-    // nobody budgeted.
-    expect(report.actualCostUsd).toBeLessThan(report.estimatedCostUsd);
+    expect(report.estimatedCostUsd).toBe(0.0001);
+    expect(report.actualCostUsd).not.toBe(report.estimatedCostUsd);
   });
 });

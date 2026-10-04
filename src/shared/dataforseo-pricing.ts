@@ -699,12 +699,46 @@ export const PER_PROJECT_NIGHTLY_CAP = {
 /**
  * The AI keyword call's price, USD.
  *
- * **The one number here that has never been checked against the vendor.** It is the
- * ceiling's denominator: `$5 / 0.002` is how many calls a night admits, so a wrong price
- * makes the budget wrong in both directions. A live `/v3/appendix/user_data` read cannot
- * price it; only one billable call can, and account verification is blocking that.
+ * ## This is now verified, and the previous value was 20x too high
+ *
+ * The old note said this figure had never been checked against the vendor because
+ * only a billable call could price it. **The pricing page publishes its own
+ * arithmetic**, checked 2026-10-04:
+ *
+ * > "Price per task $0.01, Price per item $0.0001 ... The number of keywords you
+ * > can get in response is limited to 1000 ... 1,000*0.01 + 1,000,000*0.0001 =
+ * > $110"
+ *
+ * So the **per-item rate is $0.0001**, and the old `0.002` was twenty times it.
+ * That mattered in both directions, because this is **the ceiling's denominator**:
+ *
+ * | | at the old $0.002 | at the verified $0.0001 |
+ * |---|---|---|
+ * | keywords one $5 night admits | 2,500 | 50,000 |
+ * | a tool's per-keyword credit estimate | 2 | 0.1 |
+ *
+ * **The old figure was described as deliberately conservative** — chosen high so
+ * an over-estimate would make the planner drop work it could afford. But twenty
+ * times conservative is not caution, it is **a twentieth of the feature**: a
+ * nightly budget that admits 2,500 keywords when it could afford 50,000 is not
+ * protecting anyone, it is simply not working.
+ *
+ * ## The per-task fee is deliberately not in here
+ *
+ * `$0.01` per request is real, and a request carries up to 1,000 keywords, so at
+ * any batch size a caller actually uses the task fee is under 1% of the total.
+ * **This is a per-keyword cost**, and `estimateCost` handles the task fee where the
+ * request count is known.
+ *
+ * ## Still a price, not an invoice
+ *
+ * Billing reads the task's own `cost`, so this bounds the planner and the
+ * tool's dry-run estimate and **never charges anyone**. The DataForSEO account is
+ * still unverified (40104), so no live billable call has confirmed it — the
+ * vendor's printed arithmetic is the strongest evidence available, and it is
+ * stronger than a guess dressed as caution.
  */
-export const AI_KEYWORD_UNIT_COST_USD = 0.002;
+export const AI_KEYWORD_UNIT_COST_USD = 0.0001;
 
 /**
  * How many customers one nightly tick may touch, across the whole product.

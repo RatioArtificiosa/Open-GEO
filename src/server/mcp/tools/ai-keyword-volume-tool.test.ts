@@ -1,4 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
+// **Imported so the assertions can derive the expected figures.** The old test
+// hard-coded `4` credits and `/\$0\.002/`, which is how the copy and the
+// calculation came to disagree: both were once right, and nothing connected them.
+import { AI_KEYWORD_UNIT_COST_USD } from "@/shared/dataforseo-pricing";
 import {
   makeToolContext,
   textContent,
@@ -237,8 +241,20 @@ describe("ai_keyword_volume", () => {
 
     expect(structured.dryRun).toBe(true);
     expect(structured.keywordCount).toBe(2);
-    expect(structured.estimatedCredits).toBe(4);
-    expect(textOf(result)).toMatch(/\$0\.002 per keyword/);
+
+    // **Derived from the constant rather than typed.** Two keywords at
+    // `unitCost x 1000` credits each. The old `toBe(4)` was right for the old
+    // price and would have kept passing while the number the customer reads
+    // changed.
+    const unitCredits = AI_KEYWORD_UNIT_COST_USD * 1000;
+    expect(structured.estimatedCredits).toBeCloseTo(unitCredits * 2, 6);
+
+    // **The copy must agree with the constant it is derived from.** This is the
+    // assertion that would have caught the original drift: the prose quoted
+    // `$0.002` as a literal while the calculation used the constant, so the two
+    // said different things for as long as the price was wrong. It now builds the
+    // expected string from the same number the credits came from.
+    expect(textOf(result)).toContain(`${AI_KEYWORD_UNIT_COST_USD} per keyword`);
     expect(keywordVolume).not.toHaveBeenCalled();
     expect(createDataforseoClient).not.toHaveBeenCalled();
   });
