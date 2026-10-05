@@ -4,7 +4,7 @@ import {
   Outlet,
   useLocation,
 } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NewsletterSignup } from "@/components/newsletter-signup";
 import { SiteFooter } from "@/components/site-footer";
 import { featureGroups } from "@/lib/feature-pages";
@@ -275,6 +275,78 @@ function MarketingLayout() {
   );
 }
 
+function NavMenu({
+  label,
+  mobileHref,
+  widthClass,
+  children,
+}: {
+  label: string;
+  mobileHref: string;
+  widthClass: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // **A menu opened by click must close itself.** Hover and
+  // focus-within (the classes on the panel below) reveal the menu
+  // for mouse and keyboard readers who do not click, but a reader
+  // who opened it by clicking the button needs the same way out:
+  // Escape, or a click anywhere else. Without this, a clicked-open
+  // menu stays on screen after the reader has moved on.
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="group relative" ref={ref}>
+      <a
+        href={mobileHref}
+        className="text-sm font-semibold text-neutral-600 transition-colors hover:text-neutral-900 md:hidden"
+      >
+        {label}
+      </a>
+      {/* **The trigger is a real button.** It carried no onClick, so a
+          mouse reader who clicked it — the natural action for a button —
+          got nothing, and a screen reader heard a plain button rather
+          than a menu. It now toggles the menu and reports its state;
+          hover and focus-within still reveal the menu for readers who
+          do not click. */}
+      <button
+        type="button"
+        aria-haspopup="true"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="hidden h-10 items-center text-sm font-semibold text-neutral-600 transition-colors hover:text-neutral-900 md:inline-flex"
+      >
+        {label}
+      </button>
+      <div
+        className={`pointer-events-none absolute left-1/2 top-[calc(100%-2px)] z-20 hidden ${widthClass} -translate-x-1/2 pt-2 opacity-0 transition md:block group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 ${open ? "pointer-events-auto opacity-100" : ""}`}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function ResourcesDropdown() {
   const resources = [
     {
@@ -305,121 +377,93 @@ function ResourcesDropdown() {
   ];
 
   return (
-    <div className="group relative">
-      <a
-        href="/blogs"
-        className="text-sm font-semibold text-neutral-600 transition-colors hover:text-neutral-900 md:hidden"
-      >
-        Resources
-      </a>
-      <button
-        type="button"
-        className="hidden h-10 items-center text-sm font-semibold text-neutral-600 transition-colors hover:text-neutral-900 md:inline-flex"
-      >
-        Resources
-      </button>
-      <div className="pointer-events-none absolute left-1/2 top-[calc(100%-2px)] z-20 hidden w-[280px] -translate-x-1/2 pt-2 opacity-0 transition md:block group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
-        <div className="rounded-lg border border-[var(--color-border-subtle)] bg-white p-3 shadow-xl shadow-neutral-900/10">
-          {resources.map((resource) => (
-            <a
-              key={resource.href}
-              href={resource.href}
-              className="block rounded-md px-3 py-2.5 transition-colors hover:bg-[var(--color-surface-sunken)]"
-            >
-              <span className="block text-sm font-semibold text-neutral-900">
-                {resource.label}
-              </span>
-              <span className="mt-0.5 block text-xs leading-relaxed text-neutral-600">
-                {resource.description}
-              </span>
-            </a>
-          ))}
-        </div>
+    <NavMenu label="Resources" mobileHref="/blogs" widthClass="w-[280px]">
+      <div className="rounded-lg border border-[var(--color-border-subtle)] bg-white p-3 shadow-xl shadow-neutral-900/10">
+        {resources.map((resource) => (
+          <a
+            key={resource.href}
+            href={resource.href}
+            className="block rounded-md px-3 py-2.5 transition-colors hover:bg-[var(--color-surface-sunken)]"
+          >
+            <span className="block text-sm font-semibold text-neutral-900">
+              {resource.label}
+            </span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-neutral-600">
+              {resource.description}
+            </span>
+          </a>
+        ))}
       </div>
-    </div>
+    </NavMenu>
   );
 }
 
 function FeatureDropdown() {
   return (
-    <div className="group relative">
-      <Link
-        to="/features"
-        className="text-sm font-semibold text-neutral-600 transition-colors hover:text-neutral-900 md:hidden"
-      >
-        Features
-      </Link>
-      <button
-        type="button"
-        className="hidden h-10 items-center text-sm font-semibold text-neutral-600 transition-colors hover:text-neutral-900 md:inline-flex"
-      >
-        Features
-      </button>
-      <div className="pointer-events-none absolute left-1/2 top-[calc(100%-2px)] z-20 hidden w-[560px] -translate-x-1/2 pt-2 opacity-0 transition md:block group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
-        <div className="rounded-lg border border-[var(--color-border-subtle)] bg-white p-5 shadow-xl shadow-neutral-900/10">
-          <div className="grid grid-cols-2 gap-x-8 gap-y-6">
-            {featureGroups.map((group) => (
-              <div key={group.label}>
-                <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                  {group.label}
-                </p>
-                <div className="mt-3 space-y-1">
-                  {group.pages.map((page) => (
-                    <a
-                      key={page.slug}
-                      href={`/features/${page.slug}`}
-                      className="block rounded-md px-2 py-1.5 transition-colors hover:bg-[var(--color-surface-sunken)]"
-                    >
-                      <span className="block text-sm font-semibold text-neutral-900">
-                        {page.eyebrow}
-                      </span>
-                      <span className="mt-0.5 block text-xs leading-relaxed text-neutral-600">
-                        {page.navDescription}
-                      </span>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            ))}
-            <div>
+    <NavMenu label="Features" mobileHref="/features" widthClass="w-[560px]">
+      <div className="rounded-lg border border-[var(--color-border-subtle)] bg-white p-5 shadow-xl shadow-neutral-900/10">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-6">
+          {featureGroups.map((group) => (
+            <div key={group.label}>
               <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                AI agents
+                {group.label}
               </p>
-              <div className="mt-3 space-y-2">
-                <a
-                  href="/features/mcp"
-                  className="block rounded-md p-2 transition-colors hover:bg-[var(--color-surface-sunken)]"
-                >
-                  <span className="text-sm font-semibold text-neutral-900">
-                    OpenGeo MCP
-                  </span>
-                  <span className="mt-0.5 block text-xs leading-relaxed text-neutral-600">
-                    Connect Claude, Codex, and agents.
-                  </span>
-                </a>
-                <a
-                  href="/google-search-console-mcp"
-                  className="block rounded-md p-2 transition-colors hover:bg-[var(--color-surface-sunken)]"
-                >
-                  <span className="text-sm font-semibold text-neutral-900">
-                    Search Console MCP
-                  </span>
-                  <span className="mt-0.5 block text-xs leading-relaxed text-neutral-600">
-                    Search Console data for agents.
-                  </span>
-                </a>
-                <a
-                  href="/features"
-                  className="block rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface-sunken)] px-2 py-1.5 text-sm font-medium text-neutral-900 transition-colors hover:border-neutral-900"
-                >
-                  View all features <span aria-hidden="true">&rarr;</span>
-                </a>
+              <div className="mt-3 space-y-1">
+                {group.pages.map((page) => (
+                  <a
+                    key={page.slug}
+                    href={`/features/${page.slug}`}
+                    className="block rounded-md px-2 py-1.5 transition-colors hover:bg-[var(--color-surface-sunken)]"
+                  >
+                    <span className="block text-sm font-semibold text-neutral-900">
+                      {page.eyebrow}
+                    </span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-neutral-600">
+                      {page.navDescription}
+                    </span>
+                  </a>
+                ))}
               </div>
+            </div>
+          ))}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+              AI agents
+            </p>
+            <div className="mt-3 space-y-2">
+              <a
+                href="/features/mcp"
+                className="block rounded-md p-2 transition-colors hover:bg-[var(--color-surface-sunken)]"
+              >
+                <span className="text-sm font-semibold text-neutral-900">
+                  OpenGeo MCP
+                </span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-neutral-600">
+                  Connect Claude, Codex, and agents.
+                </span>
+              </a>
+              <a
+                href="/google-search-console-mcp"
+                className="block rounded-md p-2 transition-colors hover:bg-[var(--color-surface-sunken)]"
+              >
+                <span className="text-sm font-semibold text-neutral-900">
+                  Search Console MCP
+                </span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-neutral-600">
+                  Search Console data for agents.
+                </span>
+              </a>
+              <a
+                href="/features"
+                className="block rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface-sunken)] px-2 py-1.5 text-sm font-medium text-neutral-900 transition-colors hover:border-neutral-900"
+              >
+                View all features <span aria-hidden="true">&rarr;</span>
+              </a>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </NavMenu>
   );
 }
 
