@@ -800,6 +800,428 @@
   }
 }
 
+/* ══ The answer-archive demo — the product moment ══════════════════════ */
+
+/* A raised instrument panel, not a card in a grid. One very large element, and
+   everything else small — the device 60fps.design uses with its ghosted wordmark,
+   translated to an instrument rather than a brand. */
+.itc-archive-demo {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-card);
+  box-shadow:
+    0 1px 2px rgb(10 13 16 / 0.04),
+    0 12px 32px rgb(10 13 16 / 0.05);
+  overflow: hidden;
+}
+
+/* The date rail on the left — the same filtering gesture as the coloured-icon rail
+   on navbar.gallery and unsection, applied to content instead of examples. */
+.itc-archive-dates {
+  border-bottom: 1px solid var(--color-border-subtle);
+  display: flex;
+}
+.itc-archive-date {
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.875rem 1.25rem;
+  text-align: left;
+  transition:
+    background 120ms cubic-bezier(0.2, 0, 0, 1),
+    border-color 120ms cubic-bezier(0.2, 0, 0, 1);
+}
+.itc-archive-date:hover {
+  background: var(--color-surface-sunken);
+}
+.itc-archive-date.is-active {
+  background: var(--color-surface-sunken);
+  /* The active run is marked by a rule, not by filling the button amber — the
+     accent is reserved for the changed words below. */
+  border-bottom-color: var(--color-brand);
+}
+.itc-archive-date-day {
+  color: var(--color-brand);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+.itc-archive-date-mentions {
+  color: var(--color-brand-muted);
+  font-size: 0.75rem;
+}
+
+.itc-archive-answer {
+  padding: 1.5rem 1.25rem 1.25rem;
+}
+.itc-archive-keyword {
+  align-items: baseline;
+  display: flex;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+.itc-archive-key {
+  color: var(--color-brand-muted);
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  width: 3.5rem;
+}
+.itc-archive-answer q {
+  color: var(--color-brand);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  quotes: none;
+}
+
+/* The answer itself, in the body face — it is prose to be read, not data to
+   scan, so it does not get the mono treatment. */
+.itc-archive-text {
+  color: var(--color-brand);
+  font-size: 1rem;
+  line-height: 1.7;
+  margin: 0 0 1.25rem;
+}
+/* **The one large accent moment on the page.** The words that appeared between
+   the two runs, and nothing else is amber at this size. */
+.itc-archive-added {
+  background: var(--color-brand-accent-subtle);
+  border-bottom: 2px solid var(--color-brand-accent);
+  color: var(--color-brand);
+  font-weight: 500;
+  padding: 0 0.125rem;
+}
+
+.itc-archive-sources {
+  border-top: 1px solid var(--color-border-subtle);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 1.25rem;
+  list-style: none;
+  margin: 0;
+  padding: 1rem 0 0;
+}
+.itc-archive-source {
+  align-items: center;
+  color: var(--color-brand-muted);
+  display: inline-flex;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  gap: 0.375rem;
+}
+.itc-archive-pos {
+  color: var(--color-brand-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* A source that appeared between runs. Marked with a dot and a word, never by
+   colour alone — DESIGN.md §2.4 requires it for status, and this is status. */
+.itc-archive-source.is-new {
+  color: var(--color-brand);
+}
+.itc-archive-flag {
+  border: 1px solid var(--color-brand-accent-border);
+  border-radius: 2px;
+  color: var(--color-brand-accent-text);
+  font-size: 0.625rem;
+  letter-spacing: 0.04em;
+  padding: 0 0.25rem;
+  text-transform: uppercase;
+}
+
+/* **The line that does the work.** It is the only sentence on the page claiming
+   the category left this on the table, and the reader can check it with the two
+   buttons above. */
+.itc-archive-verdict {
+  background: var(--color-surface-sunken);
+  border-top: 1px solid var(--color-border-subtle);
+  color: var(--color-brand-muted);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 1rem 1.25rem;
+}
+.itc-archive-verdict strong {
+  color: var(--color-brand);
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .itc-archive-dates {
+    flex-direction: column;
+  }
+  .itc-archive-date {
+    border-bottom-width: 1px;
+    border-bottom-color: var(--color-border-subtle);
+    border-left-width: 2px;
+    border-left-color: transparent;
+  }
+  .itc-archive-date.is-active {
+    border-left-color: var(--color-brand);
+  }
+  .itc-archive-answer {
+    padding: 1.125rem 1rem 1rem;
+  }
+}
+
+/* ══ The vendor receipt — a document, not a component ═══════════════════ */
+
+.itc-receipt {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+.itc-receipt-head {
+  align-items: baseline;
+  border-bottom: 1px solid var(--color-border-subtle);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  justify-content: space-between;
+  padding: 0.875rem 1.25rem;
+}
+.itc-receipt-title {
+  color: var(--color-brand);
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+.itc-receipt-date {
+  color: var(--color-brand-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.itc-receipt-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.itc-receipt-table th,
+.itc-receipt-table td {
+  padding: 0.875rem 1.25rem;
+  text-align: left;
+  vertical-align: top;
+}
+.itc-receipt-table thead th {
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-brand-muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding-bottom: 0.5rem;
+  text-transform: uppercase;
+}
+/* The row label carries the endpoint beneath it, so the reader can look the rate
+   up rather than take it on trust. */
+.itc-receipt-what {
+  color: var(--color-brand);
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.itc-receipt-endpoint {
+  color: var(--color-brand-muted);
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  margin-top: 0.25rem;
+}
+.itc-receipt-billing {
+  color: var(--color-brand-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+/* **Tabular figures, right aligned.** A column of money read down is the one case
+   where the decimal points must line up. */
+.itc-receipt-cost {
+  color: var(--color-brand);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.itc-receipt-table tfoot th,
+.itc-receipt-table tfoot td {
+  border-top: 1px solid var(--color-border-subtle);
+}
+.itc-receipt-table tfoot th {
+  color: var(--color-brand);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+/* **The one accent moment in this component**, because it is the claim. */
+.itc-receipt-cost--total {
+  color: var(--color-brand-accent-text);
+  font-weight: 500;
+}
+
+.itc-receipt-foot {
+  background: var(--color-surface-sunken);
+  border-top: 1px solid var(--color-border-subtle);
+  color: var(--color-brand-muted);
+  font-size: 0.875rem;
+  line-height: 1.65;
+  margin: 0;
+  padding: 1rem 1.25rem;
+}
+.itc-receipt-foot strong {
+  color: var(--color-brand);
+  font-weight: 500;
+}
+.itc-receipt-link {
+  color: var(--color-brand);
+  text-decoration: underline;
+  text-decoration-color: var(--color-brand-accent-border);
+  text-underline-offset: 3px;
+}
+.itc-receipt-link:hover {
+  text-decoration-color: var(--color-brand-accent);
+}
+
+@media (max-width: 720px) {
+  /* **The endpoint and the arithmetic move below the label** rather than hiding,
+     because on a phone this table has four columns and something must give. The
+     arithmetic is what proves the claim, so it is what stays. */
+  .itc-receipt-table thead {
+    display: none;
+  }
+  .itc-receipt-table tbody tr,
+  .itc-receipt-table tfoot tr {
+    display: block;
+    padding: 0.875rem 1.25rem;
+  }
+  .itc-receipt-table tbody th,
+  .itc-receipt-table tfoot th,
+  .itc-receipt-table tbody td,
+  .itc-receipt-table tfoot td {
+    display: block;
+    padding: 0;
+  }
+  .itc-receipt-billing {
+    margin-top: 0.375rem;
+  }
+  .itc-receipt-cost {
+    margin-top: 0.25rem;
+    text-align: left;
+  }
+}
+
+/* ══ Product sections — the argument beside the running product ═══════ */
+
+/* **Asymmetric two-column, 1fr to 1.15fr**, so the product gets more room than
+   the prose. Read off navbar.gallery and unsection, where the body of the page is
+   the point and the copy is a rail beside it. */
+.itc-proof-grid {
+  align-items: start;
+  display: grid;
+  gap: 3rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+}
+.itc-bill-grid {
+  align-items: start;
+  display: grid;
+  gap: 3rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+}
+@media (max-width: 980px) {
+  .itc-proof-grid,
+  .itc-bill-grid {
+    gap: 2.25rem;
+    grid-template-columns: 1fr;
+  }
+}
+
+.itc-proof-copy > p,
+.itc-bill-copy > p {
+  color: var(--color-brand-muted);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  margin: 1rem 0 0;
+  max-width: 36ch;
+}
+.itc-proof-copy strong,
+.itc-bill-copy strong {
+  color: var(--color-brand);
+  font-weight: 500;
+}
+/* **The claim, separated.** It is the sentence a reader could check, so it gets
+   its own block rather than being one more paragraph. */
+.itc-proof-note {
+  border-left: 2px solid var(--color-brand-accent);
+  margin-top: 1.5rem !important;
+  padding-left: 1rem;
+}
+.itc-proof-copy .itc-claim-proof {
+  margin-top: 1.5rem;
+}
+
+/* ── The toolkit: a rail of jobs, not a grid of cards ────────────────────── */
+
+.itc-toolkit {
+  padding: var(--spacing-section) 0;
+}
+.itc-toolkit-lede {
+  color: var(--color-brand-muted);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  margin: 1rem 0 2.5rem;
+  max-width: 46ch;
+}
+.itc-toolkit-grid {
+  display: grid;
+  gap: 2.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+/* Each group is headed by a **job**, not a module name, because a reader looking
+   for "prove what changed" does not know we call it Answer Diffs. */
+.itc-toolkit-label {
+  border-bottom: 1px solid var(--color-brand);
+  color: var(--color-brand);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.625rem;
+  text-transform: uppercase;
+}
+.itc-toolkit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.itc-toolkit-item {
+  border-bottom: 1px solid var(--color-border-subtle);
+  display: block;
+  padding: 0.75rem 0;
+  transition: padding-left 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+.itc-toolkit-name {
+  color: var(--color-brand);
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+/* **A 1px nudge, not a colour change.** DESIGN.md §2.3 keeps the accent scarce,
+   and a list of nine links all going amber would spend it nine times. */
+.itc-toolkit-item:hover {
+  padding-left: 0.375rem;
+}
+.itc-toolkit-note {
+  color: var(--color-brand-muted);
+  display: block;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  margin-top: 0.1875rem;
+}
+
 .itc-hero::before {
   content: "";
   position: absolute;

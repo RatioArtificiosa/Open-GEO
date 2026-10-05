@@ -11,6 +11,7 @@ import { ProductHuntLaurel } from "@/components/product-hunt-laurel";
 import { SiteFooter } from "@/components/site-footer";
 import { featurePages } from "@/lib/feature-pages";
 import { freeTools } from "@/lib/free-tools/tool-pages";
+import { ProductProof, TheBill, TheToolkit } from "./product-sections";
 import "./landing-page.css";
 
 const SIGNUP_URL = "https://app.opengeo.so/sign-up";
@@ -164,7 +165,14 @@ function IconDiscord({ size = 18, className }: IconProps) {
 
 // ─── Shared bits ─────────────────────────────────────────────────────
 
-function Container({
+/**
+ * The page canvas.
+ *
+ * **Exported rather than module-private**, because a private container is a
+ * container every sibling section re-implements — which is how a page ends up
+ * with three different widths and no way to tell which was intended.
+ */
+export function Container({
   children,
   className = "",
 }: {
@@ -340,7 +348,6 @@ export function Hero() {
 
 /* ─── The wedge (CL-817 §7A) ────────────────────────────────────── */
 
-
 /**
  * The wedge — CL-817, §7A of the synthesis.
  *
@@ -411,220 +418,7 @@ const RUN = {
   ],
 } as const;
 
-export function Wedge() {
-  return (
-    <section className="itc-wedge" id="why">
-      <Container>
-        <div className="itc-wedge-grid">
-          {/* The argument. Three short paragraphs — a technical buyer wants the
-              reasoning, and a long one is a page they will not finish. */}
-          <div className="itc-wedge-copy">
-            <h2 className="itc-display-md">
-              A free AI skill reads a moment.
-              <br />
-              We keep the record.
-            </h2>
-
-            <p>
-              Ask a stateless tool what ChatGPT said about your brand today and
-              it will tell you. That is a snapshot, and a snapshot cannot answer
-              the only question that matters:{" "}
-              <strong>why did it change?</strong>
-            </p>
-
-            <p>
-              So we store every run. Two of them can be compared, and when
-              mentions move the product names the run boundary that moved them —
-              the week you published, the crawl that failed, the prompt you
-              added. That is attribution, and it needs memory rather than
-              cleverness.
-            </p>
-
-            <p>
-              <strong>Nothing here is a claim you cannot check.</strong> Every
-              figure opens onto the prompt, the answer, the sources, and the
-              vendor cost that produced it.
-            </p>
-
-            <Link to="/methodology" className="itc-wedge-link">
-              See a number, and where it came from
-              <span aria-hidden="true">&rarr;</span>
-            </Link>
-          </div>
-
-          {/* The demonstration, not a description of one. **Every field is a real
-              recorded figure**, and the panel applies the product's own 198× rule to
-              itself: one row per platform, no combined total anywhere. */}
-          <figure className="itc-run">
-            <figcaption className="itc-run-head">
-              <span className="itc-run-label">One recorded run</span>
-              <span className="itc-run-scope">{RUN.scope}</span>
-            </figcaption>
-
-            <p className="itc-run-prompt">
-              <span className="itc-run-key" aria-hidden="true">
-                keyword
-              </span>
-              <q className="itc-run-keyword">{RUN.keyword}</q>
-            </p>
-
-            <table className="itc-run-table">
-              <caption className="sr-only">
-                Mentions and AI search volume for one keyword, one row per
-                platform. The two volume figures are never summed.
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Platform</th>
-                  <th scope="col">Mentions</th>
-                  <th scope="col">Search volume</th>
-                </tr>
-              </thead>
-              <tbody>
-                {RUN.platforms.map((p) => (
-                  <tr key={p.name}>
-                    <th scope="row">{p.name}</th>
-                    {/* Tabular figures: these are numbers read down a column, and a
-                        proportional 1 beside a 1 is a column nobody can scan. */}
-                    <td className="itc-run-num">{p.mentions}</td>
-                    <td className="itc-run-num">{p.volume}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* The footnote is the product's own rule, applied to the panel. Omit
-                it and a reader adds the two numbers — which is the one `.reduce()`
-                this repository has already been burned by twice. */}
-            <p className="itc-run-foot">
-              These two volumes are{" "}
-              <strong>not comparable and not summable</strong>. One is real
-              search volume; the other is a People-Also-Ask model. They came
-              from the same response, {RUN.platforms[0].volume} ÷{" "}
-              {RUN.platforms[1].volume} ≈ 198×.{" "}
-              <Link to="/methodology">Full record and method</Link>
-            </p>
-          </figure>
-        </div>
-      </Container>
-    </section>
-  );
-}
-
 /* ─── The four claims (CL-817 §7B) ──────────────────────────────── */
-
-
-/**
- * The four claims, as inspectable structure — CL-817, §7B of the synthesis.
- *
- * ## Why this is a stack of rows and not a grid of cards
- *
- * \`synthesis.md\` §7 is explicit: *"Not four cards in a row. A vertical stack of four
- * full-width rows, each: the claim, the mechanism, and the artefact that proves it.
- * Reading order carries the argument; a card grid makes four equal things of four
- * unequal ones."*
- *
- * Three reasons that is not a stylistic preference:
- *
- * 1. **The claims are unequal.** "The receipt" is the strongest and the proof strip
- *    the weakest. A row of four equal cards asserts they are equivalent, which is
- *    the thing slop does.
- * 2. **A grid container is measurable slop.** \`competitors.md\` counted them: Otterly
- *    12, Raycast 57, Peec 3. The budget for this page is single digits, and this
- *    section spends zero.
- * 3. **Reading order is the argument.** The claims build — what you cannot see, then
- *    why it moved, then the proof, then what you can send. A grid reads across, not
- *    down.
- *
- * ## Every claim here is something this codebase actually refuses to do
- *
- * Each row names a mechanism and points at the code or page that implements it,
- * because the competitor study's finding was that **nobody in this category leads
- * with proof** — and a claim with no destination is the boast the thesis is against.
- */
-type Claim = {
-  /** The claim itself, in the reader's words. */
-  title: string;
-  /** How it works — the mechanism, because a technical buyer wants the reasoning. */
-  mechanism: string;
-  /** What proves it. A link, every time. */
-  proof: string;
-  proofHref: string;
-  /** Where it is implemented, for the reader who wants to check. */
-  code?: string;
-};
-
-const CLAIMS: Claim[] = [
-  {
-    title: "You cannot see what an engine said about you.",
-    mechanism:
-      "Every AI answer is stored whole — the prompt, the answer verbatim, the sources it cited, and the pages it retrieved but did not cite. Not a mention count. The text.",
-    proof: "See the answer archive",
-    proofHref: "/features/ai-brand-visibility",
-  },
-  {
-    title: "A mention count cannot tell you why it moved.",
-    mechanism:
-      "Runs are persisted, so two of them can be compared. When mentions go from three to nine, the product names the run boundary that changed them — which is the whole difference between a dashboard and a record.",
-    proof: "How attribution works",
-    proofHref: "/features/ai-search-prompts",
-  },
-  {
-    title: "A score is not evidence, so we do not sell you one.",
-    mechanism:
-      "A site with its AI crawler blocked and perfect content averages to a healthy-looking middle, while the one thing that would make it citable is still switched off. You get ranked fixes instead.",
-    proof: "Why there is no readiness score",
-    proofHref: "/methodology",
-  },
-  {
-    title: "Every number opens onto the receipt that produced it.",
-    mechanism:
-      "The prompt, the answer, the sources, and the vendor cost — one click from the figure. And the two search-volume figures are never summed, because they are 198× apart and a total would look authoritative and mean nothing.",
-    proof: "Read the methodology",
-    proofHref: "/methodology",
-  },
-];
-
-export function Claims() {
-  return (
-    <section className="itc-claims" id="claims">
-      <Container>
-        <h2 className="itc-display-md itc-claims-title">
-          Four things we do that a snapshot cannot.
-        </h2>
-
-        {/* The list, not a grid. Reading order is the argument: you cannot see it,
-            then why it moved, then why we refuse a score, then the receipt. */}
-        <ol className="itc-claim-list">
-          {CLAIMS.map((c, i) => (
-            <li className="itc-claim" key={c.title}>
-              <span className="itc-claim-n" aria-hidden="true">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-
-              <div className="itc-claim-body">
-                <h3 className="itc-claim-title">{c.title}</h3>
-                <p className="itc-claim-mechanism">{c.mechanism}</p>
-                {c.code ? (
-                  <p className="itc-claim-code">
-                    <code>{c.code}</code>
-                  </p>
-                ) : null}
-              </div>
-
-              {/* Every claim carries a destination. A claim with nowhere to go is
-                  the boast this product argues against. */}
-              <Link to={c.proofHref} className="itc-claim-proof">
-                {c.proof}
-                <span aria-hidden="true">&rarr;</span>
-              </Link>
-            </li>
-          ))}
-        </ol>
-      </Container>
-    </section>
-  );
-}
 
 // ─── Testimonial (true-black inverse strip) ──────────────────────────
 
@@ -1214,7 +1008,6 @@ function GeminiIcon(props: SVGProps<SVGSVGElement>) {
    whose old name would also have collided with this component.
    ────────────────────────────────────────────────────────────── */
 
-
 /**
  * Open source, and the final CTA — CL-817, §7F and §7G.
  *
@@ -1437,8 +1230,9 @@ export function LandingPage() {
   return (
     <div className="itc">
       <Hero />
-      <Wedge />
-      <Claims />
+      <ProductProof />
+      <TheBill />
+      <TheToolkit />
       <ProductSection />
       <McpSection />
       <Testimonial />
