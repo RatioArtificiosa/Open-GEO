@@ -2,13 +2,98 @@
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
 
+/* ============================================================================
+   OpenGEO tokens — the website design system (CL-815).
+
+   Governing docs: `docs/design-research/synthesis.md` in the private repo, and
+   `OPENGEO_PROPOSAL.md` §13.6. **`.agents/skills/opengeo-design/SKILL.md` carries
+   the law; this file is where it is expressed.**
+
+   Three decisions this replaces, and why:
+   - cream `#f5f1ec` → a neutral near-white. Cream reads as a template.
+   - Fin-Orange `#ff5600` → **amber `#F59E0B`, the app's accent.** Two products with
+     two accents means the product changes hue when the reader signs in.
+   - six variables → a scale. `DESIGN.md` §10 applies here too: a value not
+     defined in this file is a defect, not a choice.
+
+   Every colour is **measured**, not chosen. `#F59E0B` is 2.11:1 as text on a
+   near-white canvas, which is why the light-theme accent is the darker `#A16207`
+   (hue 66.4°, 4.84:1) and the dark theme gets `#F59E0B` (9.06:1 on the dark canvas).
+   ========================================================================== */
 @theme {
-  --color-brand: #111111;
-  --color-brand-muted: #66625e;
-  --color-brand-accent: #ff5600;
-  --color-surface: #f5f1ec;
+  /* --- Canvas ------------------------------------------------------------
+     Not cream, and not pure white. A trace of the app's blue-black (`#0B0D10`),
+     so the site and the product read as related rather than coincidental. */
+  --color-brand: #14171c;
+  --color-brand-muted: #5c636e;
+  --color-surface: #fdfdfd;
   --color-surface-raised: #ffffff;
-  --color-border-subtle: #d8d1c8;
+  --color-surface-sunken: #f4f6f9;
+  --color-border-subtle: #e2e6ed;
+
+  /* --- Accent ------------------------------------------------------------
+     **Amber, the founder's settled colour (`DESIGN.md` §2.3), at the same hue
+     as the app.** Two variants, and the reason for two is measured rather than
+     tasteful:
+       - `brand-accent`      `#F59E0B` — fills, focus rings, dark-theme text
+       - `brand-accent-text` `#A16207` — amber **as text on light**, 4.84:1
+     `#F59E0B` on this canvas is 2.11:1, which is unreadable rather than merely
+     low-contrast. See `synthesis.md` §3. */
+  --color-brand-accent: #f59e0b;
+  --color-brand-accent-text: #a16207;
+  --color-brand-accent-hover: #d97706;
+  --color-brand-accent-subtle: rgb(245 158 11 / 0.12);
+  --color-brand-accent-border: rgb(245 158 11 / 0.32);
+
+  /* --- Type --------------------------------------------------------------
+     `synthesis.md` §2. **Not Inter and not Geist** — every competitor measured
+     is on one of those, and that is *why* they are the fingerprint. The families
+     here are placeholders until CL-816 renders candidates; the **scale** is the
+     decision and it is not provisional. */
+  --font-sans:
+    "Satoshi", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:
+    "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+
+  /* One family at several weights (`DESIGN.md` §3). Sizes are a `clamp` where
+     the range matters and a step below it. */
+  --text-hero: clamp(2.5rem, 6.5vw, 4.75rem);
+  --text-hero--line-height: 0.98;
+  --text-hero--letter-spacing: -0.03em;
+  --text-section: clamp(1.875rem, 4vw, 2.75rem);
+  --text-section--line-height: 1.08;
+  --text-section--letter-spacing: -0.02em;
+  --text-h3: 1.125rem;
+  --text-h3--line-height: 1.45;
+  --text-body: 1rem;
+  --text-body--line-height: 1.625;
+  --text-small: 0.875rem;
+  --text-small--line-height: 1.45;
+
+  /* --- Spacing -----------------------------------------------------------
+     A 4px base with no exceptions, per `DESIGN.md` §4. Named rather than
+     arbitrary so a gap has a reason. */
+  --spacing-gutter: 1.5rem;
+  --spacing-section: clamp(4rem, 9vw, 8rem);
+
+  /* --- Layout ------------------------------------------------------------
+     1120px: the widest container at which a two-column reading measure still
+     holds. 68ch is the content measure — past that the eye loses the line. */
+  --container-page: 70rem;
+  --measure: 68ch;
+
+  /* --- Radius ------------------------------------------------------------
+     **Small, and deliberately so.** Large radii read as friendly; this is an
+     instrument. (`DESIGN.md` §4.) */
+  --radius-control: 0.375rem;
+  --radius-card: 0.75rem;
+  --radius-panel: 1rem;
+
+  /* --- Elevation ---------------------------------------------------------
+     **A border, not a shadow.** A shadow on every element makes the page float,
+     and a page of floating cards reads as a dashboard mock-up. The one shadow
+     here is for something genuinely raised. */
+  --border-hairline: 1px;
 }
 
 /* Marketing and blog pages are light-only, but RootProvider still toggles `.dark`
@@ -48,13 +133,12 @@ html,
 body {
   background: var(--color-fd-background);
   color: var(--color-fd-foreground);
-  font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+  /* **Reads the token rather than repeating a family**, so CL-816 changes one
+     line instead of hunting every declaration. */
+  font-family: var(--font-sans);
+  /* `synthesis.md` §2: mono is for data only — prompts, answers, vendor costs,
+     URLs. Never prose, never a heading. */
+  font-feature-settings: "cv11", "ss01";
+  font-optical-sizing: auto;
   overflow-x: clip;
 }
