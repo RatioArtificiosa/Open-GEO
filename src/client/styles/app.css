@@ -12,6 +12,34 @@
   --trend-tooltip-bg: oklch(99% 0.005 255 / 0.96);
   --trend-tooltip-border: oklch(84% 0.01 255 / 0.7);
   --trend-tooltip-shadow: oklch(0% 0 0 / 0.1);
+
+  /* ---------------------------------------------------------------------
+     Contrast-critical tokens, each one derived from a measurement.
+
+     DESIGN.md §2.2 and §2.1 name `--og-text-muted` (#6B7280) and
+     `--og-border` (#252A33). **Measured against the canvases they are used
+     on, both fail**, so the values below are the ones that pass rather than
+     the ones that read well in a table:
+
+     - muted #6B7280 on the dark canvas #0B0D10 = 4.02:1. AA for text is
+       4.5:1, so timestamps and footnotes were below the bar. #737B88 is
+       4.56:1 at the same hue.
+     - border #252A33 on the dark canvas = 1.35:1. A boundary nobody can see
+       is not a boundary, and WCAG 1.4.11 asks 3:1 of a UI element. #575F6F is
+       3.03:1.
+
+     These are **dark-canvas values**. The light canvas is the easier case:
+     #6B7280 measures 4.76:1 on #FDFDFE and clears AA unmodified, which is
+     presumably why the failure went unnoticed — the palette was designed
+     against white and only ever checked there.
+     --------------------------------------------------------------------- */
+  --og-text-muted: oklch(58.07% 0.0221 260.15); /* #737B88 — 4.56:1 on dark */
+  --og-border-on-dark: oklch(
+    48.45% 0.0276 264.27
+  ); /* #575F6F — 3.03:1 on dark */
+  /* Focus rings need the higher bar: a ring is the affordance that says
+     "you are here", so it is held to the text bar rather than the UI bar. */
+  --og-focus-ring: oklch(57.87% 0.0411 264.92); /* #6E7A93 — 4.51:1 on dark */
 }
 
 @plugin "daisyui" {
@@ -25,17 +53,35 @@
   default: true;
   prefersdark: false;
   color-scheme: light;
-  --color-base-100: oklch(100% 0 0);
-  --color-base-200: oklch(97% 0 0);
-  --color-base-300: oklch(92% 0 0);
-  --color-base-content: oklch(20% 0 0);
-  --color-primary: oklch(50% 0.12 262);
-  --color-primary-content: oklch(100% 0 0);
+  /* The canvas ladder carries a little chroma rather than pure white, so the
+     dark theme's blue-black reads as the same family and not as a hue change.
+     DESIGN.md §2.1. Values are the measured OKLCH of #FDFDFE / #F7F8FA /
+     #EBEDF0 / #14171C — converted, not rounded by eye. */
+  --color-base-100: oklch(99.43% 0.0013 286.38);
+  --color-base-200: oklch(97.89% 0.0029 264.54);
+  --color-base-300: oklch(94.54% 0.0046 258.32);
+  --color-base-content: oklch(20.37% 0.011 260.67);
+
+  /* Interactive chrome is NEUTRAL, not amber.
+     DaisyUI's primary drives ~100 btn-primary / bg-primary call sites, and
+     DESIGN.md §2.3 caps amber at ~3% of a viewport because it is a *signal*
+     colour. An amber button on every screen would put the signal everywhere and
+     therefore mark nothing. Amber is `--color-accent`, below. */
+  --color-primary: oklch(20.37% 0.011 260.67);
+  --color-primary-content: oklch(99.43% 0.0013 286.38);
+
   --color-secondary: oklch(55% 0.15 145);
   --color-secondary-content: oklch(100% 0 0);
-  --color-accent: oklch(50% 0.12 262);
+
+  /* The signal. **This theme gets a darker amber than the dark theme**, because
+     #F59E0B measures 2.11:1 as text on a near-white canvas — unreadable, not
+     merely low-contrast. #A16207 is hue 66.4deg at 4.84:1: recognisably the same
+     brand colour, and deliberately not the solver's #CC4800, which clipped to
+     hue ~40 — a red signal in one theme and an amber one in the other. */
+  --color-accent: oklch(55.38% 0.1207 66.44);
   --color-accent-content: oklch(100% 0 0);
-  --color-neutral: oklch(25% 0 0);
+
+  --color-neutral: oklch(25.15% 0.0122 264.33);
   --color-neutral-content: oklch(100% 0 0);
   --color-info: oklch(70% 0.15 230);
   --color-info-content: oklch(100% 0 0);
@@ -60,17 +106,32 @@
   name: "opengeo-dark";
   prefersdark: true;
   color-scheme: dark;
-  --color-base-100: oklch(18% 0 0);
-  --color-base-200: oklch(12% 0 0);
-  --color-base-300: oklch(27% 0 0);
-  --color-base-content: oklch(92% 0 0);
-  --color-primary: oklch(66% 0.12 262);
-  --color-primary-content: oklch(100% 0 0);
+  /* The blue-shifted black ladder from DESIGN.md §2.1, measured:
+       #0B0D10 / #12151A / #1A1E25, with #252A33 as the border step.
+     **Chroma is kept on every step.** A chroma of 0 is an unsaturated grey, and
+     DESIGN.md's reason for a blue-shifted black is that pure #000 reads as a hole
+     and kills the elevation ladder — grey does not fix that. */
+  --color-base-100: oklch(15.82% 0.0072 258.37);
+  --color-base-200: oklch(19.48% 0.0112 260.66);
+  --color-base-300: oklch(23.41% 0.0148 261.64);
+  --color-base-content: oklch(93.64% 0.0046 258.33);
+
+  /* Same decision as the light theme: chrome is neutral. On a dark canvas that
+     means a near-white button, which is what the elevation ladder wants anyway —
+     the button reads as raised rather than painted. */
+  --color-primary: oklch(93.64% 0.0046 258.33);
+  --color-primary-content: oklch(15.82% 0.0072 258.37);
+
   --color-secondary: oklch(60% 0.15 145);
   --color-secondary-content: oklch(100% 0 0);
-  --color-accent: oklch(66% 0.12 262);
-  --color-accent-content: oklch(100% 0 0);
-  --color-neutral: oklch(85% 0 0);
+
+  /* The signal, at the founder's #F59E0B: 9.06:1 on this canvas. The *same*
+     colour as the dark theme's signal on purpose — an accent that changes
+     identity between themes is not one accent. */
+  --color-accent: oklch(76.86% 0.1647 70.08);
+  --color-accent-content: oklch(15.82% 0.0072 258.37);
+
+  --color-neutral: oklch(85% 0.004 258);
   --color-neutral-content: oklch(20% 0 0);
   --color-info: oklch(70% 0.15 230);
   --color-info-content: oklch(100% 0 0);
