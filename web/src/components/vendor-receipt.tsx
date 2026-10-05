@@ -39,8 +39,18 @@ type Line = {
   costUsd: number;
 };
 
-/** The flat markup. Must equal `MARKUP` in `routes/_marketing/pricing.tsx`. */
-const MARKUP = 1.28;
+/**
+ * **Imported, not restated.**
+ *
+ * This component *is* the published claim — the homepage says "a flat 28%, the same on
+ * every endpoint" and this table is the proof. So the figure it prints has to be the
+ * figure the estimator charges by, and the only way to guarantee that is for there to
+ * be one of it.
+ *
+ * It was two declarations joined by a comment reading "must equal", which is how a
+ * published number drifts from the number it describes without anything going red.
+ */
+import { MARKUP } from "@/routes/_marketing/pricing";
 
 const LINES: Line[] = [
   {

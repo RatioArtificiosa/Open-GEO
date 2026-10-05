@@ -22,7 +22,18 @@ export const Route = createFileRoute("/_marketing/pricing")({
  *   creditsCharged = ceil(billedUsd * 1000)
  *   1 credit = $0.001  (1,000 credits = $1.00)
  * ------------------------------------------------------------------ */
-const MARKUP = 1.28; // OpenGeo's flat 28% premium over raw DataForSEO cost
+/**
+ * Our flat premium over the raw DataForSEO rate.
+ *
+ * **Exported, and imported by the vendor receipt on the homepage** — because the
+ * homepage publishes this figure and the estimator charges by it. Two declarations
+ * meant a published claim that could drift from the number it describes, joined only
+ * by a comment. **A comment is not a constraint.**
+ *
+ * Changing this changes what customers are billed, so `/pricing` and the receipt move
+ * together by construction.
+ */
+export const MARKUP = 1.28;
 const CREDIT_USD = 0.001; // $ value of a single credit
 const BASE_PRICE_USD = 10; // Base Plan / month
 const BASE_INCLUDED_CREDIT_USD = 10; // $10 of usage credits included, reset monthly
@@ -431,6 +442,25 @@ function Pricing() {
               You&apos;ll never have unexpected costs or bills. If you use all
               your credits, you&apos;ll see errors when you try to do tasks. You
               can purchase more top up credits at any time.
+            </dd>
+          </div>
+          <div className="py-4 first:pt-0 last:pb-0">
+            <dt className="text-sm font-medium text-neutral-950">
+              How does OpenGeo make money?
+            </dt>
+            <dd className="mt-1.5 text-sm leading-6 text-[var(--color-brand-muted)]">
+              {/* **Computed from `MARKUP`, never written as a literal** —
+                  so this sentence, the receipt, the homepage and
+                  `/open-source-seo` all move together when the price
+                  moves. A hard-coded "28%" here is the copy that would
+                  have stayed behind. */}
+              We add a flat {Math.round((MARKUP - 1) * 100)}% to the
+              DataForSEO rate — the same on every endpoint, published in
+              the estimator on this page. That is the whole business: we
+              run the data layer, the scheduler and the vendor account so
+              you do not have to, and the difference pays for that. No
+              competitor in this category publishes their margin, because
+              printing it means publishing theirs.
             </dd>
           </div>
           <div className="py-4 first:pt-0 last:pb-0">

@@ -58,10 +58,12 @@
     "repair:rank-locations": "tsx scripts/repair-rank-tracking-locations.ts",
     "seed:rank-tracking": "tsx scripts/seed-rank-tracking.ts",
     "seed:projects": "tsx scripts/seed-projects.ts",
-    "ci:check": "prettier --check . && knip && tsc --noEmit && tsc --noEmit -p badseo/tsconfig.json && pnpm --dir web run types:check && oxlint . --type-aware && pnpm detect:slop && pnpm sync-plugin-skills && pnpm --dir web run build && node scripts/check-slop-budget.mjs && node scripts/check-business-model.mjs && pnpm submission:check",
+    "ci:check": "prettier --check . && knip && tsc --noEmit && tsc --noEmit -p badseo/tsconfig.json && pnpm --dir web run types:check && oxlint . --type-aware && pnpm detect:slop && pnpm sync-plugin-skills && pnpm --dir web run build && node scripts/check-slop-budget.mjs && node scripts/check-business-model.mjs && node scripts/check-policy-constants.mjs && pnpm submission:check",
     "geo:unread-fields": "node scripts/unread-response-fields.mjs",
     "check:slop-budget": "pnpm --dir web run build && node scripts/check-slop-budget.mjs",
     "check:business-model": "pnpm --dir web run build && node scripts/check-business-model.mjs",
+    "check:policy-constants": "node scripts/check-policy-constants.mjs",
+    "verify:policy-constants": "node scripts/verify-policy-constants.mjs",
     "verify:business-model": "node scripts/verify-business-model.mjs"
   },
   "cloudflare": {
