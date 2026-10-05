@@ -681,11 +681,11 @@ function McpSection() {
             </div>
             <pre>
               <code>
-                <span className="t-orange">›</span> find and cluster keywords
+                <span className="t-orange" aria-hidden="true">›</span> find and cluster keywords
                 for <span className="t-bright">opengeo.so</span>
                 {"\n\n"}
                 <span className="t-dim">
-                  ⏺ opengeo.keyword_research(seed: &quot;open source seo&quot;)
+                  <span aria-hidden="true">⏺</span> opengeo.keyword_research(seed: &quot;open source seo&quot;)
                 </span>
                 {"\n"}
                 {"  "}keyword{"                      "}volume{"     "}kd{"\n"}
@@ -704,13 +704,13 @@ function McpSection() {
                 {"        "}
                 <span className="t-dim">4</span>
                 {"\n\n"}
-                <span className="t-orange">✓</span>
+                <span className="t-orange" aria-hidden="true">✓</span>
                 <span className="t-dim">
                   {" "}
                   Saved 3 keywords to your workspace.
                 </span>
                 {"\n"}
-                <span className="t-orange">↳</span>
+                <span className="t-orange" aria-hidden="true">↳</span>
                 <span className="t-dim"> View data in app: </span>
                 <span className="t-bright">app.opengeo.so/keywords</span>
               </code>
