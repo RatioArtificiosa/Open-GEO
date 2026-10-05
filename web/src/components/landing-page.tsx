@@ -319,11 +319,13 @@ export function Hero() {
           </Link>
         </div>
 
-        {/* No card required. The objection is answered before it is raised, and
-            the answer is checkable. */}
+        {/* **No card, and no vendor account.** The objection is answered before it
+            is raised. The second half matters more than the first: the reader never
+            signs up with a data vendor, never holds a key, and never gets a surprise
+            bill from anyone but us. */}
         <p className="itc-hero-note">
-          No card. You pay DataForSEO directly —{" "}
-          <span className="itc-hero-note-strong">$10 of credit included.</span>
+          No card, and no vendor account to set up.{" "}
+          <span className="itc-hero-note-strong">$10 of usage included.</span>
         </p>
 
         {/* The proof strip. Figures, not logos — every one opens onto the
@@ -1034,24 +1036,33 @@ function GeminiIcon(props: SVGProps<SVGSVGElement>) {
 
 const OPEN_SOURCE = [
   {
-    label: "Licence",
-    value: "MIT",
+    // **The licence is the reason this section exists at all.** A technical buyer
+    // deciding whether to hand a client's data to a stranger reads the code, and
+    // MIT means they can.
+    label: "Read it first",
+    value: "MIT, in full",
     detail:
-      "Copyright © 2026 Ben Senescu, preserved intact — it is a derivative work of OpenSEO.",
+      "The whole platform, including the scheduler, the migrations and the vendor integration, with no closed layer behind a login.",
     href: "https://github.com/RatioArtificiosa/Open-GEO/blob/main/LICENSE",
   },
   {
-    label: "What it costs you",
-    value: "Your DataForSEO key",
+    // **Was "What it costs you: your DataForSEO key."** That told the reader to
+    // self-host, which is the opposite of the sale. The hosted service is what they
+    // are buying.
+    label: "What we run for you",
+    value: "The data layer",
     detail:
-      "No OpenGeo fee on self-host. A brand monitored daily runs about $3.30 a month at vendor rates, and every rate is published.",
-    href: "/methodology",
+      "Vendor accounts, prompt scheduling, rate limits and retries are ours to handle. You get results, not infrastructure.",
+    href: "/features/ai-brand-visibility",
   },
   {
-    label: "What you take on",
-    value: "A database and a scheduler",
+    // **Was "What you take on: a database and a scheduler."** Kept, because it is
+    // the objection a self-hoster is already forming — but now it is the reason to
+    // subscribe rather than the reason to leave.
+    label: "If you would rather run it",
+    value: "Docker, Workers, or Vercel",
     detail:
-      "Docker Compose or Cloudflare Workers. Migrations run for both dialects, and there is a demo mode that needs no key at all.",
+      "Self-hosting stays supported, with your own vendor key and your own bill. It is a real option for the engineer who wants the control — not the pitch.",
     href: "/docs/self-hosting/docker",
   },
   {
@@ -1083,17 +1094,16 @@ export function Verification() {
               makes it is the code you can read. That is not a slogan — it is
               why the methodology page can carry numbers a competitor cannot.
             </p>
-            <p>
-              OpenGeo is a derivative work of{" "}
-              <a
-                href="https://github.com/every-app/open-seo"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="itc-oss-link"
-              >
-                OpenSEO
-              </a>
-              , used under MIT. We are grateful to the authors.
+            {/* **The upstream relationship is on /notices, not here.** It is a
+                licence obligation and it stays available — but it is not a reason to
+                subscribe, and a prospect reading this section is deciding whether to
+                trust us with a client's site, not whether to read a NOTICE file. */}
+            <p className="itc-caption itc-subtle">
+              OpenGeo is MIT-licensed. Notices, licence and upstream credits:{" "}
+              <Link to="/notices" className="itc-oss-link">
+                /notices
+              </Link>
+              .
             </p>
             <Link to="/open-source-seo" className="itc-wedge-link">
               Why we built it this way
@@ -1143,12 +1153,15 @@ export function FinalCta() {
   return (
     <section className="itc-final">
       <Container>
+        {/* **The close is the hosted service, not the key.** "Bring your own key"
+            was a self-hosting fact used as a subscription argument, and it asked the
+            reader to do the maintenance we exist to remove. */}
         <h2 className="itc-display-md itc-final-title">
-          Bring your own key. See what it says about you.
+          We run the data layer. You run your business.
         </h2>
         <p className="itc-final-sub">
-          No card. $10 of vendor credit included, and the free tier is uncapped
-          because you are paying DataForSEO directly.
+          $10/month includes $10 of usage, and $0.50 of it free to try first. No
+          card, no vendor account, nothing to maintain.
         </p>
 
         {/* One primary. The second action is a link, for the reader who is not ready
@@ -1210,11 +1223,22 @@ function Footer() {
           <SiteFooter />
         </div>
 
+        {/* **The company line was here** — "© 2026 Every App, Inc." — sitting
+            under the final call to action, which made a legal identity the last
+            thing a reader saw before subscribing. The identity is in the footer's
+            Company column and in /terms; this line carries only the two links a
+            reader actually wants at the bottom of a page. */}
         <p
           className="itc-caption itc-subtle"
           style={{ margin: 0, padding: "40px 0 32px" }}
         >
-          © 2026 Every App, Inc.
+          <Link to="/notices" className="itc-oss-link">
+            MIT licence
+          </Link>{" "}
+          ·{" "}
+          <Link to="/terms-and-conditions" className="itc-oss-link">
+            Terms
+          </Link>
         </p>
       </Container>
     </footer>

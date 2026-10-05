@@ -88,6 +88,13 @@ export function SiteFooter({ className }: { className?: string }) {
             >
               Discord
             </a>
+            {/*
+              **Notices** carries the MIT licence, the copyright line and the
+              upstream OpenSEO attribution. It was on the homepage in two places,
+              which made a licence obligation part of the sales pitch; here it is
+              one click away and out of the argument.
+            */}
+            <Link to="/notices">Notices</Link>
             <Link to="/privacy">Privacy</Link>
             <Link to="/terms-and-conditions">Terms</Link>
           </div>

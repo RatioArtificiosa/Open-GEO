@@ -85,7 +85,18 @@ export function ProductProof() {
   );
 }
 
-/** The bill — the differentiator no competitor can copy without giving up margin. */
+/**
+ * The bill — the differentiator no competitor can copy.
+ *
+ * **Corrected from a false version.** This component previously said we billed the
+ * vendor cost "and nothing on top", so "the margin is zero". We do not: we are the
+ * DataForSEO customer and we mark data up by a flat 28%. **A credibility asset built
+ * on a false number is worse than no asset**, because a reader who does the
+ * arithmetic finds the lie and stops trusting the rest.
+ *
+ * The honest version is a better claim — publishing the markup is the one thing a
+ * competitor cannot do without publishing their own margin.
+ */
 export function TheBill() {
   return (
     <section className="itc-oss" id="bill">
@@ -93,19 +104,23 @@ export function TheBill() {
         <div className="itc-bill-grid">
           <div className="itc-bill-copy">
             <h2 className="itc-display-md">
-              We publish the rate
+              Both numbers,
               <br />
-              underneath the price.
+              on the same row.
             </h2>
             <p>
               Every tool in this category prices by prompt and volume.{" "}
-              <strong>None of them publish what that costs them</strong>, so you
-              cannot check whether you are being marked up, or by how much.
+              <strong>
+                None of them publish what the underlying data costs them
+              </strong>
+              , so you cannot check whether you are being marked up, or by how
+              much.
             </p>
             <p>
-              You bring your own DataForSEO key. We bill the vendor cost and
-              nothing on top — so the line that matters is the margin, and the
-              margin is zero.
+              We are the DataForSEO customer, and we mark it up — a flat 28%,
+              the same on every endpoint, printed next to what we pay.{" "}
+              <strong>Multiply the two columns.</strong> That is the business
+              model, and it is the same one every tool in this category runs.
             </p>
             <Link to="/methodology" className="itc-wedge-link">
               See the full method, and the endpoint behind every figure

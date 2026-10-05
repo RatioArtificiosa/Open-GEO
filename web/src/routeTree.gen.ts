@@ -39,6 +39,7 @@ import { Route as MarketingRoadmapRouteImport } from './routes/_marketing/roadma
 import { Route as MarketingPrivacyRouteImport } from './routes/_marketing/privacy'
 import { Route as MarketingPricingRouteImport } from './routes/_marketing/pricing'
 import { Route as MarketingOpenSourceSeoRouteImport } from './routes/_marketing/open-source-seo'
+import { Route as MarketingNoticesRouteImport } from './routes/_marketing/notices'
 import { Route as MarketingMethodologyRouteImport } from './routes/_marketing/methodology'
 import { Route as MarketingKeywordGeneratorRouteImport } from './routes/_marketing/keyword-generator'
 import { Route as MarketingGoogleSearchConsoleMcpRouteImport } from './routes/_marketing/google-search-console-mcp'
@@ -246,6 +247,11 @@ const MarketingPricingRoute = MarketingPricingRouteImport.update({
 const MarketingOpenSourceSeoRoute = MarketingOpenSourceSeoRouteImport.update({
   id: '/open-source-seo',
   path: '/open-source-seo',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const MarketingNoticesRoute = MarketingNoticesRouteImport.update({
+  id: '/notices',
+  path: '/notices',
   getParentRoute: () => MarketingRoute,
 } as any)
 const MarketingMethodologyRoute = MarketingMethodologyRouteImport.update({
@@ -582,6 +588,7 @@ export interface FileRoutesByFullPath {
   '/google-search-console-mcp': typeof MarketingGoogleSearchConsoleMcpRoute
   '/keyword-generator': typeof MarketingKeywordGeneratorRoute
   '/methodology': typeof MarketingMethodologyRoute
+  '/notices': typeof MarketingNoticesRoute
   '/open-source-seo': typeof MarketingOpenSourceSeoRoute
   '/pricing': typeof MarketingPricingRoute
   '/privacy': typeof MarketingPrivacyRoute
@@ -666,6 +673,7 @@ export interface FileRoutesByTo {
   '/google-search-console-mcp': typeof MarketingGoogleSearchConsoleMcpRoute
   '/keyword-generator': typeof MarketingKeywordGeneratorRoute
   '/methodology': typeof MarketingMethodologyRoute
+  '/notices': typeof MarketingNoticesRoute
   '/open-source-seo': typeof MarketingOpenSourceSeoRoute
   '/pricing': typeof MarketingPricingRoute
   '/privacy': typeof MarketingPrivacyRoute
@@ -753,6 +761,7 @@ export interface FileRoutesById {
   '/_marketing/google-search-console-mcp': typeof MarketingGoogleSearchConsoleMcpRoute
   '/_marketing/keyword-generator': typeof MarketingKeywordGeneratorRoute
   '/_marketing/methodology': typeof MarketingMethodologyRoute
+  '/_marketing/notices': typeof MarketingNoticesRoute
   '/_marketing/open-source-seo': typeof MarketingOpenSourceSeoRoute
   '/_marketing/pricing': typeof MarketingPricingRoute
   '/_marketing/privacy': typeof MarketingPrivacyRoute
@@ -841,6 +850,7 @@ export interface FileRouteTypes {
     | '/google-search-console-mcp'
     | '/keyword-generator'
     | '/methodology'
+    | '/notices'
     | '/open-source-seo'
     | '/pricing'
     | '/privacy'
@@ -925,6 +935,7 @@ export interface FileRouteTypes {
     | '/google-search-console-mcp'
     | '/keyword-generator'
     | '/methodology'
+    | '/notices'
     | '/open-source-seo'
     | '/pricing'
     | '/privacy'
@@ -1011,6 +1022,7 @@ export interface FileRouteTypes {
     | '/_marketing/google-search-console-mcp'
     | '/_marketing/keyword-generator'
     | '/_marketing/methodology'
+    | '/_marketing/notices'
     | '/_marketing/open-source-seo'
     | '/_marketing/pricing'
     | '/_marketing/privacy'
@@ -1317,6 +1329,13 @@ declare module '@tanstack/react-router' {
       path: '/open-source-seo'
       fullPath: '/open-source-seo'
       preLoaderRoute: typeof MarketingOpenSourceSeoRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/_marketing/notices': {
+      id: '/_marketing/notices'
+      path: '/notices'
+      fullPath: '/notices'
+      preLoaderRoute: typeof MarketingNoticesRouteImport
       parentRoute: typeof MarketingRoute
     }
     '/_marketing/methodology': {
@@ -1711,6 +1730,7 @@ interface MarketingRouteChildren {
   MarketingGoogleSearchConsoleMcpRoute: typeof MarketingGoogleSearchConsoleMcpRoute
   MarketingKeywordGeneratorRoute: typeof MarketingKeywordGeneratorRoute
   MarketingMethodologyRoute: typeof MarketingMethodologyRoute
+  MarketingNoticesRoute: typeof MarketingNoticesRoute
   MarketingOpenSourceSeoRoute: typeof MarketingOpenSourceSeoRoute
   MarketingPricingRoute: typeof MarketingPricingRoute
   MarketingPrivacyRoute: typeof MarketingPrivacyRoute
@@ -1780,6 +1800,7 @@ const MarketingRouteChildren: MarketingRouteChildren = {
   MarketingGoogleSearchConsoleMcpRoute: MarketingGoogleSearchConsoleMcpRoute,
   MarketingKeywordGeneratorRoute: MarketingKeywordGeneratorRoute,
   MarketingMethodologyRoute: MarketingMethodologyRoute,
+  MarketingNoticesRoute: MarketingNoticesRoute,
   MarketingOpenSourceSeoRoute: MarketingOpenSourceSeoRoute,
   MarketingPricingRoute: MarketingPricingRoute,
   MarketingPrivacyRoute: MarketingPrivacyRoute,
