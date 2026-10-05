@@ -141,15 +141,24 @@ function MarketingLayout() {
   // every other marketing page gets the shared marketing canvas and footer.
   const isHome = pathname === "/";
 
-  // On the landing route, paint html/body cream so the area behind the
-  // floating nav and any overscroll matches the landing canvas.
+  // On the landing route, paint html/body to match the landing canvas so the area
+  // behind the floating nav and any overscroll matches the page.
+  //
+  // **Read from the token, not a hex literal.** This line hardcoded the old cream
+  // `#f5f1ec` after CL-815 replaced the canvas, so the overscroll behind the nav
+  // was still cream while the page was near-white — and because it is set in a
+  // `useEffect` it never appears in the built HTML, so no build-time check sees it.
   useEffect(() => {
     if (!isHome) return;
+    const canvas = getComputedStyle(document.documentElement)
+      .getPropertyValue("--color-surface")
+      .trim();
+    if (canvas === "") return;
     const root = document.documentElement;
     const prevRoot = root.style.backgroundColor;
     const prevBody = document.body.style.backgroundColor;
-    root.style.backgroundColor = "#f5f1ec";
-    document.body.style.backgroundColor = "#f5f1ec";
+    root.style.backgroundColor = canvas;
+    document.body.style.backgroundColor = canvas;
     return () => {
       root.style.backgroundColor = prevRoot;
       document.body.style.backgroundColor = prevBody;
@@ -185,7 +194,7 @@ function MarketingLayout() {
                 aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
                 aria-expanded={mobileMenuOpen}
                 onClick={() => setMobileMenuOpen((open) => !open)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-900 transition-colors hover:bg-[#f5f1ec] md:hidden"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-900 transition-colors hover:bg-[var(--color-surface-sunken)] md:hidden"
               >
                 {mobileMenuOpen ? <CloseIcon /> : <MenuIcon />}
               </button>
@@ -222,7 +231,7 @@ function MarketingLayout() {
                 <a
                   href="https://app.opengeo.so/sign-in"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex h-11 items-center justify-center rounded-xl border border-[var(--color-border-subtle)] px-3 text-sm font-semibold text-neutral-800 transition-colors hover:border-neutral-900 hover:bg-[#f5f1ec]"
+                  className="flex h-11 items-center justify-center rounded-xl border border-[var(--color-border-subtle)] px-3 text-sm font-semibold text-neutral-800 transition-colors hover:border-neutral-900 hover:bg-[var(--color-surface-sunken)]"
                 >
                   Sign in
                 </a>
@@ -315,7 +324,7 @@ function ResourcesDropdown() {
             <a
               key={resource.href}
               href={resource.href}
-              className="block rounded-md px-3 py-2.5 transition-colors hover:bg-[#f5f1ec]"
+              className="block rounded-md px-3 py-2.5 transition-colors hover:bg-[var(--color-surface-sunken)]"
             >
               <span className="block text-sm font-semibold text-neutral-900">
                 {resource.label}
@@ -359,7 +368,7 @@ function FeatureDropdown() {
                     <a
                       key={page.slug}
                       href={`/features/${page.slug}`}
-                      className="block rounded-md px-2 py-1.5 transition-colors hover:bg-[#f5f1ec]"
+                      className="block rounded-md px-2 py-1.5 transition-colors hover:bg-[var(--color-surface-sunken)]"
                     >
                       <span className="block text-sm font-semibold text-neutral-900">
                         {page.eyebrow}
@@ -379,7 +388,7 @@ function FeatureDropdown() {
               <div className="mt-3 space-y-2">
                 <a
                   href="/features/mcp"
-                  className="block rounded-md p-2 transition-colors hover:bg-[#f5f1ec]"
+                  className="block rounded-md p-2 transition-colors hover:bg-[var(--color-surface-sunken)]"
                 >
                   <span className="text-sm font-semibold text-neutral-900">
                     OpenGeo MCP
@@ -390,7 +399,7 @@ function FeatureDropdown() {
                 </a>
                 <a
                   href="/google-search-console-mcp"
-                  className="block rounded-md p-2 transition-colors hover:bg-[#f5f1ec]"
+                  className="block rounded-md p-2 transition-colors hover:bg-[var(--color-surface-sunken)]"
                 >
                   <span className="text-sm font-semibold text-neutral-900">
                     Search Console MCP
@@ -401,7 +410,7 @@ function FeatureDropdown() {
                 </a>
                 <a
                   href="/features"
-                  className="block rounded-md border border-[var(--color-border-subtle)] bg-[#f5f1ec] px-2 py-1.5 text-sm font-medium text-neutral-900 transition-colors hover:border-neutral-900"
+                  className="block rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface-sunken)] px-2 py-1.5 text-sm font-medium text-neutral-900 transition-colors hover:border-neutral-900"
                 >
                   View all features <span aria-hidden="true">&rarr;</span>
                 </a>

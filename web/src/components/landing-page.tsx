@@ -338,6 +338,294 @@ export function Hero() {
   );
 }
 
+/* ─── The wedge (CL-817 §7A) ────────────────────────────────────── */
+
+
+/**
+ * The wedge — CL-817, §7A of the synthesis.
+ *
+ * ## Why this section exists at all
+ *
+ * `competitors.md` finding 1, the most valuable thing in the study:
+ *
+ * > **The category's two default phrases are both spoken for.** "AI search
+ * > analytics" (Peec) and "AI search monitoring platform" (Otterly) — as is
+ * > anything containing "visibility", "mentions" or "citations". **The unoccupied
+ * > ground is attribution, evidence and the record, and no competitor's homepage
+ * > argues it.**
+ *
+ * And finding 2: **not one of them leads with proof.** So the argument available to
+ * us is not "we are better at counting" — nobody wins that — it is **"a count
+ * cannot tell you why, and here is what does."**
+ *
+ * ## This is a different argument from `/why-opengeo`
+ *
+ * That page makes the MCP and agent-native case. This one makes the **record**
+ * case, and the two do not compete: an agent is *how* the work gets done, the
+ * record is *what there is to act on.*
+ *
+ * ## ⚠️ The panel shows a REAL measurement, and that was not the first draft
+ *
+ * The first version of this file rendered a **fabricated answer archive** — an
+ * invented prompt, an invented answer, three invented citations with positions.
+ * It read beautifully and it was the exact failure this product exists to
+ * prevent: **a page whose argument is "we don't claim what we can't check" was
+ * displaying invented data.**
+ *
+ * So it now renders the **one measurement this repository actually recorded** —
+ * the same "renault" run the methodology page documents, with the figures that
+ * run really produced. Every field here appears in `docs/METHODOLOGY.md` and can
+ * be checked against it.
+ *
+ * **The fields it does not have are simply absent.** There is no stored verbatim
+ * answer text for that run in the repository, so none is shown. A panel with fewer
+ * fields and all of them true is the demonstration; one with invented fields is
+ * the counter-example.
+ */
+
+/**
+ * The recorded run. Every figure is from
+ * `docs/METHODOLOGY.md` → "The measured record, in full": keyword `renault`,
+ * United States / English, retrieved 2026-09-28, via
+ * `/v3/ai_optimization/llm_mentions/target_metrics/live`.
+ *
+ * **One number per platform, never a combined one** — the 198× rule, applied to the
+ * panel itself rather than only described in prose.
+ */
+const RUN = {
+  keyword: "renault",
+  scope: "United States · English · retrieved 2026-09-28",
+  platforms: [
+    {
+      name: "Google AI Overviews",
+      mentions: "17,676",
+      volume: "12,621,380",
+      derivation: "real search volume of the query",
+    },
+    {
+      name: "ChatGPT",
+      mentions: "3,060",
+      volume: "63,850",
+      derivation: "People-Also-Ask model",
+    },
+  ],
+} as const;
+
+export function Wedge() {
+  return (
+    <section className="itc-wedge" id="why">
+      <Container>
+        <div className="itc-wedge-grid">
+          {/* The argument. Three short paragraphs — a technical buyer wants the
+              reasoning, and a long one is a page they will not finish. */}
+          <div className="itc-wedge-copy">
+            <h2 className="itc-display-md">
+              A free AI skill reads a moment.
+              <br />
+              We keep the record.
+            </h2>
+
+            <p>
+              Ask a stateless tool what ChatGPT said about your brand today and
+              it will tell you. That is a snapshot, and a snapshot cannot answer
+              the only question that matters:{" "}
+              <strong>why did it change?</strong>
+            </p>
+
+            <p>
+              So we store every run. Two of them can be compared, and when
+              mentions move the product names the run boundary that moved them —
+              the week you published, the crawl that failed, the prompt you
+              added. That is attribution, and it needs memory rather than
+              cleverness.
+            </p>
+
+            <p>
+              <strong>Nothing here is a claim you cannot check.</strong> Every
+              figure opens onto the prompt, the answer, the sources, and the
+              vendor cost that produced it.
+            </p>
+
+            <Link to="/methodology" className="itc-wedge-link">
+              See a number, and where it came from
+              <span aria-hidden="true">&rarr;</span>
+            </Link>
+          </div>
+
+          {/* The demonstration, not a description of one. **Every field is a real
+              recorded figure**, and the panel applies the product's own 198× rule to
+              itself: one row per platform, no combined total anywhere. */}
+          <figure className="itc-run">
+            <figcaption className="itc-run-head">
+              <span className="itc-run-label">One recorded run</span>
+              <span className="itc-run-scope">{RUN.scope}</span>
+            </figcaption>
+
+            <p className="itc-run-prompt">
+              <span className="itc-run-key" aria-hidden="true">
+                keyword
+              </span>
+              <q className="itc-run-keyword">{RUN.keyword}</q>
+            </p>
+
+            <table className="itc-run-table">
+              <caption className="sr-only">
+                Mentions and AI search volume for one keyword, one row per
+                platform. The two volume figures are never summed.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Platform</th>
+                  <th scope="col">Mentions</th>
+                  <th scope="col">Search volume</th>
+                </tr>
+              </thead>
+              <tbody>
+                {RUN.platforms.map((p) => (
+                  <tr key={p.name}>
+                    <th scope="row">{p.name}</th>
+                    {/* Tabular figures: these are numbers read down a column, and a
+                        proportional 1 beside a 1 is a column nobody can scan. */}
+                    <td className="itc-run-num">{p.mentions}</td>
+                    <td className="itc-run-num">{p.volume}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* The footnote is the product's own rule, applied to the panel. Omit
+                it and a reader adds the two numbers — which is the one `.reduce()`
+                this repository has already been burned by twice. */}
+            <p className="itc-run-foot">
+              These two volumes are{" "}
+              <strong>not comparable and not summable</strong>. One is real
+              search volume; the other is a People-Also-Ask model. They came
+              from the same response, {RUN.platforms[0].volume} ÷{" "}
+              {RUN.platforms[1].volume} ≈ 198×.{" "}
+              <Link to="/methodology">Full record and method</Link>
+            </p>
+          </figure>
+        </div>
+      </Container>
+    </section>
+  );
+}
+
+/* ─── The four claims (CL-817 §7B) ──────────────────────────────── */
+
+
+/**
+ * The four claims, as inspectable structure — CL-817, §7B of the synthesis.
+ *
+ * ## Why this is a stack of rows and not a grid of cards
+ *
+ * \`synthesis.md\` §7 is explicit: *"Not four cards in a row. A vertical stack of four
+ * full-width rows, each: the claim, the mechanism, and the artefact that proves it.
+ * Reading order carries the argument; a card grid makes four equal things of four
+ * unequal ones."*
+ *
+ * Three reasons that is not a stylistic preference:
+ *
+ * 1. **The claims are unequal.** "The receipt" is the strongest and the proof strip
+ *    the weakest. A row of four equal cards asserts they are equivalent, which is
+ *    the thing slop does.
+ * 2. **A grid container is measurable slop.** \`competitors.md\` counted them: Otterly
+ *    12, Raycast 57, Peec 3. The budget for this page is single digits, and this
+ *    section spends zero.
+ * 3. **Reading order is the argument.** The claims build — what you cannot see, then
+ *    why it moved, then the proof, then what you can send. A grid reads across, not
+ *    down.
+ *
+ * ## Every claim here is something this codebase actually refuses to do
+ *
+ * Each row names a mechanism and points at the code or page that implements it,
+ * because the competitor study's finding was that **nobody in this category leads
+ * with proof** — and a claim with no destination is the boast the thesis is against.
+ */
+type Claim = {
+  /** The claim itself, in the reader's words. */
+  title: string;
+  /** How it works — the mechanism, because a technical buyer wants the reasoning. */
+  mechanism: string;
+  /** What proves it. A link, every time. */
+  proof: string;
+  proofHref: string;
+  /** Where it is implemented, for the reader who wants to check. */
+  code?: string;
+};
+
+const CLAIMS: Claim[] = [
+  {
+    title: "You cannot see what an engine said about you.",
+    mechanism:
+      "Every AI answer is stored whole — the prompt, the answer verbatim, the sources it cited, and the pages it retrieved but did not cite. Not a mention count. The text.",
+    proof: "See the answer archive",
+    proofHref: "/features/ai-brand-visibility",
+  },
+  {
+    title: "A mention count cannot tell you why it moved.",
+    mechanism:
+      "Runs are persisted, so two of them can be compared. When mentions go from three to nine, the product names the run boundary that changed them — which is the whole difference between a dashboard and a record.",
+    proof: "How attribution works",
+    proofHref: "/features/ai-search-prompts",
+  },
+  {
+    title: "A score is not evidence, so we do not sell you one.",
+    mechanism:
+      "A site with its AI crawler blocked and perfect content averages to a healthy-looking middle, while the one thing that would make it citable is still switched off. You get ranked fixes instead.",
+    proof: "Why there is no readiness score",
+    proofHref: "/methodology",
+  },
+  {
+    title: "Every number opens onto the receipt that produced it.",
+    mechanism:
+      "The prompt, the answer, the sources, and the vendor cost — one click from the figure. And the two search-volume figures are never summed, because they are 198× apart and a total would look authoritative and mean nothing.",
+    proof: "Read the methodology",
+    proofHref: "/methodology",
+  },
+];
+
+export function Claims() {
+  return (
+    <section className="itc-claims" id="claims">
+      <Container>
+        <h2 className="itc-display-md itc-claims-title">
+          Four things we do that a snapshot cannot.
+        </h2>
+
+        {/* The list, not a grid. Reading order is the argument: you cannot see it,
+            then why it moved, then why we refuse a score, then the receipt. */}
+        <ol className="itc-claim-list">
+          {CLAIMS.map((c, i) => (
+            <li className="itc-claim" key={c.title}>
+              <span className="itc-claim-n" aria-hidden="true">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+
+              <div className="itc-claim-body">
+                <h3 className="itc-claim-title">{c.title}</h3>
+                <p className="itc-claim-mechanism">{c.mechanism}</p>
+                {c.code ? (
+                  <p className="itc-claim-code">
+                    <code>{c.code}</code>
+                  </p>
+                ) : null}
+              </div>
+
+              {/* Every claim carries a destination. A claim with nowhere to go is
+                  the boast this product argues against. */}
+              <Link to={c.proofHref} className="itc-claim-proof">
+                {c.proof}
+                <span aria-hidden="true">&rarr;</span>
+              </Link>
+            </li>
+          ))}
+        </ol>
+      </Container>
+    </section>
+  );
+}
+
 // ─── Testimonial (true-black inverse strip) ──────────────────────────
 
 function Testimonial() {
@@ -918,42 +1206,172 @@ function GeminiIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-// ─── Open source ─────────────────────────────────────────────────────
+/* ─── Verification and the final CTA (CL-817 §7F, §7G)
 
-function OpenSourceSection() {
+   Named for what it does rather than what it is about: four facts a self-hoster
+   can check. It *replaces* the old `OpenSourceSection` — a "100% open source" badge
+   row over a GitHub button — which is the shape the research measured as slop, and
+   whose old name would also have collided with this component.
+   ────────────────────────────────────────────────────────────── */
+
+
+/**
+ * Open source, and the final CTA — CL-817, §7F and §7G.
+ *
+ * ## §7F says: "Not a badge. The actual mechanics."
+ *
+ * A row of badges ("MIT", "13k stars", "100% open source") is decoration, and it is
+ * the shape the research measured as slop. So this section states the four things a
+ * technical buyer actually needs before self-hosting: the licence, what it costs
+ * them, how long it takes, and what they are taking on.
+ *
+ * **Every claim here is checkable against the repository**, which is what makes it
+ * different from the badge row it replaces:
+ *
+ * - the licence and copyright line — `LICENSE`
+ * - the upstream relationship — `NOTICE.md`
+ * - the data cost — `docs/METHODOLOGY.md` publishes it
+ * - the self-host path — `web/content/docs/self-hosting/*`, which exists
+ *
+ * **"What you are taking on" is the part competitors leave out.** A self-hoster is
+ * being asked to run a database, a scheduler and a vendor integration. Saying so is
+ * more persuasive to this buyer than a star count, because it is the objection they
+ * are already forming.
+ */
+
+const OPEN_SOURCE = [
+  {
+    label: "Licence",
+    value: "MIT",
+    detail:
+      "Copyright © 2026 Ben Senescu, preserved intact — it is a derivative work of OpenSEO.",
+    href: "https://github.com/RatioArtificiosa/Open-GEO/blob/main/LICENSE",
+  },
+  {
+    label: "What it costs you",
+    value: "Your DataForSEO key",
+    detail:
+      "No OpenGeo fee on self-host. A brand monitored daily runs about $3.30 a month at vendor rates, and every rate is published.",
+    href: "/methodology",
+  },
+  {
+    label: "What you take on",
+    value: "A database and a scheduler",
+    detail:
+      "Docker Compose or Cloudflare Workers. Migrations run for both dialects, and there is a demo mode that needs no key at all.",
+    href: "/docs/self-hosting/docker",
+  },
+  {
+    label: "Who to ask",
+    value: "GitHub issues and Discord",
+    detail:
+      "If a metric disagrees with its documentation, that is a bug and we would rather you told us.",
+    href: "https://github.com/RatioArtificiosa/Open-GEO/issues",
+  },
+] as const;
+
+/**
+ * Named for what it does rather than what it is about: four facts a self-hoster
+ * can check.
+ *
+ * The old `OpenSourceSection` — "100% open source" over a GitHub button — is
+ * **replaced by this**, not kept beside it. A badge row is the shape the research
+ * measured as slop, and the old name would also have collided with this component.
+ */
+export function Verification() {
   return (
-    <section className="itc-section itc-section-open-source">
+    <section className="itc-oss" id="open-source">
       <Container>
-        <div className="itc-narrow">
-          <h2 className="itc-display-lg">100% open source</h2>
-          <p className="itc-subhead itc-muted" style={{ margin: "20px 0 0" }}>
-            People should have the option to self-host and customize their
-            tools. If you ever hear someone talking about building their own
-            tool from scratch, tell them to build on top of OpenGeo.
-          </p>
-        </div>
+        <div className="itc-oss-grid">
+          <div className="itc-oss-copy">
+            <h2 className="itc-display-md">Read it before you trust it.</h2>
+            <p>
+              Everything this page claims is checkable, because the code that
+              makes it is the code you can read. That is not a slogan — it is
+              why the methodology page can carry numbers a competitor cannot.
+            </p>
+            <p>
+              OpenGeo is a derivative work of{" "}
+              <a
+                href="https://github.com/every-app/open-seo"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="itc-oss-link"
+              >
+                OpenSEO
+              </a>
+              , used under MIT. We are grateful to the authors.
+            </p>
+            <Link to="/open-source-seo" className="itc-wedge-link">
+              Why we built it this way
+              <span aria-hidden="true">&rarr;</span>
+            </Link>
+          </div>
 
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            gap: 24,
-            marginTop: 32,
-          }}
-        >
+          {/* **A definition list, not a badge row.** Four label/value pairs read as
+              facts; four logos read as decoration, and the difference is the whole
+              reason this section exists. */}
+          <dl className="itc-oss-facts">
+            {OPEN_SOURCE.map((f) => (
+              <div className="itc-oss-fact" key={f.label}>
+                <dt className="itc-oss-label">{f.label}</dt>
+                <dd>
+                  <a
+                    href={f.href}
+                    className="itc-oss-value"
+                    {...(f.href.startsWith("http")
+                      ? { target: "_blank", rel: "noopener noreferrer" }
+                      : {})}
+                  >
+                    {f.value}
+                  </a>
+                  <span className="itc-oss-detail">{f.detail}</span>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </Container>
+    </section>
+  );
+}
+
+/**
+ * The final CTA — §7G: "One action."
+ *
+ * **The same two words as the hero.** `synthesis.md` §8 is explicit that the label
+ * never varies, because Vercel varies it — "Deploy now", "Get a Demo", "Talk to
+ * sales" — and the variation costs clarity. One name, one destination, learned once.
+ *
+ * **And the objection, answered last and in one line**, because by this point the
+ * reader has the argument and only the price is outstanding.
+ */
+export function FinalCta() {
+  return (
+    <section className="itc-final">
+      <Container>
+        <h2 className="itc-display-md itc-final-title">
+          Bring your own key. See what it says about you.
+        </h2>
+        <p className="itc-final-sub">
+          No card. \$10 of vendor credit included, and the free tier is uncapped
+          because you are paying DataForSEO directly.
+        </p>
+
+        {/* One primary. The second action is a link, for the reader who is not ready
+            to sign up and wants the source first. */}
+        <div className="itc-final-actions">
           <a
-            href={GITHUB_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="itc-btn itc-btn-secondary"
+            href="https://app.opengeo.so/sign-up"
+            className="itc-btn-primary itc-btn-lg"
           >
-            <IconGithub size={16} />
-            Star on GitHub
+            Start free
+            <span aria-hidden="true">&rarr;</span>
           </a>
-          <a href="/open-source-seo" className="itc-textlink">
-            Why Open Source? <IconArrowRight size={15} className="itc-arrow" />
-          </a>
+          <Link to="/methodology" className="itc-hero-evidence">
+            Read the method first
+            <span aria-hidden="true">&rarr;</span>
+          </Link>
         </div>
       </Container>
     </section>
@@ -1013,13 +1431,19 @@ function Footer() {
 // ─── Page ────────────────────────────────────────────────────────────
 
 export function LandingPage() {
+  // The 8-section spine — docs/design-research/synthesis.md §7. The order is the
+  // argument: the claim, why the category cannot make it, what we do instead, the
+  // thing doing it, three real accounts, four checkable facts, one action.
   return (
     <div className="itc">
       <Hero />
+      <Wedge />
+      <Claims />
+      <ProductSection />
       <McpSection />
       <Testimonial />
-      <OpenSourceSection />
-      <ProductSection />
+      <Verification />
+      <FinalCta />
       <Footer />
       <a
         href={DISCORD_URL}
