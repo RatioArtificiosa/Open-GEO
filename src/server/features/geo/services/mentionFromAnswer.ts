@@ -14,7 +14,7 @@
  * 2. **It must be testable without a database.** The first version lived beside
  *    the reader that uses it, imported `@/db` transitively, and its test died at
  *    import with `Cannot find package 'cloudflare:workers'`. That is the rule
- *    CL-200d wrote down: *a rule that cannot be tested without infrastructure is
+ *    CL-200d-drain wrote down: *a rule that cannot be tested without infrastructure is
  *    a rule that will not be tested.*
  *
  * So the rule is here, pure, and the reader imports it. No Worker environment, no

@@ -32,9 +32,26 @@
  * whole CL-819 series turned on.
  */
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 const ROOT = process.cwd();
+
+/**
+ * A root-relative path with forward slashes.
+ *
+ * **One conversion, used everywhere.** The first version inlined
+ * `file.replace(ROOT + "\\", "")`, which is Windows-specific twice
+ * over — it assumes the separator is a backslash *and* that `ROOT`
+ * ends in one. On Linux neither holds, so the path stayed absolute
+ * and the comparison against a relative `home` failed on every
+ * policy.
+ *
+ * A gate that only passes on the machine it was written on is not a
+ * gate; it is a local custom. **CI runs on Linux.**
+ */
+function rel(file) {
+  return relative(ROOT, file).replace(/\\/g, "/");
+}
 
 /**
  * Decisions that must be made once.
@@ -100,7 +117,7 @@ for (const policy of POLICIES) {
     while ((match = pattern.exec(text)) !== null) {
       const line = text.slice(0, match.index).split("\n").length;
       declarations.push({
-        file: file.replace(ROOT + "\\", "").replace(/\\/g, "/"),
+        file: rel(file),
         line,
         exported: match[0].startsWith("export"),
       });
@@ -175,7 +192,7 @@ for (const policy of POLICIES) {
       );
       if (local) {
         problems.push(
-          `${file.replace(ROOT + "\\", "").replace(/\\/g, "/")}:${i + 1} declares a local ` +
+          `${rel(file)}:${i + 1} declares a local ` +
             `${policy.name}, which is decided in ${policy.home}`,
         );
       }
