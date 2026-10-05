@@ -1354,7 +1354,7 @@ export function FinalCta() {
           Bring your own key. See what it says about you.
         </h2>
         <p className="itc-final-sub">
-          No card. \$10 of vendor credit included, and the free tier is uncapped
+          No card. $10 of vendor credit included, and the free tier is uncapped
           because you are paying DataForSEO directly.
         </p>
 
