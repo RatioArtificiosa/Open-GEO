@@ -28,6 +28,9 @@ const STATIC_PATHS = [
   // the site's central claim has to be indexable — otherwise the number in the
   // hero cannot be traced by a reader or a crawler.
   "/methodology",
+  // CL-818: the highest-intent asset in the category. A page a buyer
+  // can find by searching "peec ai alternative" is the one that converts.
+  "/compare",
   "/features",
   "/features/mcp",
   "/tools",

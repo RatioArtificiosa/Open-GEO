@@ -4,8 +4,24 @@ import { DocsBody } from "fumadocs-ui/page";
 import GoogleSearchConsoleMcpContent, {
   frontmatter,
 } from "../../../content/marketing/google-search-console-mcp.mdx";
-import { ComparisonTable } from "@/components/comparison-table";
+import { ComparisonTable as ComparisonTableBase } from "@/components/comparison-table";
+import { GSC_COLUMNS, GSC_ROWS } from "@/lib/gsc-comparison";
 import { buildPageSeo, SITE_URL, toCanonicalUrl } from "@/lib/seo";
+
+/**
+ * MDX renders `<ComparisonTable />` with no props, so the page supplies the data.
+ * The component itself takes columns, rows and a caption, so the *same* table
+ * renders the `/compare` page's five-vendor data without a second component.
+ */
+function ComparisonTable() {
+  return (
+    <ComparisonTableBase
+      columns={GSC_COLUMNS}
+      rows={GSC_ROWS}
+      caption="OpenGeo compared with building a Search Console integration yourself"
+    />
+  );
+}
 
 const PATH = "/google-search-console-mcp";
 
