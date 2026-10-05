@@ -4,7 +4,7 @@ import { buildPageSeo } from "@/lib/seo";
 
 const homeTitle = "OpenGeo - Open Source SEO Platform";
 const homeDescription =
-  "OpenGeo is the open source alternative to Ahrefs and Semrush. Keyword research, backlinks, rank tracking, and site audits, billed by usage instead of a $100-plus monthly subscription. Self-host it free, or connect it to your AI agents over MCP.";
+  "OpenGeo is the alternative to Ahrefs and Semrush for AI search: see what ChatGPT, Gemini and Perplexity say about your brand, and keep every answer. Keyword research, backlinks, rank tracking and site audits from $10/month, with $0.50 free and no card.";
 
 export const Route = createFileRoute("/_marketing/")({
   head: () => {

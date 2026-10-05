@@ -26,11 +26,13 @@ import type { Column, ComparisonRow } from "@/components/comparison-table";
  * ## The rows where they genuinely win
  *
  * **Two are rows in the table**: engine count, and the prompt ceiling at the entry
- * tier (Peec 50, Otterly 15, Scrunch 125, and ours uncapped because the user
- * brings the key). The answer diff being *buildable* from their date-windowed APIs
- * without being shipped as a comparison is **not** a row — it is a claim about
- * their internals rather than something a reader can see — so it is stated in the
- * page's "where one of them is right" paragraph instead.
+ * tier (Peec 50, Otterly 15, Scrunch 125; ours is $10 of included usage, which on
+ * volume is neither capped nor unlimited — it is metered, like everyone else's, and
+ * the rate is published so a reader can compute it). The answer diff being
+ * *buildable* from their date-windowed APIs without being shipped as a comparison is
+ * **not** a row — it is a claim about their internals rather than something a reader
+ * can see — so it is stated in the page's "where one of them is right" paragraph
+ * instead.
  *
  * **The hero says "two rows are not ours", and the table has two.** Those numbers
  * were three, and the copy had drifted from the data. A reader counting rows finds
@@ -96,10 +98,15 @@ export const COMPARE_ROWS: ComparisonRow[] = [
   {
     label: "Prompts at the entry tier",
     cells: [
-      // **A real difference, and one a buyer checks first.** Ours is uncapped on
-      // the free tier because there is no free tier to cap — the user brings the
-      // DataForSEO key and pays the vendor directly.
-      { text: "Uncapped — you bring the key", tone: "positive" },
+      // **Was "Uncapped — you bring the key."** That is a self-hosting fact
+      // presented as a paid-plan advantage: on the hosted service there is no key and
+      // no uncapped tier, there is $10 of included usage and a plan above it.
+      //
+      // **The honest row is still a good row.** Every competitor quotes a prompt
+      // count and gives no formula; we publish what the data costs and what we charge,
+      // so a reader can work out their bill before subscribing. Checkable, and the
+      // same differentiator the receipt makes.
+      { text: "$10 of usage, and the rate published", tone: "positive" },
       { text: "50 prompts" },
       { text: "15 prompts" },
       { text: "125 unique prompts" },
@@ -226,13 +233,13 @@ export const COMPARE_CLAIMS = [
   {
     claim: "The only one you can self-host",
     detail:
-      "MIT, Docker Compose or Cloudflare Workers, and your own DataForSEO key so your data never touches our account. None of the other four is open source.",
+      "MIT, Docker Compose or Cloudflare Workers. **Self-hosted deployments use your own DataForSEO key and your own bill** — that is a different deployment from ours, not a cheaper tier of our hosted service. None of the other four is open source at all.",
     evidence: "our repo and the self-hosting docs",
   },
   {
     claim: "Every number opens onto its receipt",
     detail:
-      "The prompt, the answer, the sources and the vendor cost behind each figure. **No competitor publishes what they pay per run**, so the cost of a run is something you have to take on trust everywhere else.",
+      "The prompt, the answer, the sources and the vendor cost behind each figure — **and the markup, which is a flat 28% on every endpoint**. No competitor publishes what they pay per run, so both what a run costs and what the platform makes on it are things you take on trust everywhere else.",
     evidence: "/methodology, with the endpoint and the date",
   },
   {
