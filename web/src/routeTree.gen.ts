@@ -39,6 +39,7 @@ import { Route as MarketingRoadmapRouteImport } from './routes/_marketing/roadma
 import { Route as MarketingPrivacyRouteImport } from './routes/_marketing/privacy'
 import { Route as MarketingPricingRouteImport } from './routes/_marketing/pricing'
 import { Route as MarketingOpenSourceSeoRouteImport } from './routes/_marketing/open-source-seo'
+import { Route as MarketingMethodologyRouteImport } from './routes/_marketing/methodology'
 import { Route as MarketingKeywordGeneratorRouteImport } from './routes/_marketing/keyword-generator'
 import { Route as MarketingGoogleSearchConsoleMcpRouteImport } from './routes/_marketing/google-search-console-mcp'
 import { Route as MarketingDomainAgeCheckerRouteImport } from './routes/_marketing/domain-age-checker'
@@ -244,6 +245,11 @@ const MarketingPricingRoute = MarketingPricingRouteImport.update({
 const MarketingOpenSourceSeoRoute = MarketingOpenSourceSeoRouteImport.update({
   id: '/open-source-seo',
   path: '/open-source-seo',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const MarketingMethodologyRoute = MarketingMethodologyRouteImport.update({
+  id: '/methodology',
+  path: '/methodology',
   getParentRoute: () => MarketingRoute,
 } as any)
 const MarketingKeywordGeneratorRoute =
@@ -568,6 +574,7 @@ export interface FileRoutesByFullPath {
   '/domain-age-checker': typeof MarketingDomainAgeCheckerRoute
   '/google-search-console-mcp': typeof MarketingGoogleSearchConsoleMcpRoute
   '/keyword-generator': typeof MarketingKeywordGeneratorRoute
+  '/methodology': typeof MarketingMethodologyRoute
   '/open-source-seo': typeof MarketingOpenSourceSeoRoute
   '/pricing': typeof MarketingPricingRoute
   '/privacy': typeof MarketingPrivacyRoute
@@ -650,6 +657,7 @@ export interface FileRoutesByTo {
   '/domain-age-checker': typeof MarketingDomainAgeCheckerRoute
   '/google-search-console-mcp': typeof MarketingGoogleSearchConsoleMcpRoute
   '/keyword-generator': typeof MarketingKeywordGeneratorRoute
+  '/methodology': typeof MarketingMethodologyRoute
   '/open-source-seo': typeof MarketingOpenSourceSeoRoute
   '/pricing': typeof MarketingPricingRoute
   '/privacy': typeof MarketingPrivacyRoute
@@ -735,6 +743,7 @@ export interface FileRoutesById {
   '/_marketing/domain-age-checker': typeof MarketingDomainAgeCheckerRoute
   '/_marketing/google-search-console-mcp': typeof MarketingGoogleSearchConsoleMcpRoute
   '/_marketing/keyword-generator': typeof MarketingKeywordGeneratorRoute
+  '/_marketing/methodology': typeof MarketingMethodologyRoute
   '/_marketing/open-source-seo': typeof MarketingOpenSourceSeoRoute
   '/_marketing/pricing': typeof MarketingPricingRoute
   '/_marketing/privacy': typeof MarketingPrivacyRoute
@@ -821,6 +830,7 @@ export interface FileRouteTypes {
     | '/domain-age-checker'
     | '/google-search-console-mcp'
     | '/keyword-generator'
+    | '/methodology'
     | '/open-source-seo'
     | '/pricing'
     | '/privacy'
@@ -903,6 +913,7 @@ export interface FileRouteTypes {
     | '/domain-age-checker'
     | '/google-search-console-mcp'
     | '/keyword-generator'
+    | '/methodology'
     | '/open-source-seo'
     | '/pricing'
     | '/privacy'
@@ -987,6 +998,7 @@ export interface FileRouteTypes {
     | '/_marketing/domain-age-checker'
     | '/_marketing/google-search-console-mcp'
     | '/_marketing/keyword-generator'
+    | '/_marketing/methodology'
     | '/_marketing/open-source-seo'
     | '/_marketing/pricing'
     | '/_marketing/privacy'
@@ -1293,6 +1305,13 @@ declare module '@tanstack/react-router' {
       path: '/open-source-seo'
       fullPath: '/open-source-seo'
       preLoaderRoute: typeof MarketingOpenSourceSeoRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/_marketing/methodology': {
+      id: '/_marketing/methodology'
+      path: '/methodology'
+      fullPath: '/methodology'
+      preLoaderRoute: typeof MarketingMethodologyRouteImport
       parentRoute: typeof MarketingRoute
     }
     '/_marketing/keyword-generator': {
@@ -1671,6 +1690,7 @@ interface MarketingRouteChildren {
   MarketingDomainAgeCheckerRoute: typeof MarketingDomainAgeCheckerRoute
   MarketingGoogleSearchConsoleMcpRoute: typeof MarketingGoogleSearchConsoleMcpRoute
   MarketingKeywordGeneratorRoute: typeof MarketingKeywordGeneratorRoute
+  MarketingMethodologyRoute: typeof MarketingMethodologyRoute
   MarketingOpenSourceSeoRoute: typeof MarketingOpenSourceSeoRoute
   MarketingPricingRoute: typeof MarketingPricingRoute
   MarketingPrivacyRoute: typeof MarketingPrivacyRoute
@@ -1738,6 +1758,7 @@ const MarketingRouteChildren: MarketingRouteChildren = {
   MarketingDomainAgeCheckerRoute: MarketingDomainAgeCheckerRoute,
   MarketingGoogleSearchConsoleMcpRoute: MarketingGoogleSearchConsoleMcpRoute,
   MarketingKeywordGeneratorRoute: MarketingKeywordGeneratorRoute,
+  MarketingMethodologyRoute: MarketingMethodologyRoute,
   MarketingOpenSourceSeoRoute: MarketingOpenSourceSeoRoute,
   MarketingPricingRoute: MarketingPricingRoute,
   MarketingPrivacyRoute: MarketingPrivacyRoute,

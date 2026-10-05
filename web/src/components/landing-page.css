@@ -292,6 +292,140 @@
   position: relative;
   text-align: center;
 }
+/* ── Hero (CL-817) — the claim, and the one accent moment ─────────── */
+
+.itc-hero--claim {
+  text-align: left;
+}
+.itc-hero--claim .itc-display-xl {
+  text-wrap: balance;
+}
+
+/* The category, flatly. A label is supposed to be dull, so it is small, tracked
+   out, and in muted ink — never the accent. */
+.itc-eyebrow {
+  color: var(--color-brand-muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  margin: 0 0 1.25rem;
+  text-transform: uppercase;
+}
+
+/* **The one large accent moment on the page.** `198×` is the claim, so it is the
+   only thing at hero scale that is amber — a filled amber button beside it would
+   be two accent moments, and an accent that appears twice marks nothing. */
+.itc-hero-figure {
+  color: var(--color-brand-accent-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The actions: one primary, and a **link** for the evidence. A claim that needs
+   proving should not look like something to buy. */
+.itc-hero-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-top: 2rem;
+}
+.itc-hero-evidence {
+  align-items: center;
+  color: var(--color-brand);
+  display: inline-flex;
+  font-weight: 500;
+  gap: 0.375rem;
+  text-decoration: underline;
+  text-decoration-color: var(--color-brand-accent-border);
+  text-underline-offset: 4px;
+  transition: text-decoration-color 120ms cubic-bezier(0.2, 0, 0, 1);
+}
+.itc-hero-evidence:hover {
+  text-decoration-color: var(--color-brand-accent);
+}
+
+/* The objection answered before it is raised, and checkable. */
+.itc-hero-note {
+  color: var(--color-brand-muted);
+  font-size: 0.9375rem;
+  margin: 1rem 0 0;
+}
+.itc-hero-note-strong {
+  color: var(--color-brand);
+  font-weight: 500;
+}
+
+/* The proof strip: figures, not logos. **A hairline top rule, not a card** — a row
+   of three bordered cards is exactly the grid pattern the research measured at
+   Otterly (12 containers) and Raycast (57). */
+.itc-proofs {
+  border-top: 1px solid var(--color-border-subtle);
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  margin: 3.5rem 0 0;
+  padding-top: 1.75rem;
+}
+.itc-proof {
+  border-top: 2px solid var(--color-border-subtle);
+  padding-top: 0.875rem;
+}
+.itc-proof-figure {
+  color: var(--color-brand);
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  text-decoration: none;
+}
+/* The figure is a link to its own provenance, so it takes the underline on
+   hover rather than carrying one at rest — a row of underlined numbers reads as
+   broken links rather than as evidence. */
+.itc-proof-figure:hover {
+  color: var(--color-brand-accent-text);
+  text-decoration: underline;
+  text-decoration-color: var(--color-brand-accent-border);
+  text-underline-offset: 4px;
+}
+.itc-proof-label {
+  color: var(--color-brand);
+  display: block;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  margin-top: 0.375rem;
+}
+.itc-proof-note {
+  color: var(--color-brand-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  margin: 0.25rem 0 0;
+}
+
+@media (max-width: 640px) {
+  /* **The actions stack and both go full width** — a 44px touch target that is
+     half the viewport is a target you can miss. */
+  .itc-hero-actions {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .itc-hero-actions > * {
+    justify-content: center;
+    width: 100%;
+  }
+  .itc-proofs {
+    gap: 1.25rem;
+    grid-template-columns: 1fr;
+  }
+}
+
+/* `prefers-reduced-motion`: the hero has no entrance animation to remove, and
+   the hover transitions are colour-only, so there is nothing to honour here. The
+   rule exists in the tokens for the sections that do animate. */
+
 .itc-hero::before {
   content: "";
   position: absolute;

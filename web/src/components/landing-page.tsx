@@ -16,6 +16,9 @@ import "./landing-page.css";
 const SIGNUP_URL = "https://app.opengeo.so/sign-up";
 const PRODUCT_HUNT_URL =
   "https://www.producthunt.com/products/opengeo?launch=opengeo";
+
+/** CL-817: the hero's evidence link — the claim's provenance, one click away. */
+const METHODOLOGY_URL = "/methodology";
 const GITHUB_URL = "https://github.com/RatioArtificiosa/Open-GEO";
 const DISCORD_URL = "https://discord.gg/c9uGs3cFXr";
 
@@ -195,39 +198,141 @@ function ArrowCta({
 
 // ─── Hero ────────────────────────────────────────────────────────────
 
-function Hero() {
+/* ─── Hero (CL-817 — the claim, not the category label) ───────────────
+
+   The old headline was "The modern, open source SEO platform." — a category
+   label, which is how every competitor opens. This opens with a measurement and
+   puts its provenance one click away, because that is ground nobody in the
+   category is standing on. See docs/design-research/synthesis.md §6 and
+   OPENGEO_PROPOSAL.md §13.6.
+   ────────────────────────────────────────────────────────────── */
+
+import { Link } from "@tanstack/react-router";
+
+/**
+ * The homepage hero — CL-817, §6 of the synthesis.
+ *
+ * ## The one decision everything else follows from
+ *
+ * **The hero is a measured claim with a provenance link, not a promise.**
+ *
+ * The competitor study found that **not one AI-search competitor opens with a
+ * verifiable fact.** Peec opens "AI search analytics for marketing teams" — a
+ * category label. Otterly opens a pun. Ahrefs and Semrush open product names. The
+ * dev-tool set compresses instead: Linear three words, Vercel two.
+ *
+ * So the available ground is a number, and it is available precisely because the
+ * thesis is that this category is full of claims nobody can check. **198× is that
+ * number, and this repository has refused to sum across platforms because of it in
+ * roughly twenty files** — which makes it the most heavily policed fact we have and
+ * therefore the safest thing to lead with.
+ *
+ * ## Why the CTA is one, not two
+ *
+ * Linear's hero has **no CTA at all**; Vercel has one; Raycast has one. A paired
+ * primary/secondary button is a decision deferred to the reader. Ours is *Start
+ * free*, and the secondary is a **link**, because a claim that needs proving should
+ * not look like something to buy.
+ *
+ * ## What the "See the evidence" link is
+ *
+ * `docs/METHODOLOGY.md`, which documents how every metric is computed and carries a
+ * "what we do not claim" section. **The link is load-bearing: it is what separates a
+ * claim from a boast.** A number with no provenance in one click is a slogan.
+ */
+
+/**
+ * The proof strip: figures, each opening onto its source.
+ *
+ * **These are not logos.** Otterly leads with "Trusted by 40,000+", which is
+ * unverifiable at the point of reading and invites the question instead of
+ * answering it. Every figure here is checkable, and two of them are the most
+ * defensible numbers in the product.
+ */
+const PROOFS = [
+  {
+    value: "198×",
+    label: "gap between Google and ChatGPT search volume",
+    href: METHODOLOGY_URL,
+    note: "same field name, two different units",
+  },
+  {
+    value: "$0.11",
+    label: "1,000 AI keywords, measured",
+    href: METHODOLOGY_URL,
+    note: "task fee plus per-item, at list price",
+  },
+  {
+    value: "0",
+    label: "invented metrics",
+    href: METHODOLOGY_URL,
+    note: "no readiness score, by design",
+  },
+] as const;
+
+export function Hero() {
   return (
-    <section className="itc-hero">
+    <section className="itc-hero itc-hero--claim">
       <Container>
-        <a
-          href={PRODUCT_HUNT_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="itc-hero-ph-laurel"
-          aria-label="Number 1 Product of the Day on Product Hunt"
-        >
-          <ProductHuntLaurel />
-        </a>
-        <h1
-          className="itc-display-xl itc-hero-title"
-          style={{ maxWidth: 1180, margin: "0 auto" }}
-        >
-          The modern, open source SEO platform.
+        {/* The category, flatly. No "platform", no "suite" — a label is
+            supposed to be dull, and this is one. */}
+        <p className="itc-eyebrow">Generative Engine Optimization</p>
+
+        {/* The headline is the number. `synthesis.md` §6 asks for a measured
+            discrepancy with its provenance one click away, and this is the only
+            figure in the product that twenty files refuse to violate. */}
+        <h1 className="itc-display-xl itc-hero-title">
+          Google and ChatGPT disagree about
+          <br />
+          what a search volume is.
+          <br />
+          <span className="itc-hero-figure">198×</span>
         </h1>
-        <p
-          className="itc-subhead itc-muted itc-hero-subtitle"
-          style={{ maxWidth: 640, margin: "24px auto 0" }}
-        >
-          Without quality data, AI gives generic advice. OpenGeo is built for
-          you and your AI agent to work together on SEO strategy + content
-          tailored to your business.
+
+        <p className="itc-subhead itc-muted itc-hero-subtitle">
+          One keyword. Two platforms. Google&rsquo;s figure is real search
+          volume; ChatGPT&rsquo;s is People-Also-Ask modelled. Add them and you
+          get a number that looks authoritative and means nothing — so we refuse
+          to, in twenty places in this codebase. OpenGeo is the layer above
+          both: it keeps the record of what each engine said, when, and at what
+          vendor cost.
         </p>
-        <div className="itc-hero-ctas">
-          <div className="itc-hero-cta-group">
-            <ArrowCta size="lg" />
-            <p className="itc-hero-cta-note">No credit card required</p>
-          </div>
+
+        {/* One primary action. The secondary is a link, not a button: a claim
+            that needs proving should not look like something to buy. */}
+        <div className="itc-hero-actions">
+          <a href={SIGNUP_URL} className="itc-btn-primary itc-btn-lg">
+            Start free
+            <span aria-hidden="true">&rarr;</span>
+          </a>
+          <Link to={METHODOLOGY_URL} className="itc-hero-evidence">
+            See the evidence
+            <span aria-hidden="true">&rarr;</span>
+          </Link>
         </div>
+
+        {/* No card required. The objection is answered before it is raised, and
+            the answer is checkable. */}
+        <p className="itc-hero-note">
+          No card. You pay DataForSEO directly —{" "}
+          <span className="itc-hero-note-strong">$10 of credit included.</span>
+        </p>
+
+        {/* The proof strip. Figures, not logos — every one opens onto the
+            methodology page that produced it. */}
+        <dl className="itc-proofs">
+          {PROOFS.map((p) => (
+            <div key={p.value} className="itc-proof">
+              <dt>
+                <Link to={p.href} className="itc-proof-figure">
+                  {p.value}
+                </Link>
+                <span className="itc-proof-label">{p.label}</span>
+              </dt>
+              <dd className="itc-proof-note">{p.note}</dd>
+            </div>
+          ))}
+        </dl>
       </Container>
     </section>
   );

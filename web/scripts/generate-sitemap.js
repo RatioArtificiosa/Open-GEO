@@ -24,6 +24,10 @@ const STATIC_PATHS = [
   "/terms-and-conditions",
   "/blogs",
   "/docs",
+  // CL-817: the hero's "See the evidence" link points here, so the page backing
+  // the site's central claim has to be indexable — otherwise the number in the
+  // hero cannot be traced by a reader or a crawler.
+  "/methodology",
   "/features",
   "/features/mcp",
   "/tools",
