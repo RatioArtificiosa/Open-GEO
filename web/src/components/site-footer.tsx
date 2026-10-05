@@ -73,6 +73,7 @@ export function SiteFooter({ className }: { className?: string }) {
             <Link to="/why-opengeo">Why OpenGeo</Link>
             <Link to="/support">Support</Link>
             <Link to="/roadmap">Roadmap</Link>
+            <Link to="/capabilities">What&rsquo;s included</Link>
             <Link to="/pricing">Pricing</Link>
             <a
               href="https://github.com/RatioArtificiosa/Open-GEO"

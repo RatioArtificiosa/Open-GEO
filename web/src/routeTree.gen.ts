@@ -47,6 +47,7 @@ import { Route as MarketingDomainAgeCheckerRouteImport } from './routes/_marketi
 import { Route as MarketingCompetitorKeywordFinderRouteImport } from './routes/_marketing/competitor-keyword-finder'
 import { Route as MarketingCompetitorAnalysisRouteImport } from './routes/_marketing/competitor-analysis'
 import { Route as MarketingCompareRouteImport } from './routes/_marketing/compare'
+import { Route as MarketingCapabilitiesRouteImport } from './routes/_marketing/capabilities'
 import { Route as MarketingBacklinkCheckerRouteImport } from './routes/_marketing/backlink-checker'
 import { Route as MarketingAskTheAiRouteImport } from './routes/_marketing/ask-the-ai'
 import { Route as MarketingAboutRouteImport } from './routes/_marketing/about'
@@ -292,6 +293,11 @@ const MarketingCompetitorAnalysisRoute =
 const MarketingCompareRoute = MarketingCompareRouteImport.update({
   id: '/compare',
   path: '/compare',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const MarketingCapabilitiesRoute = MarketingCapabilitiesRouteImport.update({
+  id: '/capabilities',
+  path: '/capabilities',
   getParentRoute: () => MarketingRoute,
 } as any)
 const MarketingBacklinkCheckerRoute =
@@ -581,6 +587,7 @@ export interface FileRoutesByFullPath {
   '/about': typeof MarketingAboutRoute
   '/ask-the-ai': typeof MarketingAskTheAiRoute
   '/backlink-checker': typeof MarketingBacklinkCheckerRoute
+  '/capabilities': typeof MarketingCapabilitiesRoute
   '/compare': typeof MarketingCompareRoute
   '/competitor-analysis': typeof MarketingCompetitorAnalysisRoute
   '/competitor-keyword-finder': typeof MarketingCompetitorKeywordFinderRoute
@@ -666,6 +673,7 @@ export interface FileRoutesByTo {
   '/about': typeof MarketingAboutRoute
   '/ask-the-ai': typeof MarketingAskTheAiRoute
   '/backlink-checker': typeof MarketingBacklinkCheckerRoute
+  '/capabilities': typeof MarketingCapabilitiesRoute
   '/compare': typeof MarketingCompareRoute
   '/competitor-analysis': typeof MarketingCompetitorAnalysisRoute
   '/competitor-keyword-finder': typeof MarketingCompetitorKeywordFinderRoute
@@ -754,6 +762,7 @@ export interface FileRoutesById {
   '/_marketing/about': typeof MarketingAboutRoute
   '/_marketing/ask-the-ai': typeof MarketingAskTheAiRoute
   '/_marketing/backlink-checker': typeof MarketingBacklinkCheckerRoute
+  '/_marketing/capabilities': typeof MarketingCapabilitiesRoute
   '/_marketing/compare': typeof MarketingCompareRoute
   '/_marketing/competitor-analysis': typeof MarketingCompetitorAnalysisRoute
   '/_marketing/competitor-keyword-finder': typeof MarketingCompetitorKeywordFinderRoute
@@ -843,6 +852,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/ask-the-ai'
     | '/backlink-checker'
+    | '/capabilities'
     | '/compare'
     | '/competitor-analysis'
     | '/competitor-keyword-finder'
@@ -928,6 +938,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/ask-the-ai'
     | '/backlink-checker'
+    | '/capabilities'
     | '/compare'
     | '/competitor-analysis'
     | '/competitor-keyword-finder'
@@ -1015,6 +1026,7 @@ export interface FileRouteTypes {
     | '/_marketing/about'
     | '/_marketing/ask-the-ai'
     | '/_marketing/backlink-checker'
+    | '/_marketing/capabilities'
     | '/_marketing/compare'
     | '/_marketing/competitor-analysis'
     | '/_marketing/competitor-keyword-finder'
@@ -1387,6 +1399,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MarketingCompareRouteImport
       parentRoute: typeof MarketingRoute
     }
+    '/_marketing/capabilities': {
+      id: '/_marketing/capabilities'
+      path: '/capabilities'
+      fullPath: '/capabilities'
+      preLoaderRoute: typeof MarketingCapabilitiesRouteImport
+      parentRoute: typeof MarketingRoute
+    }
     '/_marketing/backlink-checker': {
       id: '/_marketing/backlink-checker'
       path: '/backlink-checker'
@@ -1723,6 +1742,7 @@ interface MarketingRouteChildren {
   MarketingAboutRoute: typeof MarketingAboutRoute
   MarketingAskTheAiRoute: typeof MarketingAskTheAiRoute
   MarketingBacklinkCheckerRoute: typeof MarketingBacklinkCheckerRoute
+  MarketingCapabilitiesRoute: typeof MarketingCapabilitiesRoute
   MarketingCompareRoute: typeof MarketingCompareRoute
   MarketingCompetitorAnalysisRoute: typeof MarketingCompetitorAnalysisRoute
   MarketingCompetitorKeywordFinderRoute: typeof MarketingCompetitorKeywordFinderRoute
@@ -1793,6 +1813,7 @@ const MarketingRouteChildren: MarketingRouteChildren = {
   MarketingAboutRoute: MarketingAboutRoute,
   MarketingAskTheAiRoute: MarketingAskTheAiRoute,
   MarketingBacklinkCheckerRoute: MarketingBacklinkCheckerRoute,
+  MarketingCapabilitiesRoute: MarketingCapabilitiesRoute,
   MarketingCompareRoute: MarketingCompareRoute,
   MarketingCompetitorAnalysisRoute: MarketingCompetitorAnalysisRoute,
   MarketingCompetitorKeywordFinderRoute: MarketingCompetitorKeywordFinderRoute,

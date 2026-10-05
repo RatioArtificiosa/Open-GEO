@@ -220,6 +220,20 @@ export function TheToolkit() {
           subscription for the rest. OpenGeo is one workspace — and for an
           agency, one report a client can open.
         </p>
+        {/* **Nine is what fits here. Thirty-odd is what you get.** The toolkit rail
+            sits on a page with a grid budget of ten containers, and a capability
+            grid would be both the tenth and the three-rounded-cards signature the
+            design research identifies. So the homepage argues and this page
+            enumerates — which is also the honest shape, because a list of thirty
+            things on a homepage is a list nobody reads. */}
+        <p className="itc-toolkit-more">
+          <Link to="/capabilities" className="itc-toolkit-more-link">
+            That is the short list. Local SEO, GA4, content analysis, traffic
+            forecasting, report templates and 71 MCP tools are included too
+            <span aria-hidden="true">&rarr;</span>
+          </Link>
+        </p>
+
 
         <div className="itc-toolkit-grid">
           {GROUPS.map((group) => (
