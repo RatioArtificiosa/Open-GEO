@@ -35,7 +35,11 @@ export function NewsletterSignup() {
   };
 
   if (status === "success") {
-    return <p className="text-sm text-neutral-900">You&apos;re on the list.</p>;
+    return (
+      <p role="status" className="text-sm text-neutral-900">
+        You&apos;re on the list.
+      </p>
+    );
   }
 
   return (
@@ -65,7 +69,9 @@ export function NewsletterSignup() {
         </button>
       </div>
       {status === "error" && (
-        <p className="mt-2 text-xs text-red-600">{errorMessage}</p>
+        <p role="alert" className="mt-2 text-xs text-red-600">
+          {errorMessage}
+        </p>
       )}
     </form>
   );

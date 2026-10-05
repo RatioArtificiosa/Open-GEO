@@ -199,6 +199,7 @@ function MarketingLayout() {
                 type="button"
                 aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
                 aria-expanded={mobileMenuOpen}
+                aria-controls="nav-mobile-menu"
                 onClick={() => setMobileMenuOpen((open) => !open)}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-900 transition-colors hover:bg-[var(--color-surface-sunken)] md:hidden"
               >
@@ -225,7 +226,10 @@ function MarketingLayout() {
           </nav>
 
           {mobileMenuOpen ? (
-            <div className="absolute left-0 right-0 top-full z-30 mt-3 rounded-2xl border border-[var(--color-border-subtle)] bg-white p-3 shadow-xl shadow-neutral-900/10 md:hidden">
+            <div
+              id="nav-mobile-menu"
+              className="absolute left-0 right-0 top-full z-30 mt-3 rounded-2xl border border-[var(--color-border-subtle)] bg-white p-3 shadow-xl shadow-neutral-900/10 md:hidden"
+            >
               <div className="grid grid-cols-2 gap-2">
                 <a
                   href="https://app.opengeo.so/sign-in"
