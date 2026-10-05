@@ -118,59 +118,81 @@ const MUTATIONS = [
 
 let survivors = 0;
 
-for (const m of MUTATIONS) {
+// **Restore and clean up on every exit path.** A verifier that can leave its
+// subject poisoned is not a verifier: the next gate run reads `dist`, finds the
+// injected violation and reports something nobody introduced. `finally` covers the
+// throw, SIGINT covers the Ctrl-C, and neither is best-effort — the mutation window
+// is inherently in-place, so a missed restore is a corrupted build artefact.
+function cleanup() {
   restore();
-  let applied = false;
+  for (const backup of backups) rmSync(backup, { force: true });
+  rmSync(`${HOME}.mutbak`, { force: true });
+}
+process.on("SIGINT", () => {
+  cleanup();
+  process.exit(130);
+});
 
-  if (m.kind === "css") {
-    applied = mutateCss(m.find, m.replace);
-  } else if (m.kind === "home") {
-    const text = readFileSync(HOME, "utf8");
-    if (text.includes(m.find)) {
-      writeFileSync(HOME, text.replace(m.find, m.replace));
+try {
+  for (const m of MUTATIONS) {
+    restore();
+    let applied = false;
+
+    if (m.kind === "css") {
+      applied = mutateCss(m.find, m.replace);
+    } else if (m.kind === "home") {
+      const text = readFileSync(HOME, "utf8");
+      if (text.includes(m.find)) {
+        writeFileSync(HOME, text.replace(m.find, m.replace));
+        applied = true;
+      }
+    } else if (m.kind === "add-grids") {
+      const file = files.find((f) => f.includes("index")) ?? files[0];
+      const text = readFileSync(file, "utf8");
+      const extra = Array.from(
+        { length: m.count },
+        (_, i) => `.mut-grid-${i}{display:grid}`,
+      ).join("");
+      writeFileSync(file, text + "\n" + extra);
+      // And put the classes on the page, or the budget correctly ignores them.
+      const home = readFileSync(HOME, "utf8");
+      writeFileSync(
+        HOME,
+        home.replace(
+          "<body",
+          `<body class="${Array.from({ length: m.count }, (_, i) => `mut-grid-${i}`).join(" ")}"`,
+        ),
+      );
       applied = true;
     }
-  } else if (m.kind === "add-grids") {
-    const file = files.find((f) => f.includes("index")) ?? files[0];
-    const text = readFileSync(file, "utf8");
-    const extra = Array.from(
-      { length: m.count },
-      (_, i) => `.mut-grid-${i}{display:grid}`,
-    ).join("");
-    writeFileSync(file, text + "\n" + extra);
-    // And put the classes on the page, or the budget correctly ignores them.
-    const home = readFileSync(HOME, "utf8");
-    writeFileSync(
-      HOME,
-      home.replace(
-        "<body",
-        `<body class="${Array.from({ length: m.count }, (_, i) => `mut-grid-${i}`).join(" ")}"`,
-      ),
-    );
-    applied = true;
-  }
 
-  if (!applied) {
-    console.log(`SKIP     ${m.name} — anchor not found`);
-    continue;
-  }
+    if (!applied) {
+      // **A skip counts as a survivor.** The alternative is a script that prints a
+      // smaller denominator than it earned and still exits 0 — so a mutation whose
+      // anchor stopped existing would silently stop testing that rule while the
+      // summary kept claiming the gate was exercised.
+      console.log(
+        `SKIPPED  ${m.name} — anchor not found, so this rule went untested`,
+      );
+      survivors += 1;
+      continue;
+    }
 
-  const result = runGate();
-  restore();
+    const result = runGate();
+    restore();
 
-  if (result.code === 0) {
-    console.log(`SURVIVED ${m.name}   <-- the gate cannot see this`);
-    survivors += 1;
-  } else {
-    const rule = /FAIL ([^\n]+)/.exec(result.out)?.[1]?.trim() ?? "?";
-    console.log(`KILLED   ${m.name}`);
-    console.log(`           via: ${rule}`);
+    if (result.code === 0) {
+      console.log(`SURVIVED ${m.name}   <-- the gate cannot see this`);
+      survivors += 1;
+    } else {
+      const rule = /FAIL ([^\n]+)/.exec(result.out)?.[1]?.trim() ?? "?";
+      console.log(`KILLED   ${m.name}`);
+      console.log(`           via: ${rule}`);
+    }
   }
+} finally {
+  cleanup();
 }
-
-restore();
-files.forEach((f, i) => rmSync(backups[i], { force: true }));
-rmSync(`${HOME}.mutbak`, { force: true });
 
 const after = runGate();
 console.log(`\nsurvivors: ${survivors} of ${MUTATIONS.length}`);

@@ -146,10 +146,24 @@ function checkRendering(pages) {
     }
     linked += 1;
 
-    const local = sheets.filter((href) => href.startsWith("/assets/"));
-    let ok = local.length === 0;
+    // **Local stylesheets only.** A page whose sole `<link>` is the Google Fonts
+    // URL has nothing of ours attached, and would render unstyled. Counting an
+    // external sheet as evidence of styling is the precise bug this gate exists
+    // to prevent: the failure being hunted was *every local sheet 404ing while the
+    // external font still resolved*, and "at least one href matched" passes that.
+    const local = sheets.filter((href) => !/^(?:https?:)?\/\//.test(href));
+    if (local.length === 0) {
+      broken.push(
+        `${file.replace(DIST, "")} — no local stylesheet, only external`,
+      );
+      continue;
+    }
+
+    // **Any one resolvable sheet is enough**, and a missing one is reported even
+    // when another resolves — a 404 on a print stylesheet is still a broken link.
+    let ok = false;
     for (const href of local) {
-      const asset = join(DIST, href.replace(/^\//, ""));
+      const asset = href.startsWith("/") ? join(DIST, href) : join(DIST, href);
       if (existsSync(asset) && statSync(asset).size > 500) ok = true;
       else
         broken.push(`${file.replace(DIST, "")} -> ${href} is missing or empty`);
@@ -261,24 +275,36 @@ function checkFont(css, pages) {
   void pages;
 }
 
-/** The Tailwind indigo band, which every generated gradient reaches for. */
+/**
+ * The Tailwind indigo band, which every generated gradient reaches for.
+ *
+ * **Hues are read from hue positions, not from every number.** The first version
+ * matched `/(\d{2,3})/` anywhere in a gradient, so `rgb(99 102 241)` contributed
+ * `99`, `102` and `241`, and a `100%` stop read as hue 100. Nothing checked that
+ * a number was *in* hue position, so the rule was firing on arithmetic that had
+ * nothing to do with hue — and a real indigo gradient could have slipped through
+ * the same noise.
+ *
+ * Hues now come from `hsl()`/`oklch()`/`lch()`'s third argument and from hex
+ * converted to HSL.
+ */
 function checkGradientHue(css) {
   const offenders = [];
-  // `from-[#6366f1]`-style arbitrary values and `hsl(260 …)` in gradients.
-  for (const m of css.matchAll(/linear-gradient\([^)]*\)/g)) {
-    const text = m[0];
-    for (const hue of text.matchAll(/(\d{2,3})(?:deg)?\b/g)) {
-      const h = Number.parseInt(hue[1], 10);
-      if (h >= GRADIENT_HUE_MIN && h <= GRADIENT_HUE_MAX) {
-        offenders.push(text.slice(0, 90));
+
+  for (const gradient of css.matchAll(/linear-gradient\([^)]*\)/g)) {
+    const text = gradient[0];
+    for (const hue of huesIn(text)) {
+      if (hue >= GRADIENT_HUE_MIN && hue <= GRADIENT_HUE_MAX) {
+        offenders.push(`${hue}deg in ${text.slice(0, 70)}`);
         break;
       }
     }
   }
+
   if (offenders.length > 0) {
     fail(
       `no gradient hue in ${GRADIENT_HUE_MIN}-${GRADIENT_HUE_MAX}`,
-      `${offenders.length} gradient(s) in the indigo band`,
+      `${offenders.length} gradient(s) in the indigo band — ${offenders[0]}`,
     );
   } else {
     pass(
@@ -286,6 +312,92 @@ function checkGradientHue(css) {
       `none in the ${GRADIENT_HUE_MIN}-${GRADIENT_HUE_MAX} band`,
     );
   }
+}
+
+/**
+ * Hue in degrees, from the places a hue can legally appear.
+ *
+ * ## The three sources, and why not a fourth
+ *
+ * | Where | Which argument is the hue |
+ * |---|---|
+ * | `linear-gradient(<angle>, …)` | the **angle** — but only when it is first and bare |
+ * | `hsl()`/`hsla()` | the **first** argument |
+ * | `oklch()`/`lch()`/`lab()` | the **third** argument |
+ * | `#6366f1` | converted to HSL, properly |
+ *
+ * **`rgb(99 102 241)` is not a source**, and neither is `100%` from a stop or an
+ * alpha of `0.5`. The original rule read all of them as hues, which is the false
+ * positive CodeRabbit found.
+ *
+ * The narrow rewrite that fixed that went too far: it dropped the gradient **angle**
+ * entirely, so `linear-gradient(270deg, …)` — the most ordinary indigo gradient
+ * there is — stopped being caught. **Fixing a false positive by removing the true
+ * positives is not a fix.** Both are read here, from argument position rather than
+ * from a bare number.
+ */
+function huesIn(text) {
+  const out = [];
+
+  // 1. The gradient's own angle. Only the first argument, and only a bare angle
+  //    token — `0.5turn` and `100grad` are converted, `50%` is not an angle here.
+  const gradient =
+    /^linear-gradient\(\s*(-?[\d.]+)(deg|turn|rad|grad)?\b/i.exec(text.trim());
+  if (gradient) {
+    const value = Number.parseFloat(gradient[1]);
+    const unit = (gradient[2] ?? "deg").toLowerCase();
+    const degrees =
+      unit === "turn"
+        ? value * 360
+        : unit === "rad"
+          ? (value * 180) / Math.PI
+          : unit === "grad"
+            ? value * 0.9
+            : value;
+    if (Number.isFinite(degrees))
+      out.push(Math.round(((degrees % 360) + 360) % 360));
+  }
+
+  // 2. hsl() puts the hue first; oklch/lch/lab put it third. The function name
+  //    decides, because guessing from argument shape is how the first version
+  //    read `99` as a hue.
+  for (const m of text.matchAll(
+    /(?:oklch|oklab|lch|lab|hsl|hsla)\(([^)]*)\)/g,
+  )) {
+    const fn = m[0].slice(0, m[0].indexOf("(")).toLowerCase();
+    const args = m[1].split(/[\s,\/]+/).filter(Boolean);
+    const token = /^(?:oklch|oklab|lch|lab)/.test(fn) ? args[2] : args[0];
+    const value = Number.parseFloat(token ?? "");
+    if (Number.isFinite(value)) out.push(value);
+  }
+
+  // 3. Hex, converted properly — `#6366f1` is indigo and must be caught.
+  for (const m of text.matchAll(/#([0-9a-f]{6}|[0-9a-f]{3})\b/gi)) {
+    const h = hexHue(m[1]);
+    if (h !== null) out.push(h);
+  }
+
+  return out;
+}
+
+/** HSL hue for a hex colour, or null when it is not a colour. */
+function hexHue(hex) {
+  let h = hex.length === 3 ? [...hex].map((c) => c + c).join("") : hex;
+  if (!/^[0-9a-f]{6}$/i.test(h)) return null;
+  const [r, g, b] = [0, 2, 4].map(
+    (i) => Number.parseInt(h.slice(i, i + 2), 16) / 255,
+  );
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+  if (delta === 0) return null; // achromatic — grey has no meaningful hue
+  let hue;
+  if (max === r) hue = ((g - b) / delta) % 6;
+  else if (max === g) hue = (b - r) / delta + 2;
+  else hue = (r - g) / delta + 4;
+  hue *= 60;
+  if (hue < 0) hue += 360;
+  return Math.round(hue);
 }
 
 /** Vocabulary, read from the rendered marketing pages. */
