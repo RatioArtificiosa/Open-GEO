@@ -63,9 +63,10 @@ function OpenSourceSeoCta() {
       </p>
       <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-brand-muted)]">
         Everything on this page is checkable in the repository, and it is worth
-        checking before you subscribe. When you would rather not run a database and a
-        scheduler, that is what the $10 plan is for: $10 of usage included each month,
-        and a free account with $0.50 of credit so you can check it works first.
+        checking before you subscribe. When you would rather not run a database
+        and a scheduler, that is what the $10 plan is for: $10 of usage included
+        each month, and a free account with $0.50 of credit so you can check it
+        works first.
       </p>
       <div className="mt-5 flex flex-col gap-3 sm:flex-row">
         <a

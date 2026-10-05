@@ -34,17 +34,17 @@ to survive a vendor outage, rate-limit handling, retry policy, nightly monitorin
 runs, and a data pipeline that stays inside your budget when a crawl gets expensive by
 accident. **None of that is interesting work, and all of it is work.**
 
-| | Hosted | Self-hosted |
-|---|---|---|
-| Setup | Two minutes | A database, a volume, an environment file, an auth decision |
-| Uptime | Ours to answer for | Yours, on a night when it matters |
-| Vendor account | We hold it, and publish the rate | You open one, and read the docs |
-| The 28% markup | Disclosed on `/pricing` | Not applicable — you pay DataForSEO direct |
-| Upgrades | Included | When you get round to it |
-| A client's data | Same workspace, one login | Same code, your server, your evening |
+|                 | Hosted                           | Self-hosted                                                 |
+| --------------- | -------------------------------- | ----------------------------------------------------------- |
+| Setup           | Two minutes                      | A database, a volume, an environment file, an auth decision |
+| Uptime          | Ours to answer for               | Yours, on a night when it matters                           |
+| Vendor account  | We hold it, and publish the rate | You open one, and read the docs                             |
+| The 28% markup  | Disclosed on `/pricing`          | Not applicable — you pay DataForSEO direct                  |
+| Upgrades        | Included                         | When you get round to it                                    |
+| A client's data | Same workspace, one login        | Same code, your server, your evening                        |
 
 **The row worth reading is the last one.** If you are an agency handling a client's
-site, the question is not whether you *can* run this. It is whether running it is the
+site, the question is not whether you _can_ run this. It is whether running it is the
 job you were hired to do.
 
 ## Self-hosting is a genuinely good option
@@ -84,7 +84,7 @@ and the `/pricing` page shows you the arithmetic either way.
 Most AI-era SEO tools automate SEO as a job function. That is hype: SEO is deciding
 what to do next, and if every company runs the same agent there is no edge.
 
-OpenGeo was built after agents became useful, so it is shaped around working *with*
+OpenGeo was built after agents became useful, so it is shaped around working _with_
 one. It has an [MCP server](/docs/mcp) that Claude, Codex, Cursor and any other MCP
 client can drive — and the important part is that **the agent shows you where the
 data came from** instead of asking you to trust its judgement. Ask it to do keyword

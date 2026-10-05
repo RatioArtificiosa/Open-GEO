@@ -238,7 +238,6 @@ export function TheToolkit() {
           </Link>
         </p>
 
-
         <div className="itc-toolkit-grid">
           {GROUPS.map((group) => (
             <div key={group.label} className="itc-toolkit-group">

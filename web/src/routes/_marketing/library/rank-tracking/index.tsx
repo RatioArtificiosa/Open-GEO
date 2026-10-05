@@ -186,10 +186,10 @@ function RankTrackingLibraryPage() {
         <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--color-brand-muted)]">
           On the hosted app, rank checks need the $10/month plan, which includes
           $10 of credits each month; a free account can build a tracker but its
-          checks will not run. Self-hosted deployments are not gated: the
-          checks run against your own DataForSEO account, and the
-          scheduling is left to you. Search Console reads, which the
-          strategies here lean on, use no credits on either.
+          checks will not run. Self-hosted deployments are not gated: the checks
+          run against your own DataForSEO account, and the scheduling is left to
+          you. Search Console reads, which the strategies here lean on, use no
+          credits on either.
         </p>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--color-brand-muted)]">
           You can run all of it from the{" "}

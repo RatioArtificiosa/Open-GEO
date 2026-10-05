@@ -194,7 +194,8 @@ const GROUPS: { label: string; blurb: string; items: Capability[] }[] = [
   },
   {
     label: "Local, technical and audit",
-    blurb: "The surfaces that decide the deal for an agency or a multi-location business.",
+    blurb:
+      "The surfaces that decide the deal for an agency or a multi-location business.",
     items: [
       {
         name: "Local rank grid",
@@ -225,7 +226,8 @@ const GROUPS: { label: string; blurb: string; items: Capability[] }[] = [
   },
   {
     label: "Reporting and delivery",
-    blurb: "What an agency actually forwards, and what makes the work repeatable.",
+    blurb:
+      "What an agency actually forwards, and what makes the work repeatable.",
     items: [
       {
         name: "White-labelled reports",
@@ -267,8 +269,8 @@ function CapabilitiesPage() {
           <strong className="font-medium text-[var(--color-brand)]">
             71 tools over MCP
           </strong>
-          , four AI engines, local SEO, GA4, content analysis and reporting, all in
-          one workspace, all from $10 a month.
+          , four AI engines, local SEO, GA4, content analysis and reporting, all
+          in one workspace, all from $10 a month.
         </p>
       </header>
 
@@ -295,7 +297,9 @@ function CapabilitiesPage() {
                 <dd className="mt-1.5 max-w-[62ch] leading-relaxed text-[var(--color-brand-muted)]">
                   {item.what}
                   <span className="mt-1 block text-[var(--color-brand-muted)]">
-                    <span className="text-[var(--color-brand)]">{item.why}</span>
+                    <span className="text-[var(--color-brand)]">
+                      {item.why}
+                    </span>
                   </span>
                 </dd>
               </div>
@@ -307,8 +311,8 @@ function CapabilitiesPage() {
       <section className="border-t border-[var(--color-border-subtle)] pt-10">
         <h2 className="itc-display-md">One more thing</h2>
         <p className="mt-4 max-w-[58ch] leading-relaxed text-[var(--color-brand-muted)]">
-          If something on this list is missing for what you are trying to do, that is
-          worth knowing before you subscribe rather than after.{" "}
+          If something on this list is missing for what you are trying to do,
+          that is worth knowing before you subscribe rather than after.{" "}
           <a
             href="https://discord.gg/c9uGs3cFXr"
             target="_blank"

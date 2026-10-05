@@ -52,7 +52,7 @@ So you can reproduce this rather than take it:
 
 |                         |                                                                                                          |
 | ----------------------- | -------------------------------------------------------------------------------------------------------- |
-| **Endpoint**            | DataForSEO `/v3/ai_optimization/llm_mentions/target_metrics/live`                                       |
+| **Endpoint**            | DataForSEO `/v3/ai_optimization/llm_mentions/target_metrics/live`                                        |
 | **Keyword**             | `renault`                                                                                                |
 | **Location / language** | United States / English                                                                                  |
 | **Retrieved**           | 2026-09-28 — this project's first live measurement of the pair                                           |

@@ -454,13 +454,12 @@ function Pricing() {
                   `/open-source-seo` all move together when the price
                   moves. A hard-coded "28%" here is the copy that would
                   have stayed behind. */}
-              We add a flat {Math.round((MARKUP - 1) * 100)}% to the
-              DataForSEO rate — the same on every endpoint, published in
-              the estimator on this page. That is the whole business: we
-              run the data layer, the scheduler and the vendor account so
-              you do not have to, and the difference pays for that. No
-              competitor in this category publishes their margin, because
-              printing it means publishing theirs.
+              We add a flat {Math.round((MARKUP - 1) * 100)}% to the DataForSEO
+              rate — the same on every endpoint, published in the estimator on
+              this page. That is the whole business: we run the data layer, the
+              scheduler and the vendor account so you do not have to, and the
+              difference pays for that. No competitor in this category publishes
+              their margin, because printing it means publishing theirs.
             </dd>
           </div>
           <div className="py-4 first:pt-0 last:pb-0">
