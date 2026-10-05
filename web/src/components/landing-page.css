@@ -34,12 +34,12 @@
   --feat-bg: #221f1b;
   --feat-text: #ffffff;
   --term-bg: #221f1b;
-  font-family:
-    "Inter",
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    sans-serif;
+  /* **Reads the token instead of repeating a family.** This block used to hardcode
+     `"Inter"`, which meant the homepage rendered in a different typeface from every
+     other page the moment the token changed — CL-816 set `--font-sans` and this
+     line would have quietly kept the old one. A token that a stylesheet can
+     override is not a token. */
+  font-family: var(--font-sans);
   background: var(--canvas);
   color: var(--ink);
   font-size: 16px;
@@ -617,7 +617,7 @@
   margin: 0;
   padding: 20px 20px 24px;
   overflow-x: auto;
-  font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.7;
   color: #d6d3ce;

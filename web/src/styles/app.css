@@ -50,8 +50,15 @@
      is on one of those, and that is *why* they are the fingerprint. The families
      here are placeholders until CL-816 renders candidates; the **scale** is the
      decision and it is not provisional. */
+  /* **Instrument Sans** — CL-816. A neo-grotesque with variable weight *and*
+     width. Chosen over Inter and Geist because **every competitor measured uses
+     one of those two**, which is what makes them the fingerprint of a generated
+     page; and over General Sans and Satoshi because **neither is on Google
+     Fonts**, so naming them would have shipped a silent fallback. Verified against
+     the Fonts API, not recalled. */
   --font-sans:
-    "Satoshi", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
   --font-mono:
     "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
 
