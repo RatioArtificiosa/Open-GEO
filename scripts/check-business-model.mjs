@@ -236,6 +236,56 @@ const SELF_HOSTING_PITCH = [
   }
 }
 
+// ── 4b. a page that states self-hosting costs less states what it costs too ──
+/**
+ * **The both-halves rule.** The list above bans specific
+ * constructions. This rule catches the same frame in words the
+ * list does not contain — the class rather than the instance,
+ * which is the only way to stop the next phrasing.
+ *
+ * A page that tells the reader self-hosting costs less — that
+ * they pay the vendor directly, that it costs nothing, that it
+ * runs lower — is making the cost-avoidance argument in
+ * whatever words it chose. The frame is the *pairing* of the
+ * deployment with the saving, so the rule does not ban the
+ * words: it requires the second half. A page that states
+ * self-hosting's cost-advantage must also state what it costs
+ * — the setup, the maintenance, that it is not cheaper than
+ * doing nothing.
+ *
+ * **A page that has only the first half is the defect.** It is
+ * entirely honest and still argues the reader out of the sale,
+ * which is exactly what this gate exists to catch. A reader who
+ * checks the page's own arithmetic finds the saving we never
+ * offset.
+ */
+const COST_ADVANTAGE =
+  /pay (?:them|their|DataForSEO) [^.]{0,20}directly|costs \$0|runs? (?:slightly )?lower/i;
+const OFFSETING_COST =
+  /not cheaper|costs you|the setup|the maintenance|an afternoon|rather lose the subscription|still cost/i;
+
+{
+  const offenders = [];
+  for (const [file, body] of walkMarketingPages()) {
+    if (COST_ADVANTAGE.test(body) && !OFFSETING_COST.test(body)) {
+      offenders.push(file);
+    }
+  }
+
+  if (offenders.length > 0) {
+    fail(
+      "a page that states self-hosting costs less states what it costs too",
+      offenders.slice(0, 6).join("\n    ") +
+        (offenders.length > 6 ? `\n    …and ${offenders.length - 6} more` : ""),
+    );
+  } else {
+    pass(
+      "self-hosting's cost is stated in both halves",
+      `${marketingPageCount()} pages`,
+    );
+  }
+}
+
 // ── 4. the free tier is stated as $0.50, not as "unlimited" ──────────────────
 {
   const pricing = text("pricing/index.html");

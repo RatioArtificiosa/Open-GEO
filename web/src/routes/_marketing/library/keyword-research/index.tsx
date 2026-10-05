@@ -61,7 +61,7 @@ export const Route = createFileRoute("/_marketing/library/keyword-research/")({
 
 function KeywordResearchLibraryPage() {
   return (
-    <article className="mx-auto max-w-5xl">
+    <article>
       <header className="max-w-3xl">
         <nav
           aria-label="Breadcrumb"

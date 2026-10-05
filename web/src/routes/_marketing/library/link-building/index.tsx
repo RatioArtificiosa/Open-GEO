@@ -61,7 +61,7 @@ export const Route = createFileRoute("/_marketing/library/link-building/")({
 
 function LinkBuildingLibraryPage() {
   return (
-    <article className="mx-auto max-w-5xl">
+    <article>
       <header className="max-w-3xl">
         <nav
           aria-label="Breadcrumb"

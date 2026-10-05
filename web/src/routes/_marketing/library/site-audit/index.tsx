@@ -66,7 +66,7 @@ export const Route = createFileRoute("/_marketing/library/site-audit/")({
 
 function SiteAuditLibraryPage() {
   return (
-    <article className="mx-auto max-w-5xl">
+    <article>
       <header className="max-w-3xl">
         <nav
           aria-label="Breadcrumb"

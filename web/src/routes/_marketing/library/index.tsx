@@ -34,7 +34,7 @@ export const Route = createFileRoute("/_marketing/library/")({
 
 function StrategyLibraryIndexPage() {
   return (
-    <article className="mx-auto max-w-5xl">
+    <article>
       <header className="max-w-3xl">
         <p className="text-sm font-medium text-[var(--color-brand-accent)]">
           Resources

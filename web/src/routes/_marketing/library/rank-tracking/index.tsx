@@ -71,7 +71,7 @@ export const Route = createFileRoute("/_marketing/library/rank-tracking/")({
 
 function RankTrackingLibraryPage() {
   return (
-    <article className="mx-auto max-w-5xl">
+    <article>
       <header className="max-w-3xl">
         <nav
           aria-label="Breadcrumb"
@@ -186,8 +186,9 @@ function RankTrackingLibraryPage() {
         <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--color-brand-muted)]">
           On the hosted app, rank checks need the $10/month plan, which includes
           $10 of credits each month; a free account can build a tracker but its
-          checks will not run. Self-hosted deployments are not gated and pay
-          their data provider directly. Search Console reads, which the
+          checks will not run. Self-hosted deployments are not gated: the
+          checks run against your own DataForSEO account, and the
+          scheduling is left to you. Search Console reads, which the
           strategies here lean on, use no credits on either.
         </p>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--color-brand-muted)]">

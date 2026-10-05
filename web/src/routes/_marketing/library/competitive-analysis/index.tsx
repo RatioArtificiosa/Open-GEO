@@ -68,7 +68,7 @@ export const Route = createFileRoute(
 
 function CompetitiveAnalysisLibraryPage() {
   return (
-    <article className="mx-auto max-w-5xl">
+    <article>
       <header className="max-w-3xl">
         <nav
           aria-label="Breadcrumb"

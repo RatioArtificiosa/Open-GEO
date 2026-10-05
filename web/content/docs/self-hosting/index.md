@@ -3,7 +3,10 @@ title: "Self-Hosting OpenGeo"
 description: "Run OpenGeo yourself with Docker or Cloudflare, bring your own DataForSEO API key, and pay only for what you use."
 ---
 
-OpenGeo is free and open source. Self-hosting means the app costs $0. You bring your own DataForSEO API key and pay DataForSEO directly for API usage.
+OpenGeo is free and open source. Self-hosting means there is no
+OpenGeo licence fee: you bring your own DataForSEO API key, pay
+DataForSEO directly for API usage, and pay for the setup and the
+maintenance yourself.
 
 There are two self-hosting paths:
 
@@ -22,7 +25,7 @@ OpenGeo uses [DataForSEO](https://dataforseo.com/?aff=255379) to fetch SEO data.
    - Cloudflare: as a Worker secret in the dashboard
    - Local development: `.env.local`
 
-New DataForSEO accounts include $1 of free credit to test with, and the minimum top-up is $50. See [pricing](/pricing) for cost estimates. Self-hosted costs run slightly lower, since the hosted service adds a 28% fee on DataForSEO requests.
+New DataForSEO accounts include $1 of free credit to test with, and the minimum top-up is $50. See [pricing](/pricing) for cost estimates. The hosted service adds a 28% fee on DataForSEO requests, disclosed on that page; self-hosted, you pay the vendor's rate.
 
 ## Optional features
 

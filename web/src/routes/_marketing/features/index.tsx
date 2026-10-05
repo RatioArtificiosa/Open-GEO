@@ -19,7 +19,7 @@ export const Route = createFileRoute("/_marketing/features/")({
 
 function FeaturesIndex() {
   return (
-    <article className="mx-auto max-w-5xl">
+    <article>
       <p className="text-sm font-medium text-[var(--color-brand-accent)]">
         Open-source SEO tools
       </p>
