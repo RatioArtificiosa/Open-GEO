@@ -25,9 +25,17 @@ import type { Column, ComparisonRow } from "@/components/comparison-table";
  *
  * ## The rows where they genuinely win
  *
- * Engine count, prompt ceiling at the entry tier, and answer-diff being
- * buildable-but-not-shipped. A comparison page that only wins is a page a
- * technical reader knows only wins.
+ * **Two are rows in the table**: engine count, and the prompt ceiling at the entry
+ * tier (Peec 50, Otterly 15, Scrunch 125, and ours uncapped because the user
+ * brings the key). The answer diff being *buildable* from their date-windowed APIs
+ * without being shipped as a comparison is **not** a row — it is a claim about
+ * their internals rather than something a reader can see — so it is stated in the
+ * page's "where one of them is right" paragraph instead.
+ *
+ * **The hero says "two rows are not ours", and the table has two.** Those numbers
+ * were three, and the copy had drifted from the data. A reader counting rows finds
+ * that immediately, and **a page that overstates its own candour is doing the
+ * thing it condemns.**
  */
 
 export const COMPARE_COLUMNS: Column[] = [
@@ -83,6 +91,19 @@ export const COMPARE_ROWS: ComparisonRow[] = [
       { text: "No" },
       { text: "No" },
       { text: "No" },
+    ],
+  },
+  {
+    label: "Prompts at the entry tier",
+    cells: [
+      // **A real difference, and one a buyer checks first.** Ours is uncapped on
+      // the free tier because there is no free tier to cap — the user brings the
+      // DataForSEO key and pays the vendor directly.
+      { text: "Uncapped — you bring the key", tone: "positive" },
+      { text: "50 prompts" },
+      { text: "15 prompts" },
+      { text: "125 unique prompts" },
+      { text: "50/day on trial, then Enterprise" },
     ],
   },
   {

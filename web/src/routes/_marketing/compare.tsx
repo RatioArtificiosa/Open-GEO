@@ -64,16 +64,17 @@ function Compare() {
         <Shell>
           <p className="itc-eyebrow">Comparison</p>
           <h1 className="itc-display-xl itc-hero-title">
-            Four tools, side by side.
+            OpenGeo, and four alternatives.
             <br />
-            Including the rows we lose.
+            Including the two rows we lose.
           </h1>
           <p className="itc-subhead itc-muted itc-hero-subtitle">
             Every figure below was read from that vendor&rsquo;s own pricing
             page or API documentation. Where a price is not published, the cell
-            says so rather than guessing. Three of these rows are{" "}
+            says so rather than guessing. Two of these rows are{" "}
             <strong>not ours</strong> &mdash; they are in the table because you
-            would find them yourself.
+            would find them yourself, and a third difference is stated below
+            rather than left out.
           </p>
           <p className="itc-hero-note">
             Read 2026-10-03. Prices move;{" "}

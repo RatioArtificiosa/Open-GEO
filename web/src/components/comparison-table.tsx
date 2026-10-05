@@ -169,7 +169,23 @@ function CellContent({ cell, ours }: { cell: Cell; ours?: boolean }) {
         <ToneIcon tone={tone} />
       </span>
       <span className={`leading-snug ${textClass}`}>
-        {cell.code ? (
+        {cell.href ? (
+          // **The link is the whole point of the cell.** "We publish the per-run
+          // cost" is a claim; this is the destination that makes it checkable. An
+          // earlier version of this component accepted `href` and never read it, so
+          // the page rendered the evidence as plain text and the promise was
+          // silently broken — which is why the field is now *used* here rather than
+          // merely declared.
+          <a
+            href={cell.href}
+            className="underline decoration-[var(--color-brand-accent-border)] underline-offset-4 hover:decoration-[var(--color-brand-accent)]"
+            {...(cell.href.startsWith("http")
+              ? { target: "_blank", rel: "noopener noreferrer" }
+              : {})}
+          >
+            {cell.text}
+          </a>
+        ) : cell.code ? (
           <code className="rounded bg-[var(--color-surface-sunken)] px-1.5 py-0.5 font-mono text-[0.85em] text-neutral-800">
             {cell.text}
           </code>
