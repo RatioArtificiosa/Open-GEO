@@ -2,18 +2,26 @@
 
 > **Know whether AI recommends your brand — before your competitor finds out.**
 
-OpenGeo is an open-source **GEO (Generative Engine Optimization)** and SEO platform. It shows you
-exactly what ChatGPT, Gemini, Perplexity and Google AI say about your brand, then tells you what to
-change. Your AI agent can drive all of it through MCP.
+OpenGeo is an open-source **GEO (Generative Engine Optimization)** and SEO platform. It shows you exactly what ChatGPT, Gemini, Perplexity and Google AI say about your brand, then tells you what to change. Your AI agent can drive all of it through MCP.
 
-MIT licensed. Bring your own DataForSEO key, or use the hosted version at **[opengeo.so](https://opengeo.so)**.
+**Two ways in, one codebase.** Run it yourself with your own DataForSEO key (free, MIT, uncapped), or use the hosted version at **[opengeo.so](https://opengeo.so)** — no infrastructure, managed scheduling, history, forecasts and multi-client workspaces.
 
 ---
 
+## The verifiable things
+
+Before you take any claim on this page on trust, here is what you can check yourself. **Every gate that keeps a secret out of this repo has a counterpart here: the facts that _can_ be published, published.**
+
+|                   |                                                                                                                                                                                                                      |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Licence**       | [MIT](./LICENSE) — free, uncapped, commercial use, no feature flags behind a paywall.                                                                                                                                |
+| **Provenance**    | A derivative work of **[OpenSEO](https://github.com/every-app/open-seo)** (MIT, © 2026 Ben Senescu), extended with the GEO suite. Attribution is preserved in [`LICENSE`](./LICENSE) and [`NOTICE.md`](./NOTICE.md). |
+| **Data provider** | [DataForSEO](https://dataforseo.com). We are a customer of theirs, not a reseller of their API access: bring your own key, or we run the account for you on the hosted plan.                                         |
+| **The receipts**  | Every figure below opens the exact prompt, answer, source and vendor cost behind it. **We publish both columns of the bill** — what we pay and what we charge. No competitor in this category publishes theirs.      |
+
 ## The problem
 
-Your rankings are fine. Then a prospect asks ChatGPT _"best CRM for a small team"_ — and your brand
-isn't in the answer. You have no way to see that, no way to prove it, and no way to fix it.
+Your rankings are fine. Then a prospect asks ChatGPT _"best CRM for a small team"_ — and your brand isn't in the answer. You have no way to see that, no way to prove it, and no way to fix it.
 
 That's a traffic leak with no dashboard. OpenGeo is the dashboard.
 
@@ -28,14 +36,24 @@ That's a traffic leak with no dashboard. OpenGeo is the dashboard.
 | 🧪 **AI Readiness Audit**  | `llms.txt`, AI-crawler rules, schema and citability — ranked fixes, deliberately un-scored (see below)                             |
 | 📈 **Classic SEO**         | Keyword research, rank tracking, backlinks, site audits, competitors — a full Semrush-class toolkit                                |
 
-**Free (this repo):** the complete, uncapped product. You pay DataForSEO directly.
-**Hosted (opengeo.so):** no infrastructure, managed scheduling, history, forecasts, multi-client workspaces.
+## The receipts
+
+**Every tool in this category prices by prompt and volume. None of them publish what the underlying data costs them**, so you cannot check whether you are being marked up, or by how much. **We print both columns** — ours comes from [the price book in our repo](./src/shared/dataforseo-pricing.ts), and a vendor price change breaks our build rather than quietly changing your bill.
+
+What one brand monitored daily for thirty days costs:
+
+| What                                                      | Billed as            | We pay |  You pay |
+| --------------------------------------------------------- | -------------------- | -----: | -------: |
+| AI keyword volume, 1,000 keywords                         | 1 task + 1,000 items |  $0.11 |    $0.14 |
+| LLM mentions, 10 rows                                     | 1 task + 10 rows     |  $0.11 |    $0.14 |
+| One brand, monitored daily, 30 days                       | 30 nightly runs      |  $3.30 |    $4.22 |
+| **The difference — flat, and the same on every endpoint** |                      |        | **+28%** |
+
+The same honesty runs through the measurement. Every visibility number links to the prompt that was asked, the answer that came back, the sources that were cited, and where your page was retrieved and dropped. [`docs/METHODOLOGY.md`](./docs/METHODOLOGY.md) documents how every metric is computed, date-stamped and versioned, including a "what we do not claim" section.
 
 ## What makes it different
 
-DataForSEO — our data provider — **does not do forecasting, benchmarking, breakout detection, or
-recommendations.** It supplies history and measurement. Ask their own AI assistant whether they
-forecast; the answer is no. So we build the decision layer on top:
+DataForSEO — our data provider — **does not do forecasting, benchmarking, breakout detection, or recommendations.** It supplies history and measurement. Ask their own AI assistant whether they forecast; the answer is no. So we build the decision layer on top:
 
 1. **The diagnosis** — _why_ you score what you score. Which query retrieved your page and cited a competitor instead. The exact answer text.
 2. **The attribution** — publish a page on the 14th, watch mentions move on the 21st. A stateless AI skill has no memory. We keep the record.
@@ -66,8 +84,6 @@ ChatGPT's is a People-Also-Ask model. Measured on one keyword: **12,621,380 vs 6
 So OpenGeo never merges them. You get two platform cards, each with its own methodology note,
 because a single confident "total" would be wrong — and you'd have no way to know.
 
-Every metric's computation is documented in [`docs/METHODOLOGY.md`](./docs/METHODOLOGY.md).
-
 ## Quickstart
 
 ```bash
@@ -82,7 +98,11 @@ Open **http://localhost:3001**. You need one thing: a
 
 **Prefer not to sign up yet?** Run with `DEMO_MODE=true` — seeded data, no key, no cost.
 
-## Self-hosting
+## Hosted, or self-hosted
+
+**Most teams are better off on the hosted version.** [opengeo.so](https://opengeo.so) runs the nightly scheduler, keeps the history, computes the forecasts and manages the vendor account — the parts that have to run whether you remember or not.
+
+**Self-hosting is free and uncapped** if you'd rather run it yourself: bring your own DataForSEO key and pay them directly.
 
 | Path                            | Best for                                                         |
 | ------------------------------- | ---------------------------------------------------------------- |
@@ -106,12 +126,12 @@ npx skills add https://github.com/RatioArtificiosa/Open-GEO
 
 ## Costs
 
-Self-hosting costs you exactly what DataForSEO charges — **~$3.30 per brand monitored daily per
+Self-hosting costs exactly what DataForSEO charges — **~$3.30 per brand monitored daily per
 month** (10 rows returned). The full price book is in
 [`src/shared/dataforseo-pricing.ts`](./src/shared/dataforseo-pricing.ts) and pinned by tests, so a
 vendor price change fails the build rather than quietly changing your bill.
 
-The hosted service adds a margin on those requests. No seat fees, no annual contracts.
+The hosted service adds a flat 28% on those requests, the same on every endpoint. No seat fees, no annual contracts.
 
 ## Local development
 
@@ -122,7 +142,7 @@ See [`docs/LOCAL_DEVELOPMENT.md`](./docs/LOCAL_DEVELOPMENT.md).
 Creating clear issues is the best way to contribute. Start with
 [`good first issue`](https://github.com/RatioArtificiosa/Open-GEO/labels/good%20first%20issue).
 
-Read more here: [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md)
+Read more here: [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md).
 
 We have a `/simple-issue-description` skill that helps:
 
