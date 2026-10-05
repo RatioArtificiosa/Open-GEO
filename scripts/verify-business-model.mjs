@@ -74,6 +74,27 @@ const MUTATIONS = [
     find: "MIT licence",
     replace: "© 2026 Every App, Inc.",
   },
+  // --- the direction rule, which is a different failure mode ---------------
+  //
+  // **All three are true sentences.** Self-hosting has no OpenGeo fee, and the
+  // licence does let you run it yourself — which is exactly why a fact-checker does
+  // not catch this class and a direction rule has to.
+  {
+    name: "'self-hosting is free' returns as the answer to a price question",
+    find: "nothing to maintain",
+    replace: "Self-hosting is free.",
+  },
+  {
+    name: "'so you can self-host' returns as a cost tip",
+    find: "nothing to maintain",
+    replace:
+      "It's also open source, so you can self-host with your own account.",
+  },
+  {
+    name: "'control over your stack' returns as a benefit",
+    find: "nothing to maintain",
+    replace: "Control over your SEO stack, if you would rather run it.",
+  },
 ];
 
 let survivors = 0;

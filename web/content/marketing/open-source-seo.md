@@ -1,111 +1,111 @@
 ---
-title: The Future of SEO Software Is Open Source
-description: Open source puts the power into the hands of the users. It forces companies to price their services fairly and act in the best interest of the community.
+title: Why OpenGeo Is Open Source — and Why You Would Not Run It
+description: Open source is why you can check us. It is not why you should do the work yourself, and it is not a cheaper way to get the same thing.
 ---
 
-Open source is the future of the internet.
+OpenGeo is MIT-licensed. You can read every line of it, run it yourself, and change
+whatever you want.
 
-Open source means that the code for an application is freely available. Anyone can use the code how they wish.
+**We are also going to tell you why most people should not do that** — including us,
+who wrote it. The licence and the recommendation are different things, and a page
+that only makes the first argument is not being straight with you.
 
-Historically, SEO tools have been able to raise prices and let the user experience degrade because people had no other options. Open source forces companies to do what's best for the community. Otherwise, angry users can fork the codebase and provide a better service.
+## What the licence actually gives you
 
-Open source puts the power in the hands of the users.
+**You can check us.** Every metric, every price and every vendor endpoint is in the
+repository, and every number on this site opens onto the code that produced it. If we
+were marking up quietly or reporting a score we cannot support, you would find it in
+an afternoon. That is the whole reason the code is open, and it is a real constraint
+on us — not a marketing posture.
 
-## Benefits of open source SEO
+**You can leave.** If OpenGeo raised its price past the point of usefulness, you can
+fork it and keep working. Nobody can stop you, because that is what MIT means.
 
-### Self-hosting benefits
+**You can build on it.** Agencies and developers extend OpenGeo rather than
+rebuilding keyword research, backlinks and rank tracking from scratch. We would
+genuinely rather you built on it than started over.
 
-If you already self-host open source products, you already know the many benefits including:
+## Why you should subscribe instead
 
-- It's fun
-- Learning
-- Saving money
-- Privacy and controlling your own data
+Because the hard part was never the code.
 
-### Why does open source matter even if you're using OpenGeo's SaaS?
+The application is the small half. The other half is a database, a scheduler that has
+to survive a vendor outage, rate-limit handling, retry policy, nightly monitoring
+runs, and a data pipeline that stays inside your budget when a crawl gets expensive by
+accident. **None of that is interesting work, and all of it is work.**
 
-#### Open source products are higher quality
+| | Hosted | Self-hosted |
+|---|---|---|
+| Setup | Two minutes | A database, a volume, an environment file, an auth decision |
+| Uptime | Ours to answer for | Yours, on a night when it matters |
+| Vendor account | We hold it, and publish the rate | You open one, and read the docs |
+| The 28% markup | Disclosed on `/pricing` | Not applicable — you pay DataForSEO direct |
+| Upgrades | Included | When you get round to it |
+| A client's data | Same workspace, one login | Same code, your server, your evening |
 
-Open source products can be much higher quality than closed source alternatives.
+**The row worth reading is the last one.** If you are an agency handling a client's
+site, the question is not whether you *can* run this. It is whether running it is the
+job you were hired to do.
 
-Most apps suffer from "paper cuts", or small annoying bugs that are not worth it for the company to fix. If a user encounters one of these problems, they can fix the code themselves and contribute back to the application.
+## Self-hosting is a genuinely good option
 
-#### Open source puts the user first
+For some readers it is exactly right, and we would rather you chose it than chose
+badly.
 
-A company open sourcing their code puts a flag in the sand saying, "We are going to be the best place to use this software even though users have other options." This mentality creates a healthy pressure which has lots of benefits for users.
+- **You want the data to never touch our account.** Then self-host. That is a
+  legitimate reason, and we would rather lose the subscription than push you past it.
+- **You want to extend the product.** Build on it — that is what it is for.
+- **You already run infrastructure well** and a service is another box you already
+  have a process for. Then it costs you an afternoon.
 
-##### Fair pricing
+It runs on **Docker, Cloudflare Workers, Railway, Coolify, Dokploy and Vercel**, and
+you bring your own DataForSEO key and pay them directly. The
+[self-hosting docs](/docs/self-hosting) cover each one, including the persistent
+volume every PaaS needs and the auth mode you must not get wrong.
 
-Anyone can [self-host OpenGeo](https://github.com/RatioArtificiosa/Open-GEO) and use it at cost for themselves.
+**But none of those is cheaper than doing nothing.** They are cheaper than our
+subscription, which is not the same claim — they still cost you the setup, the
+maintenance, and the upgrade you skip because you are busy.
 
-Since our code is open source, other companies could try to provide the same service for cheaper. This is a check, so we cannot just keep charging more and more. We need to offer the hosted service at a fair price so that customers are happy to pay for it because it gives them so much value.
+## Where the data comes from, and what it costs
 
-##### Transparency
+OpenGeo uses [DataForSEO](https://dataforseo.com/), which has been running for close
+to a decade and is the reference provider for pay-by-usage SEO data. They cover SERP,
+rank, backlink, keyword and AI-answer workflows.
 
-Anyone can read the code. This keeps the company in check to make sure it is prioritizing things like security.
+**We publish both sides of that bill.** `/pricing` shows what we pay and what we
+charge, and the difference is a flat 28% — the same on every endpoint. No competitor
+in this category will print that number, because printing it means publishing their
+margin. If you would rather pay DataForSEO directly, self-hosting does exactly that,
+and the `/pricing` page shows you the arithmetic either way.
 
-##### Community driven
+## Why this product is built for agents, and what that buys you
 
-The best ideas from the community will bubble back into the application for everyone to benefit.
+Most AI-era SEO tools automate SEO as a job function. That is hype: SEO is deciding
+what to do next, and if every company runs the same agent there is no edge.
 
-## Build a custom SEO tool on top of OpenGeo
+OpenGeo was built after agents became useful, so it is shaped around working *with*
+one. It has an [MCP server](/docs/mcp) that Claude, Codex, Cursor and any other MCP
+client can drive — and the important part is that **the agent shows you where the
+data came from** instead of asking you to trust its judgement. Ask it to do keyword
+research and it hands back a link into the workspace.
 
-Now that AI agents like Claude are making coding more accessible and inexpensive, many SEO agencies are deciding to build custom SEO tools for their companies' use cases.
-
-This allows them to save money and tailor the tool to their own workflows. Many are building these from scratch.
-
-I propose that they should instead build on top of OpenGeo. Here's why:
-
-### Don't re-invent the wheel
-
-There is no point in rebuilding keyword research, backlinks, or rank tracking from scratch. Even if you want to change something about our product, making those changes will be easier than starting from zero.
-
-### Software engineering best practices
-
-Coding agents do best when they have good examples to reference. There are many patterns in place to make it easier to add new features. You will not need to reinvent the wheel and go through the same months of QA, tweaking, and debugging that we have.
-
-We have built systems to verify that features work and are high quality, which you can benefit from.
-
-### Security
-
-Since we have a hosted product, we take great care to ensure every change is secure. You get to benefit from this and reference our documentation for how to self-host your custom tool securely too.
-
-## Does open source mean free?
-
-In SEO, data quality is extremely important. It is very expensive to store historical data to see trends for the whole internet or to run computers all over the world to see what position a page ranks for on Google.
-
-Because of this, many SEO workflows require data that costs money. Otherwise, the SEO tool would not be very useful.
-
-But, since the code for the application is open source, it means that you are not locked into a single data provider. If a better, more affordable data provider comes along, the project can switch.
-
-## Where does OpenGeo get its data?
-
-OpenGeo uses [DataForSEO](https://dataforseo.com/) as its main data source. They have been in business for almost 10 years and are considered the gold standard for pay-by-usage SEO data. They have quality SEO data for almost every workflow and they are very reliable.
-
-There are other data providers for more specific tasks like SERP, or search engine results page, which we may support in the future, but for simplicity's sake, DataForSEO is our main provider right now.
+That collaboration is going deeper: agent-built dashboards for a business or a
+client, and reusable workflows for the routine parts of a monthly report.
 
 ## Can you really replace your SEO tool with OpenGeo?
 
-It depends.
+It depends, and it is worth being straight about where.
 
-### For beginners
+**If you are new to SEO**, yes. The onboarding is not a maze, and an agent can walk
+you through the basics with you.
 
-If you're new to SEO, OpenGeo should definitely be the first tool you select. Good design means the tool is approachable to both beginners and experts. When you connect OpenGeo with an AI agent, it can help coach you through the basics. OpenGeo will grow with you.
+**If you are an expert with a tool you like**, keep it. If your current tool is
+bloated, poorly designed, or costs more per month than your clients charge you, then
+OpenGeo is built to be the one-in-all-in-one replacement for
+[Semrush](https://www.semrush.com/) and [Ahrefs](https://ahrefs.com/) — at a tenth of
+the price, with the sources attached.
 
-### For experts
-
-If you love your current solution, you should probably just stick with that. But, if you think your current tool is bloated, poorly designed, or too expensive, OpenGeo is striving to be an all-in-one replacement for tools like [Semrush](https://www.semrush.com/) and [Ahrefs](https://ahrefs.com/).
-
-## AI native: More than a replacement for other SEO tools
-
-OpenGeo is both open source and more affordable than alternatives. But, we do not plan for these to be the only things different about the product.
-
-Many AI-native SEO tools strive to automate SEO as a job function. This is hype. SEO is about coming up with a better strategy than your competitors. If every company is using the same AI agent product, there is no edge.
-
-OpenGeo aims to be the best way to collaborate with your AI agent on SEO tasks. OpenGeo was created after AI agents became powerful. The product is not bogged down by features and workflows that only make sense in a pre-AI world.
-
-Right now, this means OpenGeo has an [MCP server](/docs/mcp) which you can use with any other AI product like Claude, Codex, or OpenClaw. For example, you can ask your agent to do keyword research. But instead of blindly trusting its judgment, you can ask it for a link to view the data in OpenGeo.
-
-In the future, this collaboration will get even more powerful. You will be able to ask your agent to create a custom dashboard for your business or client with the specific data that you value. Or, you will be able to create bespoke, reusable workflows for routine tasks.
-
-While AI and SEO is very noisy right now, it is definitely the future. We're going to do everything we can to cut through the noise and empower SEOs and entrepreneurs with simple, powerful tools to pursue their SEO strategies.
+**If you need something neither of us has** — 40,000 tracked keywords, a global CDN
+dataset — say so and we will tell you whether we have it. A competitor list that
+concedes nothing is not a competitor list, it is a brochure.

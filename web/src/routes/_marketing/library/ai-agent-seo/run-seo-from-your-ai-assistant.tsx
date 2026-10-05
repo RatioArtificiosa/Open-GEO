@@ -23,7 +23,7 @@ const faqs = [
   {
     question: "Does using the MCP cost credits?",
     answer:
-      "Search Console reads, URL inspection and audit reads use no credits. Calls that fetch from a data provider, such as keyword metrics, SERP results, domain and backlink data, and rank checks, use credits, and each tool states its cost before it runs. The hosted app includes credits with the $10 plan; self-hosted deployments pay their provider directly.",
+      "Search Console reads, URL inspection and audit reads use no credits. Calls that fetch from a data provider, such as keyword metrics, SERP results, domain and backlink data, and rank checks, use credits, and each tool states its cost before it runs. The hosted app includes $10 of credits with the $10 plan, and runs the calls, the rate limits and the retries.",
   },
   {
     question: "Can an AI agent do SEO on its own?",

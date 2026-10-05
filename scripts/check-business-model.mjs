@@ -177,6 +177,65 @@ if (failures.length === 0) {
   }
 }
 
+// ── 4. self-hosting is not pitched as the way to avoid paying us ──────────────
+/**
+ * **The direction rule.** The gate above catches claims that are false. This one
+ * catches claims that are *true and backwards*.
+ *
+ * "Self-hosting is free" is accurate — the self-hosted deployment has no OpenGeo fee.
+ * It is also, on a page about what a subscription costs, an argument for not
+ * subscribing. **A page can be entirely honest and still argue the reader out of the
+ * sale**, and no amount of fact-checking finds that.
+ *
+ * So self-hosting is allowed. What is not allowed is the **cost-avoidance frame**: a
+ * construction that pairs the deployment with the saving. Both halves are required,
+ * because "self-host with your own key" is a legitimate statement and "so you can
+ * self-host" is an instruction to leave.
+ */
+const SELF_HOSTING_PITCH = [
+  {
+    label: "self-hosting offered to avoid a cost",
+    re: /(?:so you can self-host|self-host for free|self-hosting is free|free to self-host|if you['’]?d rather not pay|save money by self-hosting)/i,
+  },
+  {
+    label: "self-hosting framed as the cheaper route",
+    re: /(?:self-host[^.]{0,60}cheaper|cheaper[^.]{0,60}self-host|use it at cost)/i,
+  },
+  {
+    label: "control over your stack as a benefit",
+    re: /control over your (?:SEO |seo )?stack/i,
+  },
+];
+
+{
+  // **Every marketing page**, not just the front three. The backwards argument was
+  // worst in the library FAQs and on the GSC page, which is the highest-traffic page
+  // on the site — precisely because a reader who only ever sees one page should not
+  // be told to leave by it.
+  const offenders = [];
+
+  for (const [file, body] of walkMarketingPages()) {
+    for (const { label, re } of SELF_HOSTING_PITCH) {
+      if (re.test(body)) {
+        offenders.push(`${file}: ${label}`);
+      }
+    }
+  }
+
+  if (offenders.length > 0) {
+    fail(
+      "self-hosting is a real option, not the cheaper route we are arguing against",
+      offenders.slice(0, 6).join("\n    ") +
+        (offenders.length > 6 ? `\n    …and ${offenders.length - 6} more` : ""),
+    );
+  } else {
+    pass(
+      "no self-hosting-as-a-pitch",
+      `${marketingPageCount()} pages, ${SELF_HOSTING_PITCH.length} patterns`,
+    );
+  }
+}
+
 // ── 4. the free tier is stated as $0.50, not as "unlimited" ──────────────────
 {
   const pricing = text("pricing/index.html");
@@ -193,6 +252,40 @@ if (failures.length === 0) {
   } else {
     fail("the entry price is stated", "no $10 found on /pricing");
   }
+}
+
+/**
+ * Every prerendered marketing page, as [path, prose] pairs.
+ *
+ * **All of them, not a sample.** The backwards argument was worst in the library
+ * FAQs, on pages nobody on the team reads — a gate that only watched the homepage
+ * would have passed every one of those.
+ */
+function* walkMarketingPages() {
+  for (const file of marketingFiles()) {
+    yield [file, text(file)];
+  }
+}
+
+/** Every generated HTML file under the marketing routes. */
+function marketingFiles() {
+  const out = [];
+  const walk = (dir, prefix) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) walk(join(dir, entry.name), rel);
+      // **Relative to DIST, and the root page is just `index.html`.** The first
+      // version built `${rel}/index.html` for a file already ending in that, so
+      // every path resolved one level too deep and nothing could be read.
+      else if (entry.name === "index.html") out.push(rel);
+    }
+  };
+  walk(DIST, "");
+  return out;
+}
+
+function marketingPageCount() {
+  return marketingFiles().length;
 }
 
 // ── report ───────────────────────────────────────────────────────────────────

@@ -35,7 +35,12 @@ export const GSC_ROWS: ComparisonRow[] = [
     label: "Cost to run",
     cells: [
       {
-        text: "Included in the $10/mo plan, zero credits (free to self-host)",
+        // **Was "Included in the $10/mo plan, zero credits (free to self-host)".**
+        // The parenthetical sat inside the **cost** row, so the cheapest option on
+        // the page was the one we do not sell. The open-source fact belongs in the
+        // self-host row below, where it is a comparison point rather than a cheaper
+        // alternative to the plan being described.
+        text: "Included in the $10/mo plan, zero credits",
         tone: "positive",
       },
       { text: "Free (your time + your own quota)" },

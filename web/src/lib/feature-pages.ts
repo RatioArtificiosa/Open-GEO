@@ -96,7 +96,7 @@ export const featurePages = {
       "Group keywords for articles, landing pages, and rank tracking.",
     ],
     differentiators: [
-      "Open-source SEO workflows you can self-host or run in the managed app.",
+      "SEO workflows in one workspace, on a maintained hosted app.",
       "DataForSEO-backed metrics without locking the research process into a black box.",
       "MCP access so AI agents can research and save keywords for you.",
     ],
@@ -123,7 +123,7 @@ export const featurePages = {
       {
         question: "Can I use OpenGeo as a free keyword research tool?",
         answer:
-          "Not unlimited: quality keyword data costs money everywhere, which is why the big SEO suites run $100/month and up. You can start OpenGeo for free; the paid plan is $10/month with usage credits included. It's also open source, so you can self-host with your own DataForSEO account.",
+          "Not unlimited: quality keyword data costs money everywhere, which is why the big SEO suites run $100/month and up. You can start OpenGeo for free; the paid plan is $10/month with usage credits included. The $10 plan covers the vendor account, the scheduler and the upgrades, so there is nothing to run.",
       },
       {
         question: "Does OpenGeo show live search results?",
@@ -213,7 +213,7 @@ export const featurePages = {
     ],
     differentiators: [
       "A practical crawler built into the same workspace as keyword and domain research.",
-      "Open-source implementation for teams that want to inspect or extend the audit flow.",
+      "Every issue traced to the page and the check that found it.",
       "Simple reports that expose page-level signals and optional Lighthouse findings instead of relying only on a generic score.",
     ],
     featuredLink: {
@@ -236,7 +236,7 @@ export const featurePages = {
       {
         question: "Is OpenGeo a free SEO audit tool?",
         answer:
-          "For smaller sites, yes: the free plan includes site audits up to 50 pages per crawl. Larger crawls need a paid plan, starting at $10/month. OpenGeo is also open source and self-hostable.",
+          "For smaller sites, yes: the free plan includes site audits up to 50 pages per crawl. Larger crawls need a paid plan, starting at $10/month. The paid plan raises the limit and covers the crawling infrastructure.",
       },
       {
         question: "Who should use OpenGeo Site Audit?",
@@ -321,7 +321,7 @@ export const featurePages = {
     ],
     differentiators: [
       "Backlink analysis sits beside keyword research, domain overview, and audit data.",
-      "Self-host or adapt backlink reporting for your team's workflow.",
+      "White-labelled, so the report a client opens carries your name.",
       "MCP support lets an AI agent pull backlink context during SEO research.",
     ],
     guides: {
@@ -432,7 +432,7 @@ export const featurePages = {
     differentiators: [
       "Domain research connects directly to keyword, backlink, and rank tracking workflows.",
       "Built around ranking keywords, estimated traffic, and top pages for practical competitor research.",
-      "Open-source and self-hostable for teams that want control over their SEO stack.",
+      "Covered by the hosted plan, on a workspace your whole team can open.",
     ],
     featuredLink: {
       title: "Free website traffic checker",
@@ -457,7 +457,7 @@ export const featurePages = {
       {
         question: "How does this compare to Semrush Domain Overview?",
         answer:
-          "OpenGeo covers the core of the same report (estimated traffic, organic keywords, top keywords, and top pages) without a triple-digit monthly seat. OpenGeo is open source, so you can self-host it, and the managed app is $10/month and includes usage credits.",
+          "OpenGeo covers the core of the same report (estimated traffic, organic keywords, top keywords, and top pages) without a triple-digit monthly seat. The hosted app is $10/month, includes $10 of usage, and runs the crawling and scheduling for you.",
       },
       {
         question: "Can OpenGeo help with competitor keyword analysis?",

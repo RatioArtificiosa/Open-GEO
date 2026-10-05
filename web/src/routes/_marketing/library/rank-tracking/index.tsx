@@ -33,7 +33,7 @@ const faqs = [
   {
     question: "How much does rank tracking cost in OpenGeo?",
     answer:
-      "It depends on keywords, devices, depth, and schedule, and the app shows the estimate before anything runs. As a reference point, 100 keywords on mobile, checking the top 40 results weekly, comes to about a dollar a month in credits. Rank checks on the hosted app need the $10/month plan, which includes $10 of credits; self-hosted deployments pay their data provider directly.",
+      "It depends on keywords, devices, depth, and schedule, and the app shows the estimate before anything runs. As a reference point, 100 keywords on mobile, checking the top 40 results weekly, comes to about a dollar a month in credits. Rank checks are part of the $10/month plan, which includes $10 of credits and covers the scheduling and retries for you.",
   },
   {
     question: "Can I track local rankings for a specific city?",
