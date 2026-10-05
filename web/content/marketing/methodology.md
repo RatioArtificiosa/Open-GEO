@@ -46,15 +46,30 @@ The same field name is computed two different ways:
 
 These are different quantities measured from different sources.
 
-**Measured example** (keyword "renault", United States, English):
+### The measured record, in full
 
-| Platform           | `mentions` | `ai_search_volume` |
-| ------------------ | ---------- | ------------------ |
-| Google AI Overview | 17,676     | 12,621,380         |
-| ChatGPT            | 3,060      | 63,850             |
+So you can reproduce this rather than take it:
 
-**A 198× difference for the same keyword.** Adding these, or charting them on one
-axis, produces a number with no meaning.
+|                         |                                                                                                          |
+| ----------------------- | -------------------------------------------------------------------------------------------------------- |
+| **Endpoint**            | DataForSEO `/v3/dataforseo_labs/llm_mentions/target_metrics/live`                                        |
+| **Keyword**             | `renault`                                                                                                |
+| **Location / language** | United States / English                                                                                  |
+| **Retrieved**           | 2026-09-28 — this project's first live measurement of the pair                                           |
+| **Raw payload**         | stored against the task in `geo_vendor_tasks`, so any workspace that ran it can read the response itself |
+
+One response carries both platforms' rows, and the field is spelled
+`ai_search_volume` in each:
+
+| Platform           | `mentions` | `ai_search_volume` | How that figure is derived                                   |
+| ------------------ | ---------- | ------------------ | ------------------------------------------------------------ |
+| Google AI Overview | 17,676     | 12,621,380         | Google Search Volume of the query                            |
+| ChatGPT            | 3,060      | 63,850             | People-Also-Ask model — PAA questions containing the keyword |
+
+**12,621,380 ÷ 63,850 = 197.7, which is the 198× we quote.** Two derivations, one
+field name, one response.
+
+Adding these, or charting them on one axis, produces a number with no meaning.
 
 **How we present it:** two separate platform cards, each with its own demand label,
 sparkline, and methodology note. Where one view is genuinely needed we use a
@@ -70,12 +85,42 @@ already been done by accident.
 
 ## Cost transparency
 
-**Reference cost: about $3.30 per brand, monitored daily, per month** (10 rows
-returned per check).
+### AI keyword volume — where the $0.11 comes from
 
-The full DataForSEO price book lives in the repository and is pinned by a test.
-**A vendor price change breaks the build** rather than silently changing what a
-customer is billed.
+The homepage quotes **$0.11 for 1,000 AI keywords**, so here is the arithmetic.
+
+|                                   |                                                                       |
+| --------------------------------- | --------------------------------------------------------------------- |
+| **Endpoint**                      | DataForSEO AI Optimization Keyword Search Volume — **Live mode only** |
+| **Per task**                      | **$0.01**                                                             |
+| **Per keyword returned**          | **$0.0001**                                                           |
+| **Maximum keywords per response** | **1,000**                                                             |
+
+```
+$0.01           task fee
++ 1,000 × $0.0001   per item
+= $0.11
+```
+
+**The task fee is added, not amortised across the batch.** Filling a response to its
+1,000-keyword maximum does not make each keyword cheaper, and a planner that treats
+the fee as per-keyword under-bills by two orders of magnitude — which is a bug this
+repository made and fixed. That is why the fee lives beside the unit price rather than
+folded into it.
+
+The estimator is `estimateAiKeywordBatch()`, and its constants are in
+[`src/shared/ai-keyword-batch-cost.ts`](https://github.com/RatioArtificiosa/Open-GEO/blob/main/src/shared/ai-keyword-batch-cost.ts),
+so this page and the code that bills cannot drift apart. Prices last verified against
+DataForSEO's published list on **2026-10-04**.
+
+### What a monitored brand costs
+
+**About $3.30 per brand, monitored daily, per month** (10 rows returned per check).
+
+The full DataForSEO price book lives in
+[`src/shared/dataforseo-pricing.ts`](https://github.com/RatioArtificiosa/Open-GEO/blob/main/src/shared/dataforseo-pricing.ts)
+and is pinned by a test. **A vendor price change breaks the build** rather than
+silently changing what a customer is billed.
 
 ---
 
