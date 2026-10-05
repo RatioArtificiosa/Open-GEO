@@ -153,7 +153,7 @@ function McpPage() {
               key={workflow.title}
               className="grid grid-cols-[2.25rem_1fr] gap-x-4"
             >
-              <span className="pt-[2px] font-mono text-sm tabular-nums text-neutral-400">
+              <span className="pt-[2px] font-mono text-sm tabular-nums text-neutral-500">
                 {String(index + 1).padStart(2, "0")}
               </span>
               <div>

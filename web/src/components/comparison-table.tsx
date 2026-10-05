@@ -152,7 +152,7 @@ function CellContent({ cell, ours }: { cell: Cell; ours?: boolean }) {
   const tone = cell.tone ?? "neutral";
   const textClass =
     tone === "negative"
-      ? "text-neutral-400"
+      ? "text-neutral-500"
       : ours && tone === "positive"
         ? "font-medium text-neutral-900"
         : "text-neutral-700";
