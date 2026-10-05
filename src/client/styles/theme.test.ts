@@ -46,9 +46,21 @@ function parseThemes(source: string): Record<string, Record<string, Token>> {
     for (const decl of block[1].matchAll(
       /--(color-[\w-]+):\s*oklch\(([^)]+)\)/g,
     )) {
-      const [l, c, h] = decl[2].split(/[\s/]+/);
+      const [l, c, h] = decl[2].trim().split(/[\s/]+/);
+      // **Lightness is divided by 100, and it has to be.** The OKLab conversion
+      // cubes `L`, so it requires 0–1; the stylesheet writes `oklch(15.82% …)` and
+      // the naive parse produced `15.82`. That is cubic in the scale, so every
+      // contrast ratio came out inflated — the dark amber printed **114.65:1**
+      // against a true 9.06:1 — and `isReadableOn`'s 4.5 threshold stopped meaning
+      // anything, because a bad colour cleared it.
+      //
+      // The tell was two implementations of one number disagreeing: the hex path
+      // (WCAG from sRGB, no lightness scale) was right, and the OKLCH path was
+      // wrong. When two paths compute the same thing and differ, one of them is
+      // lying about the number everything else is compared against.
+      const lightness = Number.parseFloat(l);
       tokens[decl[1].replace(/^color-/, "")] = {
-        l: Number.parseFloat(l),
+        l: l.endsWith("%") ? lightness / 100 : lightness,
         c: Number.parseFloat(c),
         h: Number.parseFloat(h),
       };
@@ -76,8 +88,8 @@ function token(theme: Record<string, Token> | undefined, key: string): Token {
   return found;
 }
 
-/** WCAG relative luminance from an OKLCH triple. */
-function luminance({ l, c, h }: Token): number {
+/** OKLCH -> linear sRGB. One definition, called from both places below. */
+function oklchToLinearRgb({ l, c, h }: Token): [number, number, number] {
   const rad = (h * Math.PI) / 180;
   const a = c * Math.cos(rad);
   const b = c * Math.sin(rad);
@@ -87,12 +99,21 @@ function luminance({ l, c, h }: Token): number {
   const L = l_ ** 3;
   const M = m_ ** 3;
   const S = s_ ** 3;
-  const rgb = [
-    4.0767416621 * L - 3.3077115913 * M + 0.2309699292 * S,
-    -1.2684380046 * L + 2.6097574011 * M - 0.3413193965 * S,
-    -0.0041960863 * L - 0.7034186147 * M + 1.707614701 * S,
+  // Every channel goes through `clamp`, which is documented at its definition.
+  // **Built as a tuple rather than cast to one.** `as [number, number, number]`
+  // narrowed a `number[]` and claimed a certainty the array did not have; naming
+  // the three channels says the same thing and is true.
+  return [
+    clamp(4.0767416621 * L - 3.3077115913 * M + 0.2309699292 * S),
+    clamp(-1.2684380046 * L + 2.6097574011 * M - 0.3413193965 * S),
+    clamp(-0.0041960863 * L - 0.7034186147 * M + 1.707614701 * S),
   ];
-  return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+}
+
+/** WCAG relative luminance from an OKLCH token. */
+function luminance(value: Token): number {
+  const [r, g, b] = oklchToLinearRgb(value);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
 /**
@@ -128,8 +149,69 @@ const isNotUpstreamBlue = (hue: number) => hue < 200 || hue > 280;
 const isReadableOn = (fg: Token, bg: Token) => contrast(fg, bg) >= 4.5;
 const isVisibleOn = (fg: Token, bg: Token) => contrast(fg, bg) >= 3;
 const isDistinctHue = (a: number, b: number) => Math.abs(a - b) > 15;
-/** A dark canvas needs chroma *and* headroom: chroma 0 is grey, not blue-black. */
-const isBlueBlack = (value: Token) => value.c > 0.005 && value.l > 10;
+/**
+ * A dark canvas is a **range**, not a floor.
+ *
+ * Written as `c > 0.005 && l > 0.1` it accepted a mid grey at l=0.6, which is not
+ * a dark canvas at all — the floor exists to exclude pure black, so it says
+ * "not black" and never said "dark". A negative control caught it: the fixture
+ * meant to be rejected was accepted, because the rule could not express the claim.
+ *
+ * The upper bound is where DESIGN.md's own ladder tops out. `#1A1E25` — the raised
+ * surface — is l=0.234, so 0.35 leaves room above it while excluding anything
+ * that reads as a mid tone.
+ */
+const isBlueBlack = (value: Token) =>
+  value.c > 0.005 && value.l > 0.1 && value.l <= 0.35;
+
+/** A plain dark token, for assertions that need a second colour. */
+const darkEnoughToken = (): Token => ({ l: 0.1582, c: 0.0072, h: 258.37 });
+
+/**
+ * Clamp a linear-sRGB channel into [0, 1].
+ *
+ * **A saturated OKLCH colour can leave the gamut** — `oklch(0.5 0.9 140)` converts
+ * to `[-0.333, 0.349, -0.119]` — and an unclamped channel feeds the weighted
+ * luminance sum a value the colour does not have. It also makes a contrast ratio
+ * meaningless, because a negative linear channel can invert the comparison.
+ */
+function clamp(v: number): number {
+  return Math.min(1, Math.max(0, v));
+}
+
+/** A linear-sRGB channel to an 8-bit hex pair. */
+function toHexChannel(v: number): string {
+  return Math.round(
+    (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055) * 255,
+  )
+    .toString(16)
+    .padStart(2, "0");
+}
+
+/** OKLCH -> sRGB hex, so the hex path can be asked for the same ratio. */
+function toHex(value: Token): string {
+  return `#${oklchToLinearRgb(value).map(toHexChannel).join("")}`;
+}
+
+/** WCAG relative luminance from hex — the independent path. */
+function hexLuminance(hex: string): number {
+  const n = hex.replace("#", "");
+  const channel = (i: number) => {
+    const c = parseInt(n.slice(i, i + 2), 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+}
+
+function hexContrast(a: string, b: string): number {
+  // **No sort.** The larger and smaller of two numbers, which is what a sort of
+  // a two-element literal was doing the long way round.
+  const first = hexLuminance(a);
+  const second = hexLuminance(b);
+  const hi = first > second ? first : second;
+  const lo = first > second ? second : first;
+  return (hi + 0.05) / (lo + 0.05);
+}
 
 const themes = parseThemes(css);
 const light = themes.opengeo;
@@ -180,9 +262,10 @@ describe("the theme carries the founder's accent", () => {
     ["light", light],
     ["dark", dark],
   ])("%s: the accent is readable as text on its own canvas", (_n, theme) => {
-    // Measured, not asserted: the light theme's signal measures 5.79:1 and the
-    // dark theme's 114.65:1. `#F59E0B` on white measured 2.11:1, which is why the
-    // light theme carries a darker amber rather than the founder's hex verbatim.
+    // Measured, and these are the real ratios: the light theme's signal is
+    // 4.84:1 on its canvas, the dark theme's 9.06:1. `#F59E0B` on white is
+    // 2.11:1, which is why the light theme carries a darker amber than the
+    // founder's hex rather than that hex verbatim.
     expect(isReadableOn(token(theme, "accent"), token(theme, "base-100"))).toBe(
       true,
     );
@@ -307,9 +390,52 @@ describe("the theme rules reject what the repo actually shipped", () => {
   it("rejects an unreadable signal on a near-white canvas", () => {
     // The founder's #F59E0B measures 2.11:1 on white, which is why the light
     // theme carries a darker amber rather than that hex verbatim.
-    const amber: Token = { l: 76.86, c: 0.1647, h: 70.08 };
-    const nearWhite: Token = { l: 99.43, c: 0.0013, h: 286.38 };
+    // **On the 0–1 lightness scale**, matching what the parser now produces. A
+    // fixture on the old scale would be asserting against numbers the gate never
+    // sees, which is how a control stops being a control.
+    const amber: Token = { l: 0.7686, c: 0.1647, h: 70.08 };
+    const nearWhite: Token = { l: 0.9943, c: 0.0013, h: 286.38 };
     expect(isReadableOn(amber, nearWhite)).toBe(false);
+  });
+
+  it("rejects a button nobody can see", () => {
+    // **The 3:1 bar (WCAG 1.4.11) had no negative control at all.** The rule fires
+    // on every theme assertion, so weakening it to 1:1 changed nothing for a
+    // palette that already passes — which is exactly how a threshold rots.
+    // `#B8BCC4` on a near-white canvas measures **1.87:1**: legal-looking, and
+    // unfindable. The 3:1 line on that canvas sits around L* 62, so a control has
+    // to be clearly below it rather than near it.
+    const canvas: Token = { l: 0.9943, c: 0.0013, h: 286.38 };
+    const faintButton: Token = { l: 0.7945, c: 0.0121, h: 264.5 }; // #B8BCC4
+    expect(isVisibleOn(faintButton, canvas)).toBe(false);
+    expect(isReadableOn(faintButton, canvas)).toBe(false);
+  });
+
+  it("rejects a canvas whose lightness is above the dark floor", () => {
+    // `isBlueBlack` requires both chroma and a lightness floor. The shipped-blue
+    // control covers chroma 0, but nothing sat near the lightness boundary, so the
+    // floor itself was untested.
+    const tooLight: Token = { l: 0.6, c: 0.02, h: 258.33 };
+    const darkEnough: Token = { l: 0.1582, c: 0.0072, h: 258.37 };
+    expect(isBlueBlack(tooLight)).toBe(false);
+    expect(isBlueBlack(darkEnough)).toBe(true);
+  });
+
+  it("clamps an out-of-gamut colour rather than trusting the channels", () => {
+    // **The first version of this control asserted `0 <= luminance <= 1`**, which
+    // every out-of-gamut colour satisfied even unclamped — green carries the
+    // largest weight, so a colour whose only escaping channels are red and blue
+    // still lands in range. It passed with the clamp deleted, which is the
+    // definition of decoration.
+    //
+    // **So the assertion is the clamp's effect.** `oklch(0.5 0.9 140)` converts to
+    // `[-0.333, 0.349, -0.119]`; clamped it weighs **0.2493**, unclamped **0.1698**.
+    // Removing the clamp moves the number by 0.08 — far outside any tolerance —
+    // while a range check moves it nowhere.
+    const wild: Token = { l: 0.5, c: 0.9, h: 140 };
+    expect(luminance(wild)).toBeCloseTo(0.2493, 3);
+    // And the ratio stays finite rather than exploding on a negative channel.
+    expect(Number.isFinite(contrast(wild, darkEnoughToken()))).toBe(true);
   });
 
   it("rejects a flat elevation ladder", () => {
@@ -335,5 +461,60 @@ describe("the theme rules reject what the repo actually shipped", () => {
       ).toBe(true);
       expect(isBlueBlack(token(dark, "base-100"))).toBe(true);
     }
+  });
+});
+
+/**
+ * The cross-check that would have caught the scale bug.
+ *
+ * ## Why two implementations of one number
+ *
+ * This file computes contrast from **OKLCH** (what the stylesheet writes) and
+ * there is an independent path from **hex** (WCAG relative luminance on sRGB,
+ * which has no lightness scale to get wrong). For a long time they disagreed and
+ * nothing compared them: the dark amber read as **114.65:1** through the OKLCH
+ * path and **9.06:1** through the hex path, because the OKLab conversion cubes
+ * `L` and the parser was handing it 15.82 instead of 0.1582.
+ *
+ * **Two paths computing the same quantity and differing is the strongest signal
+ * available** — stronger than either being obviously wrong — so this test makes
+ * them agree out loud. A future scale mistake fails here rather than silently
+ * weakening every threshold in the file.
+ */
+describe("the OKLCH and hex paths agree", () => {
+  it.each([
+    ["light", light],
+    ["dark", dark],
+  ])("%s: the two paths give the same ratio", (_name, theme) => {
+    const canvas = token(theme, "base-100");
+    const accent = token(theme, "accent");
+    const primary = token(theme, "primary");
+
+    // **To within 0.1**, which is the rounding of the stylesheet's own precision.
+    // A scale error is off by orders of magnitude, so a generous tolerance still
+    // catches the class of bug that matters.
+    expect(contrast(accent, canvas)).toBeCloseTo(
+      hexContrast(toHex(accent), toHex(canvas)),
+      1,
+    );
+    expect(contrast(primary, canvas)).toBeCloseTo(
+      hexContrast(toHex(primary), toHex(canvas)),
+      1,
+    );
+  });
+
+  it("the shipped ratios are the measured ones, not inflated ones", () => {
+    // **Pinned, because these are the numbers the palette decisions rest on.** A
+    // palette change that breaks AA should fail here with a name, not surface as
+    // an unreadable label in someone's browser.
+    expect(
+      contrast(token(dark, "accent"), token(dark, "base-100")),
+    ).toBeCloseTo(9.06, 1);
+    expect(
+      contrast(token(light, "accent"), token(light, "base-100")),
+    ).toBeCloseTo(4.84, 1);
+    expect(
+      contrast(token(dark, "base-content"), token(dark, "base-100")),
+    ).toBeCloseTo(16.14, 1);
   });
 });
