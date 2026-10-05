@@ -260,9 +260,9 @@ const SELF_HOSTING_PITCH = [
  * offset.
  */
 const COST_ADVANTAGE =
-  /pay (?:them|their|DataForSEO) [^.]{0,20}directly|costs \$0|runs? (?:slightly )?lower/i;
+  /pay (?:them|their|DataForSEO) [^.]{0,20}directly|costs \$0|runs? (?:slightly )?lower|self-host[^.]{0,40}(?:costs less|less expensive|cheaper)/i;
 const OFFSETING_COST =
-  /not cheaper|costs you|the setup|the maintenance|an afternoon|rather lose the subscription|still cost/i;
+  /not cheaper|costs you|setup and maintenance|the setup|the maintenance|an afternoon|rather lose the subscription|still cost/i;
 
 {
   const offenders = [];
