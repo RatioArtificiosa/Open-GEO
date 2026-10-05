@@ -4,7 +4,13 @@ import {
   Outlet,
   useLocation,
 } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FocusEvent as ReactFocusEvent,
+  type ReactNode,
+} from "react";
 import { NewsletterSignup } from "@/components/newsletter-signup";
 import { SiteFooter } from "@/components/site-footer";
 import { featureGroups } from "@/lib/feature-pages";
@@ -288,6 +294,8 @@ function NavMenu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const { pathname } = useLocation();
+  const panelId = `nav-menu-${label.toLowerCase()}`;
 
   // **A menu opened by click must close itself.** Hover and
   // focus-within (the classes on the panel below) reveal the menu
@@ -315,8 +323,27 @@ function NavMenu({
     };
   }, [open]);
 
+  // **A route change closes it too**, so client-side
+  // navigation from a panel link -- or any navigation -- cannot
+  // leave the menu open on the page that replaced it.
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  // **Focus leaving the menu closes it.** Focus may pass
+  // through the panel's own links, which stays inside the
+  // wrapper, so only a move outside the whole menu closes it --
+  // a keyboard reader who opens the menu and then tabs on is
+  // not left with a menu that stays open.
+  const onBlur = (event: ReactFocusEvent<HTMLDivElement>) => {
+    const next = event.relatedTarget;
+    if (ref.current && !(next instanceof Node && ref.current.contains(next))) {
+      setOpen(false);
+    }
+  };
+
   return (
-    <div className="group relative" ref={ref}>
+    <div className="group relative" ref={ref} onBlur={onBlur}>
       <a
         href={mobileHref}
         className="text-sm font-semibold text-neutral-600 transition-colors hover:text-neutral-900 md:hidden"
@@ -333,12 +360,14 @@ function NavMenu({
         type="button"
         aria-haspopup="true"
         aria-expanded={open}
+        aria-controls={panelId}
         onClick={() => setOpen((value) => !value)}
         className="hidden h-10 items-center text-sm font-semibold text-neutral-600 transition-colors hover:text-neutral-900 md:inline-flex"
       >
         {label}
       </button>
       <div
+        id={panelId}
         className={`pointer-events-none absolute left-1/2 top-[calc(100%-2px)] z-20 hidden ${widthClass} -translate-x-1/2 pt-2 opacity-0 transition md:block group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 ${open ? "pointer-events-auto opacity-100" : ""}`}
       >
         {children}
