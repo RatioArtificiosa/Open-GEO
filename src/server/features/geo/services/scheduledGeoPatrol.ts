@@ -8,10 +8,8 @@ import {
   projects,
 } from "@/db/schema";
 import { GeoPatrol } from "@/server/features/geo/services/GeoPatrol";
-import {
-  geoAnswerUnitCostUsd,
-  NIGHTLY_PROJECT_SWEEP_LIMIT,
-} from "@/shared/dataforseo-pricing";
+import { geoAnswerUnitCostUsd } from "@/shared/dataforseo-pricing";
+import { NIGHTLY_PROJECT_SWEEP_LIMIT } from "@/shared/nightly-budgets";
 import {
   alertOnRunChange,
   ALERT_TRANSPORT,

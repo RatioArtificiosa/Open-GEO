@@ -61,9 +61,9 @@ import {
 } from "@/server/lib/dataforseo/ai-keywords";
 import {
   NIGHTLY_BUDGET_USD,
-  PER_PROJECT_NIGHTLY_CAP,
   NIGHTLY_PROJECT_SWEEP_LIMIT,
-} from "@/shared/dataforseo-pricing";
+  PER_PROJECT_NIGHTLY_CAP,
+} from "@/shared/nightly-budgets";
 import { GeoRunRepository } from "@/server/features/geo/repositories/GeoRunRepository";
 
 /**

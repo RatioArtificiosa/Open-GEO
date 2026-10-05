@@ -102,7 +102,7 @@ you through the basics with you.
 
 **If you are an expert with a tool you like**, keep it. If your current tool is
 bloated, poorly designed, or costs more per month than your clients charge you, then
-OpenGeo is built to be the one-in-all-in-one replacement for
+OpenGeo is built to be the all-in-one replacement for
 [Semrush](https://www.semrush.com/) and [Ahrefs](https://ahrefs.com/) — at a tenth of
 the price, with the sources attached.
 

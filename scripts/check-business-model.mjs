@@ -288,6 +288,54 @@ function marketingPageCount() {
   return marketingFiles().length;
 }
 
+// ── 5. the free account's allowance is not confused with the plan ───────────────
+/**
+ * **$0.50 is the free account; $10 is the plan.** They are different things, and a
+ * page that mentions one next to the other without saying whose it is has told the
+ * reader the wrong price.
+ *
+ * CodeRabbit caught the instance: *"that is what the $10 plan is for — $0.50 of it
+ * free"* reads as **a discount on the plan**, which would be a trial of the $10 tier.
+ * That is the exact failure this gate exists to prevent, and it sat on the page whose
+ * argument is that we publish our prices.
+ *
+ * So: a page naming $0.50 must attribute it — to the free account, the trial, or the
+ * allowance — rather than attaching it to the plan.
+ */
+{
+  const ATTRIBUTED = [
+    /free account[^.]{0,60}\$0\.50/i,
+    /\$0\.50[^.]{0,60}free account/i,
+    /trial[^.]{0,60}\$0\.50/i,
+    /\$0\.50[^.]{0,60}trial/i,
+    /allowance[^.]{0,60}\$0\.50/i,
+    /\$0\.50[^.]{0,60}allowance/i,
+  ];
+
+  const unattributed = [];
+  for (const [file, body] of walkMarketingPages()) {
+    if (!/\$0\.50/.test(body)) continue;
+    if (!ATTRIBUTED.some((re) => re.test(body))) {
+      unattributed.push(file);
+    }
+  }
+
+  if (unattributed.length > 0) {
+    fail(
+      "the free account's allowance is distinguished from the plan's included usage",
+      `${unattributed.slice(0, 5).join(", ")}` +
+        (unattributed.length > 5
+          ? ` …and ${unattributed.length - 5} more`
+          : ""),
+    );
+  } else {
+    pass(
+      "free allowance attributed",
+      "every page naming $0.50 says whose it is",
+    );
+  }
+}
+
 // ── report ───────────────────────────────────────────────────────────────────
 console.log("business model — the claims we make about what we charge\n");
 for (const p of passes) console.log(`  ok   ${p}`);

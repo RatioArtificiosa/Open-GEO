@@ -1160,8 +1160,13 @@ export function FinalCta() {
           We run the data layer. You run your business.
         </h2>
         <p className="itc-final-sub">
-          $10/month includes $10 of usage, and $0.50 of it free to try first. No
-          card, no vendor account, nothing to maintain.
+          {/* **"$0.50 of it free" read as a discount on the plan** — which would be a
+              trial of the $10 tier, not what it is. They are different things: a free
+              account carrying $0.50 of credit, and a $10 subscription including $10 of
+              usage. The gate now requires a page naming $0.50 to say whose it is. */}
+          $10/month includes $10 of usage. A free account carries $0.50 of credit, so
+          you can check it works before paying anything. No card, no vendor account,
+          nothing to maintain.
         </p>
 
         {/* One primary. The second action is a link, for the reader who is not ready

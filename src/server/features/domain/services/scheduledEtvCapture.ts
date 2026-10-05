@@ -51,12 +51,12 @@ import { geoTargets } from "@/db/schema";
 import { domainMetrics } from "@/db/schema";
 import { DomainMetricsRepository } from "@/server/features/domain/repositories/DomainMetricsRepository";
 import { fetchDomainRankOverview } from "@/server/lib/dataforseo/labs";
+import { DFS_LABS } from "@/shared/dataforseo-pricing";
 import {
-  DFS_LABS,
   NIGHTLY_BUDGET_USD,
   PER_PROJECT_NIGHTLY_CAP,
   NIGHTLY_PROJECT_SWEEP_LIMIT,
-} from "@/shared/dataforseo-pricing";
+} from "@/shared/nightly-budgets";
 
 /**
  * One Labs call, in USD — **read from the price book**, not restated here.

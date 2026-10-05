@@ -196,7 +196,11 @@ const GROUPS = [
       },
       {
         name: "Backlinks",
-        to: "/features/backlinks",
+        // **Was `/features/backlinks`, which is a 301 redirect to this page.**
+        // Correct practice — one canonical URL per capability — but a primary
+        // navigation link should go to the canonical page directly, not ask for a
+        // second round trip to get there.
+        to: "/features/backlink-checker",
         note: "referring domains and links, in the same workspace",
       },
       {

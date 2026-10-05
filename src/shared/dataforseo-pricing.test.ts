@@ -15,14 +15,16 @@ import {
   estimateCrawl,
   estimateDailyBrandMonitoring,
   estimateScraperPatrol,
-  NIGHTLY_BUDGET_USD,
-  NIGHTLY_PROJECT_SWEEP_LIMIT,
-  PER_PROJECT_NIGHTLY_CAP,
   type CostEstimate,
   type DfsPrice,
   type DfsQueue,
   type EstimateInput,
 } from "@/shared/dataforseo-pricing";
+import {
+  NIGHTLY_BUDGET_USD,
+  NIGHTLY_PROJECT_SWEEP_LIMIT,
+  PER_PROJECT_NIGHTLY_CAP,
+} from "@/shared/nightly-budgets";
 import { ETV_BEARING_LABS_ENDPOINTS } from "@/shared/etv-versioning";
 
 // These assertions are the contract. Every figure was read off a rendered
@@ -38,11 +40,31 @@ describe("dataforseo price book", () => {
 
   it("states that Lite costs the same as Standard (shape, not price)", () => {
     expect(DFS_AI_OPTIMIZATION.llmMentions.caveat).toMatch(
-      /minimum commitment/i,
-    );
-    expect(DFS_AI_OPTIMIZATION.llmMentions.caveat).toMatch(
       /lite endpoints cost the same as standard/i,
     );
+  });
+
+  /**
+   * The vendor removed the monthly minimum, and the caveat used to assert the
+   * opposite — which would have had a self-hoster believe they needed a $100
+   * top-up to use the GEO engine at all. The most expensive misunderstanding a
+   * price book can carry is one about whether it is usable.
+   */
+  it("records that the $100 monthly minimum was removed, not required", () => {
+    const caveat = DFS_AI_OPTIMIZATION.llmMentions.caveat ?? "";
+
+    expect(caveat).toMatch(/pay-as-you-go/i);
+    expect(caveat).toMatch(/removed/i);
+    // The removed figure is named so a reader who remembers the old terms can
+    // tell what changed rather than wondering if it is still true.
+    expect(caveat).toMatch(/\$100/);
+    expect(caveat).toMatch(/2026-07-01/);
+
+    // **And it must not still assert a requirement.** A caveat that says both
+    // "no minimum" and "minimum commitment" reads as a contradiction, and a
+    // customer who believes the second one overbudgets by $100/month.
+    expect(caveat).not.toMatch(/\$100\/month minimum commitment\b/);
+    expect(caveat).not.toMatch(/minimum commitment\./);
   });
 
   it("keeps the LLM Scraper Standard queue at 1/10th of Live", () => {

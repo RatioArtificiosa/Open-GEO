@@ -43,9 +43,11 @@ import {
   AI_KEYWORD_UNIT_COST_USD,
   DFS_AI_OPTIMIZATION,
   DFS_LABS,
+} from "@/shared/dataforseo-pricing";
+import {
   NIGHTLY_BUDGET_USD,
   PER_PROJECT_NIGHTLY_CAP,
-} from "@/shared/dataforseo-pricing";
+} from "@/shared/nightly-budgets";
 
 /**
  * **Every number below is imported from the module that enforces it.**

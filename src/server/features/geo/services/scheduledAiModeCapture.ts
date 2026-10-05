@@ -42,7 +42,7 @@ import type { WatchedPrompt } from "./aiModeSchedule";
 import {
   NIGHTLY_BUDGET_USD,
   NIGHTLY_PROJECT_SWEEP_LIMIT,
-} from "@/shared/dataforseo-pricing";
+} from "@/shared/nightly-budgets";
 
 /**
  * One AI Mode call, in USD.

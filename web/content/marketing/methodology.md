@@ -52,7 +52,7 @@ So you can reproduce this rather than take it:
 
 |                         |                                                                                                          |
 | ----------------------- | -------------------------------------------------------------------------------------------------------- |
-| **Endpoint**            | DataForSEO `/v3/dataforseo_labs/llm_mentions/target_metrics/live`                                        |
+| **Endpoint**            | DataForSEO `/v3/ai_optimization/llm_mentions/target_metrics/live`                                       |
 | **Keyword**             | `renault`                                                                                                |
 | **Location / language** | United States / English                                                                                  |
 | **Retrieved**           | 2026-09-28 — this project's first live measurement of the pair                                           |
@@ -118,9 +118,18 @@ DataForSEO's published list on **2026-10-04**.
 **About $3.30 per brand, monitored daily, per month** (10 rows returned per check).
 
 The full DataForSEO price book lives in
-[`src/shared/dataforseo-pricing.ts`](https://github.com/RatioArtificiosa/Open-GEO/blob/main/src/shared/dataforseo-pricing.ts)
-and is pinned by a test. **A vendor price change breaks the build** rather than
-silently changing what a customer is billed.
+[`src/shared/dataforseo-pricing.ts`](https://github.com/RatioArtificiosa/Open-GEO/blob/main/src/shared/dataforseo-pricing.ts),
+and a test pins every rate **and the caveat text beside it** — so an edit to a price
+that leaves its explanation stale fails the build.
+
+**What that test does not do, stated plainly:** it does not compare our numbers
+against DataForSEO's live price list. It protects the file from internal drift, not
+from the vendor changing a price. **Prices here were last read from DataForSEO's
+published list on 2026-10-04**, and a self-hosted deployment should treat that date
+as the expiry on every figure on this page.
+
+If you are running this yourself and your bill disagrees with a number here, the
+number here is the thing that is wrong.
 
 ---
 
