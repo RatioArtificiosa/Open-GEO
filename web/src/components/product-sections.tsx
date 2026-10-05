@@ -26,8 +26,9 @@ import { VendorReceipt } from "@/components/vendor-receipt";
  *
  * ## What was deliberately NOT written
  *
- * - No "revolutionise", "unleash", "supercharge", "seamless". Banned by the design
- *   skill, and banned here for the better reason: on this buyer they cost
+ * - No marketing superlatives — the catalogue in `scripts/banned-words.ts` is
+ *   enforced by CL-807 and by the slop budget, and a page that names the banned
+ *   words in order to ban them trips its own rule. On this buyer they cost
  *   credibility rather than gaining it.
  * - No urgency — no countdown, no "only N left", no activity counter. The FTC names
  *   each as a dark pattern, and persuasion-knowledge research shows scarcity is
