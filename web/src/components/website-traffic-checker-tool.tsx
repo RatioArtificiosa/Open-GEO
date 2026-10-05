@@ -220,7 +220,9 @@ function DomainReport({
   return (
     <section>
       <h2 className="text-lg font-semibold tracking-tight text-neutral-950">
-        <span className="text-[var(--color-brand-accent)]">{data.domain}</span>
+        <span className="text-[var(--color-brand-accent-text)]">
+          {data.domain}
+        </span>
       </h2>
 
       {showMetrics ? (

@@ -163,7 +163,7 @@ function CellContent({ cell, ours }: { cell: Cell; ours?: boolean }) {
         className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center ${
           tone === "negative"
             ? "text-neutral-300"
-            : "text-[var(--color-brand-accent)]"
+            : "text-[var(--color-brand-accent-text)]"
         }`}
       >
         <ToneIcon tone={tone} />

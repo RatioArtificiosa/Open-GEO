@@ -79,7 +79,7 @@ function AiAgentSeoLibraryPage() {
         >
           <a
             href="/library"
-            className="font-medium text-[var(--color-brand-accent)]"
+            className="font-medium text-[var(--color-brand-accent-text)]"
           >
             Strategy Library
           </a>{" "}
@@ -115,14 +115,14 @@ function AiAgentSeoLibraryPage() {
                 href={strategy.href}
                 className="rounded-lg border border-[var(--color-border-subtle)] bg-white p-5 transition-colors hover:border-neutral-900"
               >
-                <span className="font-mono text-sm tabular-nums text-[var(--color-brand-accent)]">
+                <span className="font-mono text-sm tabular-nums text-[var(--color-brand-accent-text)]">
                   {number}
                 </span>
                 <h3 className="mt-3 text-base font-semibold text-neutral-950">
                   {strategy.title}
                   <span
                     aria-hidden="true"
-                    className="ml-1 text-[var(--color-brand-accent)]"
+                    className="ml-1 text-[var(--color-brand-accent-text)]"
                   >
                     &rarr;
                   </span>

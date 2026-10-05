@@ -68,7 +68,7 @@ function GoogleSearchConsoleMcpPage() {
   return (
     <article className="mx-auto max-w-4xl text-neutral-900">
       <header className="mb-10 border-b border-[var(--color-border-subtle)] pb-8">
-        <p className="text-sm font-medium text-[var(--color-brand-accent)]">
+        <p className="text-sm font-medium text-[var(--color-brand-accent-text)]">
           Search Console MCP
         </p>
         <h1 className="mt-3 text-4xl font-semibold leading-tight tracking-tight text-neutral-950 md:text-6xl">

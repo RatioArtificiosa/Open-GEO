@@ -204,7 +204,7 @@ function AnalysisReport({ result }: { result: AnalysisResult }) {
       <section>
         <h2 className="text-lg font-semibold tracking-tight text-neutral-950">
           Top keywords for{" "}
-          <span className="text-[var(--color-brand-accent)]">
+          <span className="text-[var(--color-brand-accent-text)]">
             {result.competitor}
           </span>
         </h2>

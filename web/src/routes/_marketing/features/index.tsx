@@ -20,7 +20,7 @@ export const Route = createFileRoute("/_marketing/features/")({
 function FeaturesIndex() {
   return (
     <article>
-      <p className="text-sm font-medium text-[var(--color-brand-accent)]">
+      <p className="text-sm font-medium text-[var(--color-brand-accent-text)]">
         Open-source SEO tools
       </p>
       <h1 className="mt-3 max-w-3xl text-4xl font-semibold leading-tight tracking-tight text-neutral-950 md:text-6xl">
@@ -44,7 +44,7 @@ function FeaturesIndex() {
           </div>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <FeatureCard href="/features/mcp">
-              <p className="text-xs font-medium text-[var(--color-brand-accent)]">
+              <p className="text-xs font-medium text-[var(--color-brand-accent-text)]">
                 OpenGeo MCP
               </p>
               <h3 className="mt-2 text-lg font-semibold text-neutral-950">
@@ -59,7 +59,7 @@ function FeaturesIndex() {
               </p>
             </FeatureCard>
             <FeatureCard href="/google-search-console-mcp">
-              <p className="text-xs font-medium text-[var(--color-brand-accent)]">
+              <p className="text-xs font-medium text-[var(--color-brand-accent-text)]">
                 Search Console MCP
               </p>
               <h3 className="mt-2 text-lg font-semibold text-neutral-950">
@@ -89,7 +89,7 @@ function FeaturesIndex() {
             <div className="mt-5 grid gap-4 md:grid-cols-3">
               {group.pages.map((page) => (
                 <FeatureCard key={page.slug} href={`/features/${page.slug}`}>
-                  <p className="text-xs font-medium text-[var(--color-brand-accent)]">
+                  <p className="text-xs font-medium text-[var(--color-brand-accent-text)]">
                     {page.eyebrow}
                   </p>
                   <h3 className="mt-2 text-lg font-semibold text-neutral-950">

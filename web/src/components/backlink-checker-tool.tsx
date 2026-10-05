@@ -89,7 +89,7 @@ function CheckResults({ result }: { result: CheckResult }) {
     <div className="mt-6">
       <h2 className="text-lg font-semibold tracking-tight text-neutral-950">
         Backlink profile for{" "}
-        <span className="text-[var(--color-brand-accent)]">
+        <span className="text-[var(--color-brand-accent-text)]">
           {result.target}
         </span>
       </h2>

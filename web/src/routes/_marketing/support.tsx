@@ -30,7 +30,7 @@ function SupportPage() {
   return (
     <article className="mx-auto max-w-4xl">
       <header className="max-w-3xl">
-        <p className="text-sm font-medium text-[var(--color-brand-accent)]">
+        <p className="text-sm font-medium text-[var(--color-brand-accent-text)]">
           Help &amp; Community
         </p>
         <h1 className="mt-3 text-4xl font-semibold leading-tight tracking-tight text-neutral-950 md:text-6xl">
@@ -44,7 +44,7 @@ function SupportPage() {
 
       <div className="mt-12 grid gap-4 md:grid-cols-3">
         <section className="flex min-h-64 flex-col rounded-xl border border-[var(--color-border-subtle)] bg-white p-6">
-          <p className="font-mono text-xs text-[var(--color-brand-accent)]">
+          <p className="font-mono text-xs text-[var(--color-brand-accent-text)]">
             01
           </p>
           <h2 className="mt-6 text-xl font-semibold tracking-tight text-neutral-950">
@@ -57,7 +57,7 @@ function SupportPage() {
             type="button"
             onClick={copyEmail}
             aria-live="polite"
-            className="mt-auto inline-flex w-fit items-center gap-2 pt-6 text-sm font-medium text-neutral-950 transition-colors hover:text-[var(--color-brand-accent)]"
+            className="mt-auto inline-flex w-fit items-center gap-2 pt-6 text-sm font-medium text-neutral-950 transition-colors hover:text-[var(--color-brand-accent-text)]"
           >
             <span className="font-mono text-xs">{SUPPORT_EMAIL}</span>
             {copied ? <CheckIcon /> : <CopyIcon />}
@@ -105,7 +105,7 @@ function SupportCard({
       rel="noopener noreferrer"
       className="group flex min-h-64 flex-col rounded-xl border border-[var(--color-border-subtle)] bg-white p-6 transition-all hover:-translate-y-0.5 hover:border-neutral-950 hover:shadow-lg hover:shadow-neutral-900/5"
     >
-      <p className="font-mono text-xs text-[var(--color-brand-accent)]">
+      <p className="font-mono text-xs text-[var(--color-brand-accent-text)]">
         {number}
       </p>
       <h2 className="mt-6 text-xl font-semibold tracking-tight text-neutral-950">
@@ -149,7 +149,7 @@ function CheckIcon() {
   return (
     <svg
       aria-hidden="true"
-      className="h-3.5 w-3.5 text-[var(--color-brand-accent)]"
+      className="h-3.5 w-3.5 text-[var(--color-brand-accent-text)]"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"

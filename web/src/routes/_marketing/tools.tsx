@@ -24,7 +24,7 @@ function ToolsPage() {
   return (
     <article>
       <header className="max-w-3xl">
-        <p className="text-sm font-medium text-[var(--color-brand-accent)]">
+        <p className="text-sm font-medium text-[var(--color-brand-accent-text)]">
           Free tools
         </p>
         <h1 className="mt-3 text-4xl font-semibold leading-tight tracking-tight text-neutral-950 md:text-6xl">
@@ -48,7 +48,7 @@ function ToolsPage() {
                 {tool.name}
                 <span
                   aria-hidden="true"
-                  className="ml-1 text-[var(--color-brand-accent)]"
+                  className="ml-1 text-[var(--color-brand-accent-text)]"
                 >
                   &rarr;
                 </span>
@@ -74,7 +74,7 @@ function ToolsPage() {
               Google Search Console MCP
               <span
                 aria-hidden="true"
-                className="ml-1 text-[var(--color-brand-accent)]"
+                className="ml-1 text-[var(--color-brand-accent-text)]"
               >
                 &rarr;
               </span>

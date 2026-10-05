@@ -36,7 +36,7 @@ function StrategyLibraryIndexPage() {
   return (
     <article>
       <header className="max-w-3xl">
-        <p className="text-sm font-medium text-[var(--color-brand-accent)]">
+        <p className="text-sm font-medium text-[var(--color-brand-accent-text)]">
           Resources
         </p>
         <h1 className="mt-3 text-4xl font-semibold leading-tight tracking-tight text-neutral-950 md:text-6xl">

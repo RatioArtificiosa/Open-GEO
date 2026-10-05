@@ -44,14 +44,14 @@ export function LibrarySpokePage({
         >
           <a
             href="/library"
-            className="font-medium text-[var(--color-brand-accent)]"
+            className="font-medium text-[var(--color-brand-accent-text)]"
           >
             Strategy Library
           </a>{" "}
           /{" "}
           <a
             href={library.path}
-            className="font-medium text-[var(--color-brand-accent)]"
+            className="font-medium text-[var(--color-brand-accent-text)]"
           >
             {library.name}
           </a>{" "}

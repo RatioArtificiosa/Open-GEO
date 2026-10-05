@@ -8,7 +8,7 @@ export function FeaturePageTemplate({ page }: FeaturePageProps) {
   return (
     <article>
       <header className="max-w-3xl">
-        <p className="text-sm font-medium text-[var(--color-brand-accent)]">
+        <p className="text-sm font-medium text-[var(--color-brand-accent-text)]">
           {page.eyebrow}
         </p>
         <h1 className="mt-3 text-4xl font-semibold leading-tight tracking-tight text-neutral-950 md:text-6xl">
@@ -58,7 +58,7 @@ export function FeaturePageTemplate({ page }: FeaturePageProps) {
               key={workflow.title}
               className="rounded-lg border border-[var(--color-border-subtle)] bg-white p-5"
             >
-              <span className="font-mono text-sm tabular-nums text-[var(--color-brand-accent)]">
+              <span className="font-mono text-sm tabular-nums text-[var(--color-brand-accent-text)]">
                 {String(index + 1).padStart(2, "0")}
               </span>
               <h3 className="mt-4 text-base font-semibold text-neutral-950">
@@ -95,7 +95,7 @@ export function FeaturePageTemplate({ page }: FeaturePageProps) {
               {item.label}
               <span
                 aria-hidden="true"
-                className="ml-1 text-[var(--color-brand-accent)]"
+                className="ml-1 text-[var(--color-brand-accent-text)]"
               >
                 &rarr;
               </span>
@@ -223,7 +223,7 @@ function GuidesSection({
               {item.label}
               <span
                 aria-hidden="true"
-                className="ml-1 text-[var(--color-brand-accent)]"
+                className="ml-1 text-[var(--color-brand-accent-text)]"
               >
                 &rarr;
               </span>

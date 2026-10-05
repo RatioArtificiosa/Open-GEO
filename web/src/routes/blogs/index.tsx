@@ -23,7 +23,7 @@ function BlogIndex() {
   return (
     <BlogLayout>
       <div className="mx-auto max-w-5xl px-6 py-12 md:py-24">
-        <p className="text-sm font-medium text-[var(--color-brand-accent)]">
+        <p className="text-sm font-medium text-[var(--color-brand-accent-text)]">
           Resources
         </p>
         <h1 className="mt-3 text-4xl font-semibold tracking-tight text-neutral-950 md:text-6xl">
@@ -43,7 +43,7 @@ function BlogIndex() {
                   params={{ _splat: post.slugs.join("/") }}
                   className="group block h-full rounded-lg border border-[var(--color-border-subtle)] bg-white p-6 transition-colors hover:border-neutral-900"
                 >
-                  <h2 className="text-2xl font-semibold tracking-tight text-neutral-950 transition-colors group-hover:text-[var(--color-brand-accent)]">
+                  <h2 className="text-2xl font-semibold tracking-tight text-neutral-950 transition-colors group-hover:text-[var(--color-brand-accent-text)]">
                     {post.title}
                   </h2>
                   {post.description && (
