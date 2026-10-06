@@ -16,16 +16,13 @@ import { SiteFooter } from "@/components/site-footer";
 import { featureGroups } from "@/lib/feature-pages";
 
 const GITHUB_REPO = "RatioArtificiosa/Open-GEO";
-// Used if GitHub is unreachable at build time so the header never renders empty.
-const FALLBACK_STAR_COUNT = "2.1k";
-
 // Round to the nearest hundred and render in thousands, e.g. 3140 -> "3.1k".
 function formatStarCount(count: number): string {
   if (count < 1000) return String(count);
   return `${(Math.round(count / 100) / 10).toString()}k`;
 }
 
-async function fetchGithubStarCount(): Promise<string> {
+async function fetchGithubStarCount(): Promise<string | null> {
   try {
     const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}`, {
       headers: {
@@ -34,25 +31,33 @@ async function fetchGithubStarCount(): Promise<string> {
         "User-Agent": "opengeo-landing",
       },
     });
-    if (!res.ok) return FALLBACK_STAR_COUNT;
+    if (!res.ok) return null;
     const data = (await res.json()) as { stargazers_count?: number };
     return typeof data.stargazers_count === "number"
       ? formatStarCount(data.stargazers_count)
-      : FALLBACK_STAR_COUNT;
+      : null;
   } catch {
-    return FALLBACK_STAR_COUNT;
+    return null;
   }
+}
+
+// The star count is social proof, so it is shown only once it is a real,
+// non-zero number: a live "0" reads to a first-time visitor as an abandoned
+// project, and a fabricated fallback would be a lie. Until then the link is
+// just "GitHub". `null` means GitHub was unreachable at build time.
+function hasVisibleStarCount(count: string | null): count is string {
+  return count !== null && count !== "0";
 }
 
 // Memoized for the duration of a build so prerendering every marketing page
 // only hits GitHub once instead of once per page.
-let starCountPromise: Promise<string> | null = null;
-function loadGithubStarCount(): Promise<string> {
+let starCountPromise: Promise<string | null> | null = null;
+function loadGithubStarCount(): Promise<string | null> {
   starCountPromise ??= fetchGithubStarCount();
   return starCountPromise;
 }
 
-function getMobileNavItems(githubStarCount: string) {
+function getMobileNavItems(githubStarCount: string | null) {
   return [
     {
       label: "Product",
@@ -75,7 +80,9 @@ function getMobileNavItems(githubStarCount: string) {
       label: "Community",
       links: [
         {
-          label: `GitHub ${githubStarCount}`,
+          label: hasVisibleStarCount(githubStarCount)
+            ? `GitHub ${githubStarCount}`
+            : "GitHub",
           href: "https://github.com/RatioArtificiosa/Open-GEO",
         },
       ],
@@ -209,12 +216,18 @@ function MarketingLayout() {
                 href="https://github.com/RatioArtificiosa/Open-GEO"
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label={`GitHub, ${githubStarCount} stars`}
+                aria-label={
+                  hasVisibleStarCount(githubStarCount)
+                    ? `GitHub, ${githubStarCount} stars`
+                    : "GitHub"
+                }
                 className="hidden h-9 items-center gap-1.5 px-2 text-sm font-semibold text-neutral-600 transition-colors hover:text-neutral-900 md:inline-flex"
               >
                 <GitHubIcon size={16} />
                 <span>GitHub</span>
-                <span className="text-neutral-500">{githubStarCount}</span>
+                {hasVisibleStarCount(githubStarCount) && (
+                  <span className="text-neutral-500">{githubStarCount}</span>
+                )}
               </a>
               <a
                 href="https://app.opengeo.so/sign-in"
