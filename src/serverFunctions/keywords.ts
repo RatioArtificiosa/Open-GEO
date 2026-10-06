@@ -7,11 +7,13 @@ import {
   exportSavedKeywordsSchema,
   removeSavedKeywordsSchema,
   refreshSavedKeywordMetricsSchema,
+  reconcileKeywordVolumesSchema,
   serpAnalysisSchema,
   updateSavedKeywordTagSchema,
   updateSavedKeywordTagsSchema,
 } from "@/types/schemas/keywords";
 import { KeywordResearchService } from "@/server/features/keywords/services/KeywordResearchService";
+import { reconcileVolumes } from "@/server/features/keywords/services/reconcile-volumes";
 import { requireProjectContext } from "@/serverFunctions/middleware";
 import { resolveMarket } from "@/shared/keyword-locations";
 
@@ -119,6 +121,24 @@ export const refreshSavedKeywordMetrics = createServerFn({ method: "POST" })
       context,
     );
   });
+
+/**
+ * The app's own entry point to the volume reconciliation, so the "Data Honesty" panel is
+ * not the MCP tool's private privilege. Both go through `reconcileVolumes`, which is where
+ * the comparison rule lives.
+ */
+export const reconcileKeywordVolumes = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(reconcileKeywordVolumesSchema)
+  .handler(async ({ data, context }) =>
+    reconcileVolumes({
+      billing: context,
+      keywords: data.keywords,
+      locationCode: context.project.locationCode,
+      languageCode: context.project.languageCode,
+      countryIsoCode: data.countryIsoCode,
+    }),
+  );
 
 export const getSerpAnalysis = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)

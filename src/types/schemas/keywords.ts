@@ -138,6 +138,20 @@ export const refreshSavedKeywordMetricsSchema = z.object({
   projectId: z.string().min(1),
 });
 
+/**
+ * Reconcile the volumes shown for these keywords against clickstream measurement.
+ *
+ * `countryIsoCode` is **required**, not defaulted: the clickstream breakdown is keyed by
+ * ISO-3166 alpha-2, the endpoint takes no `location_code`, and this repo holds no map
+ * between the two. Inferring the market would silently compare one market's figures
+ * against another market's measurement, which is the failure this check exists to catch.
+ */
+export const reconcileKeywordVolumesSchema = z.object({
+  projectId: z.string().min(1),
+  keywords: z.array(z.string().trim().min(1)).min(1).max(1000),
+  countryIsoCode: z.string().trim().length(2).toUpperCase(),
+});
+
 export type ResearchKeywordsInput = z.infer<typeof researchKeywordsSchema>;
 export type SaveKeywordsInput = z.infer<typeof saveKeywordsSchema>;
 type ResolvedMarket = { locationCode: number; languageCode: string };

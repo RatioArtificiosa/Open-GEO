@@ -1,15 +1,10 @@
 import { z } from "zod";
-import { createDataforseoClient } from "@/server/lib/dataforseo/client";
-import { fetchKeywordMetricsForList } from "@/server/lib/dataforseo/keyword-metrics";
+import { reconcileVolumes } from "@/server/features/keywords/services/reconcile-volumes";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { optionalMetaOutputSchema } from "@/server/mcp/output-schemas";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
 import { projectIdSchema } from "@/server/mcp/schemas";
-import {
-  reconcileVolume,
-  summariseReconciliation,
-} from "@/shared/volume-reconciliation";
 
 const inputSchema = {
   projectId: projectIdSchema,
@@ -81,46 +76,17 @@ export const reconcileKeywordVolumesTool = {
   },
   handler: withMcpProjectAuth(async (args: Args, context) => {
     // This tool takes no market override, so the project's own market is the reference.
-    const { locationCode, languageCode } = context.project;
-    const client = createDataforseoClient(context.billing);
-
-    // The reference side runs through the same path that populates the product, so the
-    // comparison is against what a reader would actually be shown rather than a
-    // re-derivation of it.
-    const metrics = await fetchKeywordMetricsForList(client, {
+    const { countryIsoCode, summary, rows } = await reconcileVolumes({
+      billing: context.billing,
       keywords: args.keywords,
-      locationCode,
-      languageCode,
-      creditFeature: "keyword_research",
+      locationCode: context.project.locationCode,
+      languageCode: context.project.languageCode,
+      countryIsoCode: args.countryIsoCode,
     });
-    // Through the client, so the clickstream request is metered like every other call.
-    const measured = await client.keywords.clickstreamVolumes({
-      keywords: args.keywords,
-    });
-
-    const referenceByKeyword = new Map(
-      metrics.map((row) => [row.keyword.toLowerCase(), row.searchVolume]),
-    );
-    const measuredByKeyword = new Map(
-      measured.map((row) => [row.keyword.toLowerCase(), row]),
-    );
-
-    const rows = args.keywords.map((keyword) => {
-      const key = keyword.trim().toLowerCase();
-      const measurement = measuredByKeyword.get(key);
-      return reconcileVolume({
-        keyword: key,
-        referenceVolume: referenceByKeyword.get(key) ?? null,
-        globalVolume: measurement?.globalVolume ?? null,
-        countryDistribution: measurement?.countryDistribution ?? [],
-        countryIsoCode: args.countryIsoCode,
-      });
-    });
-    const summary = summariseReconciliation(rows);
 
     const headline =
       summary.corroborationRate === null
-        ? `No volume could be checked against ${args.countryIsoCode}: each keyword lacked a figure on one side, so this run makes no claim about them.`
+        ? `No volume could be checked against ${countryIsoCode}: each keyword lacked a figure on one side, so this run makes no claim about them.`
         : `${summary.corroborated} of ${summary.total - summary.uncomparable} comparable keyword${summary.total - summary.uncomparable === 1 ? "" : "s"} (${Math.round(summary.corroborationRate * 100)}%) have a volume the measured data supports.`;
     const detail =
       `${summary.measuredHigher} measured higher, ${summary.measuredLower} measured lower` +
@@ -129,23 +95,16 @@ export const reconcileKeywordVolumesTool = {
         : "");
 
     return mcpResponse({
-      text: `${headline} ${detail}. The figures below are what this product shows against clickstream-measured volume for ${args.countryIsoCode}, which comes from panel data rather than Google Ads' grouped estimates. Where they disagree, treat the shown figure as unconfirmed and read the note on the row. Global clickstream volume is included as context only: it is not comparable to a single market's figure.`,
+      text: `${headline} ${detail}. The figures below are what this product shows against clickstream-measured volume for ${countryIsoCode}, which comes from panel data rather than Google Ads' grouped estimates. Where they disagree, treat the shown figure as unconfirmed and read the note on the row. Global clickstream volume is included as context only: it is not comparable to a single market's figure.`,
       meta: buildProjectMeta(
         context,
         args.projectId,
         `/p/${args.projectId}/keywords`,
       ),
       structuredContent: {
-        countryIsoCode: args.countryIsoCode,
+        countryIsoCode,
         summary,
-        rows: rows.map((row) => ({
-          keyword: row.keyword,
-          referenceVolume: row.referenceVolume,
-          countryVolume: row.countryVolume,
-          globalVolume: row.globalVolume,
-          verdict: row.verdict,
-          note: row.note,
-        })),
+        rows,
       },
     });
   }),
