@@ -244,8 +244,11 @@ around by truncation.
 | Bing `keywords_for_keywords`                    | **200**           | 100 chars                                        |
 | Google Trends                                   | **5**             | 100 chars                                        |
 | LLM Scraper (ChatGPT · Gemini)                  | 1 (a `keyword`)   | **2,000 chars, and the keyword _is_ the prompt** |
+| Clickstream `global_search_volume`              | **1,000**         | —                                                |
+| Clickstream `dataforseo_search_volume`          | **1,000**         | —                                                |
+| Clickstream `bulk_search_volume`                | **1,000**         | —                                                |
 
-**Four things this table is for:**
+**Five things this table is for:**
 
 1. **Two Labs endpoints are not 1,000: `keyword_ideas` is 200 and `keyword_overview`
    is 700.** A batch sized for the _family_ rather than for the endpoint is a billed
@@ -272,6 +275,36 @@ around by truncation.
    scraper is the endpoint to reach for in a scheduled patrol. Note also that `%##`
    inside a keyword is decoded and `+` becomes a space, so a literal `%` must be sent
    as `%25` and a literal `+` as `%2B`.
+5. **Every Clickstream endpoint is Live-only and takes up to 1,000 keywords**, and the
+   two `$0.18` ones are priced **per call rather than per keyword** — so the sample size
+   is not the cost lever, the number of calls is. That is the whole sampling policy:
+   they settle a sample (the "Data Honesty" reconciliation in CL-407), they never fetch
+   a corpus, and `@/shared/volume-routing` marks them `role: "arbitration"` so they
+   cannot size a batch.
+
+### 4.4 `ranked_keywords`: there is no `se_type` to filter on, and an ordering trap `[V 2026-10-06]`
+
+**`ranked_keywords` has no `se_type` task parameter.** `se_type` appears only in the
+_response_ ("search engine type"). The AI-Overview capability is requested with
+**`item_types: ["ai_overview_reference"]`**, and comes back as
+`metrics.ai_overview_reference` — note the **`_reference` suffix**, which is what the
+metric group is actually called. Two documents in this repo asked for
+`se_type: ai_overview`, a parameter that does not exist; an unknown task field is ignored
+or rejected, and **a rejected task is still billed**.
+
+**The ordering trap, in the endpoint's own words:** _"if the `item_types` array contains
+item types that are different from `organic`, the results will be ordered by the first
+item type in the array; you will not be able to sort and filter results by the types of
+search results not included in the response."_ So the AI-Overview pull is a **separate
+call** from the organic one — you cannot fetch organic rankings and sort them by
+AI-Overview position in a single request. Anything that wants "your AI-Overview
+citations, ordered" asks for `["ai_overview_reference"]` alone and paginates.
+
+**Also undocumented in this repo until now:** `historical_serp_mode`
+(`live` | `lost` | `all`) returns keywords the target _used to_ rank for. That lost-keyword
+list is the most actionable half of a competitor gap and needs no second endpoint.
+`limit` caps at **1,000** with `offset` paging, `filters` allows 8 conditions, and
+`order_by` allows 3 rules.
 
 ---
 

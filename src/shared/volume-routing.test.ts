@@ -13,13 +13,17 @@ function requestsFor(keywords: number, perTask: number): number {
 }
 
 describe("volume source caps", () => {
-  it("pins the three documented caps, so changing one is deliberate", () => {
+  it("pins the documented caps, so changing one is deliberate", () => {
     // `keyword_overview` at 700 rather than the 1,000 every neighbouring source
     // takes is the whole reason this table exists. A pin here means raising it
     // requires deleting an assertion that names its source page.
     expect(keywordsPerTaskFor("google_ads")).toBe(1000);
     expect(keywordsPerTaskFor("labs_keyword_overview")).toBe(700);
     expect(keywordsPerTaskFor("bing_ads")).toBe(200);
+    // The clickstream pair are arbitration endpoints, and their 1,000 is the cap on a
+    // *sample* — see the role tests below.
+    expect(keywordsPerTaskFor("clickstream_global")).toBe(1000);
+    expect(keywordsPerTaskFor("clickstream_dfs")).toBe(1000);
   });
 
   it("gives every source a positive cap and a source a reader can check", () => {
@@ -120,5 +124,47 @@ describe("the cost comparison, as arithmetic", () => {
     });
     expect(labs.totalUsd).toBe(0.024);
     expect(labs.totalUsd).toBeLessThan(0.06);
+  });
+});
+
+describe("arbitration is not a volume source", () => {
+  it("marks both $0.18 clickstream endpoints as arbitration", () => {
+    // Verified from the Clickstream Data API overview, 2026-10-06: **all three**
+    // endpoints take up to 1,000 keywords per call, and the API is Live only. Here the
+    // 1,000 is the cap on a *sample*, not on a corpus.
+    expect(VOLUME_SOURCES.clickstream_global.role).toBe("arbitration");
+    expect(VOLUME_SOURCES.clickstream_dfs.role).toBe("arbitration");
+    expect(VOLUME_SOURCES.google_ads.role).toBe("volume");
+    expect(VOLUME_SOURCES.labs_keyword_overview.role).toBe("volume");
+  });
+
+  it("will not let an arbitration endpoint size a batch, in either direction", () => {
+    // Alone: the conservative default, rather than a cap from an endpoint that was
+    // never going to fetch anything.
+    expect(sharedKeywordsPerTask(["clickstream_global"])).toEqual({
+      keywordsPerTask: 1000,
+      limitingSource: "google_ads",
+    });
+    // Alongside real sources: dropped, so the real cap still governs the slice.
+    expect(
+      sharedKeywordsPerTask(["clickstream_dfs", "labs_keyword_overview"]),
+    ).toEqual({
+      keywordsPerTask: 700,
+      limitingSource: "labs_keyword_overview",
+    });
+  });
+
+  it("costs three times the pull it corrects, which is the entire policy", () => {
+    // $0.18 a call against Google Ads' $0.06 for the same 1,000 keywords. The fee is
+    // per *call* rather than per keyword, so the sample size is not the cost lever —
+    // the number of calls is. That is why these settle a sample (CL-407's "Data
+    // Honesty" reconciliation) and never a corpus fetch, and why they are marked
+    // `arbitration` rather than listed as a cheaper alternative.
+    const arbitration = estimateCost({
+      price: VOLUME_SOURCES.clickstream_global.price,
+      requests: 1,
+    });
+    expect(arbitration.totalUsd).toBe(0.18);
+    expect(arbitration.totalUsd / 0.06).toBe(3);
   });
 });
