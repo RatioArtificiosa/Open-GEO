@@ -50,7 +50,9 @@ export function BillingUsageChart() {
     <div className="rounded-lg border border-base-300 bg-base-100 p-4 space-y-3">
       <div className="flex items-baseline justify-between gap-4">
         <span className="font-semibold">Usage</span>
-        <span className="text-xs text-base-content/50">Last 30 days</span>
+        <span className="text-xs text-base-content/50">
+          Autumn billing · last 30 days
+        </span>
       </div>
 
       <div className="text-2xl font-semibold tabular-nums">
@@ -80,25 +82,26 @@ export function BillingUsageChart() {
             <XAxis
               dataKey="date"
               tickFormatter={formatShortDate}
-              tick={{ fontSize: 10, fill: "#888" }}
+              tick={{ fontSize: 10, fill: "var(--trend-axis-color)" }}
               tickLine={false}
               axisLine={false}
               minTickGap={40}
             />
             <YAxis
               tickFormatter={formatUsdAxis}
-              tick={{ fontSize: 10, fill: "#888" }}
+              tick={{ fontSize: 10, fill: "var(--trend-axis-color)" }}
               tickLine={false}
               axisLine={false}
               width={44}
+              style={{ fontVariantNumeric: "tabular-nums" }}
             />
             <Tooltip
               content={<UsageTooltip />}
-              cursor={{ fill: "rgba(150,150,150,0.1)" }}
+              cursor={{ fill: "var(--trend-grid-color)" }}
             />
             <Bar
               dataKey="credits"
-              fill="#7c3aed"
+              fill="var(--color-accent, #F59E0B)"
               radius={[2, 2, 0, 0]}
               maxBarSize={12}
             />

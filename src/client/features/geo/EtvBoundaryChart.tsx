@@ -101,7 +101,7 @@ export function EtvBoundaryChart({
         {showBoundary ? (
           <ReferenceLine
             x={ETV_CUTOVER_DATE}
-            stroke="var(--og-accent, #F59E0B)"
+            stroke="var(--color-accent, #F59E0B)"
             strokeDasharray="4 3"
             strokeWidth={1.5}
             label={{
@@ -115,7 +115,7 @@ export function EtvBoundaryChart({
         <Line
           type="monotone"
           dataKey="etv"
-          stroke="var(--og-accent, #F59E0B)"
+          stroke="var(--color-accent, #F59E0B)"
           strokeWidth={2}
           dot={false}
           isAnimationActive={false}

@@ -154,6 +154,7 @@ export function AreaTrendChart({ trend }: { trend: MonthlySearch[] }) {
             width={44}
             axisLine={false}
             tickLine={false}
+            style={{ fontVariantNumeric: "tabular-nums" }}
           />
           <Tooltip
             contentStyle={{

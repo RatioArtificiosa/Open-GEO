@@ -100,7 +100,7 @@ export function ScoreRing({
             strokeWidth="3"
             strokeDasharray={dash}
             strokeDashoffset={offset}
-            className="stroke-[var(--og-accent,#F59E0B)]"
+            className="stroke-[var(--color-accent,#F59E0B)]"
             strokeLinecap="round"
           />
         </svg>

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   Tooltip,
@@ -27,63 +26,85 @@ export function BacklinksTrendChart({
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="h-56 min-w-0"
-      aria-label="Backlink trend chart"
-    >
-      {chartWidth > 0 ? (
-        <LineChart
-          width={chartWidth}
-          height={224}
-          data={data}
-          margin={{ left: 8, right: 8, top: 8, bottom: 0 }}
-        >
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="currentColor"
-            opacity={0.12}
-          />
-          <XAxis
-            dataKey="date"
-            tickFormatter={formatChartTick}
-            minTickGap={24}
-          />
-          <YAxis yAxisId="left" tickFormatter={formatAxisValue} width={60} />
-          <YAxis
-            yAxisId="right"
-            orientation="right"
-            tickFormatter={formatAxisValue}
-            width={60}
-          />
-          <Tooltip
-            formatter={formatTooltipValue}
-            labelFormatter={formatChartLabel}
-          />
-          <Legend />
-          <Line
-            yAxisId="left"
-            type="monotone"
-            dataKey="backlinks"
-            stroke="#2563eb"
-            strokeWidth={2}
-            dot={false}
-            name="Backlinks"
-          />
-          <Line
-            yAxisId="right"
-            type="monotone"
-            dataKey="referringDomains"
-            stroke="#14b8a6"
-            strokeWidth={2}
-            dot={false}
-            name="Referring domains"
-          />
-        </LineChart>
-      ) : null}
+    <div>
+      <div
+        ref={containerRef}
+        className="h-56 min-w-0"
+        aria-label="Backlink trend chart"
+      >
+        {chartWidth > 0 ? (
+          <LineChart
+            width={chartWidth}
+            height={224}
+            data={data}
+            margin={{ left: 8, right: 8, top: 8, bottom: 0 }}
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="currentColor"
+              opacity={0.12}
+            />
+            <XAxis
+              dataKey="date"
+              tickFormatter={formatChartTick}
+              minTickGap={24}
+            />
+            <YAxis
+              yAxisId="left"
+              tickFormatter={formatAxisValue}
+              width={60}
+              label={{ value: "Backlinks", angle: -90, position: "insideLeft" }}
+              style={{ fontVariantNumeric: "tabular-nums" }}
+            />
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              tickFormatter={formatAxisValue}
+              width={60}
+              label={{
+                value: "Referring domains",
+                angle: 90,
+                position: "insideRight",
+              }}
+              style={{ fontVariantNumeric: "tabular-nums" }}
+            />
+            <Tooltip
+              formatter={formatTooltipValue}
+              labelFormatter={formatChartLabel}
+            />
+            <Line
+              yAxisId="left"
+              type="monotone"
+              dataKey="backlinks"
+              stroke="var(--color-accent, #F59E0B)"
+              strokeWidth={2}
+              dot={false}
+              name="Backlinks"
+            />
+            <Line
+              yAxisId="right"
+              type="monotone"
+              dataKey="referringDomains"
+              stroke="#34D399"
+              strokeWidth={2}
+              dot={false}
+              name="Referring domains"
+            />
+          </LineChart>
+        ) : null}
+      </div>
+      <p className="mt-1 text-xs text-base-content/50">
+        DataForSEO backlinks · daily over the last year
+      </p>
     </div>
   );
 }
+
+/** Gain and loss are the one place a status pair is the honest encoding. */
+const NEW_LOST_SERIES = [
+  { label: "New backlinks", color: "#34D399" },
+  { label: "Lost backlinks", color: "#F87171" },
+] as const;
 
 export function BacklinksNewLostChart({
   data,
@@ -97,52 +118,75 @@ export function BacklinksNewLostChart({
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="h-56 min-w-0"
-      aria-label="New and lost backlinks chart"
-    >
-      {chartWidth > 0 ? (
-        <LineChart
-          width={chartWidth}
-          height={224}
-          data={data}
-          margin={{ left: 8, right: 8, top: 8, bottom: 0 }}
-        >
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="currentColor"
-            opacity={0.12}
-          />
-          <XAxis
-            dataKey="date"
-            tickFormatter={formatChartTick}
-            minTickGap={24}
-          />
-          <YAxis tickFormatter={formatAxisValue} width={60} />
-          <Tooltip
-            formatter={formatTooltipValue}
-            labelFormatter={formatChartLabel}
-          />
-          <Legend />
-          <Line
-            type="monotone"
-            dataKey="lostBacklinks"
-            stroke="#ef4444"
-            strokeWidth={2}
-            dot={false}
-            name="Lost backlinks"
-          />
-          <Line
-            type="monotone"
-            dataKey="newBacklinks"
-            stroke="#16a34a"
-            strokeWidth={2}
-            dot={false}
-            name="New backlinks"
-          />
-        </LineChart>
-      ) : null}
+    <div>
+      <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1">
+        {NEW_LOST_SERIES.map((s) => (
+          <span
+            key={s.label}
+            className="inline-flex items-center gap-1 text-[11px] text-base-content/60"
+          >
+            <span
+              className="size-2 rounded-sm"
+              style={{ backgroundColor: s.color }}
+            />
+            {s.label}
+          </span>
+        ))}
+      </div>
+      <div
+        ref={containerRef}
+        className="h-56 min-w-0"
+        aria-label="New and lost backlinks chart"
+      >
+        {chartWidth > 0 ? (
+          <LineChart
+            width={chartWidth}
+            height={224}
+            data={data}
+            margin={{ left: 8, right: 8, top: 8, bottom: 0 }}
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="currentColor"
+              opacity={0.12}
+            />
+            <XAxis
+              dataKey="date"
+              tickFormatter={formatChartTick}
+              minTickGap={24}
+            />
+            <YAxis
+              tickFormatter={formatAxisValue}
+              width={60}
+              label={{ value: "Links", angle: -90, position: "insideLeft" }}
+              style={{ fontVariantNumeric: "tabular-nums" }}
+            />
+            <Tooltip
+              formatter={formatTooltipValue}
+              labelFormatter={formatChartLabel}
+            />
+            <Line
+              type="monotone"
+              dataKey="lostBacklinks"
+              stroke="#F87171"
+              strokeWidth={2}
+              dot={false}
+              name="Lost backlinks"
+            />
+            <Line
+              type="monotone"
+              dataKey="newBacklinks"
+              stroke="#34D399"
+              strokeWidth={2}
+              dot={false}
+              name="New backlinks"
+            />
+          </LineChart>
+        ) : null}
+      </div>
+      <p className="mt-1 text-xs text-base-content/50">
+        DataForSEO backlinks · daily over the last year
+      </p>
     </div>
   );
 }

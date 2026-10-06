@@ -155,7 +155,7 @@ export function MentionsTrendPanel({
           // `connectNulls` stays false: a missing month breaks the line instead
           // of drawing a straight line through a measurement we do not have.
           connectNulls={false}
-          stroke="var(--og-accent, #F59E0B)"
+          stroke="var(--color-accent, #F59E0B)"
           strokeWidth={2}
           dot={{ r: 2 }}
           isAnimationActive={false}

@@ -18,10 +18,10 @@ import {
 } from "./RankTrackingTrendChart";
 
 const BUCKETS = [
-  { key: "top3", label: "Top 3", color: "#16a34a" },
-  { key: "top4to10", label: "4–10", color: "#2563eb" },
-  { key: "top11to20", label: "11–20", color: "#f59e0b" },
-  { key: "notRanking", label: "Not in top 20", color: "#6b7280" },
+  { key: "top3", label: "Top 3", color: "var(--color-accent, #F59E0B)" },
+  { key: "top4to10", label: "4–10", color: "#34D399" },
+  { key: "top11to20", label: "11–20", color: "#60A5FA" },
+  { key: "notRanking", label: "Not in top 20", color: "#6B7280" },
 ] as const;
 
 /** Narrowed recharts tooltip payload entry (typed `any` upstream). */
@@ -121,17 +121,18 @@ export function RankTrackingOverview({
                   scale="time"
                   domain={["dataMin", "dataMax"]}
                   tickFormatter={formatDateTick}
-                  tick={{ fontSize: 10, fill: "#888" }}
+                  tick={{ fontSize: 10, fill: "var(--trend-axis-color)" }}
                   tickLine={false}
                   axisLine={false}
                   minTickGap={32}
                 />
                 <YAxis
                   allowDecimals={false}
-                  tick={{ fontSize: 10, fill: "#888" }}
+                  tick={{ fontSize: 10, fill: "var(--trend-axis-color)" }}
                   tickLine={false}
                   axisLine={false}
                   width={28}
+                  style={{ fontVariantNumeric: "tabular-nums" }}
                 />
                 <Tooltip
                   content={(props: TooltipContentProps<number, string>) => {
@@ -146,12 +147,12 @@ export function RankTrackingOverview({
                     const byKey = new Map(
                       payload.map((p: PayloadEntry) => [
                         String(p.dataKey),
-                        typeof p.value === "number" ? p.value : 0,
+                        typeof p.value === "number" ? p.value : null,
                       ]),
                     );
                     return <DistributionTooltip label={label} byKey={byKey} />;
                   }}
-                  cursor={{ stroke: "rgba(150,150,150,0.3)" }}
+                  cursor={{ stroke: "var(--trend-grid-color)" }}
                 />
                 {BUCKETS.map((b) => (
                   <Area
@@ -170,6 +171,9 @@ export function RankTrackingOverview({
             ) : null}
           </div>
         )}
+        <p className="text-[11px] text-base-content/50">
+          Google positions · DataForSEO rank tracking
+        </p>
       </div>
     </div>
   );
@@ -180,7 +184,7 @@ function DistributionTooltip({
   byKey,
 }: {
   label: number;
-  byKey: Map<string, number>;
+  byKey: Map<string, number | null>;
 }) {
   return (
     <div className="rounded-md border border-base-300 bg-base-100 px-3 py-2 shadow-sm space-y-0.5">
@@ -199,7 +203,7 @@ function DistributionTooltip({
           />
           <span className="text-base-content/60">{b.label}:</span>
           <span className="font-medium tabular-nums">
-            {byKey.get(b.key) ?? 0}
+            {byKey.get(b.key) ?? "—"}
           </span>
         </p>
       ))}

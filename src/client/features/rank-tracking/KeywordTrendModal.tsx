@@ -21,8 +21,8 @@ const DEVICE_STYLE: Record<
   "desktop" | "mobile",
   { label: string; color: string }
 > = {
-  desktop: { label: "Desktop", color: "#2563eb" },
-  mobile: { label: "Mobile", color: "#14b8a6" },
+  desktop: { label: "Desktop", color: "var(--color-accent, #F59E0B)" },
+  mobile: { label: "Mobile", color: "#34D399" },
 };
 
 export interface KeywordTrendTarget {
