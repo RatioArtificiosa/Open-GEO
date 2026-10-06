@@ -321,6 +321,31 @@ So copying the signature of the neighbour we already call sends a task **missing
 field**, and a rejected task is still billed. `competitors_domain` also accepts a page URL
 as `target` while returning domain-level results — a silent widening rather than an error.
 
+### 4.5 Clickstream `global_search_volume` is global, and that is a comparison trap `[V 2026-10-06]`
+
+**The endpoint takes no `location_code` and no `language_code`.** Its `search_volume` is a
+**global** figure, and the country split comes back as `country_distribution`
+(`country_iso_code` / `search_volume` / `percentage`). So the top-level number is **not
+comparable to any national figure this product shows**, and a view that puts the two side by
+side is wrong in a way that reads as authoritative. Compare against the country entry, and
+treat a **missing country entry as `uncomparable` rather than a guess** — the vendor's own
+breakdown includes a `null` country bucket, so an entry can legitimately be absent.
+
+Three more from the same page, all verified 2026-10-06:
+
+- **Each keyword must be at least 3 characters**, and short ones are _rejected_, not dropped.
+  A dropped keyword would leave a gap in a comparison that reads as "no measurement exists".
+- Upper-case is normalised to lower-case server-side, so a caller's casing is not the join key.
+- The reference's own sample response shows **`cost: 0.15`** while the price book says
+  **$0.18 a call**. The sample is stamped `version 0.1.20240801`, so it predates the current
+  price; the book is right. **A stale number in a code example is a number somebody will
+  hard-code**, which is why billing reads the task's own `cost` field and never a constant.
+
+**Its role is arbitration, not sourcing.** It is billed **per call, not per keyword**, so a
+batch costs the same as a single keyword, and it exists to _settle_ a question about a
+figure we already have rather than to fetch a corpus. `@/shared/volume-routing` holds that
+as `role: "arbitration"`, and `sharedKeywordsPerTask` refuses to let one size a batch.
+
 ---
 
 ## 5. On-Page — the most expensive API to misuse

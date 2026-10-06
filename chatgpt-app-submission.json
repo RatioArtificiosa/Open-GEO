@@ -236,6 +236,18 @@
         "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
       }
     },
+    "reconcile_keyword_volumes": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Not read-only despite changing nothing: it spends provider credits on two data requests (the keyword metrics it compares and the clickstream measurement it compares against) before returning a comparison.",
+        "open_world_justification": "Operates only on private OpenGeo state or private provider data and cannot change publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
     "run_rank_tracker": {
       "annotations": {
         "readOnlyHint": false,

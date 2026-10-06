@@ -41,6 +41,7 @@ import {
   fetchAdsKeywordIdeas,
   fetchAdsSearchVolume,
 } from "@/server/lib/dataforseo/google-ads";
+import { fetchClickstreamVolumes } from "@/server/lib/dataforseo/clickstream";
 import {
   fetchLiveSerp,
   fetchLocalSerp,
@@ -130,6 +131,15 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       // Google Ads endpoints for countries Labs doesn't support.
       adsIdeas: meter(customer, fetchAdsKeywordIdeas),
       adsSearchVolume: meter(customer, fetchAdsSearchVolume),
+      // Clickstream-measured volume: the arbitration source that checks a volume we
+      // already show. Metered here rather than called directly, because a call that
+      // skips this wrapper is spend nobody attributes — and it is billed **per request**,
+      // not per keyword, which is why the reconciliation passes one batch.
+      clickstreamVolumes: meter(
+        customer,
+        fetchClickstreamVolumes,
+        "keyword_research",
+      ),
     },
     domain: {
       rankOverview: meter(customer, fetchDomainRankOverview),
