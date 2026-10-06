@@ -431,3 +431,33 @@ html[data-theme="opengeo-dark"] .alert-success {
 html[data-theme="opengeo-dark"] .alert-error {
   @apply border-error/60 bg-error/20;
 }
+
+/* ---------------------------------------------------------------------------
+   DESIGN.md §7 — motion respects the reader's setting.
+
+   The app animates through Tailwind's `transition-*`, `animate-spin` and
+   `animate-pulse`. **None of them consults `prefers-reduced-motion`**, and a
+   media query cannot be applied through a utility, so the rule is global rather
+   than per-element: a reader who has asked their system to stop moving things
+   is asking about all of them, and a per-component rule is one that will be
+   missed in the next component.
+
+   **0.01ms rather than a literal 0**, deliberately. §7 says "durations drop to
+   0", and that is the intent — but a true 0 can suppress `animationend` and
+   `transitionend`, which some UI waits on to resolve a state. 0.01ms is
+   instantaneous to a reader and still fires the event.
+
+   **`iteration-count: 1` is what actually stops a loop.** A 0.01ms animation
+   that repeats forever still repaints forever, which is the opposite of what
+   was asked for.
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
