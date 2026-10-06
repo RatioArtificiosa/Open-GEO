@@ -14,6 +14,7 @@ import {
   useSelectionAnchor,
 } from "@/client/components/table/AppDataTable";
 import { SortableHeader } from "@/client/components/table/SortableHeader";
+import { Sparkline } from "@/client/components/Sparkline";
 import { DifficultyBadge } from "@/client/features/domain/components/DifficultyBadge";
 import { IntentBadge } from "@/client/features/keywords/components";
 import type { KeywordIntent, SavedKeywordRow } from "@/types/keywords";
@@ -59,6 +60,17 @@ export function SavedKeywordsTable({
           <SortableHeader column={column} label="Volume" />
         ),
         cell: ({ getValue }) => formatSavedKeywordNumber(getValue()),
+      }),
+      columnHelper.display({
+        id: "trend",
+        // §14.4's sparkline. **Not sortable, deliberately:** the line is the
+        // shape of the volume column beside it, so a reader sorts by the value
+        // it summarises, never by its slope — and "sort by how steep it looks"
+        // is not a question this table can answer.
+        header: () => "Trend",
+        cell: ({ row }) => <Sparkline points={row.original.monthlySearches} />,
+        enableSorting: false,
+        meta: { cellClassName: "w-24" },
       }),
       columnHelper.accessor("cpc", {
         header: ({ column }) => <SortableHeader column={column} label="CPC" />,
@@ -170,9 +182,10 @@ function SavedKeywordsSkeleton() {
     <div className="space-y-3" aria-busy>
       <div className="skeleton h-4 w-48" />
       {Array.from({ length: 8 }).map((_, index) => (
-        <div key={index} className="grid grid-cols-9 items-center gap-3">
+        <div key={index} className="grid grid-cols-10 items-center gap-3">
           <div className="skeleton h-4" />
           <div className="skeleton col-span-2 h-4" />
+          <div className="skeleton h-4" />
           <div className="skeleton h-4" />
           <div className="skeleton h-4" />
           <div className="skeleton h-4" />
