@@ -16,6 +16,7 @@ import {
   TrendRangeToggle,
   useChartWidth,
 } from "./RankTrackingTrendChart";
+import { useChartMotion } from "@/client/lib/useChartMotion";
 
 const BUCKETS = [
   { key: "top3", label: "Top 3", color: "var(--color-accent, #F59E0B)" },
@@ -40,6 +41,7 @@ export function RankTrackingOverview({
   configId: string;
 }) {
   const [sinceDays, setSinceDays] = useState(730);
+  const chartMotion = useChartMotion();
 
   const { data: trend, isLoading: trendLoading } = useQuery({
     queryKey: ["rankConfigTrend", projectId, configId, device, sinceDays],
@@ -164,7 +166,7 @@ export function RankTrackingOverview({
                     stroke={b.color}
                     fill={b.color}
                     fillOpacity={0.7}
-                    isAnimationActive={false}
+                    {...chartMotion}
                   />
                 ))}
               </AreaChart>

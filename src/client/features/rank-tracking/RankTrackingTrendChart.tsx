@@ -9,6 +9,7 @@ import {
   YAxis,
 } from "recharts";
 import type { TooltipContentProps } from "recharts";
+import { useChartMotion } from "@/client/lib/useChartMotion";
 
 export interface TrendSeries {
   /** key into each data row holding the position value (1 = best, serpDepth = bottom band) */
@@ -58,6 +59,7 @@ export function RankTrendChart({
    * single keyword's position line, not for an averaged value. */
   showBottomBand?: boolean;
 }) {
+  const chartMotion = useChartMotion();
   const { containerRef, width: chartWidth } = useChartWidth();
 
   return (
@@ -143,7 +145,7 @@ export function RankTrendChart({
                 dot={{ r: 2 }}
                 activeDot={{ r: 4 }}
                 connectNulls={false}
-                isAnimationActive={false}
+                {...chartMotion}
               />
             ))}
           </LineChart>

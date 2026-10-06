@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import { ETV_CUTOVER_DATE } from "@/shared/etv-versioning";
 import { buildEtvSeriesView, type EtvPoint } from "./etv-series-view";
+import { useChartMotion } from "@/client/lib/useChartMotion";
 
 /**
  * An ETV trend with the formula change drawn on it.
@@ -41,6 +42,7 @@ export function EtvBoundaryChart({
   label?: string;
   height?: number;
 }) {
+  const chartMotion = useChartMotion();
   const view = useMemo(() => buildEtvSeriesView(data), [data]);
   const { points: plotted, caveat, showBoundary, isEmpty } = view;
 
@@ -118,7 +120,7 @@ export function EtvBoundaryChart({
           stroke="var(--color-accent, #F59E0B)"
           strokeWidth={2}
           dot={false}
-          isAnimationActive={false}
+          {...chartMotion}
         />
       </LineChart>
       {caveat ? (

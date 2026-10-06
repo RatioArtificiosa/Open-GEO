@@ -13,6 +13,7 @@ import {
 import type { MonthlySearch } from "@/types/keywords";
 import { formatCompactNumber } from "../utils";
 import { FloatingTooltip, useFloatingTooltip } from "./FloatingTooltip";
+import { useChartMotion } from "@/client/lib/useChartMotion";
 
 export type SortField =
   | "keyword"
@@ -64,8 +65,7 @@ export function AreaTrendChart({ trend }: { trend: MonthlySearch[] }) {
   const last12 = sorted.slice(-12);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [chartWidth, setChartWidth] = useState(0);
-
-  if (last12.length === 0) return null;
+  const chartMotion = useChartMotion();
 
   useEffect(() => {
     const container = containerRef.current;
@@ -84,6 +84,13 @@ export function AreaTrendChart({ trend }: { trend: MonthlySearch[] }) {
       observer.disconnect();
     };
   }, []);
+
+  // **The early return sits after the effect, not above it.** It used to be
+  // between `useState` and `useEffect`, which is a rules-of-hooks violation: a
+  // render that switched between an empty and a non-empty `trend` changed the
+  // hook count and React threw. The effect only reads a ref, so running it
+  // against an empty chart is inert.
+  if (last12.length === 0) return null;
 
   const monthLabels = [
     "Jan",
@@ -172,7 +179,7 @@ export function AreaTrendChart({ trend }: { trend: MonthlySearch[] }) {
             stroke="var(--color-primary)"
             strokeWidth={2}
             fill="url(#trendGrad)"
-            isAnimationActive={false}
+            {...chartMotion}
             dot={{ r: 3, fill: "var(--color-primary)", strokeWidth: 0 }}
             activeDot={{ r: 5, fill: "var(--color-primary)" }}
           />

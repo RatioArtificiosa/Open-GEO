@@ -10,12 +10,14 @@ import {
 } from "recharts";
 import { formatCount } from "@/client/features/ai-search/platformLabels";
 import type { BrandLookupResult } from "@/types/schemas/ai-search";
+import { useChartMotion } from "@/client/lib/useChartMotion";
 
 type Props = {
   result: BrandLookupResult;
 };
 
 export function BrandLookupMentionTrendCard({ result }: Props) {
+  const chartMotion = useChartMotion();
   const chartData = useMemo(
     () =>
       result.monthlyVolume.map((entry) => ({
@@ -73,6 +75,7 @@ export function BrandLookupMentionTrendCard({ result }: Props) {
               strokeWidth={2}
               dot={false}
               connectNulls={false}
+              {...chartMotion}
             />
           </LineChart>
         </ResponsiveContainer>

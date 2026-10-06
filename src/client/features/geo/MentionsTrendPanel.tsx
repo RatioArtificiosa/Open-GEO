@@ -13,6 +13,7 @@ import {
   type MentionMonth,
 } from "./mentions-trend";
 import { MetricFootnote } from "./LivePanels";
+import { useChartMotion } from "@/client/lib/useChartMotion";
 
 /**
  * The mentions trend panel, per platform.
@@ -66,6 +67,7 @@ export function MentionsTrendPanel({
   months: MentionMonth[];
   height?: number;
 }) {
+  const chartMotion = useChartMotion();
   const trend = buildMentionsTrend(months);
   const summary = describeMentionsTrend(trend);
 
@@ -158,7 +160,7 @@ export function MentionsTrendPanel({
           stroke="var(--color-accent, #F59E0B)"
           strokeWidth={2}
           dot={{ r: 2 }}
-          isAnimationActive={false}
+          {...chartMotion}
         />
       </LineChart>
 

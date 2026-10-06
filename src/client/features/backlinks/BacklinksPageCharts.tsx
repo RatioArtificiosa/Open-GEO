@@ -13,12 +13,14 @@ import {
   formatMonthLabel,
   formatTooltipValue,
 } from "./backlinksPageUtils";
+import { useChartMotion } from "@/client/lib/useChartMotion";
 
 export function BacklinksTrendChart({
   data,
 }: {
   data: BacklinksOverviewData["trends"];
 }) {
+  const chartMotion = useChartMotion();
   const { containerRef, chartWidth } = useChartWidth();
 
   if (data.length === 0) {
@@ -80,6 +82,7 @@ export function BacklinksTrendChart({
               strokeWidth={2}
               dot={false}
               name="Backlinks"
+              {...chartMotion}
             />
             <Line
               yAxisId="right"
@@ -89,6 +92,7 @@ export function BacklinksTrendChart({
               strokeWidth={2}
               dot={false}
               name="Referring domains"
+              {...chartMotion}
             />
           </LineChart>
         ) : null}
@@ -111,6 +115,7 @@ export function BacklinksNewLostChart({
 }: {
   data: BacklinksOverviewData["newLostTrends"];
 }) {
+  const chartMotion = useChartMotion();
   const { containerRef, chartWidth } = useChartWidth();
 
   if (data.length === 0) {
@@ -172,6 +177,7 @@ export function BacklinksNewLostChart({
               strokeWidth={2}
               dot={false}
               name="Lost backlinks"
+              {...chartMotion}
             />
             <Line
               type="monotone"
@@ -180,6 +186,7 @@ export function BacklinksNewLostChart({
               strokeWidth={2}
               dot={false}
               name="New backlinks"
+              {...chartMotion}
             />
           </LineChart>
         ) : null}

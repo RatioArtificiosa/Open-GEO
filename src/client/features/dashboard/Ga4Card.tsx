@@ -20,6 +20,7 @@ import {
   formatCtr,
 } from "@/client/features/search-performance/SearchPerformanceColumns";
 import { getGa4DashboardReport } from "@/serverFunctions/ga4";
+import { useChartMotion } from "@/client/lib/useChartMotion";
 
 function formatTrendDay(date: string): string {
   // Construct in local time: Date.parse("2026-08-01") is UTC midnight, which
@@ -78,6 +79,7 @@ export function Ga4Card({
     queryFn: () => getGa4DashboardReport({ data: { projectId } }),
     enabled: connected,
   });
+  const chartMotion = useChartMotion();
 
   // Not connected (or a dead grant discovered by the report call): the
   // connection card sells and runs the whole flow itself.
@@ -173,6 +175,7 @@ export function Ga4Card({
                     strokeWidth={2}
                     fill="var(--color-primary)"
                     fillOpacity={0.08}
+                    {...chartMotion}
                   />
                 </AreaChart>
               </ResponsiveContainer>

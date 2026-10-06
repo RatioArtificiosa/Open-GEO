@@ -6,6 +6,7 @@ import {
   AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
   autumnSeoDataCreditsToUsd,
 } from "@/shared/billing";
+import { useChartMotion } from "@/client/lib/useChartMotion";
 
 const BILLING_USAGE_FEATURE_IDS: string[] = [
   AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
@@ -15,6 +16,7 @@ const BILLING_USAGE_FEATURE_IDS: string[] = [
 export function BillingUsageChart() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState(0);
+  const chartMotion = useChartMotion();
 
   useEffect(() => {
     const el = containerRef.current;
@@ -104,6 +106,7 @@ export function BillingUsageChart() {
               fill="var(--color-accent, #F59E0B)"
               radius={[2, 2, 0, 0]}
               maxBarSize={12}
+              {...chartMotion}
             />
           </BarChart>
         ) : null}

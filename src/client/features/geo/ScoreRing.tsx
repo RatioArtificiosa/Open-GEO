@@ -2,6 +2,7 @@ import {
   describeVisibilityScore,
   type VisibilityScore,
 } from "./visibility-score";
+import { AnimatedNumber } from "@/client/components/AnimatedNumber";
 
 /**
  * The score ring.
@@ -106,8 +107,11 @@ export function ScoreRing({
         </svg>
 
         <div className="min-w-0">
+          {/* §14.5's count-up. The paragraph is `aria-hidden` and the svg above
+              carries the label, so a screen reader hears the value once rather
+              than every tick. */}
           <p className="text-3xl font-semibold tabular-nums" aria-hidden="true">
-            {score.score}
+            <AnimatedNumber value={score.score} />
           </p>
           <p className="text-base-content/70 text-sm">{summary}</p>
         </div>

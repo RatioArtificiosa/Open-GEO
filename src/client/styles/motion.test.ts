@@ -137,6 +137,51 @@ describe("DESIGN.md §7 — motion respects the reader's setting", () => {
     expect(APP_CSS_SOURCE.length).toBeGreaterThan(1000);
     expect(FILES.length).toBeGreaterThan(200);
   });
+
+  it("animates a chart only through the reduced-motion hook", () => {
+    // Recharts animates in JS, so the stylesheet rule cannot reach it: a chart
+    // that animates by default is one a reduced-motion reader cannot turn off.
+    // Either choice is compliant — the hook's props, spread as `{...chartMotion}`
+    // (animate, unless the reader objects) or an explicit
+    // `isAnimationActive={false}` (never animate) — and what this catches is the
+    // third case, which is silence. The spread name is the convention because
+    // hook-presence alone would pass on a file that imported it and never used it.
+    const violations: string[] = [];
+    const charts = FILES.filter((path) =>
+      /from "recharts"/.test(readFileSync(path, "utf8")),
+    );
+    for (const path of charts) {
+      const id = relative(SRC_CLIENT, path).split(sep).join("/");
+      const source = readFileSync(path, "utf8");
+      const compliant =
+        source.includes("useChartMotion") && /\.\.\.chartMotion/.test(source);
+      if (
+        !compliant &&
+        !/isAnimationActive\s*=\s*\{\s*false\s*\}/.test(source)
+      ) {
+        violations.push(`${id}: animates with no reduced-motion guard`);
+      }
+    }
+    expect(
+      charts.length,
+      "the tree still has charts to check",
+    ).toBeGreaterThanOrEqual(9);
+    expect(
+      violations,
+      `Recharts animations are JS; use useChartMotion():\n${violations.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("keeps the count-up reading the same setting", () => {
+    // The other JS-driven animation. §14.5 asks for count-ups; §7 asks that they
+    // be instant when the reader has asked for that.
+    const countUp = readFileSync(
+      join(SRC_CLIENT, "components", "AnimatedNumber.tsx"),
+      "utf8",
+    );
+    expect(countUp).toContain("usePrefersReducedMotion");
+    expect(countUp).toContain("DURATION_MS = 240");
+  });
 });
 
 describe("the motion detectors can fail — the negative controls", () => {
