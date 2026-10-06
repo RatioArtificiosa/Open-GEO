@@ -234,6 +234,7 @@ around by truncation.
 | Labs `search_intent`                            | **1,000**         | none documented                                  |
 | Labs `bulk_keyword_difficulty`                  | **1,000**         | none documented                                  |
 | Labs `keyword_ideas`                            | **200**           | none documented                                  |
+| Labs `keyword_overview`                         | **700**           | **80 chars / 10 words**                          |
 | Labs `related_keywords` · `keyword_suggestions` | 1 (a `keyword`)   | none documented                                  |
 | Labs `historical_search_volume`                 | 700               | **80 chars / 10 words**                          |
 | AI Keyword Data `keywords_search_volume`        | 1,000             | **250 chars**                                    |
@@ -246,8 +247,14 @@ around by truncation.
 
 **Four things this table is for:**
 
-1. **`keyword_ideas` is 200, not 1,000.** A batch sized for the _family_ rather than
-   for the endpoint is a billed rejection, and the number looks interchangeable.
+1. **Two Labs endpoints are not 1,000: `keyword_ideas` is 200 and `keyword_overview`
+   is 700.** A batch sized for the _family_ rather than for the endpoint is a billed
+   rejection, and the numbers look interchangeable. `keyword_overview` is the one to
+   remember, because it is the endpoint keyword metrics are actually pulled from, and
+   because the price book's Labs line says "1,000 items per request" for the family —
+   which is the number a maintainer would size a batch by. In OpenGeo:
+   `@/shared/volume-routing` holds the caps, per endpoint, and the metric path asks it
+   instead of keeping a constant.
 2. **`search_intent` takes no `location_code` and no `language_code`** — verified
    twice, from the reference and from this article. It is the one Labs endpoint whose
    market is not a parameter, because the classification is multilingual. Sending a

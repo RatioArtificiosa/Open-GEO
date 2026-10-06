@@ -3,6 +3,7 @@ import type { AdsKeywordItem } from "@/server/lib/dataforseo/google-ads";
 import type { KeywordOverviewItem } from "@/server/lib/dataforseo/labs";
 import type { CreditFeature } from "@/shared/billing-credit-features";
 import { getKeywordDataProvider } from "@/shared/keyword-locations";
+import { sharedKeywordsPerTask } from "@/shared/volume-routing";
 import type { MonthlySearch } from "@/types/keywords";
 
 type DataforseoClient = ReturnType<typeof createDataforseoClient>;
@@ -12,9 +13,6 @@ type KeywordMetricsClient = {
   labs: Pick<DataforseoClient["labs"], "keywordOverview">;
   keywords: Pick<DataforseoClient["keywords"], "adsSearchVolume">;
 };
-
-// DataForSEO's batch metric endpoints accept up to ~700 keywords per request.
-const KEYWORD_METRICS_BATCH_SIZE = 700;
 
 // `intent` is the raw `main_intent` (null for Google Ads); run it through
 // `normalizeIntent` for the app enum. `competition` is a 0-1 ratio.
@@ -117,8 +115,21 @@ export async function fetchKeywordMetricsForList(
     getKeywordDataProvider(params.locationCode) === "google_ads";
   const rows: KeywordMetricRow[] = [];
 
-  for (let i = 0; i < params.keywords.length; i += KEYWORD_METRICS_BATCH_SIZE) {
-    const keywords = params.keywords.slice(i, i + KEYWORD_METRICS_BATCH_SIZE);
+  // The slice is bounded by the strictest endpoint it is sent to: a local request
+  // feeds Google Ads *and* Labs, and Labs takes 700 where Ads takes 1,000. **This is
+  // where the routing discipline lives** — sizing by the family instead of the
+  // endpoint is a silent double charge in one direction (Ads batched at Labs' 700)
+  // and a **billed rejection** in the other (Labs sent 1,000).
+  const { keywordsPerTask: batchSize } = sharedKeywordsPerTask(
+    useGoogleAds
+      ? ["google_ads"]
+      : params.locationName
+        ? ["google_ads", "labs_keyword_overview"]
+        : ["labs_keyword_overview"],
+  );
+
+  for (let i = 0; i < params.keywords.length; i += batchSize) {
+    const keywords = params.keywords.slice(i, i + batchSize);
 
     if (useGoogleAds) {
       const items = await client.keywords.adsSearchVolume({

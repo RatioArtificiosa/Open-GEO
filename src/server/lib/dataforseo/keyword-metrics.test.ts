@@ -130,6 +130,61 @@ describe("fetchKeywordMetricsForList", () => {
     expect(rows).toHaveLength(1500);
   });
 
+  it("uses Google Ads' full thousand-keyword batch rather than the Labs cap", async () => {
+    // **The routing fix, asserted where the money is.** This path batched at 700 for
+    // every source because 700 is the `keyword_overview` cap, so a 1,000-keyword pull
+    // made two calls where one is enough — $0.12 instead of $0.06 on the Standard
+    // queue, silently, because two correct calls look exactly like one.
+    const adsSearchVolume = vi.fn(
+      async ({ keywords }: { keywords: string[] }) =>
+        keywords.map((keyword) => ({ keyword })),
+    );
+    const client = fakeClient({ adsSearchVolume });
+    const keywords = Array.from({ length: 1000 }, (_, i) => `kw-${i}`);
+
+    const rows = await fetchKeywordMetricsForList(client, {
+      keywords,
+      locationCode: 2352, // Iceland — a Google Ads country
+      languageCode: "is",
+      creditFeature: "keyword_research",
+    });
+
+    expect(adsSearchVolume).toHaveBeenCalledTimes(1);
+    expect(adsSearchVolume.mock.calls[0]?.[0]?.keywords).toHaveLength(1000);
+    expect(rows).toHaveLength(1000);
+  });
+
+  it("keeps a local request's shared slice under the strictest of the two caps", async () => {
+    // A local request sends the *same* slice to Google Ads and Labs. Ads takes 1,000;
+    // Labs takes 700 — and Labs over its cap is a rejection the vendor bills for,
+    // which is why the slice is the minimum of the two caps and not the first
+    // source's number.
+    const adsSearchVolume = vi.fn(
+      async ({ keywords }: { keywords: string[] }) =>
+        keywords.map((keyword) => ({ keyword })),
+    );
+    const keywordOverview = vi.fn(
+      async ({ keywords }: { keywords: string[] }) =>
+        keywords.map((keyword) => ({ keyword, keyword_info: {} })),
+    );
+    const client = fakeClient({ adsSearchVolume, keywordOverview });
+    const keywords = Array.from({ length: 1000 }, (_, i) => `kw-${i}`);
+
+    await fetchKeywordMetricsForList(client, {
+      keywords,
+      locationCode: 2840, // US — a Labs country, so the local path runs both calls
+      languageCode: "en",
+      locationName: "Austin,Texas,United States",
+      creditFeature: "keyword_research",
+    });
+
+    expect(adsSearchVolume).toHaveBeenCalledTimes(2); // 700 + 300
+    expect(keywordOverview).toHaveBeenCalledTimes(2);
+    for (const call of keywordOverview.mock.calls) {
+      expect(call[0]?.keywords.length).toBeLessThanOrEqual(700);
+    }
+  });
+
   it("merges city-scoped Ads volume with national Labs KD for local requests", async () => {
     const adsSearchVolume = vi.fn().mockResolvedValue([
       {

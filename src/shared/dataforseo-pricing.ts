@@ -181,11 +181,12 @@ export const DFS_KEYWORDS = {
     live: { perRequest: money(0.09) } satisfies DfsPrice,
     caveat: "Flat per task, up to 1,000 keywords. $60 per 1M keywords.",
   },
-  /** Bing Ads — same price, but only 200 keywords per task. */
+  /** Bing Ads — same price, smaller batch. */
   bingAds: {
     standard: { perRequest: money(0.06) } satisfies DfsPrice,
     live: { perRequest: money(0.09) } satisfies DfsPrice,
-    caveat: "Only 200 keywords per task — hence $300 per 1M.",
+    caveat:
+      "200 keywords per task for `keywords_for_keywords` — hence $300 per 1M. Bing `search_volume` takes 1,000, so 200 is one endpoint's number; the conservative reading stands, and nothing here routes to Bing.",
   },
   /** Google Ads ad traffic forecast. NOTE: `impressions` and `ctr` come back
    *  null (deprecated upstream) — only clicks/average_cpc/cost are usable. */
@@ -229,7 +230,8 @@ export const DFS_LABS = {
     perRequest: money(0.012),
     perUnit: money(0.00012),
     unitName: "item",
-    caveat: "$132 per 1M items. 1,000 items per request.",
+    caveat:
+      "$132 per 1M items. 1,000 items per request is the FAMILY figure: `keyword_overview` takes 700 (80 chars / 10 words), and the caps live in `@/shared/volume-routing`.",
   } satisfies DfsPrice,
   /** search_intent is tiered the same way but called out separately because it
    *  powers the What-to-Build module. */
