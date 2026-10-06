@@ -88,7 +88,7 @@ export function AnswerDiffPanel({
     return (
       <p className="mt-2 text-xs text-base-content/60">
         {data.noDiffReason ??
-          "There is nothing to compare for this question yet."}
+          "There is nothing to compare yet. A diff needs two runs of this question, and the archive holds one — the answer appears once a second run lands."}
       </p>
     );
   }

@@ -32,8 +32,9 @@ export function BrandLookupMentionTrendCard({ result }: Props) {
 
   if (chartData.length === 0) {
     return (
-      <div className="flex h-56 items-center justify-center text-sm text-base-content/60">
-        Not enough historical data yet.
+      <div className="flex h-56 items-center justify-center px-6 text-center text-sm text-base-content/60">
+        No monthly volumes yet. The vendor reports them per prompting mention,
+        so this fills once a prompt that mentions the brand carries a history.
       </div>
     );
   }

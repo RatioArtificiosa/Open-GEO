@@ -227,8 +227,10 @@ function useChartWidth() {
 
 function EmptyChartState() {
   return (
-    <div className="flex h-56 items-center justify-center rounded-xl border border-dashed border-base-300 text-sm text-base-content/55">
-      Not enough historical data yet.
+    <div className="flex h-56 items-center justify-center rounded-xl border border-dashed border-base-300 px-6 text-center text-sm text-base-content/55">
+      No trend to draw yet. This chart needs more than one dated reading for the
+      target, and the vendor has returned fewer than that — running the lookup
+      again later is what fills it.
     </div>
   );
 }
