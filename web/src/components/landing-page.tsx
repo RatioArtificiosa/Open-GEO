@@ -12,6 +12,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { featurePages } from "@/lib/feature-pages";
 import { freeTools } from "@/lib/free-tools/tool-pages";
 import { ProductProof, TheBill, TheToolkit } from "./product-sections";
+import { AgencyReport } from "@/components/agency-report";
 import "./landing-page.css";
 
 const SIGNUP_URL = "https://app.opengeo.so/sign-up";
@@ -1262,6 +1263,7 @@ export function LandingPage() {
       <ProductProof />
       <TheBill />
       <TheToolkit />
+      <AgencyReport />
       <ProductSection />
       <McpSection />
       <Testimonial />
