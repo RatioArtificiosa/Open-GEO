@@ -207,6 +207,33 @@ function Pricing() {
         Other SEO tools are too expensive. OpenGeo grows with you.
       </p>
 
+      {/* 1.5 The risk reversal — the strongest thing we have */}
+      <section className="mt-8 grid gap-6 sm:grid-cols-3">
+        {[
+          {
+            figure: "No card",
+            body: "Start the free trial without a payment method — nothing to cancel, because nothing was charged.",
+          },
+          {
+            figure: "$0.50 free",
+            body: "The trial includes credits to test every tool: research, backlinks, rank tracking, and the AI checks.",
+          },
+          {
+            figure: "$10 includes $10",
+            body: "The Base Plan's monthly usage allowance covers a month of ordinary use, so the plan itself is the whole cost.",
+          },
+        ].map((item) => (
+          <div key={item.figure}>
+            <p className="text-2xl font-semibold tabular-nums tracking-tight text-[var(--color-brand-accent-text)]">
+              {item.figure}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-[var(--color-brand-muted)]">
+              {item.body}
+            </p>
+          </div>
+        ))}
+      </section>
+
       {/* 2. Base Plan */}
       <section className="mt-10 border-y border-[var(--color-border-subtle)] py-8">
         <div className="flex items-baseline justify-between gap-4">
@@ -416,6 +443,32 @@ function Pricing() {
               .
             </p>
           </div>
+        </div>
+      </section>
+
+      {/* 3.5 The argument around the estimate */}
+      <section className="mt-8 grid gap-8 sm:grid-cols-2">
+        <div>
+          <p className="text-base font-semibold tracking-tight text-neutral-950">
+            What the sliders cannot predict
+          </p>
+          <p className="mt-2 text-sm leading-6 text-[var(--color-brand-muted)]">
+            The estimate assumes typical result limits. Real cost moves with how
+            deep each search runs and how many platforms you scan, so read the
+            number as the model, not a quote — the receipt shows the exact
+            figure after every run.
+          </p>
+        </div>
+        <div>
+          <p className="text-base font-semibold tracking-tight text-neutral-950">
+            Why a number that moves is the point
+          </p>
+          <p className="mt-2 text-sm leading-6 text-[var(--color-brand-muted)]">
+            Every slider recomputes the bill live, from the same flat{" "}
+            {Math.round((MARKUP - 1) * 100)}% markup the receipt on the homepage
+            publishes. That liveness is the proof: you are watching the model
+            that actually bills you, not a price chosen to look good.
+          </p>
         </div>
       </section>
 
