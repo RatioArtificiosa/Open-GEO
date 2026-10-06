@@ -22,6 +22,57 @@ import {
 const SKIPPED_LINK_PROTOCOLS = /^(javascript:|mailto:|tel:|#)/;
 /** Subtrees whose text is not visible content. */
 const NON_CONTENT_TAGS = new Set(["script", "style", "noscript", "svg"]);
+/**
+ * Elements whose boundaries are whitespace between words.
+ *
+ * Joining text nodes directly is `textContent`, which has no separators:
+ * `<p>plumber</p><p>rates</p>` becomes `plumberrates`. Every consumer of `bodyText`
+ * wants `innerText` instead, which is what a browser lays out and what a reader sees, so
+ * `wordCount` ran one short per seam (thin-content findings), two terms merged at a
+ * boundary (density findings), and `contentHash` covered a string nobody would read.
+ *
+ * Inline tags are deliberately absent. `<b>plum</b>ber` is one word, and separating at an
+ * inline boundary would split it into two.
+ */
+const BLOCK_TAGS = new Set([
+  "address",
+  "article",
+  "aside",
+  "blockquote",
+  "br",
+  "dd",
+  "div",
+  "dl",
+  "dt",
+  "fieldset",
+  "figcaption",
+  "figure",
+  "footer",
+  "form",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "header",
+  "hr",
+  "li",
+  "main",
+  "nav",
+  "ol",
+  "p",
+  "pre",
+  "section",
+  "table",
+  "tbody",
+  "td",
+  "tfoot",
+  "th",
+  "thead",
+  "tr",
+  "ul",
+]);
 const HEADING_LEVELS: Record<string, number> = {
   h1: 1,
   h2: 2,
@@ -256,6 +307,13 @@ export function analyzeHtml(
           // would otherwise swallow every following heading into one string.
           openHeading = { level: headingLevel, text: [] };
         }
+        // A block boundary is a word boundary. Pushed at the *open* rather than the
+        // close, because the tokenizer's open order is the order text arrives in and a
+        // void element such as `<br>` never closes. See `BLOCK_TAGS`.
+        if (BLOCK_TAGS.has(name)) {
+          if (bodyDepth > 0) bodyParts.push(" ");
+          else if (headDepth === 0) fallbackParts.push(" ");
+        }
       },
       ontext(text) {
         // **Before the `suppressDepth` guard.** `script` is in
@@ -273,18 +331,6 @@ export function analyzeHtml(
         if (openHeading) openHeading.text.push(text);
         if (openAnchor) openAnchor.text.push(text);
         if (bodyDepth > 0) {
-          // **Known defect, recorded rather than fixed in place: adjacent blocks are
-          // concatenated with no separator.** `<p>plumber</p><p>rates</p>` becomes
-          // `plumberrates`, so `wordCount` is one short per seam, a term can merge with
-          // the following word, and `contentHash` covers a string nobody would see.
-          // Browsers lay blocks out with space between them, and `innerText` reports
-          // that, which is the text this is meant to measure. Found while building
-          // keyword density, which hits it directly.
-          //
-          // **Why not fixed here:** the correction changes `word_count` and
-          // `content_hash` for every page ever crawled, which moves thin-content and
-          // duplicate-content findings for existing audits. That is a change worth its
-          // own item and its own note, not a passenger on a density commit.
           bodyParts.push(text);
         } else if (headDepth === 0) {
           fallbackParts.push(text);

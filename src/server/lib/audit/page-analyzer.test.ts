@@ -11,6 +11,51 @@ import type { PageAnalysis, PageLink } from "@/server/lib/audit/types";
 import type { StuffedTerm } from "@/server/lib/audit/keyword-density";
 
 /**
+ * Block-level elements, whose boundaries separate words in visible text.
+ *
+ * A deliberate second copy of the analyzer's list: see the note where it is used.
+ */
+const BLOCK_TAGS_REFERENCE = [
+  "address",
+  "article",
+  "aside",
+  "blockquote",
+  "br",
+  "dd",
+  "div",
+  "dl",
+  "dt",
+  "fieldset",
+  "figcaption",
+  "figure",
+  "footer",
+  "form",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "header",
+  "hr",
+  "li",
+  "main",
+  "nav",
+  "ol",
+  "p",
+  "pre",
+  "section",
+  "table",
+  "tbody",
+  "td",
+  "tfoot",
+  "th",
+  "thead",
+  "tr",
+  "ul",
+];
+
+/**
  * Walks a parsed JSON-LD value for `@type`, the way a schema.org consumer would.
  *
  * **Independent of the streaming parser's scanner on purpose.** The parser reads
@@ -95,6 +140,16 @@ function analyzeHtmlWithCheerio(html: string, pageUrl: string): PageAnalysis {
 
   const bodyClone = $("body").clone();
   bodyClone.find("script, style, noscript, svg").remove();
+  // **Mirrors `BLOCK_TAGS` in the analyzer, duplicated on purpose.** This helper is the
+  // independent reference for the streaming parser, so importing that list would make the
+  // two sides agree by construction on the very thing being checked. The separator is
+  // inserted as a *sibling* (`.after`) rather than as a child, which also covers void tags
+  // such as `<br>` that cannot hold a text node.
+  for (const tag of BLOCK_TAGS_REFERENCE) {
+    bodyClone.find(tag).each((_, element) => {
+      $(element).after(" ");
+    });
+  }
   const bodyText = bodyClone.text().replace(/\s+/g, " ").trim();
   const wordCount = bodyText ? bodyText.split(/\s+/).length : 0;
   // **Deliberately not reimplemented here.** This helper is a cheerio-based reference
@@ -416,13 +471,12 @@ describe("analyzeHtml extraction caps", () => {
     // in this file are prose, so a hardcoded `stuffedTerms: []` in the analyzer would
     // satisfy every one of them. This is the case that would not: repetition in real
     // HTML has to survive the tokenizer and the word count to reach the reporters.
-    // The trailing space inside the first paragraph is load-bearing: block boundaries
-    // are currently concatenated with no separator (see the note on `bodyParts` in
-    // `page-analyzer.ts`), so without it the last `plumber` would merge with `word0`
-    // and this test would be measuring that defect instead of the density wiring.
+    // No trailing space needed inside the paragraph: block boundaries are word
+    // boundaries now (see `BLOCK_TAGS`), so this measures the density wiring rather than
+    // the seam that used to merge the last `plumber` with `word0`.
     const filler = Array.from({ length: 40 }, (_, i) => `word${i}`).join(" ");
     const analysis = analyzeHtml(
-      `<body><p>${Array.from({ length: 20 }, () => "plumber").join(" ")} </p><p>${filler}</p></body>`,
+      `<body><p>${Array.from({ length: 20 }, () => "plumber").join(" ")}</p><p>${filler}</p></body>`,
       "https://example.com/plumbing",
       200,
       100,
@@ -433,5 +487,35 @@ describe("analyzeHtml extraction caps", () => {
     expect(analysis.stuffedTerms[0]?.count).toBe(20);
     // 20 uses in 60 counted words.
     expect(analysis.stuffedTerms[0]?.density).toBeCloseTo(20 / 60, 5);
+  });
+
+  it("separates words at block boundaries, the way a browser lays them out", () => {
+    // `<p>plumber</p><p>rates</p>` extracted as `plumberrates`: one word where a reader
+    // sees two, and a term merged with the next block's first word. Joining text nodes
+    // gives `textContent`, which has no separators; every consumer of `bodyText` wants
+    // `innerText`, which does.
+    const analysis = analyzeHtml(
+      "<body><p>plumber</p><p>rates</p><ul><li>near</li><li>me</li></ul></body>",
+      "https://example.com/plumbing",
+      200,
+      0,
+    );
+
+    expect(analysis.bodyText).toBe("plumber rates near me");
+    expect(analysis.wordCount).toBe(4);
+  });
+
+  it("does not split a word at an inline boundary", () => {
+    // The other half of the rule, and the reason the list is block-only: `<b>` is inline,
+    // so `plum` and `ber` are one word. Separating at every tag would break this.
+    const analysis = analyzeHtml(
+      "<body><p><b>plum</b>ber</p></body>",
+      "https://example.com/plumbing",
+      200,
+      0,
+    );
+
+    expect(analysis.bodyText).toBe("plumber");
+    expect(analysis.wordCount).toBe(1);
   });
 });
