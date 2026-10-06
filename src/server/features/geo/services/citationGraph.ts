@@ -1,4 +1,5 @@
 import { hostOf } from "./urlIdentity";
+import type { CoCitationLink, CoCitationNode } from "./citationCoCitations";
 
 /**
  * The citation graph, and the "earn the citation" list.
@@ -81,6 +82,20 @@ type CitationGraph = {
   insight: string | null;
   /** What this graph is not. Always present. */
   caveat: string;
+  /**
+   * The co-citation view: which domains the engines reach for *together*, derived
+   * from the answers that cited both (see `citationCoCitations`).
+   *
+   * **This is the force graph's data, and it is second by design.** §14.4 puts it
+   * in that order — *"an elegant ranked list first, force graph second. Most teams
+   * won't read a hairball"* — so it is carried beside the list rather than
+   * instead of it, and it is absent (empty) when the archive is too thin to
+   * support an edge.
+   */
+  coCitations: {
+    nodes: CoCitationNode[];
+    links: CoCitationLink[];
+  };
 };
 
 const CAVEAT =
@@ -102,6 +117,8 @@ export function buildCitationGraph(input: {
   }>;
   /** Fewer than this and the archive is too thin to support a finding. */
   minDomainsForInsight?: number;
+  /** The edges, already capped and ordered. Absent when nothing was derived. */
+  coCitations?: { nodes: CoCitationNode[]; links: CoCitationLink[] };
 }): CitationGraph {
   const own = hostOf(input.ownDomain);
   const minDomains = input.minDomainsForInsight ?? 3;
@@ -171,6 +188,7 @@ export function buildCitationGraph(input: {
     unreached,
     insight: null,
     caveat: CAVEAT,
+    coCitations: input.coCitations ?? { nodes: [], links: [] },
   };
   graph.insight = describe(graph, minDomains);
   return graph;

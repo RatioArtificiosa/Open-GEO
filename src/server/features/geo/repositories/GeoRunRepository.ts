@@ -16,7 +16,9 @@ import {
   aiKeywordMetrics,
   aiModeSnapshotCitations,
   aiModeSnapshots,
+  geoAnswerCitations,
   geoCitationDomains,
+  geoSnapshotAnswers,
   geoSnapshots,
   geoTargetMetrics,
 } from "@/db/schema";
@@ -259,6 +261,35 @@ async function insertAiModeSnapshot(
   });
 }
 
+/**
+ * Every (answer, cited host) pair inside one run, for the co-citation graph.
+ *
+ * **A flat read, not a self-join.** The pairs are derived in
+ * `citationCoCitations`, because that is where the caps and the tie-breaks live
+ * and a pure function can be tested without a database. The join here is the one
+ * that scopes the read: `geo_answers` carries no `snapshot_id`, so membership
+ * comes through `geo_snapshot_answers` — the same trap the forecast reader was
+ * caught by, and the reason the `WHERE` is on the link table's column.
+ */
+async function listSnapshotCitations(
+  projectId: string,
+  snapshotId: string,
+): Promise<Array<{ answerId: string; domain: string | null }>> {
+  const snapshot = await getSnapshot(projectId, snapshotId);
+  if (!snapshot) return [];
+  return db
+    .select({
+      answerId: geoAnswerCitations.answerId,
+      domain: geoAnswerCitations.domain,
+    })
+    .from(geoAnswerCitations)
+    .innerJoin(
+      geoSnapshotAnswers,
+      eq(geoSnapshotAnswers.answerId, geoAnswerCitations.answerId),
+    )
+    .where(eq(geoSnapshotAnswers.snapshotId, snapshotId));
+}
+
 export const GeoRunRepository = {
   listSnapshots,
   getSnapshot,
@@ -266,6 +297,7 @@ export const GeoRunRepository = {
   completeSnapshot,
   listTargetMetrics,
   listCitationDomains,
+  listSnapshotCitations,
   insertTargetMetrics,
   insertCitationDomains,
   listAiKeywordHistory,

@@ -34,6 +34,10 @@ export function useCitationGraph(input: {
     unreached: string[];
     insight: string | null;
     caveat: string | null;
+    coCitations: {
+      nodes: Array<{ domain: string; answers: number }>;
+      links: Array<{ a: string; b: string; answers: number }>;
+    };
   };
   citationGraphError: string | null;
 } {
@@ -51,6 +55,12 @@ export function useCitationGraph(input: {
       unreached: query.data?.unreached ?? [],
       insight: query.data?.insight ?? null,
       caveat: query.data?.caveat ?? null,
+      // The graph is second by design (§14.4), so it arrives beside the list and
+      // is empty rather than absent when the archive is too thin to form an edge.
+      coCitations: {
+        nodes: query.data?.coCitations?.nodes ?? [],
+        links: query.data?.coCitations?.links ?? [],
+      },
     },
     citationGraphError: query.error
       ? "Could not load the earn-the-citation list."

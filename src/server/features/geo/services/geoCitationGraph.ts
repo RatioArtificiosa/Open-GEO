@@ -27,6 +27,7 @@ import { AppError } from "@/server/lib/errors";
 import { GeoRunRepository } from "@/server/features/geo/repositories/GeoRunRepository";
 import { GeoSetupRepository } from "@/server/features/geo/repositories/GeoSetupRepository";
 import { buildCitationGraph } from "@/server/features/geo/services/citationGraph";
+import { buildCoCitations } from "@/server/features/geo/services/citationCoCitations";
 import { hostOf } from "@/server/features/geo/services/urlIdentity";
 import { GEO_PLATFORMS } from "@/server/features/geo/repositories/GeoSetupRepository";
 
@@ -90,6 +91,14 @@ export async function getCitationGraph(input: {
       pages: 0,
       backlinksToUs: null,
     })),
+    // **The edges come from the answers, not from the rollups.** The per-platform
+    // rows above have already collapsed to a count per domain, which is exactly
+    // the information an edge needs to keep — so the pairs are read separately,
+    // scoped to the same run, and capped by `buildCoCitations` because §14.4's
+    // list comes first and a graph of everything is a hairball.
+    coCitations: buildCoCitations(
+      await GeoRunRepository.listSnapshotCitations(input.projectId, latest.id),
+    ),
   });
 }
 
