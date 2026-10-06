@@ -28,6 +28,7 @@ import {
   reconcileVolume,
   summariseReconciliation,
 } from "@/shared/volume-reconciliation";
+import { getIsoCountryCode } from "@/shared/keyword-locations";
 
 type VolumeReconciliationRow = {
   keyword: string;
@@ -54,14 +55,18 @@ export async function reconcileVolumes(input: {
   locationCode: number;
   languageCode: string;
   /**
-   * The market the reference figures describe. Required rather than inferred: the
-   * clickstream breakdown is keyed by ISO-3166 alpha-2 and the endpoint takes no
-   * `location_code`, so there is nothing here to map a DataForSEO market onto, and a
-   * default would silently compare one market's figures against another's measurement.
+   * The market the reference figures describe, as ISO-3166 alpha-2. **Optional**, because the
+   * project's own market resolves to one: `getIsoCountryCode` maps a location code to ISO and
+   * carries the single divergence in the supported list (the United Kingdom's label is `UK`,
+   * its ISO code is `GB`). Pass it to check a different market deliberately.
    */
-  countryIsoCode: string;
+  countryIsoCode?: string;
 }): Promise<VolumeReconciliation> {
   const client = createDataforseoClient(input.billing);
+  // Uppercased for the summary and the prose; the comparison itself is case-insensitive.
+  const countryIsoCode = (
+    input.countryIsoCode ?? getIsoCountryCode(input.locationCode)
+  ).toUpperCase();
 
   const metrics = await fetchKeywordMetricsForList(client, {
     keywords: input.keywords,
@@ -88,12 +93,12 @@ export async function reconcileVolumes(input: {
       referenceVolume: referenceByKeyword.get(key) ?? null,
       globalVolume: measurement?.globalVolume ?? null,
       countryDistribution: measurement?.countryDistribution ?? [],
-      countryIsoCode: input.countryIsoCode,
+      countryIsoCode,
     });
   });
 
   return {
-    countryIsoCode: input.countryIsoCode,
+    countryIsoCode,
     summary: summariseReconciliation(rows),
     rows: rows.map((row) => ({
       keyword: row.keyword,

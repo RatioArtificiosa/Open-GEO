@@ -38,6 +38,12 @@ export function formatLocationLabel(
 /**
  * shortLabel is a *display* label; the one entry that diverges from ISO
  * 3166-1 alpha-2 is the United Kingdom ("UK" reads better, ISO is "GB").
+ *
+ * **Verified rather than assumed, 2026-10-06:** every one of the 197 supported labels was
+ * checked against a canonical country-code list, and the United Kingdom is the **only**
+ * divergence. That matters because anything keyed by ISO — a clickstream
+ * `country_distribution`, a SERP locations lookup — would look the British market up as `UK`,
+ * find nothing, and report an honest but useless "no data" instead of an answer.
  */
 const ISO_COUNTRY_OVERRIDES: Record<string, string> = { UK: "GB" };
 

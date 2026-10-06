@@ -16,17 +16,19 @@ const inputSchema = {
       "Keywords to check. Keep it to the ones you are about to make a decision with, because every keyword is billed on both sides of the comparison.",
     ),
   /**
-   * **Required, and not inferred from the project's market.** The clickstream breakdown
-   * is keyed by ISO-3166 alpha-2 and the endpoint takes no `location_code`, so there is
-   * nothing to map a DataForSEO market onto. Defaulting to a country would silently
-   * compare one market's figures against another market's measurement, which is the
-   * failure this tool exists to catch.
+   * **Optional, and it defaults to the project's own market.** The clickstream breakdown is
+   * keyed by ISO-3166 alpha-2 while the endpoint takes no `location_code`, so the market has
+   * to be translated; `getIsoCountryCode` does that and carries the one divergence in the
+   * supported list (the United Kingdom is labelled `UK`, its ISO code is `GB`). Pass this only
+   * to check a different market deliberately — comparing one market's figures against another
+   * market's measurement is the failure this tool exists to catch.
    */
   countryIsoCode: z
     .string()
     .length(2)
+    .optional()
     .describe(
-      "Market the volume figures describe, as ISO-3166 alpha-2 (for example US). Must match the project's market, because the comparison is against that country's measured volume.",
+      "Market the volume figures describe, as ISO-3166 alpha-2. Defaults to the project's own market; set it only to check a different one.",
     ),
 } as const;
 
@@ -37,7 +39,7 @@ export const reconcileKeywordVolumesTool = {
   config: {
     title: "Reconcile keyword volumes",
     description:
-      "Checks the search volumes this product shows against clickstream-measured volumes, and says where the two disagree. Use it before making a decision that depends on a volume figure, or when a keyword's volume looks implausible. Google Ads reports grouped estimates, so a keyword can inherit a cluster's total; this is how you find out. Charges credits: one keyword-metrics request plus one clickstream request, the latter billed per call rather than per keyword.",
+      "Checks the search volumes this product shows against clickstream-measured volumes, and says where the two disagree. Use it before making a decision that depends on a volume figure, or when a keyword's volume looks implausible. Google Ads reports grouped estimates, so a keyword can inherit a cluster's total; this is how you find out. Charges credits: one keyword-metrics request plus one clickstream request, the latter billed per call rather than per keyword. Compares against the project's own market unless countryIsoCode says otherwise.",
     inputSchema,
     outputSchema: z
       .object({

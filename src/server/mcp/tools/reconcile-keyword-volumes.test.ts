@@ -145,6 +145,43 @@ describe("reconcile_keyword_volumes", () => {
     });
   });
 
+  it("defaults the market from the project, including the label that is not an ISO code", async () => {
+    // Britain is the single divergence between the picker's labels and ISO-3166: the label is
+    // `UK` and the code is `GB`. The breakdown is keyed by ISO, so without that translation
+    // every British keyword would come back `uncomparable` — honest, but useless, and it would
+    // read like a vendor limitation rather than a missing line of code.
+    mocks.getProjectForOrganization.mockResolvedValue({
+      id: "project_1",
+      locationCode: 2826,
+      languageCode: "en",
+    });
+    mocks.fetchKeywordMetricsForList.mockResolvedValue([
+      { keyword: "plumber", searchVolume: 1_000 },
+    ]);
+    mocks.createDataforseoClient.mockReturnValue({
+      keywords: {
+        clickstreamVolumes: vi.fn().mockResolvedValue([
+          {
+            keyword: "plumber",
+            globalVolume: 900_000,
+            countryDistribution: [
+              { countryIsoCode: "GB", searchVolume: 1_050, percentage: 12 },
+            ],
+          },
+        ]),
+      },
+    });
+
+    const result = await reconcileKeywordVolumesTool.handler(
+      // No countryIsoCode passed: the project's own market has to supply it.
+      { projectId: "project_1", keywords: ["plumber"] },
+      toolContext,
+    );
+
+    expect(structured(result).summary.corroborated).toBe(1);
+    expect(textContent(result)).toMatch(/measured volume for GB/);
+  });
+
   it("says plainly when nothing could be checked instead of implying agreement", async () => {
     mocks.createDataforseoClient.mockReturnValue({
       keywords: {
