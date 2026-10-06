@@ -1,4 +1,10 @@
 import { GeoSetupRepository } from "@/server/features/geo/repositories/GeoSetupRepository";
+import { GeoRunRepository } from "@/server/features/geo/repositories/GeoRunRepository";
+import {
+  buildPromptSet,
+  type GeneratedPrompt,
+} from "@/server/features/geo/services/promptSetGenerator";
+import type { GeoPromptIntent } from "@/server/features/geo/repositories/GeoSetupRepository";
 import { runBatch } from "@/db/runBatch";
 import { AppError } from "@/server/lib/errors";
 
@@ -129,9 +135,99 @@ async function deletePromptSet(projectId: string, promptSetId: string) {
   );
 }
 
+/**
+ * A **draft** prompt set, built from what the archive already holds.
+ *
+ * ## Why a draft, and not a saved set
+ *
+ * This writes nothing. The owner reviews it in the same textarea they already use
+ * and saves what they want, so a generate is a **read-only** call: it costs
+ * nothing, and it cannot put questions into someone's next run that they never saw.
+ * The editor stays the one place a question enters the archive, which is what makes
+ * `promptsForQueuedRun`'s contract ("ask what the project configured") true.
+ *
+ * ## The three seeds, and where each one actually comes from
+ *
+ * - **Demand** — `ai_keyword_metrics`, the cached `ai_keyword_data` pull, which ranks
+ *   the set. AI demand rather than search volume on purpose: a topic with AI demand
+ *   and no Google demand is invisible to classic SEO tools, and it is the clause of
+ *   the `what-to-build` thesis this list is built on.
+ * - **Intent** — `keyword_metrics`, the classification the recommender already
+ *   cached, read only for the keywords demand returned. No model call happens here.
+ * - **Observed questions** — the prompts of this project's archived answers: the
+ *   honest half of the mentions seed the row names, because every stored answer
+ *   records the prompt that produced it.
+ *
+ * ## An empty draft has two causes, so the caller gets the counts
+ *
+ * "No prompts" on its own is the shape this repository refuses — a reader cannot
+ * tell a product that is broken from a project that has not run yet. No AI keywords
+ * means the demand pull has not happened; no archived prompts means the first patrol
+ * has not finished. The editor says which, because it is the only one of the two the
+ * reader can act on.
+ */
+async function generatePromptSet(projectId: string): Promise<{
+  prompts: GeneratedPrompt[];
+  seedCounts: { aiKeywords: number; archivedPrompts: number };
+}> {
+  const [demand, mentionQuestions] = await Promise.all([
+    GeoRunRepository.listAiKeywordDemand(projectId),
+    GeoRunRepository.listRecentArchivedPrompts(projectId),
+  ]);
+
+  const intents = await GeoRunRepository.listKeywordIntents(
+    projectId,
+    demand.map((row) => row.keyword),
+  );
+  const intentByKeyword = new Map(
+    intents.map((row) => [row.keyword, row.intent]),
+  );
+
+  const prompts = buildPromptSet({
+    mentionQuestions,
+    keywords: demand.map((row) => ({
+      keyword: row.keyword,
+      intent: toPromptIntent(intentByKeyword.get(row.keyword)),
+      aiSearchVolume: row.aiSearchVolume,
+    })),
+  });
+
+  return {
+    prompts,
+    seedCounts: {
+      aiKeywords: demand.length,
+      archivedPrompts: mentionQuestions.length,
+    },
+  };
+}
+
+/**
+ * The stored intent, or null when it is missing or is the keywords feature's
+ * `unknown`.
+ *
+ * A whitelist rather than a cast, for the reason `GeoSetupRepository`'s own
+ * `toIntent` gives: the two features spell the same four intents, and one of them
+ * has a fifth value. `unknown` is *not* informational — it means nobody classified
+ * it — so it maps to null and the generator picks its documented fallback.
+ */
+function toPromptIntent(
+  value: string | null | undefined,
+): GeoPromptIntent | null {
+  switch (value) {
+    case "informational":
+    case "commercial":
+    case "transactional":
+    case "navigational":
+      return value;
+    default:
+      return null;
+  }
+}
+
 export {
   createPromptSet,
   deletePromptSet,
+  generatePromptSet,
   listPromptSets,
   promptsForQueuedRun,
 };

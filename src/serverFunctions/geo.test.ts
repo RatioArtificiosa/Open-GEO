@@ -64,6 +64,7 @@ const geoServiceMock = {
   upsertTarget: serviceSpy(),
   deleteTarget: serviceSpy(),
   listPromptSets: serviceSpy(),
+  generatePromptSet: serviceSpy(),
   createPromptSet: serviceSpy(),
   deletePromptSet: serviceSpy(),
   getVisibility: serviceSpy(),
@@ -180,6 +181,10 @@ const EXPECTED = [
   "createGeoPromptSet",
   "deleteGeoPromptSet",
   "deleteGeoTarget",
+  // Drafting a set from the archive. Added here when it shipped: the pin exists so
+  // a new entry point is a *decision* about the surface rather than a silent
+  // addition, and adding the name is the whole of that decision.
+  "generateGeoPromptSet",
   "getGeoAiKeywordHistory",
   "getGeoAnswer",
   "getGeoAnswerDiff",

@@ -17,6 +17,7 @@ import { GeoAnswerRepository } from "@/server/features/geo/repositories/GeoAnswe
 import {
   createPromptSet,
   deletePromptSet,
+  generatePromptSet,
   listPromptSets,
   promptsForQueuedRun,
 } from "./geoPromptSets";
@@ -522,6 +523,7 @@ export const GeoService = {
   upsertTarget,
   deleteTarget,
   listPromptSets,
+  generatePromptSet,
   promptsForQueuedRun,
   createPromptSet,
   deletePromptSet,

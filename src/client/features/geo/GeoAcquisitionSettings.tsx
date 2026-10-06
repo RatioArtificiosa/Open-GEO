@@ -3,8 +3,10 @@ import { useState } from "react";
 import {
   createGeoPromptSet,
   deleteGeoPromptSet,
+  generateGeoPromptSet,
   listGeoPromptSets,
 } from "@/serverFunctions/geo";
+import { normalisePrompt } from "@/shared/prompt-normalisation";
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
 
 /**
@@ -39,6 +41,14 @@ export function GeoAcquisitionSettings({ projectId }: Props) {
   const queryClient = useQueryClient();
   const [promptsText, setPromptsText] = useState("");
   const [setName, setSetName] = useState("");
+  // What the last generate did. Kept because **an empty suggestion has two causes**
+  // and the note has to tell the reader which one they can act on.
+  const [suggestion, setSuggestion] = useState<{
+    offered: number;
+    added: number;
+    aiKeywords: number;
+    archivedPrompts: number;
+  } | null>(null);
 
   const sets = useQuery({
     // The project is in the key for the same reason it is on every other GEO
@@ -80,6 +90,42 @@ export function GeoAcquisitionSettings({ projectId }: Props) {
     mutationFn: (promptSetId: string) =>
       deleteGeoPromptSet({ data: { promptSetId } }),
     onSuccess: invalidate,
+  });
+
+  /**
+   * Draft a set from the archive.
+   *
+   * **Appends, and never replaces.** A reader who has typed three questions and
+   * clicks Suggest would otherwise lose them, and a button that eats your work is
+   * one nobody presses twice. Suggestions already in the box are skipped using the
+   * same normalisation the generator uses — one rule, imported, not a second
+   * implementation that can disagree about whether the box already has a question.
+   */
+  const suggest = useMutation({
+    mutationFn: () => generateGeoPromptSet({ data: {} }),
+    onSuccess: (result) => {
+      const existing = promptsText
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+      const seen = new Set(existing.map(normalisePrompt));
+      const added: string[] = [];
+      for (const entry of result.prompts) {
+        const key = normalisePrompt(entry.prompt);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        added.push(entry.prompt);
+      }
+      if (added.length > 0) {
+        setPromptsText([...existing, ...added].join("\n"));
+      }
+      setSuggestion({
+        offered: result.prompts.length,
+        added: added.length,
+        aiKeywords: result.seedCounts.aiKeywords,
+        archivedPrompts: result.seedCounts.archivedPrompts,
+      });
+    },
   });
 
   const error = create.error ?? remove.error;
@@ -158,9 +204,22 @@ export function GeoAcquisitionSettings({ projectId }: Props) {
           onChange={(event) => setSetName(event.target.value)}
         />
 
-        <label className="block text-sm font-medium" htmlFor="geo-set-prompts">
-          Questions, one per line
-        </label>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label
+            className="block text-sm font-medium"
+            htmlFor="geo-set-prompts"
+          >
+            Questions, one per line
+          </label>
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs"
+            disabled={saving || suggest.isPending}
+            onClick={() => suggest.mutate()}
+          >
+            {suggest.isPending ? "Reading the archive…" : "Suggest questions"}
+          </button>
+        </div>
         <textarea
           id="geo-set-prompts"
           className="textarea w-full"
@@ -169,6 +228,20 @@ export function GeoAcquisitionSettings({ projectId }: Props) {
           placeholder={"best crm for small teams\nis acme.com reliable"}
           onChange={(event) => setPromptsText(event.target.value)}
         />
+
+        {suggestion ? (
+          <p className="text-base-content/70 text-xs">
+            {describeSuggestion(suggestion)}
+          </p>
+        ) : null}
+        {suggest.error ? (
+          <p className="text-error text-sm">
+            {getStandardErrorMessage(
+              suggest.error,
+              "Could not suggest questions.",
+            )}
+          </p>
+        ) : null}
 
         <button
           type="button"
@@ -190,4 +263,36 @@ export function GeoAcquisitionSettings({ projectId }: Props) {
       </div>
     </section>
   );
+}
+
+/** `1 question` / `2 questions`. Module scope: it captures nothing. */
+function plural(count: number, one: string): string {
+  return count === 1 ? one : `${one}s`;
+}
+
+/**
+ * What the last generate did, in one sentence.
+ *
+ * **An empty suggestion has two causes and they are not the same sentence**, which
+ * is why the server returns the seed counts at all: "the product is broken" and
+ * "this project has never pulled AI demand" look identical from an empty box, and
+ * only the second is something the reader can fix. A note that said "no suggestions"
+ * would send them to support for a project that simply has not run yet.
+ */
+function describeSuggestion(suggestion: {
+  offered: number;
+  added: number;
+  aiKeywords: number;
+  archivedPrompts: number;
+}): string {
+  if (suggestion.offered === 0 && suggestion.aiKeywords === 0) {
+    return "Nothing to suggest yet: suggestions are ranked by AI demand, and this project has no AI keyword data. Pull AI keyword volume for it first.";
+  }
+  if (suggestion.offered === 0) {
+    return "Nothing to suggest yet: there is no AI keyword data and no archived question to draw on. Both arrive with the project's first pull and first patrol.";
+  }
+  if (suggestion.added === 0) {
+    return `All ${suggestion.offered} ${plural(suggestion.offered, "suggestion")} already appear in the box above.`;
+  }
+  return `Added ${suggestion.added} ${plural(suggestion.added, "question")}, ranked by AI demand across ${suggestion.aiKeywords} ${plural(suggestion.aiKeywords, "keyword")} and ${suggestion.archivedPrompts} archived ${plural(suggestion.archivedPrompts, "question")}. Edit before saving — this is a draft, not a claim about how your buyers phrase things.`;
 }

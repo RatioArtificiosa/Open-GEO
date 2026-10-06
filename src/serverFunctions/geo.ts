@@ -20,6 +20,7 @@ import { requireProjectContext } from "@/serverFunctions/middleware";
 import {
   createGeoPromptSetSchema,
   deleteGeoPromptSetSchema,
+  generateGeoPromptSetSchema,
   deleteGeoTargetSchema,
   getGeoAiKeywordHistorySchema,
   getGeoAnswerSchema,
@@ -111,6 +112,22 @@ export const listGeoPromptSets = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
   .validator(listGeoPromptSetsSchema)
   .handler(async ({ context }) => GeoService.listPromptSets(context.projectId));
+
+/**
+ * A draft prompt set built from the archive.
+ *
+ * **It is a POST for the middleware, not because it writes** — nothing is stored, so
+ * this costs nothing and cannot change what the next run asks. The project comes
+ * from the authorized context and is never read from the body, like every neighbour
+ * here: a body carrying its own `projectId` would otherwise read another project's
+ * keywords and prompts.
+ */
+export const generateGeoPromptSet = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(generateGeoPromptSetSchema)
+  .handler(async ({ context }) =>
+    GeoService.generatePromptSet(context.projectId),
+  );
 
 export const createGeoPromptSet = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)

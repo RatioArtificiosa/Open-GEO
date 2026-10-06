@@ -9,7 +9,7 @@
  * Overviews and ChatGPT compute `ai_search_volume` differently, so a combined
  * row would be a number that looks authoritative and means nothing.
  */
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { executeInBatches, runBatch } from "@/db/runBatch";
 import {
@@ -17,10 +17,12 @@ import {
   aiModeSnapshotCitations,
   aiModeSnapshots,
   geoAnswerCitations,
+  geoAnswers,
   geoCitationDomains,
   geoSnapshotAnswers,
   geoSnapshots,
   geoTargetMetrics,
+  keywordMetrics,
 } from "@/db/schema";
 import type { GeoPlatform, GeoTx } from "./GeoSetupRepository";
 
@@ -290,6 +292,113 @@ async function listSnapshotCitations(
     .where(eq(geoSnapshotAnswers.snapshotId, snapshotId));
 }
 
+/**
+ * Every AI keyword this project holds demand for, with its most recent month.
+ *
+ * **The prompt-set generator's ranking seed, and it costs nothing** — this is the
+ * cached result of an `ai_keyword_data` pull, not a vendor call.
+ *
+ * **No `LIMIT`, deliberately.** The obvious version truncates to the newest N rows,
+ * which cuts by *month* rather than by demand and can drop a high-demand keyword
+ * whose last pull was older — the cap would then hide exactly the topics worth
+ * asking about. Truncating before ranking is a defect, so the ranking happens in
+ * `buildPromptSet` and the cap is applied there, after it. The read is bounded by
+ * keywords × months for one project, which the nightly capture's own caps hold.
+ *
+ * The latest month per keyword is chosen in code rather than with a window
+ * function: a portable `ORDER BY month DESC` plus first-one-wins cannot disagree
+ * with itself about which row is "latest", and SQLite, Postgres and libSQL all
+ * spell that differently.
+ */
+async function listAiKeywordDemand(
+  projectId: string,
+): Promise<Array<{ keyword: string; aiSearchVolume: number | null }>> {
+  const rows = await db
+    .select({
+      keyword: aiKeywordMetrics.keyword,
+      aiSearchVolume: aiKeywordMetrics.aiSearchVolume,
+      month: aiKeywordMetrics.month,
+    })
+    .from(aiKeywordMetrics)
+    .where(eq(aiKeywordMetrics.projectId, projectId))
+    .orderBy(desc(aiKeywordMetrics.month), asc(aiKeywordMetrics.keyword));
+
+  const latest = new Map<string, number | null>();
+  for (const row of rows) {
+    // Newest-first, so the first row per keyword is its latest month. A month with
+    // no recorded volume keeps `null` — "not measured" is not zero.
+    if (latest.has(row.keyword)) continue;
+    latest.set(row.keyword, row.aiSearchVolume ?? null);
+  }
+  return [...latest.entries()].map(([keyword, aiSearchVolume]) => ({
+    keyword,
+    aiSearchVolume,
+  }));
+}
+
+/**
+ * The cached search intent for a specific set of keywords.
+ *
+ * Read for the keywords the AI-demand read returned rather than for the whole
+ * project, so the join is small and cannot drift. **The key match is exact** —
+ * `keyword_metrics.keyword` is stored `trim().toLowerCase()` by
+ * `normalizeKeyword` and `ai_keyword_metrics.keyword` by `normaliseAiKeyword`,
+ * which are the same two operations in the same order. A near-miss here would
+ * silently label every keyword unclassified, which is a prompt set of
+ * `what is …` questions and nothing to point at.
+ */
+async function listKeywordIntents(
+  projectId: string,
+  keywords: string[],
+): Promise<Array<{ keyword: string; intent: string | null }>> {
+  if (keywords.length === 0) return [];
+  return db
+    .select({
+      keyword: keywordMetrics.keyword,
+      intent: keywordMetrics.intent,
+    })
+    .from(keywordMetrics)
+    .where(
+      and(
+        eq(keywordMetrics.projectId, projectId),
+        inArray(keywordMetrics.keyword, keywords),
+      ),
+    );
+}
+
+/**
+ * Questions this project's runs have already asked, most recent first.
+ *
+ * **This is the honest half of the blocked mentions call.** The row asks to seed
+ * from *"existing mention questions (`search_scope:["question"]`)"* — questions the
+ * engines have already been asked about the brand — and the archive is where those
+ * actually live today, because every stored answer records the prompt that produced
+ * it. A vendor call would add prompts we have not asked yet; it would not change
+ * what we have, and it cannot be made while the account is unverified.
+ */
+async function listRecentArchivedPrompts(
+  projectId: string,
+  limit = 200,
+): Promise<string[]> {
+  const rows = await db
+    .select({ prompt: geoAnswers.prompt })
+    .from(geoAnswers)
+    .where(eq(geoAnswers.projectId, projectId))
+    .orderBy(desc(geoAnswers.answeredAt))
+    .limit(limit);
+
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const row of rows) {
+    const prompt = row.prompt.trim().replace(/\s+/g, " ");
+    const key = prompt.toLowerCase();
+    if (prompt.length === 0 || seen.has(key)) continue;
+    seen.add(key);
+    out.push(prompt);
+  }
+  return out;
+}
+
 export const GeoRunRepository = {
   listSnapshots,
   getSnapshot,
@@ -298,6 +407,9 @@ export const GeoRunRepository = {
   listTargetMetrics,
   listCitationDomains,
   listSnapshotCitations,
+  listAiKeywordDemand,
+  listKeywordIntents,
+  listRecentArchivedPrompts,
   insertTargetMetrics,
   insertCitationDomains,
   listAiKeywordHistory,

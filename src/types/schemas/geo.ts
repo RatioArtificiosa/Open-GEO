@@ -130,6 +130,14 @@ const promptSchema = z.object({
 
 export const listGeoPromptSetsSchema = z.object({});
 
+/**
+ * Generating takes no arguments: the project comes from the authorized context, and
+ * every seed is read from the archive. An optional `maxPrompts` would be a knob
+ * nobody has asked for — the default is documented in the generator, and the owner
+ * edits the draft rather than the cap.
+ */
+export const generateGeoPromptSetSchema = z.object({});
+
 export const createGeoPromptSetSchema = z.object({
   name: z.string().trim().min(1).max(200),
   description: z.string().trim().max(2000).optional(),
