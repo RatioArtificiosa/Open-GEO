@@ -19,7 +19,7 @@ export function SiteFooter({ className }: { className?: string }) {
       <div className="mt-6 grid grid-cols-2 gap-8 md:grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]">
         <div>
           <p className="font-semibold text-neutral-900">Features</p>
-          <div className="mt-2 flex flex-col gap-1.5">
+          <div className="mt-2 flex flex-col gap-1.5 [&_a]:py-1">
             {featureLinks.map((link) => (
               <a key={link.href} href={link.href}>
                 {link.label}
@@ -31,7 +31,7 @@ export function SiteFooter({ className }: { className?: string }) {
 
         <div>
           <p className="font-semibold text-neutral-900">AI agents</p>
-          <div className="mt-2 flex flex-col gap-1.5">
+          <div className="mt-2 flex flex-col gap-1.5 [&_a]:py-1">
             <Link to="/features/mcp">OpenGeo MCP</Link>
             <Link to="/google-search-console-mcp">
               Google Search Console MCP
@@ -41,7 +41,7 @@ export function SiteFooter({ className }: { className?: string }) {
 
         <div>
           <p className="font-semibold text-neutral-900">Resources</p>
-          <div className="mt-2 flex flex-col gap-1.5">
+          <div className="mt-2 flex flex-col gap-1.5 [&_a]:py-1">
             <a href="/docs/mcp">MCP</a>
             <a href="/docs/skills">Skills</a>
             <Link to="/library">Strategy Library</Link>
@@ -53,7 +53,7 @@ export function SiteFooter({ className }: { className?: string }) {
 
         <div>
           <p className="font-semibold text-neutral-900">Free Tools</p>
-          <div className="mt-2 flex flex-col gap-1.5">
+          <div className="mt-2 flex flex-col gap-1.5 [&_a]:py-1">
             {freeToolList.map((tool) => (
               <a key={tool.slug} href={tool.path}>
                 {tool.name}
@@ -68,7 +68,7 @@ export function SiteFooter({ className }: { className?: string }) {
 
         <div>
           <p className="font-semibold text-neutral-900">Company</p>
-          <div className="mt-2 flex flex-col gap-1.5">
+          <div className="mt-2 flex flex-col gap-1.5 [&_a]:py-1">
             <Link to="/about">About</Link>
             <Link to="/why-opengeo">Why OpenGeo</Link>
             <Link to="/support">Support</Link>

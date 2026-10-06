@@ -208,7 +208,7 @@ function MarketingLayout() {
                 aria-expanded={mobileMenuOpen}
                 aria-controls="nav-mobile-menu"
                 onClick={() => setMobileMenuOpen((open) => !open)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-900 transition-colors hover:bg-[var(--color-surface-sunken)] md:hidden"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full text-neutral-900 transition-colors hover:bg-[var(--color-surface-sunken)] md:hidden"
               >
                 {mobileMenuOpen ? <CloseIcon /> : <MenuIcon />}
               </button>
