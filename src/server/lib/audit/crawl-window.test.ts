@@ -36,6 +36,7 @@ function page(
     headings: [],
     schemaTypes: [],
     wordCount: 0,
+    stuffedTerms: [],
     contentHash: null,
     isHtml: true,
     htmlBytes,

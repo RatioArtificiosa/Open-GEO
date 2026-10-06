@@ -214,6 +214,7 @@ export async function crawlPage(
       // memory and `structuredClone` below detaches them from the HTML body.
       headings: analysis.headings,
       wordCount: analysis.wordCount,
+      stuffedTerms: analysis.stuffedTerms,
       contentHash: analysis.bodyText
         ? await sha256Hex(analysis.bodyText)
         : null,
@@ -330,6 +331,9 @@ function emptyPageResult(input: {
     // distinction `analyzeHtml` makes and the citability rubric scores on.
     headings: [],
     wordCount: 0,
+    // Empty, like `headings` above and for the same reason: the page was not parsed, so
+    // there is nothing to report rather than a finding of "no repetition".
+    stuffedTerms: [],
     contentHash: null,
     isHtml: false,
     htmlBytes: input.htmlBytes ?? 0,

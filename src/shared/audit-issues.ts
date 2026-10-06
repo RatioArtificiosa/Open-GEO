@@ -152,6 +152,14 @@ export const AUDIT_ISSUE_TYPES = {
     howToFix:
       "Either expand the page with genuinely useful content, noindex it, or consolidate it into a stronger page. If the content exists but is rendered by JavaScript, ensure it is server-rendered or pre-rendered.",
   },
+  "keyword-stuffing": {
+    severity: "warning",
+    title: "Repeated term",
+    explanation:
+      "One term makes up an outsized share of this page's visible text. Repetition that heavy reads as written for a crawler rather than for a person, and ranking systems discount pages that do it. This is a statement about repetition only: the audit holds no target keyword per URL, so it says nothing about whether the page is optimised for the right term.",
+    howToFix:
+      "Rewrite the passages that repeat the term, using pronouns and synonyms where they read naturally. If the repetition was added for ranking, remove it: it is more likely to cost positions than to earn them.",
+  },
   "images-missing-alt": {
     severity: "warning",
     title: "Images missing alt text",

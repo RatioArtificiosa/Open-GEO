@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { PageFetchClass } from "@/shared/audit-fetch-class";
 import { MIN_AUDIT_PAGES, PAID_MAX_AUDIT_PAGES } from "@/shared/audit-limits";
 import { jsonCodec } from "@/shared/json";
+import type { StuffedTerm } from "@/server/lib/audit/keyword-density";
 
 export type LighthouseStrategy = "auto" | "none";
 
@@ -83,6 +84,15 @@ export interface PageAnalysis {
   // Content
   wordCount: number;
   bodyText: string;
+  /**
+   * Terms the page repeats past the point of prose, strongest first.
+   *
+   * **Derived here and capped, rather than carrying `bodyText` onward.** A whole page's
+   * text in every record would sit in the 25-page persist batches, which is the shape of
+   * this engine's past memory failures; a handful of terms is the signal the report
+   * needs. Transient: not persisted, consumed in the same run.
+   */
+  stuffedTerms: StuffedTerm[];
 
   // Images
   images: Array<{ src: string | null; alt: string | null }>;
@@ -198,6 +208,8 @@ export interface CrawledPageResult {
    * carrying no types — the first is *not analysed*, the second is a finding.
    */
   schemaTypes: string[];
+  /** Terms repeated past the point of prose. Transient; see `PageAnalysis`. */
+  stuffedTerms: StuffedTerm[];
   hreflangTags: string[];
   isIndexable: boolean;
   responseTimeMs: number;

@@ -45,6 +45,9 @@ function makePage(overrides: Partial<CrawledPageResult>): CrawledPageResult {
     ],
     schemaTypes: ["Article"],
     wordCount: 500,
+    // Empty by default: the density rule has its own tests, and a fixture that wants
+    // stuffing says so by overriding this.
+    stuffedTerms: [],
     contentHash: "abc123",
     isHtml: true,
     htmlBytes: 10_000,
@@ -195,6 +198,39 @@ describe("runPageReporters", () => {
         makePage({ wordCount: 50, isIndexable: false, robotsMeta: "noindex" }),
       ),
     ).not.toContain("thin-content");
+  });
+
+  it("reports a repeated term with the terms and their shares", () => {
+    const page = makePage({
+      wordCount: 400,
+      stuffedTerms: [
+        { term: "plumber", count: 40, density: 0.104 },
+        { term: "london", count: 12, density: 0.031 },
+      ],
+    });
+
+    const issue = runPageReporters(page).find(
+      (found) => found.issueType === "keyword-stuffing",
+    );
+    // Rounded for the report: the stored density is a ratio, and a reader wants a share.
+    expect(issue?.details?.terms).toEqual([
+      { term: "plumber", count: 40, densityPercent: 10 },
+      { term: "london", count: 12, densityPercent: 3 },
+    ]);
+  });
+
+  it("keeps quiet about repetition on a noindex page", () => {
+    // Same reasoning as thin content: on a page that cannot rank, repetition costs
+    // nothing, and reporting it buries the issues that do matter.
+    expect(
+      issueTypes(
+        makePage({
+          isIndexable: false,
+          robotsMeta: "noindex",
+          stuffedTerms: [{ term: "plumber", count: 40, density: 0.2 }],
+        }),
+      ),
+    ).not.toContain("keyword-stuffing");
   });
 
   it("flags slow responses and deep pages", () => {

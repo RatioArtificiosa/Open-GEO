@@ -12,6 +12,7 @@
  */
 import { Parser } from "htmlparser2";
 import { normalizeUrl, isSameOrigin } from "./url-utils";
+import { findStuffedTerms } from "./keyword-density";
 import type { PageAnalysis, PageLink } from "./types";
 import {
   flushSchemaTypes,
@@ -272,6 +273,18 @@ export function analyzeHtml(
         if (openHeading) openHeading.text.push(text);
         if (openAnchor) openAnchor.text.push(text);
         if (bodyDepth > 0) {
+          // **Known defect, recorded rather than fixed in place: adjacent blocks are
+          // concatenated with no separator.** `<p>plumber</p><p>rates</p>` becomes
+          // `plumberrates`, so `wordCount` is one short per seam, a term can merge with
+          // the following word, and `contentHash` covers a string nobody would see.
+          // Browsers lay blocks out with space between them, and `innerText` reports
+          // that, which is the text this is meant to measure. Found while building
+          // keyword density, which hits it directly.
+          //
+          // **Why not fixed here:** the correction changes `word_count` and
+          // `content_hash` for every page ever crawled, which moves thin-content and
+          // duplicate-content findings for existing audits. That is a change worth its
+          // own item and its own note, not a passenger on a density commit.
           bodyParts.push(text);
         } else if (headDepth === 0) {
           fallbackParts.push(text);
@@ -323,6 +336,10 @@ export function analyzeHtml(
   const rawText = (sawBody ? bodyParts : fallbackParts).join("");
   const bodyText = rawText.replace(/\s+/g, " ").trim();
   const wordCount = bodyText ? bodyText.split(/\s+/).length : 0;
+  // Computed here, where the text is, and reduced to a capped list before the page
+  // leaves the analyzer. See `keyword-density.ts` for why this is local rather than
+  // DataForSEO's `on_page/keyword_density`.
+  const stuffedTerms = findStuffedTerms(bodyText);
 
   /**
    * An unclosed heading at EOF still counts. `headingOrder` already recorded its
@@ -359,6 +376,7 @@ export function analyzeHtml(
     headingOrder,
     wordCount,
     bodyText,
+    stuffedTerms,
     images,
     links: Array.from(linksByTarget.values()),
     hasStructuredData,

@@ -139,6 +139,17 @@ export function runPageReporters(page: CrawledPageResult): DetectedIssue[] {
   if (page.isIndexable && page.wordCount < THIN_CONTENT_WORDS) {
     report("thin-content", { wordCount: page.wordCount });
   }
+  if (page.isIndexable && page.stuffedTerms.length > 0) {
+    // Behind `isIndexable` for the same reason thin content is: on a noindex page the
+    // repetition is not a ranking problem, and reporting it buries the issues that are.
+    report("keyword-stuffing", {
+      terms: page.stuffedTerms.map((term) => ({
+        term: term.term,
+        count: term.count,
+        densityPercent: Math.round(term.density * 100),
+      })),
+    });
+  }
   if (page.imagesMissingAlt > 0) {
     report("images-missing-alt", {
       imagesMissingAlt: page.imagesMissingAlt,

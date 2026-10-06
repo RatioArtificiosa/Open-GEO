@@ -13,6 +13,19 @@ import { AppError } from "@/server/lib/errors";
 /**
  * `on_page/content_parsing` — the structure of a page, parsed.
  *
+ * ## This client has no caller, and that is a decision rather than an oversight
+ *
+ * Nothing in the product invokes either half. Every field it would return, this repo
+ * already extracts from bytes it has paid to download: `analyzeHtml` reads heading text
+ * and schema types locally during the crawl, and `runReadiness` records the same refusal
+ * at the point of use (`src/server/features/audit/services/runReadiness.ts`, "What it
+ * deliberately does not do"). **Two sources for one field means a disagreement nobody
+ * would notice**, and the vendor's parse is not more true than the page the crawler
+ * actually fetched.
+ *
+ * So: read the readiness note before wiring this up, and delete this file rather than
+ * leaving it as the obvious-looking answer if the local extraction ever covers it fully.
+ *
  * ## Why this is two calls and not one
  *
  * The vendor **will not parse a page on demand.** `content_parsing` takes a

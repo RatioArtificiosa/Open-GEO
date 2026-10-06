@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { analyzeHtml } from "@/server/lib/audit/page-analyzer";
 import { normalizeUrl, isSameOrigin } from "@/server/lib/audit/url-utils";
 import type { PageAnalysis, PageLink } from "@/server/lib/audit/types";
+import type { StuffedTerm } from "@/server/lib/audit/keyword-density";
 
 /**
  * Walks a parsed JSON-LD value for `@type`, the way a schema.org consumer would.
@@ -96,6 +97,11 @@ function analyzeHtmlWithCheerio(html: string, pageUrl: string): PageAnalysis {
   bodyClone.find("script, style, noscript, svg").remove();
   const bodyText = bodyClone.text().replace(/\s+/g, " ").trim();
   const wordCount = bodyText ? bodyText.split(/\s+/).length : 0;
+  // **Deliberately not reimplemented here.** This helper is a cheerio-based reference
+  // for what the streaming tokenizer extracts, so a second copy of the density rule
+  // would be checking the rule against itself. The rule has its own tests, and the
+  // fixtures here are prose rather than repetition.
+  const stuffedTerms: StuffedTerm[] = [];
 
   const images: Array<{ src: string | null; alt: string | null }> = [];
   $("img").each((_, el) => {
@@ -170,6 +176,7 @@ function analyzeHtmlWithCheerio(html: string, pageUrl: string): PageAnalysis {
     headings,
     headingOrder,
     wordCount,
+    stuffedTerms,
     bodyText,
     images,
     links: Array.from(linksByTarget.values()),
@@ -402,5 +409,29 @@ describe("analyzeHtml extraction caps", () => {
     );
     expect(analysis.links).toHaveLength(1_000);
     expect(analysis.images).toHaveLength(1_000);
+  });
+
+  it("carries the terms the page repeats, from HTML through to the analysis", () => {
+    // **The wiring, not the rule.** The density rule has its own tests, and the fixtures
+    // in this file are prose, so a hardcoded `stuffedTerms: []` in the analyzer would
+    // satisfy every one of them. This is the case that would not: repetition in real
+    // HTML has to survive the tokenizer and the word count to reach the reporters.
+    // The trailing space inside the first paragraph is load-bearing: block boundaries
+    // are currently concatenated with no separator (see the note on `bodyParts` in
+    // `page-analyzer.ts`), so without it the last `plumber` would merge with `word0`
+    // and this test would be measuring that defect instead of the density wiring.
+    const filler = Array.from({ length: 40 }, (_, i) => `word${i}`).join(" ");
+    const analysis = analyzeHtml(
+      `<body><p>${Array.from({ length: 20 }, () => "plumber").join(" ")} </p><p>${filler}</p></body>`,
+      "https://example.com/plumbing",
+      200,
+      100,
+    );
+
+    expect(analysis.stuffedTerms).toHaveLength(1);
+    expect(analysis.stuffedTerms[0]?.term).toBe("plumber");
+    expect(analysis.stuffedTerms[0]?.count).toBe(20);
+    // 20 uses in 60 counted words.
+    expect(analysis.stuffedTerms[0]?.density).toBeCloseTo(20 / 60, 5);
   });
 });
