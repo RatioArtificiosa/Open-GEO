@@ -220,6 +220,52 @@ you persist. Never compute a trend across the boundary without labelling it. Do
 not send the flag to an endpoint whose schema doesn't list it, and do not assume
 it was honoured. See [`METHODOLOGY.md`](./METHODOLOGY.md).
 
+### 4.3 Per-endpoint keyword limits — and the three that are not 1,000 `[V 2026-10-06]`
+
+**Source:** the vendor's own [rules and limitations of `keyword`/`keywords`
+fields](https://dataforseo.com/help-center/rules-and-limitations-of-keyword-and-keywords-fields-in-dataforseo-apis),
+read in full on 2026-10-06, cross-checked against each endpoint's reference page. The
+**count** cap is the one that costs money when missed: the request is rejected **and
+billed**. The **character** cap is the one that corrupts a join when it is worked
+around by truncation.
+
+| Endpoint                                        | Keywords per call | Per-keyword limit                                |
+| ----------------------------------------------- | ----------------- | ------------------------------------------------ |
+| Labs `search_intent`                            | **1,000**         | none documented                                  |
+| Labs `bulk_keyword_difficulty`                  | **1,000**         | none documented                                  |
+| Labs `keyword_ideas`                            | **200**           | none documented                                  |
+| Labs `related_keywords` · `keyword_suggestions` | 1 (a `keyword`)   | none documented                                  |
+| Labs `historical_search_volume`                 | 700               | **80 chars / 10 words**                          |
+| AI Keyword Data `keywords_search_volume`        | 1,000             | **250 chars**                                    |
+| Google Ads `search_volume`                      | 1,000             | **80 chars / 10 words**                          |
+| Google Ads `keywords_for_keywords`              | **20**            | 80 chars                                         |
+| Bing `search_volume`                            | 1,000             | 100 chars                                        |
+| Bing `keywords_for_keywords`                    | **200**           | 100 chars                                        |
+| Google Trends                                   | **5**             | 100 chars                                        |
+| LLM Scraper (ChatGPT · Gemini)                  | 1 (a `keyword`)   | **2,000 chars, and the keyword _is_ the prompt** |
+
+**Four things this table is for:**
+
+1. **`keyword_ideas` is 200, not 1,000.** A batch sized for the _family_ rather than
+   for the endpoint is a billed rejection, and the number looks interchangeable.
+2. **`search_intent` takes no `location_code` and no `language_code`** — verified
+   twice, from the reference and from this article. It is the one Labs endpoint whose
+   market is not a parameter, because the classification is multilingual. Sending a
+   market "for consistency" is a rejection; _reading_ intent as market-specific is a
+   wrong answer about every keyword. In OpenGeo: `search-intent.ts` sends `keywords`
+   and `tag` only, and the prompt-set generator caches intent per (project, keyword)
+   with no market column.
+3. **Keyword length is per-endpoint, and truncating to fit changes the keyword.** Where
+   no limit is documented, **refuse and say so** rather than shortening — a shortened
+   keyword stops matching the metrics it came from, and the mismatch is silent.
+   `ai_keyword_data`'s 250 is the strictest documented length in this family, which is
+   why it is the bound `search-intent.ts` refuses at.
+4. **The LLM Scraper's `keyword` is the prompt sent to the model**, capped at 2,000
+   characters. A different kind of field wearing the same name — and the reason the
+   scraper is the endpoint to reach for in a scheduled patrol. Note also that `%##`
+   inside a keyword is decoded and `+` becomes a space, so a literal `%` must be sent
+   as `%25` and a literal `+` as `%2B`.
+
 ---
 
 ## 5. On-Page — the most expensive API to misuse

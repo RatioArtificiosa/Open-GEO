@@ -14,6 +14,12 @@ const ERROR_CODES = [
   "CRAWL_TARGET_BLOCKED",
   "BACKLINKS_BILLING_ISSUE",
   "AI_SEARCH_BILLING_ISSUE",
+  // One code per integration rather than one per condition, which is why this file
+  // already carries two codes with the same user-facing sentence: the code says
+  // *which* vendor family refused, and the copy says the same thing to the reader
+  // either way. Added with the Labs search-intent client, the first Labs caller that
+  // classifies billing failures.
+  "LABS_BILLING_ISSUE",
   "DATAFORSEO_AUTH_FAILED",
   "RATE_LIMITED",
   "UPSTREAM_UNAVAILABLE",
