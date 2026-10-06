@@ -1,4 +1,4 @@
-import { Copy, FileDown, Sheet, Tags, Trash2 } from "lucide-react";
+import { BadgeCheck, Copy, FileDown, Sheet, Tags, Trash2 } from "lucide-react";
 import {
   TableBulkActionBar,
   TableBulkActionButton,
@@ -8,6 +8,7 @@ import {
 export function SavedKeywordsBulkActionBar({
   selectedCount,
   onCopy,
+  onCheckVolumes,
   onOpenTags,
   onExportCsv,
   onExportSheets,
@@ -17,6 +18,7 @@ export function SavedKeywordsBulkActionBar({
 }: {
   selectedCount: number;
   onCopy: () => void;
+  onCheckVolumes: () => void;
   onOpenTags: () => void;
   onExportCsv: () => void;
   onExportSheets: () => void;
@@ -39,6 +41,16 @@ export function SavedKeywordsBulkActionBar({
               onClick={onOpenTags}
             >
               Tag
+            </TableBulkActionButton>
+
+            {/* Acts on the selection because the check is billed per call: checking
+                everything saved would spend the same money on keywords nobody is about
+                to decide with. */}
+            <TableBulkActionButton
+              icon={<BadgeCheck className="size-3.5" />}
+              onClick={onCheckVolumes}
+            >
+              Check volumes
             </TableBulkActionButton>
 
             <TableBulkExportMenu

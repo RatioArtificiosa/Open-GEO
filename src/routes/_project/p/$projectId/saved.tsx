@@ -25,6 +25,7 @@ import {
 } from "@/client/features/saved-keywords/SavedKeywordsModals";
 import { SavedKeywordsPagination } from "@/client/features/saved-keywords/SavedKeywordsPagination";
 import { SavedKeywordsStatus } from "@/client/features/saved-keywords/SavedKeywordsStatus";
+import { VolumeHonestyModal } from "@/client/features/saved-keywords/VolumeHonestyModal";
 import { SavedKeywordsTable } from "@/client/features/saved-keywords/SavedKeywordsTable";
 import { compileSavedKeywordsFilters } from "@/client/features/saved-keywords/savedKeywordsFilterTypes";
 import {
@@ -65,6 +66,7 @@ function SavedKeywordsPage() {
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showTagModal, setShowTagModal] = useState(false);
+  const [showVolumeHonesty, setShowVolumeHonesty] = useState(false);
 
   const filters = useSavedKeywordsFilters();
   const [committedFilterValues, setCommittedFilterValues] = useState(
@@ -313,6 +315,7 @@ function SavedKeywordsPage() {
         <SavedKeywordsBulkActionBar
           selectedCount={selectedCount}
           exportingSelection={exporter.exportingSelection}
+          onCheckVolumes={() => setShowVolumeHonesty(true)}
           onCopy={() => {
             void navigator.clipboard.writeText(
               selectedRows.map((row) => row.keyword).join("\n"),
@@ -336,6 +339,14 @@ function SavedKeywordsPage() {
             isPending={removeMutation.isPending}
             onClose={() => setShowConfirm(false)}
             onConfirm={() => removeMutation.mutate(selectedIds)}
+          />
+        ) : null}
+
+        {showVolumeHonesty ? (
+          <VolumeHonestyModal
+            projectId={projectId}
+            keywords={selectedRows.map((row) => row.keyword)}
+            onClose={() => setShowVolumeHonesty(false)}
           />
         ) : null}
 
