@@ -6,13 +6,13 @@ import { SAMPLE_REPORT_HTML, SAMPLE_REPORT_TITLE } from "@/lib/sample-report";
  * For agencies — the higher-value buyer, and the artifact they forward.
  *
  * `docs/design-research/marketing-strategy.md` §7, row 6. The job is not
- * "multi-client support in a list" — it is the deliverable an agency is
+ * "multi-client support in a list". It is the deliverable an agency is
  * judged on: the report a client opens, and the one a client forwards.
  *
  * **The report is the document, not a picture of it.** A screenshot is a
  * claim; the report itself is evidence. So the section renders the real
- * report the platform ships — the `seo-report` skill's own template, with a
- * template's byline and accent — live in a frame the reader can scroll. See
+ * report the platform ships: the `seo-report` skill's own template, with a
+ * template's byline and accent, live in a frame the reader can scroll. See
  * `web/src/lib/sample-report.ts` for why that document is a real report
  * and not a mockup.
  *
@@ -46,13 +46,13 @@ export function AgencyReport() {
             The report is the artifact.
           </h2>
           <p>
-            An agency&rsquo;s deliverable is not a dashboard — it is the
+            An agency&rsquo;s deliverable is not a dashboard. It is the
             document a client opens, and the one a client forwards. Most tools
             render a chart and call it reporting. OpenGeo writes the document,
             with your byline and your accent, and the browser prints it to PDF.
           </p>
           <p>
-            Below is the report itself, running — not a picture of one. The
+            Below is the report itself, running. Not a picture of one. The
             byline and the accent are the two tokens a report template owns, and
             the export reads those same two out of the document.
           </p>
@@ -60,7 +60,7 @@ export function AgencyReport() {
           <ul className="itc-agency-props">
             {PROPERTIES.map(({ label, what }) => (
               <li key={label}>
-                <strong>{label}</strong> — {what}
+                <strong>{label}.</strong> {what}
               </li>
             ))}
           </ul>
@@ -81,7 +81,7 @@ export function AgencyReport() {
         </div>
 
         <p className="itc-agency-caption">
-          The report, as it ships — a template&rsquo;s byline and accent, a
+          The report, as it ships. A template&rsquo;s byline and accent, a
           finding list, a table and a bar chart. Scroll it: it is the document,
           not a screenshot of one.{" "}
           <Link to="/capabilities" className="itc-agency-more">
