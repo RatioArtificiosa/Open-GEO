@@ -42,30 +42,38 @@ function SupportPage() {
         </p>
       </header>
 
-      <div className="mt-12 grid gap-4 md:grid-cols-3">
-        <section className="flex min-h-64 flex-col rounded-xl border border-[var(--color-border-subtle)] bg-white p-6">
-          <p className="font-mono text-xs text-[var(--color-brand-accent-text)]">
+      {/* **A list, not a card grid.** The three ways to reach us were a
+          `md:grid-cols-3` row of cards — the "three cards in a row"
+          macrostructure the design research names as the slop signature,
+          and the one the slop-budget gate now forbids. A hairline-ruled
+          list is denser and reads faster, and it is the pattern the
+          capabilities page uses for the same reason. */}
+      <dl className="mt-12 border-t border-[var(--color-border-subtle)]">
+        <div className="border-b border-[var(--color-border-subtle)] py-6">
+          <dt className="font-mono text-xs text-[var(--color-brand-accent-text)]">
             01
-          </p>
-          <h2 className="mt-6 text-xl font-semibold tracking-tight text-neutral-950">
-            Email
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--color-brand-muted)]">
-            Send ideas, problems, questions, or feedback directly.
-          </p>
-          <button
-            type="button"
-            onClick={copyEmail}
-            aria-live="polite"
-            className="mt-auto inline-flex w-fit items-center gap-2 pt-6 text-sm font-medium text-neutral-950 transition-colors hover:text-[var(--color-brand-accent-text)]"
-          >
-            <span className="font-mono text-xs">{SUPPORT_EMAIL}</span>
-            {copied ? <CheckIcon /> : <CopyIcon />}
-            <span className="sr-only">{copied ? "Copied" : "Copy email"}</span>
-          </button>
-        </section>
+          </dt>
+          <dd className="mt-2">
+            <h2 className="text-xl font-semibold tracking-tight text-neutral-950">
+              Email
+            </h2>
+            <p className="mt-2 max-w-[62ch] text-sm leading-6 text-[var(--color-brand-muted)]">
+              Send ideas, problems, questions, or feedback directly.
+            </p>
+            <button
+              type="button"
+              onClick={copyEmail}
+              aria-live="polite"
+              className="mt-3 inline-flex w-fit items-center gap-2 text-sm font-medium text-neutral-950 transition-colors hover:text-[var(--color-brand-accent-text)]"
+            >
+              <span className="font-mono text-xs">{SUPPORT_EMAIL}</span>
+              {copied ? <CheckIcon /> : <CopyIcon />}
+              <span className="sr-only">{copied ? "Copied" : "Copy email"}</span>
+            </button>
+          </dd>
+        </div>
 
-        <SupportCard
+        <SupportRow
           number="02"
           title="Discord"
           description="Ask for help, share ideas and learn from the community."
@@ -73,19 +81,19 @@ function SupportPage() {
           linkText="Join the Discord"
         />
 
-        <SupportCard
+        <SupportRow
           number="03"
           title="GitHub Issues"
           description="Report bugs or request features on GitHub."
           href={GITHUB_ISSUES_URL}
           linkText="Open an issue"
         />
-      </div>
+      </dl>
     </article>
   );
 }
 
-function SupportCard({
+function SupportRow({
   number,
   title,
   description,
@@ -99,31 +107,33 @@ function SupportCard({
   linkText: string;
 }) {
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group flex min-h-64 flex-col rounded-xl border border-[var(--color-border-subtle)] bg-white p-6 transition-all hover:-translate-y-0.5 hover:border-neutral-950 hover:shadow-lg hover:shadow-neutral-900/5"
-    >
-      <p className="font-mono text-xs text-[var(--color-brand-accent-text)]">
+    <div className="border-b border-[var(--color-border-subtle)] py-6">
+      <dt className="font-mono text-xs text-[var(--color-brand-accent-text)]">
         {number}
-      </p>
-      <h2 className="mt-6 text-xl font-semibold tracking-tight text-neutral-950">
-        {title}
-      </h2>
-      <p className="mt-2 text-sm leading-6 text-[var(--color-brand-muted)]">
-        {description}
-      </p>
-      <span className="mt-auto inline-flex items-center gap-2 pt-6 text-sm font-medium text-neutral-950">
-        {linkText}
-        <span
-          aria-hidden="true"
-          className="transition-transform group-hover:translate-x-1"
+      </dt>
+      <dd className="mt-2">
+        <h2 className="text-xl font-semibold tracking-tight text-neutral-950">
+          {title}
+        </h2>
+        <p className="mt-2 max-w-[62ch] text-sm leading-6 text-[var(--color-brand-muted)]">
+          {description}
+        </p>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group mt-3 inline-flex items-center gap-2 text-sm font-medium text-neutral-950 transition-colors hover:text-[var(--color-brand-accent-text)]"
         >
-          &rarr;
-        </span>
-      </span>
-    </a>
+          {linkText}
+          <span
+            aria-hidden="true"
+            className="transition-transform group-hover:translate-x-1"
+          >
+            &rarr;
+          </span>
+        </a>
+      </dd>
+    </div>
   );
 }
 

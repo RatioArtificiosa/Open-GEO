@@ -106,6 +106,21 @@ const MUTATIONS = [
     replace: "<h1 data-extra='1'></h1><h1",
   },
   {
+    name: "three cards appear in a row",
+    kind: "home",
+    // **Injected before </body>, not after <body>.** Splicing into the
+    // opening tag would break the tag's own attributes; the closing tag is
+    // a stable anchor, and a `grid` of three cards there is read as a row
+    // — the exact macrostructure the adjacency rule exists to forbid.
+    find: "</body>",
+    replace:
+      '<div class="grid gap-4 grid-cols-3">' +
+      '<div class="rounded-xl border border-[var(--color-border-subtle)] bg-white p-6">a</div>' +
+      '<div class="rounded-xl border border-[var(--color-border-subtle)] bg-white p-6">b</div>' +
+      '<div class="rounded-xl border border-[var(--color-border-subtle)] bg-white p-6">c</div>' +
+      "</div></body>",
+  },
+  {
     name: "a stylesheet link is broken — the unstyled page",
     kind: "home",
     // **A literal, not a regex.** The href is content-hashed, so the name is

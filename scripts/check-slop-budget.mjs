@@ -466,6 +466,111 @@ function checkHeadings(pages) {
   }
 }
 
+/** Void elements that never push onto the tag stack. */
+const VOID_ELEMENTS = new Set([
+  "br",
+  "hr",
+  "img",
+  "input",
+  "meta",
+  "link",
+  "source",
+  "area",
+  "base",
+  "col",
+  "embed",
+  "track",
+  "wbr",
+]);
+
+/**
+ * Rows of cards: a `grid` or `flex` (non-`flex-col`) element holding two
+ * or more card-treatment children.
+ *
+ * **A tag stack, not a regex.** Sibling adjacency is a tree property, so
+ * the parse walks the tags, pushing and popping a stack, and counts each
+ * card under its parent. A class-only match cannot know who a card's
+ * siblings are, and would either miss a real row or invent one. `<script>`
+ * and `<style>` blocks are stripped first: the hydration JSON inside a
+ * script can carry markup that is not part of the rendered page.
+ */
+function cardRows(html) {
+  const body = html
+    .replace(/<script[\s\S]*?<\/script>/g, " ")
+    .replace(/<style[\s\S]*?<\/style>/g, " ");
+  const stack = [];
+  const counts = new Map();
+  const labels = new Map();
+  const tagRe = /<\/?([a-zA-Z][a-zA-Z0-9-]*)((?:"[^"]*"|'[^']*'|[^>"'])*)>?/g;
+  let m;
+  while ((m = tagRe.exec(body))) {
+    if (m[0].startsWith("</")) {
+      const name = m[1].toLowerCase();
+      while (stack.length && stack[stack.length - 1].name !== name) stack.pop();
+      stack.pop();
+      continue;
+    }
+    const name = m[1].toLowerCase();
+    const attrs = m[2] ?? "";
+    const classMatch = /class="([^"]*)"/.exec(attrs);
+    const classes = classMatch ? classMatch[1].split(/\s+/) : [];
+    if (!VOID_ELEMENTS.has(name)) stack.push({ name, classes });
+    // **The card treatment is three classes, not two.** `rounded-xl border`
+    // is also a bordered *button*'s signature; the `bg-white` fill is what
+    // makes it a card, and a button without a fill is not one.
+    const isCard =
+      classes.includes("rounded-xl") &&
+      classes.includes("border") &&
+      classes.includes("bg-white");
+    if (isCard && stack.length >= 2) {
+      const parent = stack[stack.length - 2];
+      const isRow =
+        parent.classes.includes("grid") ||
+        (parent.classes.includes("flex") &&
+          !parent.classes.includes("flex-col") &&
+          !parent.classes.includes("flex-col-reverse"));
+      if (isRow) {
+        counts.set(parent, (counts.get(parent) ?? 0) + 1);
+        labels.set(
+          parent,
+          `<${parent.name} class="${parent.classes.join(" ")}">`,
+        );
+      }
+    }
+  }
+  const rows = [];
+  for (const [parent, count] of counts) {
+    if (count >= 2)
+      rows.push(`${count} cards in a row under ${labels.get(parent)}`);
+  }
+  return rows;
+}
+
+/**
+ * No card adjacent to a card — the "three cards in a row" macrostructure.
+ *
+ * The fourth §13.6 §4 constraint, and the one the gate was missing. The
+ * research is specific that slop is a *macrostructure*: a single card is
+ * a layout choice, but a row of them is the signature a generation model
+ * produces because it is the median of the web. A `flex-col` stack is
+ * deliberately not a row, so a vertical stack of cards is allowed — the
+ * ban is on the row, not on cards.
+ */
+function checkCardAdjacency(pages) {
+  const offenders = [];
+  for (const file of pages) {
+    const html = readFileSync(file, "utf8");
+    for (const row of cardRows(html)) {
+      offenders.push(`${file.replace(DIST, "")} — ${row}`);
+    }
+  }
+  if (offenders.length > 0) {
+    fail("no card adjacent to a card", offenders.slice(0, 5).join("\n    "));
+  } else {
+    pass("card adjacency", "no grid or flex row of cards on any page");
+  }
+}
+
 // --- run -------------------------------------------------------------------
 const pages = htmlPages();
 
@@ -499,6 +604,7 @@ checkGradientHue(css);
 checkVocabulary(pages);
 checkUrgency(pages);
 checkHeadings(pages);
+checkCardAdjacency(pages);
 
 console.log(`\n${passes.length} passed:`);
 for (const p of passes) console.log(`  ok   ${p}`);
