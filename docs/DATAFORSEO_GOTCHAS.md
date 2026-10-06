@@ -306,6 +306,21 @@ list is the most actionable half of a competitor gap and needs no second endpoin
 `limit` caps at **1,000** with `offset` paging, `filters` allows 8 conditions, and
 `order_by` allows 3 rules.
 
+**The three unbuilt neighbours do not share a signature, and that is the trap for whoever
+builds them.** Read in a browser on 2026-10-06 — the pages render a task-field table that a
+fetch buries under five languages of code samples:
+
+| Endpoint                   | `location_*`                          | `language_*`                          |
+| -------------------------- | ------------------------------------- | ------------------------------------- |
+| `ranked_keywords` (called) | optional — omit for all locations     | optional                              |
+| `subdomains`               | **optional** — omit for all locations | optional                              |
+| `historical_rank_overview` | **required** (specify one of the two) | **required** (specify one of the two) |
+| `competitors_domain`       | **required** (specify one of the two) | **required** (specify one of the two) |
+
+So copying the signature of the neighbour we already call sends a task **missing a required
+field**, and a rejected task is still billed. `competitors_domain` also accepts a page URL
+as `target` while returning domain-level results — a silent widening rather than an error.
+
 ---
 
 ## 5. On-Page — the most expensive API to misuse
