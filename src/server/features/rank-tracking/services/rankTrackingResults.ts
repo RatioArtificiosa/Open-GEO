@@ -1,6 +1,7 @@
 import { RankTrackingRepository } from "@/server/features/rank-tracking/repositories/RankTrackingRepository";
 import { toSqliteTimestamp } from "@/server/features/rank-tracking/rankTrackingTimestamps";
 import { AppError } from "@/server/lib/errors";
+import { parseSerpFeatures } from "@/shared/serp-features";
 import type { ComparePeriod } from "@/types/schemas/rank-tracking";
 import type {
   RankTrackingDeviceResult,
@@ -150,19 +151,6 @@ export async function getLatestResults(
   };
 }
 
-function parseSerpFeatures(raw: string | null): string[] {
-  if (!raw) return [];
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return parsed.filter((item): item is string => typeof item === "string");
-    }
-  } catch {
-    // ignore
-  }
-  return [];
-}
-
 function createEmptyDeviceResult(
   previousPosition: number | null,
 ): RankTrackingDeviceResult {
@@ -182,6 +170,8 @@ function toDeviceResult(
     position: snapshot.position,
     previousPosition,
     rankingUrl: snapshot.url,
-    serpFeatures: parseSerpFeatures(snapshot.serpFeatures),
+    // The device result's list is always present, so a `null` record narrows to `[]`
+    // here — on purpose, and the only place that narrowing may happen silently.
+    serpFeatures: parseSerpFeatures(snapshot.serpFeatures) ?? [],
   };
 }

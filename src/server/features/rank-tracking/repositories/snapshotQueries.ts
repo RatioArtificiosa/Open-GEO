@@ -48,6 +48,11 @@ export async function getKeywordHistory(
       device: rankSnapshots.device,
       checkedAt: rankSnapshots.checkedAt,
       position: rankSnapshots.position,
+      // Carried because the AI-Overview-over-time tie-in reads it per check, and a
+      // history that drops it cannot answer "were you in the answer, last month?".
+      // Raw here (JSON text or null) — the caller decodes with `parseSerpFeatures`,
+      // which preserves the difference between "none present" and "no record".
+      serpFeatures: rankSnapshots.serpFeatures,
     })
     .from(rankSnapshots)
     .where(

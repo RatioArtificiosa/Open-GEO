@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Copy, Download, Loader2 } from "lucide-react";
-import { reverse, sortBy } from "remeda";
+import { sortBy } from "remeda";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { Modal } from "@/client/components/Modal";
@@ -10,20 +10,19 @@ import { getRankKeywordHistory } from "@/serverFunctions/rank-tracking";
 import type { RankKeywordHistoryPoint } from "@/serverFunctions/rank-tracking";
 import { LOCATIONS } from "@/client/features/keywords/locations";
 import { formatLocationLabel } from "@/shared/keyword-locations";
-import { csvChange, DeviceRankCell } from "./RankTrackingTableParts";
+import { hasAiOverview } from "@/shared/serp-features";
+import {
+  buildHistoryRows,
+  DEVICE_STYLE,
+  HISTORY_CSV_HEADERS,
+  KeywordHistoryTable,
+} from "./KeywordHistoryTable";
+import { csvChange } from "./RankTrackingTableParts";
 import {
   RankTrendChart,
   TrendRangeToggle,
   type TrendSeries,
 } from "./RankTrackingTrendChart";
-
-const DEVICE_STYLE: Record<
-  "desktop" | "mobile",
-  { label: string; color: string }
-> = {
-  desktop: { label: "Desktop", color: "var(--color-accent, #F59E0B)" },
-  mobile: { label: "Mobile", color: "#34D399" },
-};
 
 export interface KeywordTrendTarget {
   trackingKeywordId: string;
@@ -119,20 +118,25 @@ export function KeywordTrendModal({
       DEVICE_STYLE[r.device].label,
       r.position ?? "",
       csvChange(r.position, r.previousPosition),
+      r.serpFeatures === null
+        ? "not recorded"
+        : hasAiOverview(r.serpFeatures)
+          ? "yes"
+          : "no",
     ]);
 
   const handleCopy = () => {
-    const headers = ["Date", "Device", "Position", "Change vs previous"];
-    void navigator.clipboard.writeText(buildCsv(headers, exportRows()));
+    void navigator.clipboard.writeText(
+      buildCsv(HISTORY_CSV_HEADERS, exportRows()),
+    );
     toast.success("Copied to clipboard");
     captureClientEvent("rank_tracking:keyword_trend_copy");
   };
 
   const handleExport = () => {
-    const headers = ["Date", "Device", "Position", "Change vs previous"];
     downloadCsv(
       `rank-history-${slugify(target.keyword)}.csv`,
-      buildCsv(headers, exportRows()),
+      buildCsv(HISTORY_CSV_HEADERS, exportRows()),
     );
     captureClientEvent("rank_tracking:keyword_trend_export");
   };
@@ -196,76 +200,11 @@ export function KeywordTrendModal({
             </button>
           </div>
 
-          <div className="max-h-64 overflow-auto rounded-lg border border-base-300">
-            <table className="table table-sm">
-              <thead className="sticky top-0 bg-base-100">
-                <tr>
-                  <th>Date</th>
-                  {devices.length > 1 && <th>Device</th>}
-                  <th>Position</th>
-                  <th>Δ vs previous check</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historyRows.map((r, idx) => {
-                  // No prior ranking to compare against (first check, or the
-                  // previous check was unranked): show the lone position as a
-                  // centered neutral pill so it doesn't look like a stray number
-                  // next to the "before → after" rows.
-                  const noPrevious =
-                    r.position !== null && r.previousPosition === null;
-                  return (
-                    <tr key={`${r.device}-${r.checkedAt}-${idx}`}>
-                      <td className="whitespace-nowrap text-xs">
-                        {new Date(r.checkedAt).toLocaleDateString()}
-                      </td>
-                      {devices.length > 1 && (
-                        <td className="text-xs">
-                          {DEVICE_STYLE[r.device].label}
-                        </td>
-                      )}
-                      <td>
-                        {r.position === null ? (
-                          <span className="text-base-content/40 text-xs">
-                            Not in top {serpDepth}
-                          </span>
-                        ) : (
-                          <span className="font-mono text-sm">
-                            {r.position}
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        {noPrevious ? (
-                          // Invisible placeholders matching the "before → after"
-                          // layout so the lone pill lines up under the position
-                          // badge column instead of floating.
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className="w-6" aria-hidden />
-                            <span aria-hidden className="opacity-0">
-                              →
-                            </span>
-                            <span className="font-mono rounded bg-base-200 px-1.5 py-0.5 text-xs font-semibold text-base-content/70">
-                              {r.position}
-                            </span>
-                          </span>
-                        ) : (
-                          <DeviceRankCell
-                            result={{
-                              position: r.position,
-                              previousPosition: r.previousPosition,
-                              rankingUrl: null,
-                              serpFeatures: [],
-                            }}
-                          />
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <KeywordHistoryTable
+            rows={historyRows}
+            devices={devices}
+            serpDepth={serpDepth}
+          />
         </>
       )}
 
@@ -365,36 +304,6 @@ function buildChartData(
     byTime.set(ts, row);
   }
   return sortBy([...byTime.values()], (row) => row.checkedAt);
-}
-
-interface HistoryRow {
-  device: "desktop" | "mobile";
-  checkedAt: string;
-  position: number | null;
-  previousPosition: number | null;
-}
-
-/**
- * One row per snapshot (newest first) with the previous-check position for the
- * same device, so the Δ column can reuse DeviceRankCell's 4-case logic.
- */
-function buildHistoryRows(points: RankKeywordHistoryPoint[]): HistoryRow[] {
-  const prevByDevice = new Map<"desktop" | "mobile", number | null>();
-  const rows: HistoryRow[] = [];
-  // points are oldest-first; walk forward to capture the prior position.
-  for (const p of points) {
-    const hadPrevious = prevByDevice.has(p.device);
-    rows.push({
-      device: p.device,
-      checkedAt: p.checkedAt,
-      position: p.position,
-      previousPosition: hadPrevious
-        ? (prevByDevice.get(p.device) ?? null)
-        : null,
-    });
-    prevByDevice.set(p.device, p.position);
-  }
-  return reverse(rows);
 }
 
 function slugify(value: string): string {

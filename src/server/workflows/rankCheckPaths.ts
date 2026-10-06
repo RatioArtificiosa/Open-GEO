@@ -36,8 +36,13 @@ function mapResultsToSnapshotRows(
     device: r.device,
     position: r.position,
     url: r.url,
-    serpFeatures:
-      r.serpFeatures.length > 0 ? JSON.stringify(r.serpFeatures) : null,
+    // **`[]`, not `null`, when the check found no features.** The read side treats
+    // `null` as "no feature record for this check" — that is what makes an AI Overview
+    // absence a real answer — and the old write collapsed both into `null`, so a
+    // legacy row and a checked-empty row were the same bytes. Storing `[]` keeps the
+    // AI-Overview-over-time series honest from here on; rows already written stay
+    // `null` and are reported as "not recorded" rather than as "not cited".
+    serpFeatures: JSON.stringify(r.serpFeatures),
   }));
 }
 

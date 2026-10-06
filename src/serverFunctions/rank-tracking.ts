@@ -6,6 +6,7 @@ import { getLatestResults } from "@/server/features/rank-tracking/services/rankT
 import { AppError, asAppError } from "@/server/lib/errors";
 import { captureServerEvent } from "@/server/lib/posthog";
 import { requireProjectContext } from "@/serverFunctions/middleware";
+import { parseSerpFeatures } from "@/shared/serp-features";
 import {
   getConfigsSchema,
   createConfigSchema,
@@ -26,6 +27,16 @@ export interface RankKeywordHistoryPoint {
   device: "desktop" | "mobile";
   checkedAt: string;
   position: number | null;
+  /**
+   * The SERP features recorded at this check, or **`null` when this check has no
+   * feature record** (a row written before the column was populated, or a payload we
+   * could not read).
+   *
+   * `[]` and `null` are different claims and the UI must not collapse them: `[]` means
+   * *checked, and none of our features were present*, which is what makes an AI
+   * Overview absence a real answer rather than a gap. See `@/shared/serp-features`.
+   */
+  serpFeatures: string[] | null;
 }
 
 interface RankConfigTrendPoint {
@@ -275,11 +286,17 @@ export const getRankKeywordHistory = createServerFn({ method: "POST" })
   .validator(getKeywordHistorySchema)
   .handler(async ({ data, context }): Promise<RankKeywordHistoryPoint[]> => {
     await requireConfig(data.configId, context.projectId);
-    return RankTrackingRepository.getKeywordHistory(
+    const rows = await RankTrackingRepository.getKeywordHistory(
       data.configId,
       data.trackingKeywordId,
       data.sinceDays,
     );
+    return rows.map((row) => ({
+      device: row.device,
+      checkedAt: row.checkedAt,
+      position: row.position,
+      serpFeatures: parseSerpFeatures(row.serpFeatures),
+    }));
   });
 
 export const getRankConfigTrend = createServerFn({ method: "POST" })
