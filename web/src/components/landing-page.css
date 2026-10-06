@@ -210,15 +210,18 @@
 .itc-btn-secondary:hover {
   border-color: var(--ink);
 }
-.itc-btn-fin {
-  background: var(--orange);
+/* Was `.itc-btn-fin` — named for Fin-Orange, which this site no longer has. The
+   name outlived the colour, and a class that names a colour it does not use is a
+   comment that has stopped being true. */
+.itc-btn-accent {
+  background: var(--color-brand-accent);
   color: #ffffff;
 }
-.itc-btn-fin:hover {
-  background: #e64d00;
+.itc-btn-accent:hover {
+  background: var(--color-brand-accent-hover);
 }
-.itc-btn-fin:focus-visible {
-  outline-color: var(--orange);
+.itc-btn-accent:focus-visible {
+  outline-color: var(--color-brand-accent);
 }
 .itc-arrow {
   transition: transform 0.15s ease;
@@ -302,7 +305,12 @@
 }
 
 /* The category, flatly. A label is supposed to be dull, so it is small, tracked
-   out, and in muted ink — never the accent. */
+   out, and in muted ink — never the accent.
+   **One exception, and it is a different job:** the MCP section's eyebrow marks a
+   product surface rather than naming the category, and it carried Fin-Orange
+   `#ff5600` — a colour `styles/app.css` had already replaced with amber ("two
+   products with two accents means the product changes hue when the reader signs
+   in"). It takes the system accent now, in the text-safe weight. */
 .itc-eyebrow {
   color: var(--color-brand-muted);
   font-size: 0.8125rem;
@@ -310,6 +318,10 @@
   letter-spacing: 0.09em;
   margin: 0 0 1.25rem;
   text-transform: uppercase;
+}
+
+.itc-eyebrow-accent {
+  color: var(--color-brand-accent-text);
 }
 
 /* **The one large accent moment on the page.** `198×` is the claim, so it is the

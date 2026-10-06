@@ -613,7 +613,7 @@ function ProductSection() {
   );
 }
 
-// ─── MCP: the page's one Fin Orange moment ───────────────────────────
+// ─── MCP: the page's one accent moment ───────────────────────────────
 
 type McpClient = {
   name: string;
@@ -634,7 +634,7 @@ function McpSection() {
       <Container>
         <div className="itc-mcp-grid">
           <div>
-            <p className="itc-eyebrow" style={{ color: "#ff5600" }}>
+            <p className="itc-eyebrow itc-eyebrow-accent">
               Model Context Protocol
             </p>
             <h2 className="itc-display-lg">Get superpowers with the MCP</h2>
@@ -664,7 +664,7 @@ function McpSection() {
               ))}
             </div>
             <div style={{ marginTop: 32 }}>
-              <a href="/features/mcp" className="itc-btn itc-btn-fin">
+              <a href="/features/mcp" className="itc-btn itc-btn-accent">
                 Learn about MCP tools
                 <IconArrowRight size={16} className="itc-arrow" />
               </a>
