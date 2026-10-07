@@ -60,7 +60,7 @@ type TrendGraphPoint = {
   date_to?: string | null;
   timestamp?: number | null;
   /** One entry per keyword in the request, aligned by index. */
-  values?: number[] | null;
+  values?: Array<number | null> | null;
   [key: string]: unknown;
 };
 

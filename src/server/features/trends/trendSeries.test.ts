@@ -48,6 +48,7 @@ describe("readTrendSeries", () => {
       dateFrom: "2023-01-15",
       dateTo: "2023-01-21",
       value: 33,
+      missingData: false,
     });
   });
 
@@ -77,5 +78,28 @@ describe("readTrendSeries", () => {
 
   it("returns nothing for a graph with no keywords rather than throwing", () => {
     expect(readTrendSeries({})).toEqual([]);
+  });
+
+  it("treats a Google-flagged point as unmeasured even when it carries a number", () => {
+    // Google marks a missing point with `missing_data` and draws a dotted line rather than a
+    // value. Showing the number would present a reading the vendor has disowned.
+    const series = readTrendSeries({
+      keywords: ["seo api"],
+      data: [
+        { values: [54], missing_data: false },
+        { values: [30], missing_data: true },
+        { values: [null], missing_data: false },
+      ],
+    });
+    expect(series[0]?.points.map((point) => point.value)).toEqual([
+      54,
+      null,
+      null,
+    ]);
+    expect(series[0]?.points.map((point) => point.missingData)).toEqual([
+      false,
+      true,
+      false,
+    ]);
   });
 });

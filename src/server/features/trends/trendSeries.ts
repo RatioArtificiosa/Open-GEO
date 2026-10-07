@@ -24,8 +24,10 @@
 type TrendPoint = {
   dateFrom: string | null;
   dateTo: string | null;
-  /** Null when the vendor reported 0, which its documentation defines as "not enough data". */
+  /** Null when the vendor reported 0, or flagged the point as having no data. */
   value: number | null;
+  /** True when the vendor explicitly flagged this point, which Google Trends does. */
+  missingData: boolean;
 };
 
 type TrendSeries = {
@@ -57,7 +59,13 @@ type GraphLike = {
   data?: Array<{
     date_from?: string | null;
     date_to?: string | null;
-    values?: number[] | null;
+    values?: Array<number | null> | null;
+    /**
+     * Google Trends marks a point it had no data for with this flag, and draws it as a dotted
+     * line. DataForSEO Trends has no such field — it signals the same thing with a `0` — so this
+     * reader honours whichever signal a vendor actually sends.
+     */
+    missing_data?: boolean | null;
   }> | null;
   averages?: number[] | null;
 };
@@ -79,7 +87,14 @@ export function readTrendSeries(graph: GraphLike): TrendSeries[] {
     points: points.map((point) => ({
       dateFrom: point.date_from ?? null,
       dateTo: point.date_to ?? null,
-      value: readTrendValue(point.values?.[index]),
+      // Either signal means "no data", and a flagged point is unmeasured even when it carries a
+      // number: the vendor draws a dotted line rather than a value, so showing the number would
+      // present a reading it has disowned.
+      value:
+        point.missing_data === true
+          ? null
+          : readTrendValue(point.values?.[index]),
+      missingData: point.missing_data === true,
     })),
     average: readTrendValue(graph.averages?.[index]),
   }));
