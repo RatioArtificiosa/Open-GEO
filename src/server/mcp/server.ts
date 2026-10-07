@@ -75,6 +75,10 @@ import {
 } from "@/server/mcp/tools/dataforseo-research-tools";
 import { reconcileKeywordVolumesTool } from "@/server/mcp/tools/reconcile-keyword-volumes";
 import {
+  getPageWaterfallTool,
+  startPageSpeedAuditTool,
+} from "@/server/mcp/tools/page-speed-tools";
+import {
   getBusinessProfileTool,
   getBusinessReviewsTool,
   getBusinessUpdatesTool,
@@ -247,6 +251,8 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(runRankTrackerTool);
   register(getRankedKeywordsTool);
   register(reconcileKeywordVolumesTool);
+  register(startPageSpeedAuditTool);
+  register(getPageWaterfallTool);
   register(findSerpCompetitorsTool);
   register(searchLocalBusinessesTool);
   register(getLocalSerpResultsTool);

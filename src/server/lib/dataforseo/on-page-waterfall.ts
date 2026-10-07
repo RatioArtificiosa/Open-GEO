@@ -92,7 +92,7 @@ const resultSchema = z
   })
   .passthrough();
 
-type WaterfallResource = {
+export type WaterfallResource = {
   resourceType: string | null;
   url: string | null;
   initiator: string | null;
@@ -103,7 +103,7 @@ type WaterfallResource = {
   isRenderBlocking: boolean | null;
 };
 
-type WaterfallPage = {
+export type WaterfallPage = {
   pageUrl: string | null;
   timeToInteractiveMs: number | null;
   domCompleteMs: number | null;

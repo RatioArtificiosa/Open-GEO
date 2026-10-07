@@ -236,6 +236,30 @@
         "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
       }
     },
+    "get_page_waterfall": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only reads the timing data of a crawl that already ran; the vendor charges for the crawl rather than for this read, so it changes nothing and spends nothing.",
+        "open_world_justification": "Operates only on private OpenGeo state or private provider data and cannot change publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "start_page_speed_audit": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Not read-only despite changing nothing: it starts a provider-side crawl and spends credits, priced per page.",
+        "open_world_justification": "Operates only on private OpenGeo state or private provider data and cannot change publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
     "reconcile_keyword_volumes": {
       "annotations": {
         "readOnlyHint": false,
