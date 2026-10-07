@@ -5,9 +5,7 @@ import { dataforseoPost } from "@/server/lib/dataforseo/core";
 import {
   assertOk,
   buildTaskBilling,
-  isRecord,
   type DataforseoApiResponse,
-  type DataforseoTaskLike,
 } from "@/server/lib/dataforseo/envelope";
 
 /**
@@ -30,11 +28,6 @@ import {
 
 const TECHNOLOGIES_PATH =
   "/v3/domain_analytics/technologies/domain_technologies/live";
-
-function firstResult(task: DataforseoTaskLike): Record<string, unknown> | null {
-  const first = task.result?.[0];
-  return isRecord(first) ? first : null;
-}
 
 /** A technology entry: the vendor nests a name under a category key. */
 const technologySchema = z.object({
@@ -114,7 +107,7 @@ export async function fetchDomainTechnologies(input: {
 
   const rows = z
     .array(domainTechnologiesRowSchema)
-    .safeParse(firstResult(task)?.items ?? []);
+    .safeParse(Array.isArray(task.result) ? task.result : []);
   if (!rows.success) {
     throw new AppError(
       "INTERNAL_ERROR",

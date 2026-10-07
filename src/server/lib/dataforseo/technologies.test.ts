@@ -23,7 +23,8 @@ function envelope(items: unknown[]) {
         status_code: 20000,
         path: ["v3", "domain_analytics", "technologies"],
         cost: 0.012,
-        result: [{ items_count: items.length, items }],
+        // No items wrapper on this endpoint: result IS the row array.
+        result: items,
       },
     ],
   };
