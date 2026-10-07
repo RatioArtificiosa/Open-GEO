@@ -43,6 +43,7 @@ import { fetchDomainMetricsByCategories } from "@/server/lib/dataforseo/labsDoma
 import { fetchDataforseoTrendsExplore } from "@/server/lib/dataforseo/dataforseoTrends";
 import { fetchGoogleTrendsExplore } from "@/server/lib/dataforseo/googleTrends";
 import { fetchDataforseoTrendsDemography } from "@/server/lib/dataforseo/dataforseoTrendsDemography";
+import { fetchDataforseoTrendsSubregion } from "@/server/lib/dataforseo/dataforseoTrendsSubregion";
 import {
   fetchAdsKeywordIdeas,
   fetchAdsSearchVolume,
@@ -150,6 +151,7 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       trendsExplore: meter(customer, fetchDataforseoTrendsExplore),
       googleTrendsExplore: meter(customer, fetchGoogleTrendsExplore),
       trendsDemography: meter(customer, fetchDataforseoTrendsDemography),
+      trendsSubregion: meter(customer, fetchDataforseoTrendsSubregion),
       clickstreamVolumes: meter(
         customer,
         fetchClickstreamVolumes,

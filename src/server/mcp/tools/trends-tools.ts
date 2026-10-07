@@ -10,6 +10,12 @@ import {
   readDemographyComparison,
   readKeywordDemography,
 } from "@/server/features/trends/demography";
+import {
+  readSubregionComparison,
+  readSubregionInterests,
+  SUBREGION_COMPARISON_CAVEAT,
+  SUBREGION_PER_KEYWORD_CAVEAT,
+} from "@/server/features/trends/subregion";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { optionalMetaOutputSchema } from "@/server/mcp/output-schemas";
@@ -285,6 +291,140 @@ export const getSearchDemographyTool = {
         comparison,
         perKeywordCaveat: DEMOGRAPHY_PER_KEYWORD_CAVEAT,
         comparisonCaveat: DEMOGRAPHY_COMPARISON_CAVEAT,
+      },
+    });
+  }),
+};
+
+/**
+ * Where a term is popular, with the three rulers kept apart.
+ *
+ * The response carries three normalised blocks: locations within a keyword, keywords within a
+ * location, and one across everything. Only the last can be read between places, and a surface that
+ * mixed them would show a dozen strongholds per keyword. The tool returns them under their own names
+ * with a caveat each, and the comparison blocks are **null for a single keyword** — the vendor's
+ * answer rather than a gap.
+ */
+const regionsInputSchema = {
+  projectId: projectIdSchema,
+  keywords: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(5)
+    .describe(
+      "Keywords to place geographically, up to 5. One request is billed the same at one keyword or five.",
+    ),
+  type: z
+    .enum(["web", "news", "ecommerce"])
+    .optional()
+    .describe("Which index to read: web (default), news, or ecommerce."),
+  timeRange: z
+    .enum([
+      "past_4_hours",
+      "past_day",
+      "past_7_days",
+      "past_30_days",
+      "past_90_days",
+      "past_12_months",
+      "past_5_years",
+    ])
+    .optional()
+    .describe(
+      "A preset window. Cannot be combined with dateFrom/dateTo, because the vendor ignores it when either date is set.",
+    ),
+  dateFrom: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Start of the window, yyyy-mm-dd."),
+  dateTo: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("End of the window, yyyy-mm-dd."),
+  locationCode: z
+    .number()
+    .int()
+    .optional()
+    .describe("Country-level location code. Omit for global results."),
+} as const;
+
+type RegionsArgs = z.infer<z.ZodObject<typeof regionsInputSchema>>;
+
+export const getSearchRegionsTool = {
+  name: "get_search_regions",
+  config: {
+    title: "Get where a term is popular",
+    description:
+      "Returns how interest in up to five keywords splits across locations, plus comparisons across the keywords when there is more than one. Use it to find regional strongholds and gaps. Three blocks come back and they are not on one ruler: per-keyword location scores compare places within a keyword, the comparison block compares keywords within a place, and only the across-all-locations block can be read between places. A score of 0 means the vendor had no data. Charges credits once per request.",
+    inputSchema: regionsInputSchema,
+    outputSchema: z
+      .object({
+        keywords: z.array(
+          z.looseObject({
+            keyword: z.string(),
+            locations: z.array(
+              z.looseObject({ geo: z.string(), value: z.number().nullable() }),
+            ),
+          }),
+        ),
+        /** Null for a single keyword, which is what the vendor sends. */
+        comparison: z
+          .looseObject({
+            withinLocation: z.array(
+              z.looseObject({
+                geo: z.string(),
+                values: z.array(z.number().nullable()),
+              }),
+            ),
+            acrossAllLocations: z.array(
+              z.looseObject({
+                geo: z.string(),
+                values: z.array(z.number().nullable()),
+              }),
+            ),
+          })
+          .nullable(),
+        perKeywordCaveat: z.string(),
+        comparisonCaveat: z.string(),
+        ...optionalMetaOutputSchema,
+      })
+      .passthrough(),
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+  },
+  handler: withMcpProjectAuth(async (args: RegionsArgs, context) => {
+    const client = createDataforseoClient(context.billing);
+    const items = await client.keywords.trendsSubregion({
+      keywords: args.keywords,
+      type: args.type,
+      timeRange: args.timeRange,
+      dateFrom: args.dateFrom,
+      dateTo: args.dateTo,
+      locationCode: args.locationCode ?? context.project.locationCode,
+    });
+
+    const item = items[0] ?? {};
+    const keywords = readSubregionInterests(item);
+    const comparison = readSubregionComparison(item);
+    const requestCostUsd =
+      DFS_KEYWORDS.dfsTrends.subregionOrDemography.perRequest;
+
+    return mcpResponse({
+      text: `${keywords.length} keyword${keywords.length === 1 ? "" : "s"} placed by region, about $${requestCostUsd.toFixed(4)} for the request whatever it carried. ${SUBREGION_PER_KEYWORD_CAVEAT} ${comparison === null ? "No comparison: the vendor returns one only when more than one keyword is asked for." : SUBREGION_COMPARISON_CAVEAT}`,
+      meta: buildProjectMeta(
+        context,
+        args.projectId,
+        `/p/${args.projectId}/trends`,
+      ),
+      structuredContent: {
+        keywords,
+        comparison,
+        perKeywordCaveat: SUBREGION_PER_KEYWORD_CAVEAT,
+        comparisonCaveat: SUBREGION_COMPARISON_CAVEAT,
       },
     });
   }),
