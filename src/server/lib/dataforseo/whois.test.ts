@@ -6,10 +6,7 @@ vi.mock("@/server/lib/runtime-env", () => ({
   getOptionalEnvValue: vi.fn(async () => undefined),
 }));
 
-import {
-  fetchWhoisOverview,
-  WHOIS_DEFAULT_ORDER_BY,
-} from "@/server/lib/dataforseo/whois";
+import { fetchWhoisOverview } from "@/server/lib/dataforseo/whois";
 import { requestBody, requestUrl } from "./test-support";
 
 function envelope(items: unknown[]) {
@@ -67,15 +64,19 @@ describe("fetchWhoisOverview", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("sends the vendor's own default sort explicitly, so a caller can see what they are not choosing", async () => {
+  it("sends no order_by, because this endpoint rejects it in every form tried", async () => {
+    // Probed: `order_by` as an array and as a comma-delimited string both answer 40501, so the
+    // field is unsupported here and the client must not send one. Asserting its absence is the
+    // strongest available check — the earlier version of this test asserted a default sort the
+    // vendor refuses, which is how an invalid request passed a green suite.
     fetchMock.mockImplementation(async () => Response.json(envelope([])));
 
     await fetchWhoisOverview({ filters: [["domain", "like", "%example%"]] });
 
     const body = parseBody(fetchMock);
     const first = body[0];
-    expect(isPlainObject(first) ? first.order_by : null).toEqual(
-      WHOIS_DEFAULT_ORDER_BY,
+    expect(isPlainObject(first) ? Object.hasOwn(first, "order_by") : true).toBe(
+      false,
     );
   });
 

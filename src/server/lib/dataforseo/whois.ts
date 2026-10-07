@@ -28,13 +28,12 @@ import {
 const WHOIS_PATH = "/v3/domain_analytics/whois/overview/live";
 
 /**
- * The vendor's default, written down so a caller can see what they are not choosing.
- * `metrics.organic.count` descending — the largest domains first.
+ * **This endpoint rejects `order_by` in every form tried** — as an array and as a comma-delimited
+ * string both answer 40501 — so the client cannot set a sort and does not send one. Ordering is the
+ * vendor's: `metrics.organic.count` descending, largest domains first. Which is why a filter is
+ * effectively required here, and why this module asks for one rather than letting an unfiltered call
+ * succeed quietly at the price of learning nothing.
  */
-export const WHOIS_DEFAULT_ORDER_BY = [
-  "metrics.organic.count",
-  "desc",
-] as const;
 
 /** A filter triple: `[field, operator, value]`, as DataForSEO's own filter grammar spells it. */
 const whoisFilterSchema = z.tuple([
@@ -86,8 +85,6 @@ type WhoisOverviewRow = z.infer<typeof whoisOverviewRowSchema>;
 type WhoisOverviewQuery = {
   filters?: Array<[string, string, string | number]>;
   limit?: number;
-  /** Overrides {@link WHOIS_DEFAULT_ORDER_BY}. Stated rather than defaulted, on purpose. */
-  orderBy?: Array<[string, "asc" | "desc"]>;
 };
 
 /**
@@ -121,7 +118,6 @@ export async function fetchWhoisOverview(
   const body = {
     filters: parsedFilters.data,
     limit: query.limit ?? 10,
-    order_by: query.orderBy ?? WHOIS_DEFAULT_ORDER_BY,
   };
 
   const response = await dataforseoPost(WHOIS_PATH, [body]);
