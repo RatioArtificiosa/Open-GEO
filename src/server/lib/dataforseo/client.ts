@@ -50,6 +50,10 @@ import {
 } from "@/server/lib/dataforseo/serp";
 import { fetchLighthouseResult } from "@/server/lib/dataforseo/lighthouse";
 import {
+  fetchOnPageWaterfall,
+  postOnPageCrawlTaskForWaterfall,
+} from "@/server/lib/dataforseo/on-page-waterfall";
+import {
   fetchOnPageContentParsing,
   postOnPageTaskForContentParsing,
 } from "@/server/lib/dataforseo/on-page-content-parsing";
@@ -199,6 +203,14 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
     onPage: {
       taskForContentParsing: meter(customer, postOnPageTaskForContentParsing),
       contentParsing: meter(customer, fetchOnPageContentParsing),
+      // The crawl whose pages the waterfall is read for. Metered, because the POST is where
+      // the vendor charges and the price depends on the flags the caller set.
+      waterfallTask: meter(customer, postOnPageCrawlTaskForWaterfall),
+      // **Deliberately unmetered.** The vendor does not charge for the waterfall read — "your
+      // account will not be charged for using this function" — so metering it would bill a
+      // customer for something nobody was charged for. This is the `task_get` case, not the
+      // `content_parsing` one: a free read of a task already paid for at post time.
+      waterfall: fetchOnPageWaterfall,
     },
     aiSearch: {
       mentionsSearch: meter(customer, fetchLlmMentionsSearch),

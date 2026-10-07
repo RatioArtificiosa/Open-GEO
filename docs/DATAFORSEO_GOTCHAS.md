@@ -392,6 +392,39 @@ how a tool reports "no issues" on a site with a www redirect loop.
 
 ---
 
+### 5.2 The waterfall: the read is free, and the crawl is the purchase `[V 2026-10-06]`
+
+A waterfall is what the page actually loaded and how long each piece took. Four verified facts
+change how it should be bought:
+
+- **`/v3/on_page/waterfall` has no `/live/` segment.** It is a **task read**, not a live call, so
+  a URL with `/live/` in it 404s. The task must be a crawl that already ran — which is why this
+  is the one feature in the audit that **cannot** come from our own crawler: our fetch reads the
+  HTML and nothing else, and there are no resource timings to be had without a browser asking
+  for every file.
+- **The read is free.** In the vendor's own words: _"Your account will not be charged for using
+  this function. You can get the results of the task within the next 30 days for free."_ So the
+  purchase is a **crawl, once**, and every waterfall for its pages costs nothing for a month.
+  That is the opposite of `content_parsing`, which bills on every read — the two sit on the same
+  crawl id with different economics.
+- **What the crawl must ask for, and what it must not.** Resource timings need
+  `load_resources` — **3× the base page price, about $0.00045 a page**, so a thousand pages for
+  well under a dollar. `enable_browser_rendering` is **34×** and exists for Core Web Vitals,
+  which this endpoint does not return; asking for it here multiplies the bill by eleven for
+  nothing. `max_crawl_pages` is required, and **the vendor refunds the difference** when a site
+  has fewer pages than requested.
+- **The crawl is asynchronous.** The read answers `crawl_progress: in_progress` until the pages
+  are done. A caller that treats the first read as final shows an empty waterfall for a crawl
+  that is still running, and blames the site.
+
+**And one thing that can make the two crawls disagree.** The vendor's crawler identifies itself
+as `Mozilla/5.0 (compatible; RSiteAuditor)` from a published list of DataForSEO IPs, and it is a
+stranger to a strict WAF. **Our own crawl — from our edge, as ourselves — will not have that
+problem**, so the same URL can be reachable to us and blocked to them. When a vendor-crawled page
+comes back empty, that is the first thing to check, not the last.
+
+---
+
 ## 6. AI Optimization — LLM Mentions
 
 _Verified 2026-09-28 against the live docs. This is the family that reports what AI systems
