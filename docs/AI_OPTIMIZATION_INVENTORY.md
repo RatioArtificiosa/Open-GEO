@@ -74,3 +74,40 @@ family.
 comboboxes, not `<select>`s**, so the model list must come from the free `models` endpoint rather
 than scraped from the UI. **Processing time for LLM Responses can reach 120 seconds**, which
 exceeds a server function's budget and forces a queued-task shape on any caller.
+
+## Verified against the sandbox, 2026-10-07 (cost: $0.00)
+
+The first real DataForSEO calls this project has made, against `sandbox.dataforseo.com` with our own
+credentials. Three calls, `cost: 0` each, balance untouched.
+
+| Endpoint                                                       | Result            | What it proves                                             |
+| -------------------------------------------------------------- | ----------------- | ---------------------------------------------------------- |
+| `GET /v3/ai_optimization/chat_gpt/llm_responses/models`        | `20000`, `cost=0` | The path is right, the auth works, the family is reachable |
+| `GET /v3/ai_optimization/llm_mentions/locations_and_languages` | `20000`, `cost=0` | **The GEO-tracking family is reachable on this account**   |
+| `GET /v3/ai_optimization/llm_mentions/filters`                 | `404`             | Needs checking against the live host — see below           |
+
+**The models response confirms Sofia's guidance from the API itself.** Its result keys are
+`model_name`, `reasoning`, `web_search_supported`, `task_post_supported` — so the per-model
+capability flags she told us to check are real fields, not advice. A model picker built from this
+call can never drift, which is the whole point of her "do not hard-code the list" warning.
+
+**The `locations_and_languages` response** carries `location_code`, `location_name` and
+`available_languages` — the input-side dependency for the `llm_mentions` client.
+
+**The one open question:** Sofia listed `llm_mentions/filters` and the sandbox returns 404 for it.
+That is **not** recorded as a vendor limitation, and **not** as a wrong path. It is an unverified
+path that needs one call against the live host. The sandbox's own documentation says it carries
+every API, so a single missing path is more likely a sandbox gap than a bad path — but only a live
+call settles it, and guessing here would be the exact mistake this file exists to prevent.
+
+## A credential-parse lesson worth keeping
+
+The first smoke test returned `401`, and the diagnostic said the username value was **0
+characters** — which was **wrong**. The file is UTF-8, 42 lines, and `DATAFORSEO_USERNAME` holds a
+28-character value. The bug was mine: a nested `-match` overwrote `PowerShell's `$Matches`, so the
+length I printed came from the wrong match.
+
+**A reading failure is not a fact about the file.** The near-miss was concluding "the credentials
+are empty" and writing it down — which would have sent the next reader after a non-existent
+problem. The fix is the one this project keeps re-deriving: parse once into a map, then read from
+the map.
