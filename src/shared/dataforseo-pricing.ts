@@ -141,7 +141,12 @@ export const DFS_AI_OPTIMIZATION = {
  * So the price is read from the same table the pricing slider reads, and the two
  * cannot disagree. This is the whole argument for keeping prices as data.
  */
-export function geoAnswerUnitCostUsd(queue: DfsQueue = "standard"): number {
+export function geoAnswerUnitCostUsd(
+  // `"live"` is excluded on purpose: there is no `llm_scraper/live` route, so quoting a price for
+  // that queue would hand a caller a number for something the API cannot do. A comment on the
+  // price row was not enough - this is the same rule the type system can enforce for free.
+  queue: Exclude<DfsQueue, "live"> = "standard",
+): number {
   return DFS_AI_OPTIMIZATION.llmScraper[queue].perRequest ?? 0;
 }
 
