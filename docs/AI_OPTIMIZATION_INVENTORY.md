@@ -200,3 +200,32 @@ warning was accurate and the endpoint is usable.
 
 **And this is the GEO-tracking family**, so these are the endpoints the product's core will call:
 `platform` is `chat_gpt` or `google`, which is ChatGPT mentions and **Google AI Overviews**.
+
+## The whole family, path-verified — 30 routes, $0.00
+
+Empty POST (`[{}]`) against each documented path on the sandbox. **Every one returned `20000` with
+`cost=0`** — the vendor accepted the route and rejected the empty body, which is exactly the
+distinction that makes this a free test rather than a paid one.
+
+| Family           | Paths verified                                                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| LLM Responses    | `{chat_gpt,claude,gemini,perplexity}/llm_responses/live` and `/task_post` — **8**                                                                |
+| LLM Scraper      | `{chat_gpt,gemini}/llm_scraper/live/advanced`, `live/html`, `task_post` — **6**                                                                  |
+| AI Keyword Data  | `ai_keyword_data/keywords_search_volume/live` — **1**                                                                                            |
+| LLM Mentions     | the eleven below — **11**                                                                                                                        |
+| Metadata (`GET`) | `llm_responses/models` ×4, `llm_scraper/locations` ×2, `ai_keyword_data/locations_and_languages`, `llm_mentions/locations_and_languages` — **4** |
+
+**Total: 30 verified routes. Nothing spent.** The only documented path that failed is
+`llm_mentions/filters`, which 404s on the sandbox **and** the production host and is recorded as
+probably wrong.
+
+**What this changes about building the client:** there is no path left to guess. Every route the
+client will call has a real 200 behind it, so a 404 in production is now a signal that something
+changed at the vendor rather than a bug in our own string. That is the difference between debugging
+routing and debugging logic.
+
+**And the technique generalises beyond this family.** A paid endpoint can be _routed_ for free: send
+an empty body, and read the difference between `404` (no such path) and the vendor's own validation
+error (the path exists, the payload was refused, nothing was billed). One caution that comes from
+this session: **read the response keys before trusting a count** — a `20000` with an empty result
+was a shape error twice, not an empty dataset.
