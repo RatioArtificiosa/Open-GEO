@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createDataforseoClient } from "@/server/lib/dataforseo/client";
 import { readTrendSeries } from "@/server/features/trends/trendSeries";
+import { readKeywordDemography } from "@/server/features/trends/demography";
+import { readSubregionInterests } from "@/server/features/trends/subregion";
 import { requireProjectContext } from "@/serverFunctions/middleware";
 import { getSearchTrendsSchema } from "@/types/schemas/trends";
 
@@ -78,5 +80,33 @@ export const getSearchTrends = createServerFn({ method: "POST" })
       source,
       series: readTrendSeries(items[0] ?? {}),
       locationCode: context.project.locationCode,
+    };
+  });
+
+/**
+ * The merged view for the screen. It reuses `getSearchTrendsSchema` and validates the market's
+ * vocabulary through the same `pick` lookups, so an index type this endpoint does not know is
+ * dropped rather than sent to a vendor that would bill for the rejection.
+ */
+export const getTrendsOverview = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getSearchTrendsSchema)
+  .handler(async ({ data, context }) => {
+    const client = createDataforseoClient(context);
+    const items = await client.keywords.trendsMerged({
+      keywords: data.keywords,
+      type: pick(LABS_TYPES, data.type),
+      timeRange: pick(LABS_WINDOWS, data.timeRange),
+      dateFrom: data.dateFrom,
+      dateTo: data.dateTo,
+      locationCode: context.project.locationCode,
+    });
+
+    // Dispatched on each element's own `type`, which is why one request needs no fourth reader.
+    const byType = new Map(items.map((item) => [item.type ?? "", item]));
+    return {
+      series: readTrendSeries(byType.get("dataforseo_trends_graph") ?? {}),
+      regions: readSubregionInterests(byType.get("subregion_interests") ?? {}),
+      demography: readKeywordDemography(byType.get("demography") ?? {}),
     };
   });

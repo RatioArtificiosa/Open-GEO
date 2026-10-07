@@ -24,6 +24,7 @@ import {
   TREND_SCALE_CAVEAT,
 } from "@/server/features/trends/trendSeries";
 import { getSearchTrends } from "@/serverFunctions/trends";
+import { TrendsOverviewPanel } from "@/client/features/trends/TrendsOverviewPanel";
 
 /**
  * The Trends Center: whether interest in a term is rising, seasonal, or fading.
@@ -238,6 +239,8 @@ export function TrendsCenterPage({ projectId }: { projectId: string }) {
           Nothing is charged until you chart something.
         </p>
       )}
+
+      <TrendsOverviewPanel projectId={projectId} />
     </div>
   );
 }
