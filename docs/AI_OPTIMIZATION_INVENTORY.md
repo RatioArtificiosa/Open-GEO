@@ -263,3 +263,35 @@ field by field, in order.
    validation error), so a whole family's routing can be mapped for nothing.
 3. **A `GET` metadata call** — free, and it returns the real values (model names, locations) rather
    than samples.
+
+## `llm_mentions/search_mentions/live` — the request shape, proven on the sandbox
+
+The GEO-tracking call the product's core is built on. Decoded by the schema oracle in four attempts
+at `cost=0`, each one naming the next constraint:
+
+| Attempt | Payload                              | What the validator said                                 |
+| ------- | ------------------------------------ | ------------------------------------------------------- |
+| 1       | `target: ["example.com"]`            | _expected array_ — `target` is an array                 |
+| 2       | `target: ["example.com"]`            | _Each 'target' item must be an object_                  |
+| 3       | `target: [{}]`                       | _Exactly one of 'domain' or 'keyword' must be provided_ |
+| 4       | `target: [{"domain":"example.com"}]` | `20000`, result present                                 |
+
+**The minimal valid call — two fields:**
+
+```json
+[{ "platform": "chat_gpt", "target": [{ "domain": "example.com" }] }]
+```
+
+**Rules, each stated by the vendor rather than inferred:**
+
+- `target` is an **array**, and every item is an **object** — never a bare string.
+- **Exactly one of `domain` or `keyword`** per item. Both, or neither, is rejected.
+- `location_code` and `language_code` are **optional on this route** — attempt 4 carried neither and
+  was accepted.
+
+**Response envelope:** `items`, `items_count`, `offset`, `search_after_token`, `total_count`.
+
+**Two notes to carry into the client.** First, mirror the one-of rule in the client's schema — a wrong
+payload is a **billed** rejection on the live host, so validating before sending is money. Second, the
+cursor is **`search_after_token`**, not the `offset_token` used elsewhere in this codebase; that is a
+cursor, not an offset, and it should be honoured rather than normalised away.
