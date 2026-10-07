@@ -174,3 +174,29 @@ models on both hosts — which is exactly how this was found, twice.
 an earlier probe's own output: the keys of `result[0]` were `model_name`, `reasoning`,
 `web_search_supported`, `task_post_supported` — which said plainly that `result[0]` _is_ a model.
 Read the response keys before trusting a count.
+
+## Every `llm_mentions` path verified — for free, with an empty POST
+
+Eleven paths, one empty POST each (`[{}]`) against the sandbox. Every one returned
+`status=20000` with `status_message: "POST Data Is Invalid."` and **`cost=0`**.
+
+| Path                                                                             | Result |
+| -------------------------------------------------------------------------------- | ------ |
+| `search_mentions/live`                                                           | exists |
+| `target_metrics/live` · `target_metrics_lite/live` · `multi_target_metrics/live` | exist  |
+| `top_mentioned_domains/live` · `_lite` · `top_mentioned_pages/live` · `_lite`    | exist  |
+| `historical/live`                                                                | exists |
+| `timeseries_delta/live` · `timeseries_new_lost/live`                             | exist  |
+
+**The technique is worth keeping: an empty POST is a free path probe.** A path that does not exist
+returns `404`, and a path that does returns the vendor's own validation error — so a whole family's
+routing can be mapped without a paid call. That is what `llm_mentions/filters` failed, and this
+passed: the method separates the two cleanly.
+
+**It also settles Sofia's own caveat.** She flagged that the documentation page served for
+`timeseries_new_lost/live` is mislabeled as a Backlinks page, and told us to validate the schema
+before deploying. The path itself is real — the defect is in the docs page, not the API. So the
+warning was accurate and the endpoint is usable.
+
+**And this is the GEO-tracking family**, so these are the endpoints the product's core will call:
+`platform` is `chat_gpt` or `google`, which is ChatGPT mentions and **Google AI Overviews**.
