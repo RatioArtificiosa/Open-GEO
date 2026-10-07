@@ -248,6 +248,18 @@
         "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
       }
     },
+    "get_category_keywords": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only reads keyword demand for supplied product categories from the provider. It changes no local or remote state.",
+        "open_world_justification": "Operates only on private OpenGeo state or private provider data and cannot change publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
     "get_domain_categories": {
       "annotations": {
         "readOnlyHint": true,

@@ -11,6 +11,7 @@
  * including the taxonomy's URL and its 3,183 rows.
  */
 import { dataforseoPost } from "@/server/lib/dataforseo/core";
+import { AppError } from "@/server/lib/errors";
 import {
   assertOk,
   buildTaskBilling,
@@ -53,6 +54,33 @@ type LabsMetricsBlock = {
 };
 
 /**
+ * One keyword the vendor returns for a set of categories.
+ *
+ * The fields a Market Map reads: volume and CPC from `keyword_info`, difficulty from
+ * `keyword_properties`, and intent from `search_intent_info`. Everything is optional because the
+ * vendor omits blocks per keyword rather than sending zeros — `keyword_difficulty: 0` in its own
+ * sample coexists with a null `detected_language`, so an absent block and a zero are not the same
+ * claim and must not be collapsed.
+ */
+type CategoryKeywordItem = {
+  keyword?: string | null;
+  keyword_info?: {
+    search_volume?: number | null;
+    cpc?: number | null;
+    competition?: number | null;
+    competition_level?: string | null;
+  } | null;
+  keyword_properties?: {
+    keyword_difficulty?: number | null;
+    words_count?: number | null;
+  } | null;
+  search_intent_info?: {
+    main_intent?: string | null;
+  } | null;
+  [key: string]: unknown;
+};
+
+/**
  * The product and service categories a domain ranks in.
  *
  * **Location and language are both required** here, unlike `ranked_keywords` where each is
@@ -89,6 +117,74 @@ export async function fetchCategoriesForDomain(input: {
       limit: input.limit,
       offset: input.offset,
       order_by: input.orderBy,
+    },
+  ]);
+  const task = assertOk(response);
+  return {
+    data: task.result?.[0]?.items ?? [],
+    billing: buildTaskBilling(task),
+  };
+}
+
+/**
+ * Keywords relevant to a set of categories: the drill-down from a category profile.
+ *
+ * ## Verified against the reference, 2026-10-06
+ *
+ * `category_codes` is **required** and takes the same criterion IDs the taxonomy is keyed by —
+ * **at most 20 of them**. Location and language are both required, as on its sibling. `limit`
+ * reaches 1,000, and `offset_token` exists for paging beyond 10,000 results.
+ *
+ * **`category_intersection` defaults to `true`**, and that default is the trap: with it set, the
+ * response contains only keywords that appear in **every** category named. A caller who passes
+ * three unrelated categories expecting their union gets a short or empty answer that looks like a
+ * failed request. This client sends the flag explicitly, and the caller says which it wants.
+ *
+ * **`offset_token` overrides everything but `limit`** — the reference is explicit that when it is
+ * present, all other parameters are ignored. So it is never combined with filters here: a caller
+ * paging with a token would otherwise believe its filters still applied.
+ *
+ * `includeClickstreamData` doubles the price, and `includeSerpInfo` adds a SERP block per keyword,
+ * which is a much larger response for data the caller may not read. The reference's sample
+ * response shows a price that predates the current one, as its sibling's does — the price book and
+ * the task's own `cost` are the authorities.
+ */
+export async function fetchKeywordsForCategories(input: {
+  categoryCodes: number[];
+  locationCode: number;
+  languageCode: string;
+  /** `true` = keywords in ALL named categories; `false` = in ANY. Sent explicitly. */
+  categoryIntersection: boolean;
+  includeSerpInfo?: boolean;
+  includeClickstreamData?: boolean;
+  ignoreSynonyms?: boolean;
+  limit: number;
+  offset?: number;
+  offsetToken?: string;
+}): Promise<DataforseoApiResponse<CategoryKeywordItem[]>> {
+  // Refused rather than truncated: 21 categories silently cut to 20 would answer a different
+  // question than the one asked, and the caller would have no way to see that.
+  if (input.categoryCodes.length === 0 || input.categoryCodes.length > 20) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      `keywords_for_categories takes between 1 and 20 categories; got ${input.categoryCodes.length}.`,
+    );
+  }
+
+  const response = await dataforseoPost<
+    DataforseoItemsTask<CategoryKeywordItem>
+  >("/v3/dataforseo_labs/google/keywords_for_categories/live", [
+    {
+      category_codes: input.categoryCodes,
+      location_code: input.locationCode,
+      language_code: input.languageCode,
+      category_intersection: input.categoryIntersection,
+      include_serp_info: input.includeSerpInfo,
+      include_clickstream_data: input.includeClickstreamData ?? false,
+      ignore_synonyms: input.ignoreSynonyms,
+      limit: input.limit,
+      offset: input.offset,
+      offset_token: input.offsetToken,
     },
   ]);
   const task = assertOk(response);

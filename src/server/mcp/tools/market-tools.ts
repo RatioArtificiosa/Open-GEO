@@ -143,3 +143,137 @@ export const getDomainCategoriesTool = {
     });
   }),
 };
+
+/**
+ * The drill-down: what people actually search inside a set of categories.
+ *
+ * ## The one decision this tool makes for the caller
+ *
+ * The vendor's `category_intersection` defaults to **`true`**, which returns only keywords that
+ * appear in **every** category named. That is rarely what "keywords for these categories" means,
+ * and its failure mode is a short or empty list that reads like a failed request. This tool
+ * therefore **defaults to `false`** — keywords in **any** of the named categories — states that in
+ * the schema, and passes the choice through explicitly rather than letting the vendor's default
+ * decide.
+ *
+ * ## Price
+ *
+ * One Labs request, and `includeClickstreamData` **doubles it**. `category_codes` takes at most 20
+ * categories, and more than that is refused before the request rather than truncated, because
+ * silently answering a narrower question is worse than an error.
+ */
+const keywordsInputSchema = {
+  projectId: projectIdSchema,
+  categoryCodes: z
+    .array(z.number().int())
+    .min(1)
+    .max(20)
+    .describe(
+      "Criterion IDs to gather keywords for, from get_domain_categories (1 to 20).",
+    ),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(1000)
+    .optional()
+    .describe("Maximum keywords to return. Defaults to 50."),
+  categoryIntersection: z
+    .boolean()
+    .optional()
+    .describe(
+      "false (default): keywords appearing in ANY of these categories — usually what 'keywords for these categories' means. true: only keywords appearing in ALL of them, which is a much narrower question and can return nothing.",
+    ),
+  includeClickstreamData: z
+    .boolean()
+    .optional()
+    .describe(
+      "Adds clickstream volume, age and gender distributions per keyword. Doubles the vendor's price for this request.",
+    ),
+  locationCode: z
+    .number()
+    .int()
+    .optional()
+    .describe(
+      "Country-level DataForSEO Labs location code. Defaults to the project's market.",
+    ),
+  languageCode: z
+    .string()
+    .optional()
+    .describe(
+      "Language code for the location. Defaults to the location's own.",
+    ),
+} as const;
+
+type KeywordsArgs = z.infer<z.ZodObject<typeof keywordsInputSchema>>;
+
+export const getCategoryKeywordsTool = {
+  name: "get_category_keywords",
+  config: {
+    title: "Get keywords for categories",
+    description:
+      "Returns the keywords people search inside one or more product categories, with volume, CPC, difficulty and search intent per keyword. Use it after get_domain_categories to see what the demand looks like inside a category a domain ranks in — or in one it does not, to size a gap. Charges credits, doubled if includeClickstreamData is set.",
+    inputSchema: keywordsInputSchema,
+    outputSchema: z
+      .object({
+        categoryCodes: z.array(z.number()),
+        categoryIntersection: z.boolean(),
+        keywords: z.array(
+          z.looseObject({
+            keyword: z.string().nullable(),
+            searchVolume: z.number().nullable(),
+            cpc: z.number().nullable(),
+            difficulty: z.number().nullable(),
+            intent: z.string().nullable(),
+          }),
+        ),
+        ...optionalMetaOutputSchema,
+      })
+      .passthrough(),
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+  },
+  handler: withMcpProjectAuth(async (args: KeywordsArgs, context) => {
+    const market = resolveLabsMarketSelector(args, context.project);
+    const categoryIntersection = args.categoryIntersection ?? false;
+    const client = createDataforseoClient(context.billing);
+
+    const items = await client.domain.keywordsForCategories({
+      categoryCodes: args.categoryCodes,
+      locationCode: market.locationCode,
+      languageCode: market.languageCode,
+      categoryIntersection,
+      limit: args.limit ?? 50,
+      includeClickstreamData: args.includeClickstreamData,
+    });
+
+    const keywords = items.map((item) => ({
+      keyword: item.keyword ?? null,
+      searchVolume: item.keyword_info?.search_volume ?? null,
+      cpc: item.keyword_info?.cpc ?? null,
+      difficulty: item.keyword_properties?.keyword_difficulty ?? null,
+      intent: item.search_intent_info?.main_intent ?? null,
+    }));
+
+    const scope = categoryIntersection
+      ? "in all of the named categories"
+      : "in any of the named categories";
+
+    return mcpResponse({
+      text: `${keywords.length} keyword${keywords.length === 1 ? "" : "s"} ${scope}.${keywords.length === 0 && categoryIntersection ? " Nothing matched across every category, which is what an intersection means: try categoryIntersection false to see each category's own demand." : ""}`,
+      meta: buildProjectMeta(
+        context,
+        args.projectId,
+        `/p/${args.projectId}/market`,
+      ),
+      structuredContent: {
+        categoryCodes: args.categoryCodes,
+        categoryIntersection,
+        keywords,
+      },
+    });
+  }),
+};

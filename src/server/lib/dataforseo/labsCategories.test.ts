@@ -9,6 +9,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchCategoriesForDomain } from "@/server/lib/dataforseo/labsCategories";
+import { fetchKeywordsForCategories } from "@/server/lib/dataforseo/labsCategories";
 import { requestBody, requestUrl } from "./test-support";
 
 vi.mock("@/server/lib/runtime-env", () => ({
@@ -91,5 +92,60 @@ describe("fetchCategoriesForDomain", () => {
     expect(requestBody(vi.mocked(fetch))[0]).toMatchObject({
       include_clickstream_data: false,
     });
+  });
+});
+
+describe("fetchKeywordsForCategories", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("calls the documented path and sends the intersection flag explicitly", async () => {
+    // The vendor defaults `category_intersection` to **true**, meaning "keywords in ALL named
+    // categories". A caller passing three unrelated categories expects their union, so the flag
+    // is part of the request rather than something the vendor decides.
+    vi.mocked(fetch).mockImplementation(async () =>
+      okResponse([{ items: [{ keyword: "desktop dell optiplex" }] }]),
+    );
+
+    const { data } = await fetchKeywordsForCategories({
+      categoryCodes: [12191, 12193],
+      locationCode: 2840,
+      languageCode: "en",
+      categoryIntersection: false,
+      limit: 10,
+    });
+
+    expect(requestUrl(vi.mocked(fetch))).toContain(
+      "/v3/dataforseo_labs/google/keywords_for_categories/live",
+    );
+    expect(requestBody(vi.mocked(fetch))[0]).toMatchObject({
+      category_codes: [12191, 12193],
+      category_intersection: false,
+      include_clickstream_data: false,
+    });
+    expect(data[0]?.keyword).toBe("desktop dell optiplex");
+  });
+
+  it("refuses more than 20 categories before making a paid call", async () => {
+    // The endpoint's cap is 20. Truncating to 20 would answer a different question than the one
+    // asked, and the caller would have no way to see that it had. The assertion that **no
+    // request was sent** is the half that matters, because a refusal after a billed call is a
+    // refusal that cost money.
+    await expect(
+      fetchKeywordsForCategories({
+        categoryCodes: Array.from({ length: 21 }, (_, index) => 10000 + index),
+        locationCode: 2840,
+        languageCode: "en",
+        categoryIntersection: false,
+        limit: 10,
+      }),
+    ).rejects.toThrow("between 1 and 20 categories");
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

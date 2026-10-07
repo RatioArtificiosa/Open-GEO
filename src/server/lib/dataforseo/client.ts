@@ -38,6 +38,7 @@ import {
   fetchSerpCompetitors,
 } from "@/server/lib/dataforseo/labs";
 import { fetchCategoriesForDomain } from "@/server/lib/dataforseo/labsCategories";
+import { fetchKeywordsForCategories } from "@/server/lib/dataforseo/labsCategories";
 import {
   fetchAdsKeywordIdeas,
   fetchAdsSearchVolume,
@@ -154,6 +155,11 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       // `includeClickstreamData` flag doubles the vendor's price — a caller's decision, never a
       // default.
       categoriesForDomain: meter(customer, fetchCategoriesForDomain),
+      // The drill-down: keywords relevant to a set of categories. `categoryIntersection` is
+      // required rather than defaulted, because the vendor's own default (`true`) silently means
+      // "keywords in ALL of these categories", which is not what a caller passing several
+      // categories usually means.
+      keywordsForCategories: meter(customer, fetchKeywordsForCategories),
     },
     serp: {
       live: meter(customer, fetchLiveSerp),

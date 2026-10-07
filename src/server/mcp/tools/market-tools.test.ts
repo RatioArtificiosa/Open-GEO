@@ -8,6 +8,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getDomainCategoriesTool } from "./market-tools";
+import { getCategoryKeywordsTool } from "./market-tools";
 import { makeToolContext } from "./tool-test-support";
 
 const mocks = vi.hoisted(() => ({
@@ -135,5 +136,53 @@ describe("get_domain_categories", () => {
     expect(categoriesForDomain).toHaveBeenCalledWith(
       expect.objectContaining({ locationCode: 2840, languageCode: "en" }),
     );
+  });
+});
+
+function setCategoryKeywords(items: unknown[]) {
+  const keywordsForCategories = vi.fn().mockResolvedValue(items);
+  mocks.createDataforseoClient.mockReturnValue({
+    domain: { keywordsForCategories },
+  });
+  return keywordsForCategories;
+}
+
+describe("get_category_keywords", () => {
+  it("defaults to ANY-category, not the vendor's all-category default", async () => {
+    // The vendor defaults `category_intersection` to true, which returns only keywords present in
+    // **every** named category. Reading "keywords for these categories" as an intersection is
+    // almost never what a caller means, and its failure mode is an empty list that looks like a
+    // broken request — so the tool's default is its own, and this pins it.
+    const keywordsForCategories = setCategoryKeywords([
+      { keyword: "desktop dell optiplex" },
+    ]);
+
+    await getCategoryKeywordsTool.handler(
+      { projectId: "project_1", categoryCodes: [12191, 12193] },
+      toolContext,
+    );
+
+    expect(keywordsForCategories).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryIntersection: false }),
+    );
+  });
+
+  it("passes the intersection through when the caller asks for it", async () => {
+    const keywordsForCategories = setCategoryKeywords([]);
+
+    const result = await getCategoryKeywordsTool.handler(
+      {
+        projectId: "project_1",
+        categoryCodes: [12191, 12193],
+        categoryIntersection: true,
+      },
+      toolContext,
+    );
+
+    expect(keywordsForCategories).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryIntersection: true }),
+    );
+    // An empty intersection looks like a failure unless the answer says why it is empty.
+    expect(textOf(result.content)).toContain("categoryIntersection false");
   });
 });
