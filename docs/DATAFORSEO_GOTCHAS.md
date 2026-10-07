@@ -587,3 +587,31 @@ Every OpenGeo DataForSEO call must:
 - [`METHODOLOGY.md`](./METHODOLOGY.md) — how each OpenGeo metric is computed
 - [`DATAFORSEO_API_KEY.md`](./DATAFORSEO_API_KEY.md) — getting and using your key
 - `src/shared/dataforseo-pricing.ts` — the price book, pinned by tests
+
+### 4.7 Same idea, different spelling — and three rules that follow
+
+Four gotchas found in one session, each of which cost a defect when ignored.
+
+**A price row is not a route.** The price book carried an `llmScraper.live` row, so a `live` variant
+was written and shipped. The sandbox 404s it, and 404s four other spellings too. The row describes a
+queue the current API does not expose. **Check the route, never the catalogue.**
+
+**`target` is spelled differently in the same API family.** `llm_mentions/search_mentions` wants an
+**array of objects** — `[{"domain": "example.com"}]`, and exactly one of `domain` or `keyword` per
+item — while `domain_analytics/technologies/domain_technologies` wants a **plain string**,
+`{"target": "example.com"}`. Neither can be generalised from the other, and assuming they matched is
+how the fabricated route above got written.
+
+**The id of a created task is `task.id`, not `result[0].id`.** The tag is `task.data.tag`. A client
+that reads `result[0]` throws on every real response while its mocked tests pass happily — the
+fixture encodes the same wrong assumption the code does.
+
+**404 and `40503` mean different things, and so do `40503` and `40402`.** A bare `404` is no such
+path. `40503 "POST Data Is Invalid."` means the path exists and the payload is wrong — an empty POST
+is therefore a **free path probe**, and a plausible body against the sandbox decodes a request schema
+field by field at `cost=0`. `40402 "Invalid Path."` is the vendor's own wrong-path error, which is how
+a family that exists but is misaddressed looks.
+
+**And the rule that would have caught all of the above: a stubbed fetch validates a shape, never a
+route.** Tests that assert the URL string the module itself chose cannot disagree with the module.
+Derive the expectation from a real response, or probe the host before writing the client.
