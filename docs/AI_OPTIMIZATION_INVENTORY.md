@@ -295,3 +295,34 @@ at `cost=0`, each one naming the next constraint:
 payload is a **billed** rejection on the live host, so validating before sending is money. Second, the
 cursor is **`search_after_token`**, not the `offset_token` used elsewhere in this codebase; that is a
 cursor, not an offset, and it should be honoured rather than normalised away.
+
+## `llm_scraper` — which routes exist, proven against the sandbox
+
+Probed directly, because the mocked tests could not answer this: **a stubbed fetch validates a shape,
+never a route.**
+
+| Route                                                 | Result                                                                                          |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `POST /v3/ai_optimization/{se}/llm_scraper/task_post` | **exists** — `20100` "Task Created."                                                            |
+| `POST .../llm_scraper/live`                           | **404 — does not exist**                                                                        |
+| `GET .../llm_scraper/locations`                       | **404** (also 404 as `locations_and_languages`, `locations/live`, `{se}/llm_scraper/locations`) |
+| `GET .../llm_mentions/locations_and_languages`        | **exists** — `20000`, result present                                                            |
+
+**Two defects this found in already-committed code.** A `live` variant was inferred from the
+`llmScraper.live` price row's existence — **a price is not a route** — and a locations client was
+written against a path that answers 404 in every form tried. Both were removed; the client now
+exposes only `task_post` and the `task_get` collection.
+
+**Two things remain unresolved, and are recorded as unresolved rather than assumed:**
+
+1. **`task_get`.** Both `{se}/llm_scraper/task_get/<uuid>` and the unscoped form returned 404, but the
+   probes used an all-zero uuid and then an empty id, so they cannot distinguish _wrong route_ from
+   _no such task_. The empty id returned the vendor's structured `40400 "Not Found."` rather than a
+   bare 404, which reads like a task miss — suggestive, not proof.
+2. **Whether `task_post` returns an id.** On the sandbox it answers `20100` with `result: null`, so the
+   creation body's `id` cannot be seen there. Production almost certainly returns one — the sibling
+   `llm-responses-queue.ts` reads `task.id` — but "the neighbouring file does it" is the reasoning
+   that produced the 404 route above, so it stays unverified.
+
+**Both could be settled by one live `task_post` at roughly $0.0012.** That is a spend decision for the
+account owner, not one taken while they sleep.
