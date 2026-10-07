@@ -72,12 +72,11 @@ describe("llm_scraper task submission", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("refuses a prompt longer than the vendor's 500-character cap instead of truncating it", () => {
+  it("refuses a keyword past the 2,000-character cap instead of truncating it", () => {
     const result = llmScraperTaskSchema.safeParse({
-      keyword: "best crm",
       location_name: "United States",
       language_name: "English",
-      user_prompt: "x".repeat(501),
+      keyword: "x".repeat(2001),
     });
     expect(result.success).toBe(false);
   });
