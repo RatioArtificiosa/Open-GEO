@@ -253,6 +253,13 @@
       "when": 1790881000000,
       "tag": "0035_geo_acquisition_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791339881772,
+      "tag": "0036_labs_categories",
+      "breakpoints": true
     }
   ]
 }
