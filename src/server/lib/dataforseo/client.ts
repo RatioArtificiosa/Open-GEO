@@ -40,6 +40,8 @@ import {
 import { fetchCategoriesForDomain } from "@/server/lib/dataforseo/labsCategories";
 import { fetchKeywordsForCategories } from "@/server/lib/dataforseo/labsCategories";
 import { fetchDomainMetricsByCategories } from "@/server/lib/dataforseo/labsDomainMetrics";
+import { fetchWhoisOverview } from "@/server/lib/dataforseo/whois";
+import { fetchDomainTechnologies } from "@/server/lib/dataforseo/technologies";
 import { fetchDataforseoTrendsExplore } from "@/server/lib/dataforseo/dataforseoTrends";
 import { fetchGoogleTrendsExplore } from "@/server/lib/dataforseo/googleTrends";
 import { fetchDataforseoTrendsDemography } from "@/server/lib/dataforseo/dataforseoTrendsDemography";
@@ -166,6 +168,11 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       rankOverview: meter(customer, fetchDomainRankOverview),
       rankedKeywords: meter(customer, fetchRankedKeywords),
       relevantPages: meter(customer, fetchRelevantPages),
+      // WHOIS and technologies are both billed at request time, so both are metered. WHOIS is the
+      // expensive one (~$0.12) and technologies the cheap one (~$0.012) that carries the contact
+      // fields the lead list is built from.
+      whoisOverview: meter(customer, fetchWhoisOverview),
+      domainTechnologies: meter(customer, fetchDomainTechnologies),
       // The categories a domain ranks in. Metered with everything else in Labs, and the
       // `includeClickstreamData` flag doubles the vendor's price — a caller's decision, never a
       // default.
