@@ -326,3 +326,31 @@ exposes only `task_post` and the `task_get` collection.
 
 **Both could be settled by one live `task_post` at roughly $0.0012.** That is a spend decision for the
 account owner, not one taken while they sleep.
+
+## `domain_analytics/technologies` — the route, the field, and why it matters (CL-408)
+
+**Route:** `POST /v3/domain_analytics/technologies/domain_technologies/live`
+
+Probed, not assumed: `technologies/technologies/live` and the `/live`-less form both 404, while
+`technologies_domain/live` returns a structured `40402 "Invalid Path."` — the vendor's own "wrong
+path" error, which is how a family that exists but is misaddressed looks.
+
+**Minimal valid body — one string field:**
+
+```json
+[{ "target": "example.com" }]
+```
+
+→ `20000`, result present, `cost=0`. Note `target` is a **plain string** here, not the array of
+`{domain}`/`{keyword}` objects that `llm_mentions/search_mentions` requires. Two endpoints in the same
+API family spell the same idea differently; neither should be generalised from the other.
+
+**Result shape, from the live response:** `domain`, `title`, `description`, `domain_rank`,
+`technologies`, **`emails`**, **`phone_numbers`**, **`social_graph_urls`**, `meta_keywords`,
+`language_code`, `content_language_code`, `country_iso_code`, `last_visited`, `type`.
+
+**This is the tech-slicing lead list's foundation, and the reason is the contact fields.** A call
+returns the technologies a domain runs _and_ the contact points to reach it — so a filter like "runs
+Shopify but not Klaviyo" yields a list of stores to sell to, with an email attached. That is the
+audit-to-prospect step the GEO wedge needs, and it arrives in the same response as the technology
+stack rather than needing enrichment.
