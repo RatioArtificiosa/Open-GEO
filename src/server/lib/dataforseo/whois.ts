@@ -67,9 +67,16 @@ const whoisOverviewRowSchema = z.object({
   domain: z.string(),
   registered: z.boolean().nullish(),
   registrar: z.string().nullish(),
-  created: z.string().nullish(),
-  expired: z.string().nullish(),
-  updated: z.string().nullish(),
+  // The vendor's real names, read off a live response. created, expired and updated were
+  // invented, and because these fields are optional the mistake would have shown as rows with no
+  // dates at all - an expiry that silently reads as unknown is worse than an error.
+  created_datetime: z.string().nullish(),
+  expiration_datetime: z.string().nullish(),
+  updated_datetime: z.string().nullish(),
+  changed_datetime: z.string().nullish(),
+  first_seen: z.string().nullish(),
+  tld: z.string().nullish(),
+  epp_status_codes: z.array(z.string()).nullish(),
   metrics: whoisMetricsSchema,
   backlinks_info: z.record(z.string(), z.unknown()).nullish(),
 });
