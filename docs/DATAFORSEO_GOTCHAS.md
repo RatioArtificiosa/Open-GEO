@@ -348,6 +348,44 @@ as `role: "arbitration"`, and `sharedKeywordsPerTask` refuses to let one size a 
 
 ---
 
+### 4.5 `categories_for_domain` returns numbers, and the names are a separate file
+
+`POST /v3/dataforseo_labs/google/categories_for_domain/live` — verified 2026-10-06.
+
+| Thing                      | What the reference says                                                                       |
+| -------------------------- | --------------------------------------------------------------------------------------------- |
+| `target`                   | **required** — domain or subdomain, without `https://` or `www`                               |
+| location / language        | **both required** (one of name or code each), unlike `ranked_keywords` where each is optional |
+| `limit`                    | default 100, **max 1,000**, with `offset`; 2,000 calls/min, 1 task per Live call              |
+| `filters` / `order_by`     | 8 conditions / 3 sort rules maximum, as elsewhere in Labs                                     |
+| `item_types`               | `organic`, `paid`, `featured_snippet`, `local_pack` — **no AI-Overview option**               |
+| `include_clickstream_data` | **doubles the price**; adds `clickstream_etv` + age/gender distributions                      |
+| response                   | each item carries `categories: [10007]` and `metrics.{organic,paid,…}`                        |
+
+**The catch is the whole reason this is written down.** An item's `categories` is an array of
+**numeric criterion IDs**, and the response contains **no labels anywhere** — a category comes
+back as `10007`, not as a name. The names are published as a separate taxonomy:
+
+```
+https://cdn.dataforseo.com/v3/categories/categories_dataforseo_labs_2023_10_25.csv
+```
+
+3,183 rows, `Criterion ID,Category`, with the category as a **slash-path hierarchy**
+(`/Apparel/Apparel Accessories/Bags & Packs`). So anything that _displays_ a category needs that
+file, and where it lives is a deployment decision rather than a detail: a bundle import weights
+every worker cold start, a table needs a migration plus a seed path, and a runtime fetch makes a
+CDN a dependency of a read. The client therefore passes the IDs through unchanged — inventing a
+label, or dropping an ID whose label is unknown, would each be worse than a join the caller can
+do — and the file's `_2023_10_25` date is part of its name because it will be republished.
+
+**And the sample carries a stale price, for the second time in this repo.** The reference's
+example response shows `cost: 0.0103` against the price book's $0.012 a request plus $0.00012 an
+item. The sample is stamped `0.1.20240514`, so it predates the current price. The lesson is not
+"the vendor is wrong" but that **a number inside a code example is the number somebody will
+hard-code**, which is why billing reads the task's own `cost` field and never a constant.
+
+---
+
 ## 5. On-Page — the most expensive API to misuse
 
 **Expensive switches** (each adds charges and crawl work): `load_resources`, `enable_javascript`,

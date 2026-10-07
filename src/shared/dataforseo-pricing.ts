@@ -462,8 +462,14 @@ export const ETV_VERSION = {
    * `resolveEtvMode` keys off it. So this points there.
    *
    * `categories_for_domain` is **not dropped silently**: it is a real vendor endpoint that
-   * may well accept the flag, and it is recorded on `DFS_LABS` where its *price* lives, with
-   * a note that we do not call it. **The distinction that matters** is between a catalogue
+   * may well accept the flag, and it is recorded on `DFS_LABS` where its *price* lives.
+   * `[V 2026-10-06]` **That comment used to end "with a note that we do not call it", and as
+   * of CL-406 we do** — `labsCategories.ts` calls this endpoint. So the distinction stops
+   * being catalogue trivia and becomes a live gap: **the endpoint returns `etv` and is not on
+   * the versioned list, so the category ETVs we now store carry no formula version**, and the
+   * vendor switches models on 2026-11-01. Verifying whether it accepts `use_new_etv` is
+   * CL-712a's work rather than a guess to make here, which is exactly why that row exists.
+   * **The distinction that matters** is between a catalogue
    * fact and a statement about what this product does, and this file mixes both.
    */
   endpointsWithNewEtv: ETV_BEARING_LABS_ENDPOINTS,

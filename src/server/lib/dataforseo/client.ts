@@ -37,6 +37,7 @@ import {
   fetchRelevantPages,
   fetchSerpCompetitors,
 } from "@/server/lib/dataforseo/labs";
+import { fetchCategoriesForDomain } from "@/server/lib/dataforseo/labsCategories";
 import {
   fetchAdsKeywordIdeas,
   fetchAdsSearchVolume,
@@ -149,6 +150,10 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       rankOverview: meter(customer, fetchDomainRankOverview),
       rankedKeywords: meter(customer, fetchRankedKeywords),
       relevantPages: meter(customer, fetchRelevantPages),
+      // The categories a domain ranks in. Metered with everything else in Labs, and the
+      // `includeClickstreamData` flag doubles the vendor's price — a caller's decision, never a
+      // default.
+      categoriesForDomain: meter(customer, fetchCategoriesForDomain),
     },
     serp: {
       live: meter(customer, fetchLiveSerp),
