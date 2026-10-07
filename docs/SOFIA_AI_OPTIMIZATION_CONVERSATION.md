@@ -472,9 +472,9 @@ Standard task_get result retrieval
 
 That does not make the originating task free: Standard tasks are charged when posted.
 
-This is an approximate price. For more details and assistance, you can contact support at support@dataforseo.com, which is available 24/7 and always ready to help with your request and calculate pricing for your specific use case.
+This is an approximate price. For more details and assistance, you can contact support at the vendor support desk (address redacted: a vendor escalation path is not ours to redistribute), which is available 24/7 and always ready to help with your request and calculate pricing for your specific use case.
 
-For custom integration or volume pricing, contact anna.chernishenko@dataforseo.com. Custom pricing is available only for volumes of 2+ million requests per month.
+For custom integration or volume pricing, contact a named vendor contact (address redacted). Custom pricing is available only for volumes of 2+ million requests per month.
 
 How does DataForSEO LLM Responses API work?
 What is the difference between Live and Standard methods?
