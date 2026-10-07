@@ -20,10 +20,12 @@ import type { LlmModelSlug } from "@/server/lib/dataforseo/llm-models";
  * The 400-line budget in this directory is a shape signal, not a brevity request: it is why this
  * file exists separately from `ai.ts` (LLM Mentions + Responses) rather than joining it.
  *
- * Two of the three queues are asynchronous. `standard` and `priority` require a billed `task_post`
- * followed by `task_get`, because processing is measured in minutes; `live` answers inline. The
- * price gap is real and deliberate - see `DFS_AI_OPTIMIZATION.llmScraper` - so the queue is an
- * argument the caller must state rather than a default this module picks for them.
+ * The asynchronous queues (`standard`, `priority`) require a billed `task_post` followed by a
+ * `task_get`, because processing is measured in minutes. The price book also carries an
+ * `llmScraper.live` row, but **there is no `live` route** - the sandbox answers 404 for it, and a
+ * price row is not a route - so nothing here sends to one. The price gap between the queues is
+ * real and deliberate, so the queue is an argument the caller must state rather than a default this
+ * module picks for them.
  */
 
 const classifyLlmScraperError = createDataforseoBillingClassifier({
