@@ -65,6 +65,10 @@ export const llmScraperTaskSchema = z.object({
   // deliberately typed without invented bounds: the vendor's constraint is not something this file
   // has verified, and guessing one would refuse valid work.
   tag: z.string().max(255).optional(),
+  // Declared for the same reason as tag: zod strips what it does not know, so an undeclared
+  // callback URL would be dropped and the caller would wait for a notification that never came.
+  pingback_url: z.string().url().optional(),
+  postback_url: z.string().url().optional(),
   priority: z.number().int().min(1).max(2).optional(),
 });
 

@@ -63,6 +63,14 @@ vi.mock("@/db/runBatch", () => ({
   runBatch: async (build: (tx: unknown) => unknown[]) => {
     build({});
   },
+  // The other half of the same module. Without it the geo write path throws through the mock and a
+  // rollup guard swallows the error, so the file passes while the code under test never ran.
+  executeInBatches: async (
+    rows: readonly unknown[],
+    run: (tx: unknown, row: unknown) => unknown,
+  ) => {
+    for (const row of rows) await run(undefined, row);
+  },
 }));
 
 const NOW = "2026-10-01T00:00:00.000Z";
