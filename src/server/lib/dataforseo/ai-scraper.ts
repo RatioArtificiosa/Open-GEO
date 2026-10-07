@@ -132,14 +132,14 @@ export async function postLlmScraperTasks(input: {
   // Every task must yield an id. Checking only for *zero* ids would let a partial answer through:
   // a batch of five returning three ids would collect three answers and strand two the account had
   // already paid for, with nothing to say so. A shortfall is as much a failure as an empty one.
-  if (taskIds.length !== responseTasks.length) {
+  if (taskIds.length !== tasks.length) {
     throw new AppError(
       "INTERNAL_ERROR",
       "DataForSEO llm_scraper/task_post returned " +
         responseTasks.length +
-        " tasks but only " +
+        " tasks submitted, but only " +
         taskIds.length +
-        " ids, so an answer already paid for could not be collected",
+        " ids came back, so an answer already paid for could not be collected",
     );
   }
 
