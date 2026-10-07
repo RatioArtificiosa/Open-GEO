@@ -120,6 +120,10 @@ export const DFS_AI_OPTIMIZATION = {
   llmScraper: {
     standard: { perRequest: money(0.0012) } satisfies DfsPrice,
     priority: { perRequest: money(0.0024) } satisfies DfsPrice,
+    // **No live route.** The sandbox answers 404 for `llm_scraper/live` (and for four other spellings
+    // of it), so this row describes a queue the current API does not expose. Retained rather than
+    // deleted because the vendor documents the queue and it may reappear, but nothing reaches it:
+    // a price row is not a route, and this row must not be read as evidence that one exists.
     live: { perRequest: money(0.004) } satisfies DfsPrice,
     unitName: "results page",
   },
