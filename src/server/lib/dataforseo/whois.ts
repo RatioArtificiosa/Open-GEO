@@ -127,11 +127,24 @@ export async function fetchWhoisOverview(
   const response = await dataforseoPost(WHOIS_PATH, [body]);
   const task = assertOk(response);
 
+  const rawResult = task.result?.[0];
+  const first = z.record(z.string(), z.unknown()).safeParse(rawResult ?? {});
+  const hasItemsArray = first.success && Array.isArray(first.data.items);
+
+  // An absent element means no rows, which is a legitimate empty answer. A *present* element that
+  // is not an object carrying an items array means the shape changed - and returning [] there would
+  // read as "no domains found" when the truth is "the answer could not be read". Different things.
+  if (rawResult !== undefined && !hasItemsArray) {
+    throw new AppError(
+      "INTERNAL_ERROR",
+      "DataForSEO whois/overview returned a result without an items array",
+    );
+  }
+
   const items = z
     .array(whoisOverviewRowSchema)
     .safeParse(
-      z.record(z.string(), z.unknown()).safeParse(task.result?.[0] ?? {}).data
-        ?.items ?? [],
+      first.success && Array.isArray(first.data.items) ? first.data.items : [],
     );
   if (!items.success) {
     throw new AppError(
