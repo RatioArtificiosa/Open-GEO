@@ -120,7 +120,7 @@ describe("fetchDataforseoTrendsExplore", () => {
 
     await fetchDataforseoTrendsExplore({ keywords: ["a"] });
 
-    const body = requestBody(vi.mocked(fetch))[0] as Record<string, unknown>;
+    const body = requestBody(vi.mocked(fetch))[0];
     expect(body.location_code).toBeUndefined();
   });
 });
