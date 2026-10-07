@@ -41,7 +41,12 @@ const runBatch = vi.hoisted(() =>
   }),
 );
 
-vi.mock("@/db/runBatch", () => ({ runBatch }));
+vi.mock("@/db/runBatch", () => ({
+  runBatch,
+  executeInBatches: async (rows, run) => {
+    for (const row of rows) await run(undefined, row);
+  },
+}));
 
 const section = (
   key: string,

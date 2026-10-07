@@ -36,7 +36,12 @@ vi.mock("@/server/features/geo/repositories/GeoRunRepository", () => ({
 // and the Worker runtime. Neither is exercised here, and importing without these
 // mocks builds a real database handle — an error about the database raised by a test
 // about prompt text, which is the least diagnosable kind.
-vi.mock("@/db/runBatch", () => ({ runBatch: vi.fn() }));
+vi.mock("@/db/runBatch", () => ({
+  runBatch: vi.fn(),
+  executeInBatches: async (rows, run) => {
+    for (const row of rows) await run(undefined, row);
+  },
+}));
 vi.mock("@/server/features/geo/repositories/GeoSetupRepository", () => ({
   GeoSetupRepository: {},
 }));
