@@ -1,9 +1,9 @@
 # AI Optimization — verified endpoint inventory
 
 **Source: Sofia AI (DataForSEO's own assistant), 2026-10-07**, in conversation
-`https://chat.dataforseo.com/chat/13caa1e3-3233-444c-93ad-5c67c866267` *(read the full conversation
+`https://chat.dataforseo.com/chat/13caa1e3-3233-444c-93ad-5c67c866267` _(read the full conversation
 for sections 3–5, which this file does not yet carry: brand-tracking endpoints, Historical LLM
-Mentions detail, and the limits/costs section).* She grounded the model-list answer by **making a
+Mentions detail, and the limits/costs section)._ She grounded the model-list answer by **making a
 live API call herself** rather than paraphrasing the docs, which is why this inventory reads as
 verified rather than remembered.
 
@@ -16,12 +16,12 @@ verified rather than remembered.
 
 ### 1. LLM Responses — ChatGPT, Claude, Gemini, Perplexity
 
-| Platform | Paths | Method |
-|---|---|---|
-| ChatGPT | `/v3/ai_optimization/chat_gpt/llm_responses/{models, live, task_post, task_get/{id}, tasks_ready}` | Live + task |
-| Claude | `/v3/ai_optimization/claude/llm_responses/{…}` | Live + task |
-| Gemini | `/v3/ai_optimization/gemini/llm_responses/{…}` | Live + task |
-| Perplexity | `/v3/ai_optimization/perplexity/llm_responses/{models, live}` | **Live only** |
+| Platform   | Paths                                                                                              | Method        |
+| ---------- | -------------------------------------------------------------------------------------------------- | ------------- |
+| ChatGPT    | `/v3/ai_optimization/chat_gpt/llm_responses/{models, live, task_post, task_get/{id}, tasks_ready}` | Live + task   |
+| Claude     | `/v3/ai_optimization/claude/llm_responses/{…}`                                                     | Live + task   |
+| Gemini     | `/v3/ai_optimization/gemini/llm_responses/{…}`                                                     | Live + task   |
+| Perplexity | `/v3/ai_optimization/perplexity/llm_responses/{models, live}`                                      | **Live only** |
 
 ### 2. LLM Scraper — ChatGPT and Gemini only
 
