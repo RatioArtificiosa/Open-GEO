@@ -161,7 +161,7 @@ Model names
 
 The model list is dynamic. Do not hard-code this list permanently; use:
 
-The current live response returned these 49 names:
+The live response returned 49 model names. They are omitted from this excerpt - the models endpoint shown above is the source of truth, and a copied list would go stale while the endpoint would not:
 
 Each model entry also includes:
 
