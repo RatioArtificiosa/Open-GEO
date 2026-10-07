@@ -19,6 +19,8 @@ function envelope(result: unknown, statusCode = 20000, cost = 0.0012) {
     tasks: [
       {
         status_code: statusCode,
+        id: "task-1",
+        data: { tag: "patrol" },
         path: ["v3", "ai_optimization", "chat_gpt", "llm_scraper"],
         cost,
         result: result === null ? null : [result],
@@ -53,8 +55,8 @@ describe("llm_scraper task submission", () => {
     const url = requestUrl(fetchMock);
     expect(url).toContain("/v3/ai_optimization/chat_gpt/llm_scraper/task_post");
     expect(url).not.toContain("llm_scraper/task_get");
-    expect(posted.data.taskId).toBe("task-1");
-    expect(posted.data.tag).toBe("patrol");
+    expect(posted.data.taskIds[0]).toBe("task-1");
+    expect(posted.data.tags[0]).toBe("patrol");
   });
 
   it("refuses an empty batch rather than sending one, because the POST is billed", async () => {

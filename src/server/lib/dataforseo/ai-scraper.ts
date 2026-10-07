@@ -6,7 +6,6 @@ import { NO_RETRY_BILLED_POST } from "@/server/lib/dataforseo/billedTasks";
 import { dataforseoGet, dataforseoPost } from "@/server/lib/dataforseo/core";
 import {
   assertOk,
-  buildTaskBilling,
   isRecord,
   isTaskInProgress,
   type DataforseoApiResponse,
@@ -46,35 +45,40 @@ function firstResult(task: DataforseoTaskLike): Record<string, unknown> | null {
   return isRecord(first) ? first : null;
 }
 
-/** One query for the scraper to run. `keyword` and `location_code` are the caller's contract. */
+/**
+ * One query for the scraper to run. `user_prompt` is capped by the vendor at 500 characters, and
+ * this schema is **enforced on the way out** rather than merely documented: an over-long prompt is
+ * refused, never silently truncated into a different question than the caller asked.
+ */
 export const llmScraperTaskSchema = z.object({
   keyword: z.string().min(1),
   location_code: z.number().optional(),
   language_code: z.string().optional(),
-  /** The prompt sent to the search surface. Capped by the vendor - never send more than 500. */
   user_prompt: z.string().max(500).optional(),
   device: z.enum(["desktop", "mobile"]).optional(),
 });
 
 type LlmScraperTaskInput = z.infer<typeof llmScraperTaskSchema>;
 
-const postedTaskSchema = z.object({
-  id: z.string(),
-  status_code: z.number().optional(),
-  cost: z.number().optional(),
-  tag: z.string().nullish(),
-});
-
 /**
  * Submit scraper tasks. The POST is billed, so `NO_RETRY_BILLED_POST` is mandatory here - without
  * it a 5xx would be retried and the account charged twice for one answer. `billed-tasks-gate`
  * fails the build if any `/task_post` call site omits it.
+ *
+ * **The task id is `task.id` and the tag is `task.data.tag`** — not fields of `result[0]`, which is
+ * how this was first written, and why it would have thrown on every real response. The sibling
+ * `llm-responses-queue.ts` reads both the same way; that file is the reference for this shape.
+ *
+ * Every task is validated **before** the request: validating after a billed POST is a charge for a
+ * call that was never going to be accepted. The vendor prices per task, so the cost reported here
+ * is the **sum** across the batch, and every id is returned — losing an id would strand an answer
+ * already paid for.
  */
 export async function postLlmScraperTasks(input: {
   se: LlmModelSlug;
   tasks: LlmScraperTaskInput[];
 }): Promise<
-  DataforseoApiResponse<{ taskId: string; tag: string | null; costUsd: number }>
+  DataforseoApiResponse<{ taskIds: string[]; tags: string[]; costUsd: number }>
 > {
   if (input.tasks.length === 0) {
     throw new AppError(
@@ -83,58 +87,83 @@ export async function postLlmScraperTasks(input: {
     );
   }
 
+  const tasks = input.tasks.map((task) => {
+    const parsed = llmScraperTaskSchema.safeParse(task);
+    if (!parsed.success) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "postLlmScraperTasks refused a task before sending it, so nothing was billed",
+      );
+    }
+    return parsed.data;
+  });
+
   const path = `${scraperBase(input.se)}/task_post`;
-  const response = await dataforseoPost(path, input.tasks, {
+  const response = await dataforseoPost(path, tasks, {
     ...NO_RETRY_BILLED_POST,
     classify: classifyLlmScraperError,
   });
-  const task = assertOk(response, assertOptions(path));
+  assertOk(response, assertOptions(path));
 
-  const posted = postedTaskSchema.safeParse(firstResult(task) ?? {});
-  if (!posted.success) {
+  const taskIds: string[] = [];
+  const tags: string[] = [];
+  let costUsd = 0;
+  for (const task of response?.tasks ?? []) {
+    costUsd += task.cost ?? 0;
+    if (typeof task.id !== "string") {
+      continue;
+    }
+    taskIds.push(task.id);
+    tags.push(
+      isRecord(task.data) && typeof task.data.tag === "string"
+        ? task.data.tag
+        : "",
+    );
+  }
+
+  if (taskIds.length === 0) {
     throw new AppError(
       "INTERNAL_ERROR",
-      "DataForSEO llm_scraper/task_post returned an invalid shape",
+      "DataForSEO llm_scraper/task_post returned no task id, so the answers could never be collected",
     );
   }
 
   return {
-    data: {
-      taskId: posted.data.id,
-      tag: posted.data.tag ?? null,
-      costUsd: posted.data.cost ?? 0,
-    },
-    billing: buildTaskBilling(task),
+    data: { taskIds, tags, costUsd },
+    billing: { path: [path], costUsd },
   };
 }
 
+/** The outcome of collecting one task. `pending` carries no cost, because nothing is final yet. */
+type LlmScraperTaskOutcome =
+  | { status: "pending" }
+  | { status: "completed"; result: unknown; costUsd: number; path: string[] };
+
 /**
- * Collect one finished task. A pending task legitimately carries no cost, so this reports `null`
- * rather than zero for it: zero means "free", and a pending task is not that.
+ * Collect one finished task. A pending task is not an error, so the in-progress check must come
+ * **before** `assertOk` — which would otherwise throw on a status code that legitimately is not
+ * 20000. Reporting `pending` without a cost is deliberate: zero means "free", and a task still
+ * being processed is not free, it is unfinished.
  */
 export async function getLlmScraperTask(
   se: LlmModelSlug,
   taskId: string,
-): Promise<
-  | { status: "pending" }
-  | { status: "completed"; result: unknown; costUsd: number; path: string[] }
-> {
+): Promise<LlmScraperTaskOutcome> {
   const path = `${scraperBase(se)}/task_get/${encodeURIComponent(taskId)}`;
   const response = await dataforseoGet(path, assertOptions(path));
 
-  // A pending task is not an error, so the in-progress check must come before `assertOk` — which
-  // would otherwise throw on a status code that legitimately is not 20000.
   const rawTask = response?.tasks?.[0];
   if (rawTask && isTaskInProgress(rawTask)) {
     return { status: "pending" };
   }
 
   const task = assertOk(response, assertOptions(path));
-  const billing = buildTaskBilling(task);
+  const costUsd = typeof task.cost === "number" ? task.cost : 0;
+  const resultPath = Array.isArray(task.path) ? task.path.map(String) : [path];
   return {
     status: "completed",
     result: firstResult(task),
-    costUsd: billing.costUsd,
-    path: billing.path,
+    costUsd,
+    path: resultPath,
   };
 }
