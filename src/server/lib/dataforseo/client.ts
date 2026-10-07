@@ -40,6 +40,7 @@ import {
 import { fetchCategoriesForDomain } from "@/server/lib/dataforseo/labsCategories";
 import { fetchKeywordsForCategories } from "@/server/lib/dataforseo/labsCategories";
 import { fetchDomainMetricsByCategories } from "@/server/lib/dataforseo/labsDomainMetrics";
+import { fetchDataforseoTrendsExplore } from "@/server/lib/dataforseo/dataforseoTrends";
 import {
   fetchAdsKeywordIdeas,
   fetchAdsSearchVolume,
@@ -142,6 +143,8 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       // already show. Metered here rather than called directly, because a call that
       // skips this wrapper is spend nobody attributes — and it is billed **per request**,
       // not per keyword, which is why the reconciliation passes one batch.
+      // DataForSEO Trends lives under the keywords-data API, not where its name suggests.
+      trendsExplore: meter(customer, fetchDataforseoTrendsExplore),
       clickstreamVolumes: meter(
         customer,
         fetchClickstreamVolumes,

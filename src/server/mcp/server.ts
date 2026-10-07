@@ -83,6 +83,7 @@ import {
   getCategoryKeywordsTool,
   getDomainCategoriesTool,
 } from "@/server/mcp/tools/market-tools";
+import { getSearchTrendsTool } from "@/server/mcp/tools/trends-tools";
 import {
   getBusinessProfileTool,
   getBusinessReviewsTool,
@@ -261,6 +262,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getDomainCategoriesTool);
   register(getCategoryKeywordsTool);
   register(getCategoryDomainMetricsTool);
+  register(getSearchTrendsTool);
   register(findSerpCompetitorsTool);
   register(searchLocalBusinessesTool);
   register(getLocalSerpResultsTool);
