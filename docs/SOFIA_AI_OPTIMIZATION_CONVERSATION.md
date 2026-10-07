@@ -2,7 +2,7 @@
 
 Captured 2026-10-07 from https://chat.dataforseo.com/chat/13caa1e3-3233-444c-93ad-5dc67c866267
 
-Source: DataForSEO's own assistant. Cost: $0.00. Kept verbatim because sections 3-5
+Source: DataForSEO's own assistant. Cost: $0.00. Kept as an edited excerpt - not verbatim, because the vendor contact addresses were redacted and the model list and one request example are summarised rather than reproduced - because sections 3-5
 (brand-mention tracking, Historical LLM Mentions detail, limits and costs) are the parts the
 inventory file summarises least. Treat every path here as needing the 200-check the inventory
 describes: one path she listed, llm_mentions/filters, 404s on both hosts.
