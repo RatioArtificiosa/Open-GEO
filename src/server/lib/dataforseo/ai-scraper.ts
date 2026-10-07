@@ -157,7 +157,7 @@ export async function getLlmScraperTask(
   se: LlmModelSlug,
   taskId: string,
 ): Promise<LlmScraperTaskOutcome> {
-  const path = `${scraperBase(se)}/task_get/${encodeURIComponent(taskId)}`;
+  const path = `${scraperBase(se)}/task_get/advanced/${encodeURIComponent(taskId)}`;
   const response = await dataforseoGet(path, assertOptions(path));
 
   const rawTask = response?.tasks?.[0];

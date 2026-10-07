@@ -54,7 +54,7 @@ describe("llm_scraper task submission", () => {
 
     const url = requestUrl(fetchMock);
     expect(url).toContain("/v3/ai_optimization/chat_gpt/llm_scraper/task_post");
-    expect(url).not.toContain("llm_scraper/task_get");
+    expect(url).not.toContain("llm_scraper/task_get/task");
     expect(posted.data.taskIds[0]).toBe("task-1");
     expect(posted.data.tags[0]).toBe("patrol");
   });
@@ -83,7 +83,7 @@ describe("llm_scraper task collection", () => {
 
     const collected = await getLlmScraperTask("chat_gpt", "task/1");
     expect(requestUrl(fetchMock)).toContain(
-      "/v3/ai_optimization/chat_gpt/llm_scraper/task_get/task%2F1",
+      "/v3/ai_optimization/chat_gpt/llm_scraper/task_get/advanced/task%2F1",
     );
     expect(collected.status).toBe("completed");
   });
