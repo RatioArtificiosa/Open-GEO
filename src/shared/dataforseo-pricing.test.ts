@@ -514,13 +514,14 @@ describe("remaining price families", () => {
     expect(
       estimateScraperPatrol({ prompts: 10, queue: "priority" }).totalUsd,
     ).toBeCloseTo(0.024, 6);
-    expect(
-      estimateScraperPatrol({ prompts: 10, queue: "live" }).totalUsd,
-    ).toBeCloseTo(0.04, 6);
+    // No live case: the row exists for the vendor's documented queue, but estimateScraperPatrol
+    // refuses it and the type system enforces that. A runtime assertion would need a cast that
+    // this repo does not allow, so the refusal is proven by the compiler and the row by the case
+    // above.
   });
 
   it("defaults a patrol to the cheap Standard queue", () => {
-    const q: DfsQueue = "standard";
+    const q: Exclude<DfsQueue, "live"> = "standard";
     expect(estimateScraperPatrol({ prompts: 1, queue: q }).totalUsd).toBe(
       estimateScraperPatrol({ prompts: 1 }).totalUsd,
     );

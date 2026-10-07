@@ -577,16 +577,16 @@ export function estimateDailyBrandMonitoring(input: {
 /** Cost of an LLM Scraper patrol: one page per prompt, on the given queue. */
 export function estimateScraperPatrol(input: {
   prompts: number;
-  queue?: DfsQueue;
+  // "live" is excluded for the same reason as geoAnswerUnitCostUsd: there is no llm_scraper/live
+  // route, so an estimate for it would quote money for work the API cannot do.
+  queue?: Exclude<DfsQueue, "live">;
 }): CostEstimate {
   const queue = input.queue ?? "standard";
   return estimateCost({
     price:
-      queue === "live"
-        ? DFS_AI_OPTIMIZATION.llmScraper.live
-        : queue === "priority"
-          ? DFS_AI_OPTIMIZATION.llmScraper.priority
-          : DFS_AI_OPTIMIZATION.llmScraper.standard,
+      queue === "priority"
+        ? DFS_AI_OPTIMIZATION.llmScraper.priority
+        : DFS_AI_OPTIMIZATION.llmScraper.standard,
     requests: input.prompts,
   });
 }
