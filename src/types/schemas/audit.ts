@@ -25,6 +25,27 @@ export const getAuditStatusSchema = z.object({
   auditId: z.string().min(1),
 });
 
+/**
+ * Start a crawl whose page timings can then be read.
+ *
+ * One page by default: a waterfall is about a single URL, and the crawl is the half that costs.
+ */
+export const startPageSpeedAuditSchema = z.object({
+  projectId: z.string().min(1),
+  url: z.string().url(),
+  maxCrawlPages: z.number().int().min(1).max(1000).optional(),
+});
+
+/**
+ * Read one page of a started crawl. **Free** — the vendor charges for the crawl, not this read
+ * — which is why it can be called as often as the reader likes while a crawl finishes.
+ */
+export const getPageWaterfallSchema = z.object({
+  projectId: z.string().min(1),
+  taskId: z.string().min(1),
+  url: z.string().url(),
+});
+
 export const getAuditResultsSchema = z.object({
   projectId: z.string().min(1),
   auditId: z.string().min(1),

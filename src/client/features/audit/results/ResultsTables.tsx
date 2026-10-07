@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   createColumnHelper,
   type ColumnDef,
@@ -31,6 +31,7 @@ import {
   type PerformanceFilters,
   type PerformanceRowData,
 } from "@/client/features/audit/results/AuditResultsTableFilterLogic";
+import { PageSpeedModal } from "@/client/features/audit/results/PageSpeedModal";
 
 const performanceColumnHelper = createColumnHelper<PerformanceRowData>();
 
@@ -49,6 +50,11 @@ export function PerformanceTable({
     EMPTY_PERFORMANCE_FILTERS,
   );
   const [showFilters, setShowFilters] = useState(false);
+  const [explainPageUrl, setExplainPageUrl] = useState<string | null>(null);
+  const onExplainPage = useCallback(
+    (pageUrl: string) => setExplainPageUrl(pageUrl),
+    [],
+  );
   const [sorting, setSorting] = useState<SortingState>([
     { id: "performanceScore", desc: false },
   ]);
@@ -74,8 +80,8 @@ export function PerformanceTable({
     EMPTY_PERFORMANCE_FILTERS,
   );
   const columns = useMemo(
-    () => buildPerformanceColumns({ auditId, projectId }),
-    [auditId, projectId],
+    () => buildPerformanceColumns({ auditId, projectId, onExplainPage }),
+    [auditId, projectId, onExplainPage],
   );
   const table = useAppTable({
     data: filteredRows,
@@ -109,6 +115,13 @@ export function PerformanceTable({
           <EmptyTableMessage label="No performance results match these filters." />
         }
       />
+      {explainPageUrl ? (
+        <PageSpeedModal
+          projectId={projectId}
+          pageUrl={explainPageUrl}
+          onClose={() => setExplainPageUrl(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -116,9 +129,12 @@ export function PerformanceTable({
 function buildPerformanceColumns({
   auditId,
   projectId,
+  onExplainPage,
 }: {
   auditId: string;
   projectId: string;
+  /** Opens the page-speed crawl for a URL. Only offered when there is one to crawl. */
+  onExplainPage: (pageUrl: string) => void;
 }): ColumnDef<PerformanceRowData>[] {
   return [
     performanceColumnHelper.accessor("pagePath", {
@@ -220,6 +236,22 @@ function buildPerformanceColumns({
         );
       },
       sortingFn: nullableNumberSort,
+    }),
+    performanceColumnHelper.display({
+      id: "speed",
+      header: () => "Speed",
+      cell: ({ row }) =>
+        row.original.pageUrl ? (
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs"
+            onClick={() => onExplainPage(row.original.pageUrl ?? "")}
+          >
+            Explain
+          </button>
+        ) : (
+          <span className="text-xs text-base-content/40">-</span>
+        ),
     }),
     performanceColumnHelper.display({
       id: "issues",
