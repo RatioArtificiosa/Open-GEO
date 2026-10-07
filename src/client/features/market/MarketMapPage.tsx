@@ -107,7 +107,7 @@ export function MarketMapPage({ projectId }: { projectId: string }) {
               categor
               {summary.categoryCount === 1 ? "y" : "ies"}
               {summary.topLabel
-                ? `, led by ${summary.topLabel} at ${Math.round(summary.totalOrganicEtv).toLocaleString()} estimated monthly visits across all of them`
+                ? `, led by ${summary.topLabel}, with ${Math.round(summary.totalOrganicEtv).toLocaleString()} estimated monthly visits across all categories`
                 : ""}
               .
               {summary.unnamedCount > 0

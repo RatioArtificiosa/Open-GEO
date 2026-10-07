@@ -59,6 +59,15 @@ function readValues(
   }));
 }
 
+/**
+
+/** Each block's values keyed by its own `keyword`. Hoisted because it captures nothing. */
+function valuesByKeyword(
+  entries: Array<{ keyword: string; values: DemographyBucketValue[] }>,
+): Map<string, DemographyBucketValue[]> {
+  return new Map(entries.map((entry) => [entry.keyword, entry.values]));
+}
+
 /** Per keyword, with each keyword's own peak as its 100. */
 export function readKeywordDemography(
   input: DemographyLike,
@@ -67,20 +76,16 @@ export function readKeywordDemography(
   const gender = readValues(input.demography?.gender);
   const keywords = input.keywords ?? age.map((entry) => entry.keyword);
 
-  return keywords.map((keyword, index) => ({
+  const ageByKeyword = valuesByKeyword(age);
+  const genderByKeyword = valuesByKeyword(gender);
+
+  return keywords.map((keyword) => ({
     keyword,
-    age: age[index]?.values ?? [],
-    gender: gender[index]?.values ?? [],
+    age: ageByKeyword.get(keyword) ?? [],
+    gender: genderByKeyword.get(keyword) ?? [],
   }));
 }
 
-/**
- * Shares across the requested keywords, per bucket — or null.
- *
- * **Null is a real answer here**: the vendor returns null for a single keyword, because there is
- * nothing to compare it with. Returning an empty object instead would render as "no data" and
- * blame the index for a question that was never asked.
- */
 /** Shares for each bucket, with the vendor's 0 mapped to null as everywhere in this family. */
 function readBuckets(
   source: Record<string, number[] | null> | null | undefined,
@@ -94,6 +99,7 @@ function readBuckets(
   return out;
 }
 
+/** Shares across the requested keywords, per bucket — or null. */
 export function readDemographyComparison(
   input: DemographyLike,
 ): DemographyComparison | null {

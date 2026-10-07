@@ -213,7 +213,9 @@ const demographyInputSchema = {
     .number()
     .int()
     .optional()
-    .describe("Country-level location code. Omit for global results."),
+    .describe(
+      "Country-level location code. Defaults to the project's own market; this product does not request global results.",
+    ),
 } as const;
 
 type DemographyArgs = z.infer<z.ZodObject<typeof demographyInputSchema>>;
@@ -346,7 +348,9 @@ const regionsInputSchema = {
     .number()
     .int()
     .optional()
-    .describe("Country-level location code. Omit for global results."),
+    .describe(
+      "Country-level location code. Defaults to the project's own market; this product does not request global results.",
+    ),
 } as const;
 
 type RegionsArgs = z.infer<z.ZodObject<typeof regionsInputSchema>>;

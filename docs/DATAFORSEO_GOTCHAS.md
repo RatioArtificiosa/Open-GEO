@@ -348,7 +348,7 @@ as `role: "arbitration"`, and `sharedKeywordsPerTask` refuses to let one size a 
 
 ---
 
-### 4.5 `categories_for_domain` returns numbers, and the names are a separate file
+### 4.6 `categories_for_domain` returns numbers, and the names are a separate file
 
 `POST /v3/dataforseo_labs/google/categories_for_domain/live` — verified 2026-10-06.
 

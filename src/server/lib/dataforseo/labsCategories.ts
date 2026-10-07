@@ -7,7 +7,7 @@
  * The endpoint's catch is that a category arrives as a **numeric criterion ID with no label**,
  * and the labels are published separately as a taxonomy CSV. This client hands the IDs through
  * unchanged — inventing a label, or dropping an ID whose label is unknown, would each be worse
- * than a join the caller can do. `docs/DATAFORSEO_GOTCHAS.md` §4.5 carries the verified detail,
+ * than a join the caller can do. `docs/DATAFORSEO_GOTCHAS.md` §4.6 carries the verified detail,
  * including the taxonomy's URL and its 3,183 rows.
  */
 import { dataforseoPost } from "@/server/lib/dataforseo/core";
