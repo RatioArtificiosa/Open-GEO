@@ -8,40 +8,52 @@ import {
   toTrendChart,
   type ChartSeries,
 } from "@/client/features/trends/trendChartModel";
-import { TREND_SCALE_CAVEAT } from "@/server/features/trends/trendSeries";
+import {
+  coerceType,
+  coerceWindow,
+  priceFor,
+  TREND_SOURCES,
+  typesFor,
+  windowsFor,
+  type TrendSource,
+  type TrendType,
+  type TrendWindowValue,
+} from "@/client/features/trends/trendSources";
+import {
+  CROSS_SOURCE_TREND_CAVEAT,
+  TREND_SCALE_CAVEAT,
+} from "@/server/features/trends/trendSeries";
 import { getSearchTrends } from "@/serverFunctions/trends";
-import { DFS_KEYWORDS } from "@/shared/dataforseo-pricing";
-
-const WINDOWS = [
-  { value: "past_7_days", label: "7 days" },
-  { value: "past_30_days", label: "30 days" },
-  { value: "past_90_days", label: "90 days" },
-  { value: "past_12_months", label: "12 months" },
-  { value: "past_5_years", label: "5 years" },
-] as const;
 
 /**
  * The Trends Center: whether interest in a term is rising, seasonal, or fading.
  *
+ * ## Two indexes, and the screen treats them as two
+ *
+ * DataForSEO Trends and Google Trends both score 0–100, and neither score is absolute: each is a
+ * keyword's peak measured inside its own index and its own request. So the source is a **choice**
+ * rather than an overlay, and the screen says plainly that a 90 from one and a 90 from the other
+ * are different quantities. Drawing them on one axis would invent a comparison neither vendor
+ * makes.
+ *
+ * The two also accept different vocabularies — `froogle` against `ecommerce`, and two
+ * "since inception" presets only Google serves — so switching source **coerces the window and the
+ * type** rather than carrying a value the other index would reject and bill for.
+ *
  * ## What the chart refuses to do
  *
- * Two rules from the data layer are visible here rather than buried. Every line on this screen
- * shares **one ruler** — the request's biggest peak — so a forgotten keyword cannot be drawn as
- * tall as a famous one; and a week the vendor had no data for is a **gap, not a floor**, because a
- * zero-height bar is exactly what a real zero looks like. The count of unmeasured points is printed
- * beside the chart, since "flat and low" and "measured in half the weeks" look alike at this size.
- *
- * ## Price
- *
- * One request, billed the same at one keyword or five, so the schema takes up to five and the
- * button carries the fee.
+ * Every line shares **one ruler** — the request's biggest peak — so a forgotten keyword cannot be
+ * drawn as tall as a famous one; and a week with no data is a **muted dash, not a floor**, because
+ * a zero-height bar is exactly what a real zero looks like. The count of unmeasured points is
+ * printed beside the chart, since "flat and low" and "measured in half the weeks" look alike at
+ * this size.
  */
-/** The preset values, named so the state holds the union rather than a bare string. */
-type TrendWindow = (typeof WINDOWS)[number]["value"];
-
 export function TrendsCenterPage({ projectId }: { projectId: string }) {
   const [input, setInput] = useState("");
-  const [timeRange, setTimeRange] = useState<TrendWindow>("past_12_months");
+  const [source, setSource] = useState<TrendSource>("dataforseo");
+  const [type, setType] = useState<TrendType>("web");
+  const [timeRange, setTimeRange] =
+    useState<TrendWindowValue>("past_12_months");
 
   const keywords = useMemo(
     () =>
@@ -59,6 +71,8 @@ export function TrendsCenterPage({ projectId }: { projectId: string }) {
         data: {
           projectId,
           keywords,
+          source,
+          type,
           timeRange,
         },
       }),
@@ -76,7 +90,15 @@ export function TrendsCenterPage({ projectId }: { projectId: string }) {
     [analyse.data],
   );
   const unmeasured = chart ? countUnmeasured(chart) : 0;
-  const requestCostUsd = DFS_KEYWORDS.dfsTrends.explore.perRequest;
+  const requestCostUsd = priceFor(source);
+
+  function chooseSource(next: TrendSource) {
+    setSource(next);
+    // Coerced, not carried: `2004_present` is Google's and `froogle` is Google's, so sending either
+    // to DataForSEO is a task the vendor rejects after charging for it.
+    setTimeRange((current) => coerceWindow(next, current));
+    setType((current) => coerceType(next, current));
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
@@ -96,7 +118,7 @@ export function TrendsCenterPage({ projectId }: { projectId: string }) {
           analyse.mutate();
         }}
       >
-        <label className="flex flex-1 flex-col gap-1">
+        <label className="flex min-w-[16rem] flex-1 flex-col gap-1">
           <span className="text-xs font-medium text-base-content/70">
             Keywords, comma separated (up to 5)
           </span>
@@ -109,6 +131,48 @@ export function TrendsCenterPage({ projectId }: { projectId: string }) {
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-base-content/70">
+            Index
+          </span>
+          <select
+            className="select select-bordered"
+            value={source}
+            onChange={(event) => {
+              const next = TREND_SOURCES.find(
+                (option) => option.value === event.target.value,
+              );
+              if (next) chooseSource(next.value);
+            }}
+          >
+            {TREND_SOURCES.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-base-content/70">
+            Index type
+          </span>
+          <select
+            className="select select-bordered"
+            value={type}
+            onChange={(event) => {
+              const next = typesFor(source).find(
+                (option) => option.value === event.target.value,
+              );
+              if (next) setType(next.value);
+            }}
+          >
+            {typesFor(source).map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-base-content/70">
             Window
           </span>
           <select
@@ -117,13 +181,13 @@ export function TrendsCenterPage({ projectId }: { projectId: string }) {
             onChange={(event) => {
               // Validated rather than asserted: the select hands back a string, and the repo bans
               // the narrowing cast that would turn it into one of these values unchecked.
-              const next = WINDOWS.find(
+              const next = windowsFor(source).find(
                 (option) => option.value === event.target.value,
               );
               if (next) setTimeRange(next.value);
             }}
           >
-            {WINDOWS.map((option) => (
+            {windowsFor(source).map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -142,7 +206,7 @@ export function TrendsCenterPage({ projectId }: { projectId: string }) {
         <p className="w-full text-xs text-base-content/60">
           One request — about{" "}
           <span className="font-mono">${requestCostUsd.toFixed(4)}</span>{" "}
-          whether it carries one keyword or five.
+          whether it carries one keyword or five. {CROSS_SOURCE_TREND_CAVEAT}
         </p>
       </form>
 

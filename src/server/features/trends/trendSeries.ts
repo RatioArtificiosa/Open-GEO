@@ -54,6 +54,18 @@ export function readTrendValue(
 export const TREND_SCALE_CAVEAT =
   "Scores are relative to the biggest peak in this request, so numbers from two different requests are not comparable.";
 
+/**
+ * The caveat that matters once two indexes exist.
+ *
+ * DataForSEO Trends and Google Trends both score 0-100, and neither score is a share of anything
+ * absolute: each is the keyword's peak measured **inside its own index and its own request**. So a
+ * 90 from one and a 90 from the other are not the same quantity, and drawing them on one axis
+ * would invent a comparison that neither vendor makes. This is shipped as a constant for the same
+ * reason as the scale caveat: two surfaces must not describe one limitation two ways.
+ */
+export const CROSS_SOURCE_TREND_CAVEAT =
+  "Each index scores a keyword against its own peak, so a 90 here and a 90 there are different quantities. Compare sources by shape, never by number.";
+
 type GraphLike = {
   keywords?: string[] | null;
   data?: Array<{

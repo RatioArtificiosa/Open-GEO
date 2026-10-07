@@ -4,7 +4,11 @@ import { z } from "zod";
 export const getSearchTrendsSchema = z.object({
   projectId: z.string().min(1),
   keywords: z.array(z.string().min(1)).min(1).max(5),
-  type: z.enum(["web", "news", "ecommerce"]).optional(),
+  /** Which index to read. The two vendors have different vocabularies for `type`. */
+  source: z.enum(["dataforseo", "google"]).optional(),
+  type: z
+    .enum(["web", "news", "ecommerce", "youtube", "images", "froogle"])
+    .optional(),
   timeRange: z
     .enum([
       "past_4_hours",
@@ -14,6 +18,9 @@ export const getSearchTrendsSchema = z.object({
       "past_90_days",
       "past_12_months",
       "past_5_years",
+      "past_hour",
+      "2004_present",
+      "2008_present",
     ])
     .optional(),
   dateFrom: z
