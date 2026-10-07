@@ -229,3 +229,37 @@ an empty body, and read the difference between `404` (no such path) and the vend
 error (the path exists, the payload was refused, nothing was billed). One caution that comes from
 this session: **read the response keys before trusting a count** — a `20000` with an empty result
 was a shape error twice, not an empty dataset.
+
+## The sandbox is a free schema oracle, and `target` is an array
+
+Five plausible-bodied POSTs to `llm_mentions` on the sandbox all returned the same thing, and it is
+more useful than an empty body:
+
+> `status=40501` · _"Invalid Field: 'Field 'target' is missing or has an invalid type (expected
+> array).'"_ · `cost=0`
+
+**So `target` is an array, not a string.** Sofia's answer said only that it was _required_.
+
+**And the message is field-level and type-aware**, which makes the sandbox a **free schema oracle**:
+the vendor validates one field at a time and names it, so a caller can iterate a plausible body until
+it is accepted. That is free, it is authoritative (it is the vendor's own validation), and it is
+better than reading prose. Fix `target` and the next complaint names the next field. Confirmed by
+control: sending `platform: "nonsense"` returned the **same** `target` error, so validation proceeds
+field by field, in order.
+
+**Two consequences for the client.**
+
+1. The `llm_mentions` request shape is: **`target` as an array**, `platform` of `chat_gpt` or
+   `google`, plus `match_type`, `location_name`/`location_code`, `date_from`/`date_to`,
+   `filters`, `limit`.
+2. A wrong field **type** is a **billed** rejection on the live host, so this oracle belongs in the
+   build loop rather than in a debugging session after a wasted call.
+
+### Three free probing techniques, in order of usefulness
+
+1. **A plausible body against the sandbox** — the vendor names the missing or mistyped field
+   (`40501`), so a schema can be discovered field by field at `cost=0`.
+2. **An empty POST** — separates a path that does not exist (`404`) from one that does (the vendor's
+   validation error), so a whole family's routing can be mapped for nothing.
+3. **A `GET` metadata call** — free, and it returns the real values (model names, locations) rather
+   than samples.
