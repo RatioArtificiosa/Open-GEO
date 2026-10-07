@@ -1,4 +1,5 @@
 import {
+  Activity,
   Bookmark,
   Bot,
   Brain,
@@ -55,6 +56,11 @@ const projectNavItems = [
     to: "/p/$projectId/market" as const,
     label: "Market Map",
     icon: PieChart,
+  },
+  {
+    to: "/p/$projectId/trends" as const,
+    label: "Trends Center",
+    icon: Activity,
   },
   {
     to: "/p/$projectId/backlinks" as const,
@@ -136,6 +142,7 @@ export function getProjectNavGroups(projectId: string) {
         byPath("/p/$projectId/keywords"),
         byPath("/p/$projectId/domain"),
         byPath("/p/$projectId/market"),
+        byPath("/p/$projectId/trends"),
         byPath("/p/$projectId/backlinks"),
         byPath("/p/$projectId/brand-lookup"),
         byPath("/p/$projectId/prompt-explorer"),
