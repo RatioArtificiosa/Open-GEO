@@ -44,6 +44,7 @@ import { fetchDataforseoTrendsExplore } from "@/server/lib/dataforseo/dataforseo
 import { fetchGoogleTrendsExplore } from "@/server/lib/dataforseo/googleTrends";
 import { fetchDataforseoTrendsDemography } from "@/server/lib/dataforseo/dataforseoTrendsDemography";
 import { fetchDataforseoTrendsSubregion } from "@/server/lib/dataforseo/dataforseoTrendsSubregion";
+import { fetchDataforseoTrendsMergedData } from "@/server/lib/dataforseo/dataforseoTrendsMerged";
 import {
   fetchAdsKeywordIdeas,
   fetchAdsSearchVolume,
@@ -152,6 +153,8 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       googleTrendsExplore: meter(customer, fetchGoogleTrendsExplore),
       trendsDemography: meter(customer, fetchDataforseoTrendsDemography),
       trendsSubregion: meter(customer, fetchDataforseoTrendsSubregion),
+      // All three views in one request, so they cannot disagree about the window they describe.
+      trendsMerged: meter(customer, fetchDataforseoTrendsMergedData),
       clickstreamVolumes: meter(
         customer,
         fetchClickstreamVolumes,
