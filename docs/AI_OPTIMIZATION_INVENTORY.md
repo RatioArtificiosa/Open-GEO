@@ -137,3 +137,40 @@ proof already exists.
 One detail worth keeping: **the scraper's locations response has no `available_languages`**, unlike
 the other two. ChatGPT takes a location and no language, which matches how the rest of that family
 behaves.
+
+## The model inventory, read from the live API at cost 0.00
+
+`GET /v3/ai_optimization/{platform}/llm_responses/models` — verified on the **live** host for all
+four platforms, `status=20000`, `cost=0`, no items on the sandbox because its answers are canned.
+
+| Platform   | Models | `web_search_supported` | `task_post_supported` |
+| ---------- | ------ | ---------------------- | --------------------- |
+| ChatGPT    | **49** | **37**                 | 49                    |
+| Claude     | 16     | 16                     | 16                    |
+| Gemini     | 12     | 12                     | 12                    |
+| Perplexity | 3      | 3                      | **0**                 |
+
+**Two design rules fall straight out of this table, and neither is visible from the docs.**
+
+1. **The web-search switch must be gated per model, not offered globally.** Twelve of ChatGPT's 49
+   models report `web_search_supported: false` — the `o`-series reasoning models (`o4-mini`,
+   `o3-mini`, `o1` and their dated snapshots) support `task_post` but **not** web search. A UI
+   that shows a web-search toggle regardless would silently do nothing on those models, which is the
+   silent-no-op class of defect.
+2. **Perplexity's `task_post_supported: false` across all three models independently confirms
+   "Live-only"** from the API rather than from prose. Its models are `sonar`, `sonar-pro`,
+   `sonar-reasoning-pro`.
+
+Claude and Gemini are uniform — every model supports both flags — so the gating matters for ChatGPT
+only, and it matters there for a quarter of the list.
+
+## The response shape, which is not the family's usual one
+
+These models live at **`tasks[0].result` directly**, _not_ `tasks[0].result[0].items` as the rest of
+the AI Optimization endpoints return. Reading it the usual way yields `status=20000` with **zero**
+models on both hosts — which is exactly how this was found, twice.
+
+**A successful status with an empty result is a shape error, not an empty dataset.** The clue was in
+an earlier probe's own output: the keys of `result[0]` were `model_name`, `reasoning`,
+`web_search_supported`, `task_post_supported` — which said plainly that `result[0]` _is_ a model.
+Read the response keys before trusting a count.
