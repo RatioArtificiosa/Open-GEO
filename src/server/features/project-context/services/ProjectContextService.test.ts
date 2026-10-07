@@ -43,7 +43,10 @@ const runBatch = vi.hoisted(() =>
 
 vi.mock("@/db/runBatch", () => ({
   runBatch,
-  executeInBatches: async (rows, run) => {
+  executeInBatches: async (
+    rows: readonly unknown[],
+    run: (tx: unknown, row: unknown) => unknown,
+  ) => {
     for (const row of rows) await run(undefined, row);
   },
 }));

@@ -38,7 +38,10 @@ vi.mock("@/server/features/geo/repositories/GeoRunRepository", () => ({
 // about prompt text, which is the least diagnosable kind.
 vi.mock("@/db/runBatch", () => ({
   runBatch: vi.fn(),
-  executeInBatches: async (rows, run) => {
+  executeInBatches: async (
+    rows: readonly unknown[],
+    run: (tx: unknown, row: unknown) => unknown,
+  ) => {
     for (const row of rows) await run(undefined, row);
   },
 }));
