@@ -56,6 +56,13 @@ export const llmScraperTaskSchema = z.object({
   language_code: z.string().optional(),
   user_prompt: z.string().max(500).optional(),
   device: z.enum(["desktop", "mobile"]).optional(),
+  // Declared so zod does not strip them. Without this a caller's tag is dropped before submission,
+  // and the tag is how `tasks_ready` and the collection side correlate a batch with the request that
+  // bought it - so losing it strands answers that were paid for. `priority` selects the queue and is
+  // deliberately typed without invented bounds: the vendor's constraint is not something this file
+  // has verified, and guessing one would refuse valid work.
+  tag: z.string().optional(),
+  priority: z.number().int().optional(),
 });
 
 type LlmScraperTaskInput = z.infer<typeof llmScraperTaskSchema>;
