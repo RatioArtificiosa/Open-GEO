@@ -4,6 +4,7 @@ import {
   getKeywordDataProvider,
   getLanguageOptions,
   isLanguageServedForLocation,
+  resolveLabsMarket,
 } from "@/shared/keyword-locations";
 
 /**
@@ -40,4 +41,37 @@ export function assertLanguageForLocation(
       .map((option) => option.code)
       .join(", ")}.`,
   );
+}
+
+/**
+ * The Labs location and language a call should use.
+ *
+ * Shared here so a second Labs tool does not grow its own copy of the policy: explicit fields win,
+ * and an omitted pair inherits the project's market through `resolveLabsMarket`, which keeps
+ * these tools off an Ads-served market. Iceland, for instance, is served from Google Ads data, so
+ * inheriting it would send a request the vendor rejects **after charging for it**. Both assertions
+ * run before the paid call.
+ *
+ * The legacy `market: { country: "US" }` selector that `dataforseo-research-tools.ts` also accepts
+ * is deliberately absent: it exists for tools that shipped with it, and a new tool has no
+ * back-compatibility to preserve.
+ */
+export function resolveLabsMarketSelector(
+  selector: { locationCode?: number; languageCode?: string },
+  project: { locationCode: number; languageCode: string },
+): { locationCode: number; languageCode: string } {
+  const resolved =
+    selector.locationCode != null || selector.languageCode != null
+      ? resolveLabsMarket(
+          {
+            locationCode: selector.locationCode,
+            languageCode: selector.languageCode,
+          },
+          project,
+        )
+      : resolveLabsMarket({}, project);
+
+  assertLabsLocationCode(resolved.locationCode);
+  assertLanguageForLocation(resolved.locationCode, resolved.languageCode);
+  return resolved;
 }
