@@ -100,4 +100,34 @@ describe("fetchWhoisOverview", () => {
     expect(rows.data[0]?.registrar).toBeNull();
     expect(rows.data[1]?.registrar).toBe("Example Registrar");
   });
+  it("reads the vendor's real date field names, so an expiry cannot silently read as unknown", async () => {
+    // The regression guard for a real defect: `created`, `expired` and `updated` were invented, and
+    // because they were optional every row parsed cleanly with no dates at all. A test that only
+    // asserted the fields present in a fixture could not have caught that - so this asserts a field
+    // the vendor actually sends, by its real name.
+    fetchMock.mockImplementation(async () =>
+      Response.json(
+        envelope([
+          {
+            domain: "expiring.example",
+            registered: true,
+            created_datetime: "2019-04-02 00:00:00 +00:00",
+            expiration_datetime: "2026-04-02 00:00:00 +00:00",
+            updated_datetime: "2025-11-01 00:00:00 +00:00",
+            tld: "com",
+            epp_status_codes: ["client transfer prohibited"],
+          },
+        ]),
+      ),
+    );
+
+    const rows = await fetchWhoisOverview({
+      filters: [["domain", "like", "%example%"]],
+    });
+
+    expect(rows.data[0]?.expiration_datetime).toBe(
+      "2026-04-02 00:00:00 +00:00",
+    );
+    expect(rows.data[0]?.tld).toBe("com");
+  });
 });
