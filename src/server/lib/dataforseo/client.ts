@@ -42,6 +42,7 @@ import { fetchKeywordsForCategories } from "@/server/lib/dataforseo/labsCategori
 import { fetchDomainMetricsByCategories } from "@/server/lib/dataforseo/labsDomainMetrics";
 import { fetchDataforseoTrendsExplore } from "@/server/lib/dataforseo/dataforseoTrends";
 import { fetchGoogleTrendsExplore } from "@/server/lib/dataforseo/googleTrends";
+import { fetchDataforseoTrendsDemography } from "@/server/lib/dataforseo/dataforseoTrendsDemography";
 import {
   fetchAdsKeywordIdeas,
   fetchAdsSearchVolume,
@@ -148,6 +149,7 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       // its Google sibling is a different index with a different vocabulary for `type`.
       trendsExplore: meter(customer, fetchDataforseoTrendsExplore),
       googleTrendsExplore: meter(customer, fetchGoogleTrendsExplore),
+      trendsDemography: meter(customer, fetchDataforseoTrendsDemography),
       clickstreamVolumes: meter(
         customer,
         fetchClickstreamVolumes,
