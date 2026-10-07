@@ -13,6 +13,12 @@ import {
 } from "@/server/lib/dataforseo/ai-scraper";
 import { requestUrl } from "./test-support";
 
+const TASK = {
+  keyword: "best crm",
+  location_name: "United States",
+  language_name: "English",
+};
+
 function envelope(result: unknown, statusCode = 20000, cost = 0.0012) {
   return {
     status_code: 20000,
@@ -49,7 +55,7 @@ describe("llm_scraper task submission", () => {
 
     const posted = await postLlmScraperTasks({
       se: "chat_gpt",
-      tasks: [{ keyword: "best crm" }],
+      tasks: [TASK],
     });
 
     const url = requestUrl(fetchMock);
@@ -69,6 +75,8 @@ describe("llm_scraper task submission", () => {
   it("refuses a prompt longer than the vendor's 500-character cap instead of truncating it", () => {
     const result = llmScraperTaskSchema.safeParse({
       keyword: "best crm",
+      location_name: "United States",
+      language_name: "English",
       user_prompt: "x".repeat(501),
     });
     expect(result.success).toBe(false);

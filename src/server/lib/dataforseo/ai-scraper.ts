@@ -52,8 +52,12 @@ function firstResult(task: DataforseoTaskLike): Record<string, unknown> | null {
  */
 export const llmScraperTaskSchema = z.object({
   keyword: z.string().min(1),
-  location_code: z.number().optional(),
-  language_code: z.string().optional(),
+  // **Required, and by name rather than by code.** Probed: a body with only `keyword` is refused
+  // with "Invalid Field: 'language_name'", and a body carrying `location_code`/`language_code` is
+  // still refused with "Invalid Field: 'location_name'". The `_name` forms are what the vendor
+  // demands, and the codes alone do not satisfy them.
+  location_name: z.string().min(1),
+  language_name: z.string().min(1),
   user_prompt: z.string().max(500).optional(),
   device: z.enum(["desktop", "mobile"]).optional(),
   // Declared so zod does not strip them. Without this a caller's tag is dropped before submission,
