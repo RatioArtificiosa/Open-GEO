@@ -111,3 +111,29 @@ length I printed came from the wrong match.
 are empty" and writing it down — which would have sent the next reader after a non-existent
 problem. The fix is the one this project keeps re-deriving: parse once into a map, then read from
 the map.
+
+### Probe round two — the free set is mapped, and one path is not real
+
+| Endpoint                                  | Host     | Result                                                                                                         |
+| ----------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------- |
+| `chat_gpt/llm_scraper/locations`          | sandbox  | `20000`, `cost=0` — keys `location_code, location_name, location_code_parent, country_iso_code, location_type` |
+| `ai_keyword_data/locations_and_languages` | sandbox  | `20000`, `cost=0` — keys `location_code, location_name, available_languages`                                   |
+| `llm_mentions/filters`                    | **live** | **`404`**                                                                                                      |
+
+**`llm_mentions/filters` does not exist on the production host either.** That was open from the first
+round, with the honest note that a single missing path was more likely a sandbox gap — and the live
+probe settles it the other way. The path as given does not resolve, so it is recorded here as
+**unverified and probably wrong**, not as an endpoint awaiting implementation. The route to an answer
+is to ask Sofia again with the 404 in hand, or read the LLM Mentions overview page; the wrong move is
+to code against it because an assistant listed it.
+
+**That is the useful lesson from this round, and it is aimed at ourselves as much as at her:** the
+vendor's own AI gave a path that 404s in production, so _a path is verified when a call returns 200,
+and not before_. Four of the five free metadata paths now have that proof — `llm_responses/models`,
+`llm_scraper/locations`, `ai_keyword_data/locations_and_languages`,
+`llm_mentions/locations_and_languages` — and they are the safe first wiring precisely because the
+proof already exists.
+
+One detail worth keeping: **the scraper's locations response has no `available_languages`**, unlike
+the other two. ChatGPT takes a location and no language, which matches how the rest of that family
+behaves.
