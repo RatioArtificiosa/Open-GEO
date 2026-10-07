@@ -39,6 +39,7 @@ import {
 } from "@/server/lib/dataforseo/labs";
 import { fetchCategoriesForDomain } from "@/server/lib/dataforseo/labsCategories";
 import { fetchKeywordsForCategories } from "@/server/lib/dataforseo/labsCategories";
+import { fetchDomainMetricsByCategories } from "@/server/lib/dataforseo/labsDomainMetrics";
 import {
   fetchAdsKeywordIdeas,
   fetchAdsSearchVolume,
@@ -160,6 +161,12 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       // "keywords in ALL of these categories", which is not what a caller passing several
       // categories usually means.
       keywordsForCategories: meter(customer, fetchKeywordsForCategories),
+      // The comparison read: who ranks in a set of categories and how their traffic moved between
+      // two months. Priced at `heavyHistorical` — about 10× the standard Labs rate.
+      domainMetricsByCategories: meter(
+        customer,
+        fetchDomainMetricsByCategories,
+      ),
     },
     serp: {
       live: meter(customer, fetchLiveSerp),

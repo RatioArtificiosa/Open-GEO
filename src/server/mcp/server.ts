@@ -79,6 +79,7 @@ import {
   startPageSpeedAuditTool,
 } from "@/server/mcp/tools/page-speed-tools";
 import {
+  getCategoryDomainMetricsTool,
   getCategoryKeywordsTool,
   getDomainCategoriesTool,
 } from "@/server/mcp/tools/market-tools";
@@ -259,6 +260,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getPageWaterfallTool);
   register(getDomainCategoriesTool);
   register(getCategoryKeywordsTool);
+  register(getCategoryDomainMetricsTool);
   register(findSerpCompetitorsTool);
   register(searchLocalBusinessesTool);
   register(getLocalSerpResultsTool);

@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { createDataforseoClient } from "@/server/lib/dataforseo/client";
+import { describeMetricsMovement } from "@/server/features/market-analysis/metric-movement";
+import { DFS_LABS } from "@/shared/dataforseo-pricing";
 import { getDomainCategoryProfile } from "@/server/features/market-analysis/CategoryProfileService";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { mcpResponse } from "@/server/mcp/formatters";
@@ -273,6 +275,176 @@ export const getCategoryKeywordsTool = {
         categoryCodes: args.categoryCodes,
         categoryIntersection,
         keywords,
+      },
+    });
+  }),
+};
+
+/**
+ * Who competes in a set of categories, and how their traffic moved between two months.
+ *
+ * ## This is the expensive one, and the tool says so
+ *
+ * `domain_metrics_by_categories` prices at `heavyHistorical`: **$0.12 a request plus $0.0012 a
+ * domain**, roughly **ten times** its siblings. A caller who discovers that from a bill has been
+ * failed by the tool, so the price is in the description, in the schema, and in the response as
+ * the request-fee floor. The distinct per-domain part is stated rather than estimated, because the
+ * number of domains returned is not knowable before the call.
+ *
+ * ## Movement is computed from the two months, not from the vendor's difference block
+ *
+ * The reference's own description of that block does not pin its sign, and its sample contradicts
+ * itself — see `metric-movement.ts`. Direction therefore comes from `metrics_history`, the two
+ * months the caller asked about, which are unambiguous.
+ *
+ * ## Every date rule is checked before the request
+ *
+ * The same month twice, a date before 2020-10-01, or a future date are all **billed** rejections
+ * at the vendor. They are refused locally instead, which is why the schema is strict and the
+ * client's guard names the rule it broke.
+ */
+const domainMetricsInputSchema = {
+  projectId: projectIdSchema,
+  categoryCodes: z
+    .array(z.number().int())
+    .min(1)
+    .max(5)
+    .describe(
+      "Criterion IDs to compare, from get_domain_categories. This endpoint takes at most 5, not the 20 its sibling allows.",
+    ),
+  firstDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe(
+      "First month to compare, as yyyy-mm-dd. The month is what matters; the day is ignored by the vendor. Must be 2020-10-01 or later, and on a different month from secondDate.",
+    ),
+  secondDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe(
+      "Second month to compare, as yyyy-mm-dd. It may be earlier than firstDate; the pair is treated as two points, not a range.",
+    ),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(1000)
+    .optional()
+    .describe(
+      "Maximum domains to return, fewest-traffic last. Defaults to 25. The per-domain part of the price scales with what comes back.",
+    ),
+  topCategoriesCount: z
+    .number()
+    .int()
+    .min(1)
+    .max(5)
+    .optional()
+    .describe(
+      "Also collect domains from this many top categories beyond those requested. Cannot be less than the number of categoryCodes.",
+    ),
+  includeSubdomains: z
+    .boolean()
+    .optional()
+    .describe(
+      "Include subdomains alongside the main domain. The vendor defaults to true; set false for main domains only.",
+    ),
+  locationCode: z
+    .number()
+    .int()
+    .optional()
+    .describe(
+      "Country-level DataForSEO Labs location code. Defaults to the project's market.",
+    ),
+  languageCode: z
+    .string()
+    .optional()
+    .describe(
+      "Language code for the location. Defaults to the location's own.",
+    ),
+} as const;
+
+type DomainMetricsArgs = z.infer<z.ZodObject<typeof domainMetricsInputSchema>>;
+
+export const getCategoryDomainMetricsTool = {
+  name: "get_category_domain_metrics",
+  config: {
+    title: "Compare domains in categories over two months",
+    description:
+      "Returns the domains ranking in the given product categories with their estimated traffic at two points in time, and whether each grew or fell between them. Use it to see who owns a category's demand and whether that is shifting. This is the most expensive endpoint this product calls: about $0.12 per request plus $0.0012 per domain returned. Both dates are required, must be different months, and must be 2020-10-01 or later.",
+    inputSchema: domainMetricsInputSchema,
+    outputSchema: z
+      .object({
+        categoryCodes: z.array(z.number()),
+        fromMonth: z.string().nullable(),
+        toMonth: z.string().nullable(),
+        /** The request fee, which is charged whatever comes back. The per-domain part is separate. */
+        requestCostUsd: z.number(),
+        perDomainCostUsd: z.number(),
+        domains: z.array(
+          z.looseObject({
+            domain: z.string().nullable(),
+            organicEtv: z.number().nullable(),
+            etvChange: z.number().nullable(),
+            growing: z.boolean().nullable(),
+          }),
+        ),
+        ...optionalMetaOutputSchema,
+      })
+      .passthrough(),
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+  },
+  handler: withMcpProjectAuth(async (args: DomainMetricsArgs, context) => {
+    const market = resolveLabsMarketSelector(args, context.project);
+    const client = createDataforseoClient(context.billing);
+
+    const items = await client.domain.domainMetricsByCategories({
+      categoryCodes: args.categoryCodes,
+      locationCode: market.locationCode,
+      languageCode: market.languageCode,
+      firstDate: args.firstDate,
+      secondDate: args.secondDate,
+      topCategoriesCount: args.topCategoriesCount,
+      includeSubdomains: args.includeSubdomains,
+      limit: args.limit ?? 25,
+    });
+
+    const domains = items.map((item) => {
+      const movement = describeMetricsMovement(item.metrics_history);
+      return {
+        domain: item.domain ?? null,
+        organicEtv: item.organic_etv ?? null,
+        etvChange: movement?.etvChange ?? null,
+        growing: movement?.growing ?? null,
+        fromMonth: movement?.fromMonth ?? null,
+        toMonth: movement?.toMonth ?? null,
+      };
+    });
+
+    const requestCostUsd = DFS_LABS.heavyHistorical.perRequest;
+    const perDomainCostUsd = DFS_LABS.heavyHistorical.perUnit;
+    const grew = domains.filter((domain) => domain.growing === true).length;
+    const measurable = domains.filter(
+      (domain) => domain.growing !== null,
+    ).length;
+
+    return mcpResponse({
+      text: `${domains.length} domain${domains.length === 1 ? "" : "s"} in these categories, about $${requestCostUsd.toFixed(2)} + $${perDomainCostUsd.toFixed(4)} each. ${grew} of the ${measurable} with both months on record grew between them${domains.length > measurable ? `; ${domains.length - measurable} lack a reading for one of the months and are reported without a direction` : ""}.`,
+      meta: buildProjectMeta(
+        context,
+        args.projectId,
+        `/p/${args.projectId}/market`,
+      ),
+      structuredContent: {
+        categoryCodes: args.categoryCodes,
+        fromMonth: domains[0]?.fromMonth ?? null,
+        toMonth: domains[0]?.toMonth ?? null,
+        requestCostUsd,
+        perDomainCostUsd,
+        domains,
       },
     });
   }),

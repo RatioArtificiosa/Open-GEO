@@ -8,6 +8,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getDomainCategoriesTool } from "./market-tools";
+import { getCategoryDomainMetricsTool } from "./market-tools";
 import { getCategoryKeywordsTool } from "./market-tools";
 import { makeToolContext } from "./tool-test-support";
 
@@ -184,5 +185,96 @@ describe("get_category_keywords", () => {
     );
     // An empty intersection looks like a failure unless the answer says why it is empty.
     expect(textOf(result.content)).toContain("categoryIntersection false");
+  });
+});
+
+function setDomainMetrics(items: unknown[]) {
+  const domainMetricsByCategories = vi.fn().mockResolvedValue(items);
+  mocks.createDataforseoClient.mockReturnValue({
+    domain: { domainMetricsByCategories },
+  });
+  return domainMetricsByCategories;
+}
+
+describe("get_category_domain_metrics", () => {
+  it("states the price, because this is the expensive endpoint", async () => {
+    setDomainMetrics([{ domain: "acmeexample.com" }]);
+
+    const result = await getCategoryDomainMetricsTool.handler(
+      {
+        projectId: "project_1",
+        categoryCodes: [11494, 13418],
+        firstDate: "2021-06-01",
+        secondDate: "2021-10-01",
+      },
+      toolContext,
+    );
+
+    const structured = result.structuredContent as {
+      requestCostUsd: number;
+      perDomainCostUsd: number;
+    };
+    expect(structured.requestCostUsd).toBeGreaterThan(0.1);
+    expect(textOf(result.content)).toContain("$0.12");
+  });
+
+  it("derives growth from the two months, not from the vendor's difference block", async () => {
+    // The item carries a `metrics_difference` whose sign contradicts the history — which is what
+    // the vendor's own sample does. The direction must come from the two months, because an
+    // unexplained sign is not evidence.
+    setDomainMetrics([
+      {
+        domain: "enricospastryshop.com",
+        metrics_history: {
+          "202106": { organic: { etv: 147.22 } },
+          "202110": { organic: { etv: 308.87 } },
+        },
+        metrics_difference: { organic: { etv: -161.65 } },
+      },
+    ]);
+
+    const result = await getCategoryDomainMetricsTool.handler(
+      {
+        projectId: "project_1",
+        categoryCodes: [11494],
+        firstDate: "2021-06-01",
+        secondDate: "2021-10-01",
+      },
+      toolContext,
+    );
+
+    const structured = result.structuredContent as {
+      domains: Array<{ etvChange: number | null; growing: boolean | null }>;
+    };
+    expect(structured.domains[0]?.etvChange).toBeCloseTo(161.65, 2);
+    expect(structured.domains[0]?.growing).toBe(true);
+  });
+
+  it("reports no direction when one of the months has no reading", async () => {
+    setDomainMetrics([
+      {
+        domain: "quiet.example",
+        metrics_history: {
+          "202106": { organic: { etv: 100 } },
+          "202110": { organic: null },
+        },
+      },
+    ]);
+
+    const result = await getCategoryDomainMetricsTool.handler(
+      {
+        projectId: "project_1",
+        categoryCodes: [11494],
+        firstDate: "2021-06-01",
+        secondDate: "2021-10-01",
+      },
+      toolContext,
+    );
+
+    const structured = result.structuredContent as {
+      domains: Array<{ growing: boolean | null }>;
+    };
+    expect(structured.domains[0]?.growing).toBeNull();
+    expect(textOf(result.content)).toContain("without a direction");
   });
 });
