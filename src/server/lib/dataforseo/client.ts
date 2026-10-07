@@ -88,11 +88,7 @@ import { fetchAiKeywordVolume } from "@/server/lib/dataforseo/ai-keywords";
 import type { AiKeywordVolumeInput } from "@/server/lib/dataforseo/ai-keywords";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import { AppError } from "@/server/lib/errors";
-import {
-  fetchLlmScraperLocations,
-  getLlmScraperTask,
-  postLlmScraperTasks,
-} from "./ai-scraper";
+import { getLlmScraperTask, postLlmScraperTasks } from "./ai-scraper";
 
 export { mapDataforseoPathToCreditFeature };
 
@@ -270,8 +266,6 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       // not the `content_parsing` one, and metering it would bill a second time for one answer.
       scraperTask: meter(customer, postLlmScraperTasks),
       scraperTaskResult: getLlmScraperTask,
-      // The scraper's location list and the model catalog are metadata, not billed tasks.
-      scraperLocations: fetchLlmScraperLocations,
     },
   } as const;
 }

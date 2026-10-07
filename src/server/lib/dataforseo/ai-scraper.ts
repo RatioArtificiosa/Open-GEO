@@ -44,20 +44,6 @@ function firstResult(task: DataforseoTaskLike): Record<string, unknown> | null {
   return isRecord(first) ? first : null;
 }
 
-/**
- * A location row. `geo_id` is deliberately absent rather than optional: DataForSEO returns it as
- * null for these entries, and a nullable field here would invite a key that is always null - the
- * same trap the subregion reader hit. Name the field the vendor actually populates.
- */
-const llmScraperLocationSchema = z.object({
-  location_code: z.number(),
-  location_name: z.string(),
-  location_type: z.string().nullish(),
-  country_iso_code: z.string().nullish(),
-});
-
-type LlmScraperLocation = z.infer<typeof llmScraperLocationSchema>;
-
 /** One query for the scraper to run. `keyword` and `location_code` are the caller's contract. */
 export const llmScraperTaskSchema = z.object({
   keyword: z.string().min(1),
@@ -149,25 +135,4 @@ export async function getLlmScraperTask(
     costUsd: billing.costUsd,
     path: billing.path,
   };
-}
-
-/** The scraper's own location list. A free GET - it is metadata, not a billed task. */
-export async function fetchLlmScraperLocations(): Promise<
-  LlmScraperLocation[]
-> {
-  const path = "/v3/ai_optimization/llm_scraper/locations";
-  const response = await dataforseoGet(path, assertOptions(path));
-  const task = assertOk(response, assertOptions(path));
-
-  const parsed = z
-    .array(llmScraperLocationSchema)
-    .safeParse(firstResult(task)?.locations ?? []);
-  if (!parsed.success) {
-    throw new AppError(
-      "INTERNAL_ERROR",
-      "DataForSEO llm_scraper/locations returned an invalid shape",
-    );
-  }
-
-  return parsed.data;
 }

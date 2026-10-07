@@ -7,7 +7,6 @@ vi.mock("@/server/lib/runtime-env", () => ({
 }));
 
 import {
-  fetchLlmScraperLocations,
   getLlmScraperTask,
   llmScraperTaskSchema,
   postLlmScraperTasks,
@@ -94,37 +93,5 @@ describe("llm_scraper task collection", () => {
 
     const collected = await getLlmScraperTask("chat_gpt", "task-2");
     expect(collected.status).toBe("pending");
-  });
-});
-
-describe("llm_scraper locations", () => {
-  it("reads the free llm_scraper/locations list", async () => {
-    fetchMock.mockImplementation(async () =>
-      Response.json(
-        envelope({
-          locations: [
-            { location_code: 2840, location_name: "United States" },
-            { location_code: 2826, location_name: "United Kingdom" },
-          ],
-        }),
-      ),
-    );
-
-    const locations = await fetchLlmScraperLocations();
-    expect(requestUrl(fetchMock)).toContain(
-      "/v3/ai_optimization/llm_scraper/locations",
-    );
-    expect(locations.map((l) => l.location_name)).toEqual([
-      "United States",
-      "United Kingdom",
-    ]);
-  });
-
-  it("fails loudly on a wrong shape rather than returning an empty list", async () => {
-    fetchMock.mockImplementation(async () =>
-      Response.json(envelope({ locations: [{ wrong: "shape" }] })),
-    );
-
-    await expect(fetchLlmScraperLocations()).rejects.toThrow(/invalid shape/);
   });
 });
