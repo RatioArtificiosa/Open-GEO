@@ -14,6 +14,8 @@ import {
 import { requestUrl } from "./test-support";
 
 const TASK = {
+  // Required: the queue changes the price, so the caller names it.
+  priority: 1,
   keyword: "best crm",
   location_name: "United States",
   language_name: "English",

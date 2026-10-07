@@ -69,7 +69,10 @@ export const llmScraperTaskSchema = z.object({
   // callback URL would be dropped and the caller would wait for a notification that never came.
   pingback_url: z.string().url().optional(),
   postback_url: z.string().url().optional(),
-  priority: z.number().int().min(1).max(2).optional(),
+  // The vendor pairs these: a postback without its payload is a notification the receiver cannot
+  // act on, so declaring only the URL would invite a half-configured callback.
+  postback_data: z.string().optional(),
+  priority: z.number().int().min(1).max(2),
 });
 
 type LlmScraperTaskInput = z.infer<typeof llmScraperTaskSchema>;
