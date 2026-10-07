@@ -615,3 +615,27 @@ a family that exists but is misaddressed looks.
 **And the rule that would have caught all of the above: a stubbed fetch validates a shape, never a
 route.** Tests that assert the URL string the module itself chose cannot disagree with the module.
 Derive the expectation from a real response, or probe the host before writing the client.
+
+### 4.8 What the WHOIS and scraper probes disproved
+
+Two review findings and one library shape were checked against the live sandbox and did not survive.
+Recording them because the wrong version is more intuitive than the right one.
+
+**WHOIS takes `_name` fields, not the `_code` alternative.** A body with `location_code`/`language_code`
+is refused with _"Invalid Field: 'location_name'"_, and one with only `keyword` with
+_"Invalid Field: 'language_name'"_. Only `location_name` plus `language_name` answers `20100`. A
+finding proposed accepting either spelling; the codes alone do not satisfy the vendor.
+
+**WHOIS `filters` is a flat triple list, and `order_by` does not exist.** `["and", […], […]]` is
+refused with `40501 'filters'`, while `[["domain","like","%example%"]]` is accepted — so the flat form
+is the correct one and a boolean grammar is not supported. And `order_by` is refused **as an array and
+as a comma-delimited string alike**, so it is not a field on this endpoint at all: a client that sends
+it fails every call. There is no way to set a sort, which is why a filter is effectively required.
+
+**The `ErrorCode` enum has three billing codes and none for domain analytics.**
+`BACKLINKS_BILLING_ISSUE`, `AI_SEARCH_BILLING_ISSUE`, `LABS_BILLING_ISSUE`. A finding asked the whois
+and technologies clients to classify billing failures, but there is no member to classify them as —
+adding one is a change to a shared error taxonomy, not a local fix.
+
+**The general rule this keeps proving: read the enum, the type, or the sandbox — never the neighbouring
+file.** Every one of these was more intuitive the wrong way round.
