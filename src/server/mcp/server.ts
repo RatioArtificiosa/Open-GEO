@@ -86,8 +86,9 @@ import {
 import {
   getSearchDemographyTool,
   getSearchRegionsTool,
-  getSearchTrendsTool,
-} from "@/server/mcp/tools/trends-tools";
+} from "@/server/mcp/tools/trends-audience-tools";
+import { getSearchTrendsTool } from "@/server/mcp/tools/trends-tools";
+import { getTrendsOverviewTool } from "@/server/mcp/tools/trends-overview-tool";
 import {
   getBusinessProfileTool,
   getBusinessReviewsTool,
@@ -269,6 +270,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getSearchTrendsTool);
   register(getSearchDemographyTool);
   register(getSearchRegionsTool);
+  register(getTrendsOverviewTool);
   register(findSerpCompetitorsTool);
   register(searchLocalBusinessesTool);
   register(getLocalSerpResultsTool);

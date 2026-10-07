@@ -248,6 +248,18 @@
         "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
       }
     },
+    "get_trends_overview": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only reads keyword interest over time, by region and by age and gender, from the provider trends index. It changes no local or remote state.",
+        "open_world_justification": "Operates only on private OpenGeo state or private provider data and cannot change publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
     "get_search_regions": {
       "annotations": {
         "readOnlyHint": true,
