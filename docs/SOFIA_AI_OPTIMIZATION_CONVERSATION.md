@@ -209,18 +209,14 @@ Standard request
 
 A Standard POST may contain up to 100 tasks:
 
-Then retrieve using:
-
-or:
+Then retrieve the results from the collection route for the platform, listed in section 1. **The exact endpoint was not captured** - the browser read the conversation as text and code blocks were lost, so nothing is quoted here rather than something invented.
 
 For production integrations, prefer postback_url or pingback_url over polling.
 
 3. Tracking brand mentions and citations
 ChatGPT brand mentions
 
-Use:
-
-Set:
+**Both the endpoint and its request fields were lost the same way** - they were in a code block the capture did not preserve. The llm_mentions routes verified in section 1 are the source of truth for what to call.
 
 This returns:
 
