@@ -108,7 +108,8 @@ export async function postLlmScraperTasks(input: {
   const taskIds: string[] = [];
   const tags: string[] = [];
   let costUsd = 0;
-  for (const task of response?.tasks ?? []) {
+  const responseTasks = response?.tasks ?? [];
+  for (const task of responseTasks) {
     costUsd += task.cost ?? 0;
     if (typeof task.id !== "string") {
       continue;
@@ -121,10 +122,17 @@ export async function postLlmScraperTasks(input: {
     );
   }
 
-  if (taskIds.length === 0) {
+  // Every task must yield an id. Checking only for *zero* ids would let a partial answer through:
+  // a batch of five returning three ids would collect three answers and strand two the account had
+  // already paid for, with nothing to say so. A shortfall is as much a failure as an empty one.
+  if (taskIds.length !== responseTasks.length) {
     throw new AppError(
       "INTERNAL_ERROR",
-      "DataForSEO llm_scraper/task_post returned no task id, so the answers could never be collected",
+      "DataForSEO llm_scraper/task_post returned " +
+        responseTasks.length +
+        " tasks but only " +
+        taskIds.length +
+        " ids, so an answer already paid for could not be collected",
     );
   }
 
