@@ -88,6 +88,11 @@ import { fetchAiKeywordVolume } from "@/server/lib/dataforseo/ai-keywords";
 import type { AiKeywordVolumeInput } from "@/server/lib/dataforseo/ai-keywords";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import { AppError } from "@/server/lib/errors";
+import {
+  fetchLlmScraperLocations,
+  getLlmScraperTask,
+  postLlmScraperTasks,
+} from "./ai-scraper";
 
 export { mapDataforseoPathToCreditFeature };
 
@@ -259,6 +264,14 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       keywordVolume: meter(customer, (input: AiKeywordVolumeInput) =>
         fetchAiKeywordVolume(input),
       ),
+      // LLM Scraper: authentic ChatGPT Search and Gemini answers, scraped rather than
+      // generated. The POST is where the vendor charges, so it is metered; the `task_get`
+      // collection is not — reading a task already paid for is the `waterfall` case above,
+      // not the `content_parsing` one, and metering it would bill a second time for one answer.
+      scraperTask: meter(customer, postLlmScraperTasks),
+      scraperTaskResult: getLlmScraperTask,
+      // The scraper's location list and the model catalog are metadata, not billed tasks.
+      scraperLocations: fetchLlmScraperLocations,
     },
   } as const;
 }
