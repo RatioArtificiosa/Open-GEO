@@ -45,7 +45,7 @@ export type CitationWinProbability = {
  * target as likely, which is exactly the over-optimism that makes a prospect list useless. Starting
  * from "probably not" and letting strong features argue upward is both truer and more useful.
  */
-const INTERCEPT = -1.4;
+export const CITATION_INTERCEPT = -4;
 
 /**
  * Coefficients, in log-odds. `alreadyCitesUs` is the largest because an established relationship is
@@ -55,7 +55,7 @@ const INTERCEPT = -1.4;
 const COEFFICIENTS: Record<keyof CitingDomainFeatures, number> = {
   authority: 2.1,
   topicalOverlap: 2.6,
-  alreadyCitesUs: 2.4,
+  alreadyCitesUs: 2.8,
   citationPropensity: 1.8,
   freshness: 0.7,
 };
@@ -80,7 +80,7 @@ export function citationWinProbability(
   };
 
   const logOdds =
-    INTERCEPT +
+    CITATION_INTERCEPT +
     Object.values(contributions).reduce((sum, part) => sum + part, 0);
 
   return {

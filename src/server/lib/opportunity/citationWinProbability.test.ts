@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CITATION_INTERCEPT,
   CITATION_MODEL_VERSION,
   citationWinProbability,
   type CitationWinProbability,
@@ -53,11 +54,13 @@ describe("citationWinProbability", () => {
       alreadyCitesUs: true,
     });
     const without = citationWinProbability(middling);
-    const authoritySwing =
-      citationWinProbability({ ...middling, authority: 1 }).probability -
-      citationWinProbability({ ...middling, authority: 0 }).probability;
-    expect(withRelationship.probability - without.probability).toBeGreaterThan(
-      authoritySwing,
+    // Compared on **contributions**, where the coefficients live. Probability swings measure the
+    // logistic's saturation instead: a large change late in the curve moves probability less than a
+    // smaller one in the middle, which is how this test failed when it was first written.
+    expect(without.contributions.alreadyCitesUs).toBe(0);
+    const authority = citationWinProbability({ ...middling, authority: 1 });
+    expect(withRelationship.contributions.alreadyCitesUs).toBeGreaterThan(
+      authority.contributions.authority,
     );
   });
 
@@ -76,6 +79,8 @@ describe("citationWinProbability", () => {
     // The intercept is not a contribution: it is the prior, and a feature's push is only meaningful
     // relative to it. Reconstructing the odds here keeps that separation honest.
     const logOdds = Math.log(scored.probability / (1 - scored.probability));
-    expect(logOdds).toBeCloseTo(total - 1.4, 6);
+    // Read from the model rather than duplicated: this assertion failed the moment the intercept
+    // changed, because the old value was written into the test as a literal.
+    expect(logOdds).toBeCloseTo(total + CITATION_INTERCEPT, 6);
   });
 });
