@@ -19,3 +19,4 @@ export * from "../monitor-runs.schema";
 export * from "../geo-pending-tasks.schema";
 export * from "../alert-dispatches.schema";
 export * from "../labs-categories.schema";
+export * from "../keyword-opportunity-inputs.schema";
