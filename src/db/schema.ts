@@ -17,6 +17,7 @@ import * as sqliteMonitorRuns from "./monitor-runs.schema";
 import * as sqlitePendingTasks from "./geo-pending-tasks.schema";
 import * as sqliteAlertDispatches from "./alert-dispatches.schema";
 import * as sqliteLabsCategories from "./labs-categories.schema";
+import * as sqliteKeywordOpportunityInputs from "./keyword-opportunity-inputs.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgDomainMetrics from "./pg/domain-metrics.schema";
 import * as pgProjectContext from "./pg/project-context.schema";
@@ -35,6 +36,7 @@ import * as pgMonitorRuns from "./pg/monitor-runs.schema";
 import * as pgPendingTasks from "./pg/geo-pending-tasks.schema";
 import * as pgAlertDispatches from "./pg/alert-dispatches.schema";
 import * as pgLabsCategories from "./pg/labs-categories.schema";
+import * as pgKeywordOpportunityInputs from "./pg/keyword-opportunity-inputs.schema";
 
 // Canonical schema barrel. Repositories import their tables from here and the
 // provider-aware `db` from "@/db", so each repository is written ONCE for both
@@ -63,7 +65,8 @@ type AppSchema = typeof sqliteApp &
   typeof sqliteMonitorRuns &
   typeof sqlitePendingTasks &
   typeof sqliteAlertDispatches &
-  typeof sqliteLabsCategories;
+  typeof sqliteLabsCategories &
+  typeof sqliteKeywordOpportunityInputs;
 
 const runtimeSchema =
   getDatabaseProvider() === "postgres"
@@ -86,6 +89,7 @@ const runtimeSchema =
         ...pgPendingTasks,
         ...pgAlertDispatches,
         ...pgLabsCategories,
+        ...pgKeywordOpportunityInputs,
       }
     : {
         ...sqliteApp,
@@ -106,6 +110,7 @@ const runtimeSchema =
         ...sqlitePendingTasks,
         ...sqliteAlertDispatches,
         ...sqliteLabsCategories,
+        ...sqliteKeywordOpportunityInputs,
       };
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- guarded by schema-parity.test.ts
