@@ -220,9 +220,10 @@ describe.skipIf(!RUN)("the DataForSEO sandbox", () => {
   it("answers cross_aggregated_metrics with its own group shape", async () => {
     // The only one of the three needing a different body: `targets` (plural, an
     // array of groups), not `target`. A probe that sent the single-target shape
-    // got `40501 Invalid Field: 'targets' is required` — the sandbox correctly
-    // rejecting the body, not the path missing. Same answer on the vendor's own
-    // `multi_target_metrics`, which is the same shape under a different name.
+    // got `40501 Invalid Field: 'targets' is required` — which is the
+    // sandbox correctly rejecting the body, not the path missing. Same answer on
+    // the vendor's own `multi_target_metrics`, which is the same shape under a
+    // different name.
     const { fetchLlmCrossAggregatedMetrics } = await import("./ai");
 
     const response = await fetchLlmCrossAggregatedMetrics({
@@ -236,5 +237,46 @@ describe.skipIf(!RUN)("the DataForSEO sandbox", () => {
     });
 
     expect(response.data).toBeTruthy();
+  });
+
+  it("answers llm_scraper/live, which the code comment claims 404s", async () => {
+    // **A documented-but-false fact, corrected.** `ai-scraper.ts` carried:
+    //
+    //   "there is no `live` route - the sandbox answers 404 for it, and a price row
+    //   is not a route - so nothing here sends to one."
+    //
+    // Verified twice — through our client and with curl — the sandbox answers
+    // `20000 Ok.` for both `llm_scraper/live/advanced` and `/live/html`. The 404s
+    // the comment remembered belong to the `llm_mentions` family, not the scraper.
+    //
+    // A confidently wrong comment is worse than no comment, because it stops the
+    // next reader from using a route that works. The decision not to send to
+    // `live` is legitimate — a live scrape still bills a task at the live price,
+    // so it buys latency rather than a cheaper call — but it is a design choice
+    // now, argued on its merits, not a vendor constraint asserted from a false
+    // premise.
+    const { dataforseoPost } = await import("./core");
+
+    // Asked directly, because this module deliberately sends to the queue rather
+    // than to `live` — so there is no wrapper to drive, and the point of the test
+    // is the **vendor's** route, not our function.
+    const response = await dataforseoPost(
+      "/v3/ai_optimization/chat_gpt/llm_scraper/live/advanced",
+      [
+        {
+          keyword: "best crm for small teams",
+          location_name: "United States",
+          language_name: "English",
+        },
+      ],
+    );
+
+    // 20000, not a 404. This is the assertion the old comment contradicted.
+    // Guarded for null first: `dataforseoPostResponse` returns a nullable body
+    // when the transport yields nothing, and an unguarded `?.` chain would make
+    // `expect(undefined).toBe(20000)` fail with a message that points at the
+    // assertion rather than at the missing response.
+    expect(response).not.toBeNull();
+    expect(response?.tasks?.[0]?.status_code).toBe(20000);
   });
 });

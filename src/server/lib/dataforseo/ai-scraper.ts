@@ -21,10 +21,20 @@ import type { LlmModelSlug } from "@/server/lib/dataforseo/llm-models";
  *
  * The asynchronous queues (`standard`, `priority`) require a billed `task_post` followed by a
  * `task_get`, because processing is measured in minutes. The price book also carries an
- * `llmScraper.live` row, but **there is no `live` route** - the sandbox answers 404 for it, and a
- * price row is not a route - so nothing here sends to one. The price gap between the queues is
- * real and deliberate, so the queue is an argument the caller must state rather than a default this
- * module picks for them.
+ * `llmScraper.live` row, and **the live routes are real**: re-probed on the sandbox on 2026-10-10,
+ * `/v3/ai_optimization/chat_gpt/llm_scraper/live/advanced` and `/live/html` both answer `20000 Ok`.
+ *
+ * The comment here used to say *"there is no `live` route - the sandbox answers 404 for it, and a
+ * price row is not a route - so nothing here sends to one."* **That was wrong**, and it was a
+ * wrong fact recorded confidently in a comment, which is the kind that stops a future reader from
+ * using a working route. The 404s it remembered were the `llm_mentions` family and a handful of
+ * other spellings, not the scraper's.
+ *
+ * So the decision not to send to `live` is a **deliberate design choice, not a vendor constraint**,
+ * and it should be argued on its merits: a live scrape still bills a task at the live price, so
+ * `live` buys latency rather than a cheaper call, and the queue form is the one that handles a
+ * batch. The price gap between the queues is real and deliberate, so the queue is an argument the
+ * caller must state rather than a default this module picks for them.
  */
 
 const classifyLlmScraperError = createDataforseoBillingClassifier({
