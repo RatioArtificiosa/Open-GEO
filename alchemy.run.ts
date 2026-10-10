@@ -266,6 +266,22 @@ const dataEnv = {
   // AUTH_MODE, DATABASE_PROVIDER, BETTER_AUTH_URL, TEAM_DOMAIN, and
   // POLICY_AUD are stage-dependent and set in the stack body below.
   DATAFORSEO_API_KEY: Config.redacted("DATAFORSEO_API_KEY"),
+  /**
+   * **The sandbox override, forwarded so it works on a deployed stage.**
+   *
+   * `src/server/lib/dataforseo/serverBaseUrl.ts` reads this at the single seam
+   * and falls back to production when unset. It was tested thoroughly in Node and
+   * **was unusable in a deployment**, because a variable that alchemy is never
+   * told about never becomes a worker binding — confirmed by enumerating the
+   * deployed worker's bindings: 10 secret_text and 19 plain_text, with no
+   * `DATAFORSEO_BASE_URL` and no `DEMO_MODE` among them.
+   *
+   * `optionalVar`, not `Config.string`, because it must stay optional: a
+   * production deploy that omits it gets production, which is the correct
+   * default, and a required declaration would fail the deploy for wanting to be
+   * left alone.
+   */
+  DATAFORSEO_BASE_URL: optionalVar("DATAFORSEO_BASE_URL"),
   BYPASS_EMAIL_VERIFICATION: optionalVar("BYPASS_EMAIL_VERIFICATION"),
   BETTER_AUTH_SECRET: optionalSecret("BETTER_AUTH_SECRET"),
   GOOGLE_CLIENT_ID: optionalVar("GOOGLE_CLIENT_ID"),
@@ -439,6 +455,13 @@ export default Alchemy.Stack(
         // path reads — DataForSEO (Lighthouse), Autumn (metering), PostHog
         // (capture). No auth/OAuth/Loops/Turnstile secrets.
         DATAFORSEO_API_KEY: dataEnv.DATAFORSEO_API_KEY,
+        // The sandbox override, for the same reason as on the app worker: this
+        // worker's code path reads DataForSEO (Lighthouse), and a stage that has
+        // no declaration for the variable gets no binding — so the override was
+        // silently unusable here while working in Node. It lives beside the key,
+        // not spread from `dataEnv`, because this block deliberately enumerates
+        // rather than spreads.
+        DATAFORSEO_BASE_URL: dataEnv.DATAFORSEO_BASE_URL,
         AUTUMN_SECRET_KEY: dataEnv.AUTUMN_SECRET_KEY,
         POSTHOG_PUBLIC_KEY: dataEnv.POSTHOG_PUBLIC_KEY,
         POSTHOG_HOST: dataEnv.POSTHOG_HOST,
