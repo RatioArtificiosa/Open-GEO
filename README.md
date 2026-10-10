@@ -109,15 +109,15 @@ from backups. That is fine if tinkering is the point. It is expensive if running
 
 **The hosted version is the same code with none of that.** From **$10/month**:
 
-| What you get                       | Self-hosting                                                                        | Hosted                                                                          |
-| ---------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| **The nightly scheduler**          | You run it. Miss a night and your history has a hole.                                | It runs. Every night, without you.                                              |
-| **Your DataForSEO account**        | You create one, fund it, and watch the spend.                                        | We run it. One plan, itemised.                                                   |
-| **History and forecasts**          | You back up the archive, or lose the trend line.                                     | Kept, and the forecasts are computed from it.                                    |
-| **Rank tracking on a schedule**    | You keep the cron alive.                                                            | Kept.                                                                           |
-| **Multi-client workspaces**        | You build it.                                                                       | Built.                                                                          |
-| **Upgrades**                       | You pull and re-migrate.                                                            | Done.                                                                           |
-| **Price**                          | ~$3.30 per brand monitored daily per month, plus your time.                          | **$10/month**, $0.50 to start with no card.                                     |
+| What you get                    | Self-hosting                                                | Hosted                                        |
+| ------------------------------- | ----------------------------------------------------------- | --------------------------------------------- |
+| **The nightly scheduler**       | You run it. Miss a night and your history has a hole.       | It runs. Every night, without you.            |
+| **Your DataForSEO account**     | You create one, fund it, and watch the spend.               | We run it. One plan, itemised.                |
+| **History and forecasts**       | You back up the archive, or lose the trend line.            | Kept, and the forecasts are computed from it. |
+| **Rank tracking on a schedule** | You keep the cron alive.                                    | Kept.                                         |
+| **Multi-client workspaces**     | You build it.                                               | Built.                                        |
+| **Upgrades**                    | You pull and re-migrate.                                    | Done.                                         |
+| **Price**                       | ~$3.30 per brand monitored daily per month, plus your time. | **$10/month**, $0.50 to start with no card.   |
 
 **The honest version of this pitch:** if you want to read the code, change it, or run it on hardware
 you control, self-host. It is MIT and it will stay that way. If you would rather pay a small monthly
