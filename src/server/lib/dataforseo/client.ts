@@ -131,15 +131,6 @@ function meter<I, T>(
   defaultFeature?: CreditFeature,
   estimateUsd?: (input: I) => number,
 ): (input: I & { creditFeature?: CreditFeature }) => Promise<T> {
-  /**
-   * Unwraps the envelope.
-   *
-   * `meterDataforseoCall` now returns the whole `DataforseoApiResponse` so a
-   * caller can read the billing receipt, and this unwrps it back to the payload
-   * — which is what every existing consumer of the metered client was written
-   * against, so none of them change. `meterEnvelope` is the sibling for a caller
-   * that wants both.
-   */
   return (input) =>
     meterDataforseoCall(
       customer,
@@ -147,6 +138,44 @@ function meter<I, T>(
       input.creditFeature ?? defaultFeature,
       estimateUsd?.(input),
     ).then((response) => response.data);
+}
+
+/**
+ * The envelope-returning sibling of `meter`.
+ *
+ * ## Who needs it and why
+ *
+ * A scheduled capture reconciles its spend. `scheduledEtvCapture.ts` reads
+ * `response.billing.costUsd` into `report.actualCostUsd`, and that number is the
+ * one an operator checks against the DataForSEO invoice. `meter` unwrps the
+ * billing away, so a capture built on it would charge the customer correctly and
+ * record a cost of `undefined` — and nothing would fail, because the budget runs
+ * on the price-book estimate rather than the vendor's figure.
+ *
+ * **That is what made the shape dangerous**: a metered capture that reports zero
+ * actual spend is indistinguishable from a correctly metered one, from the tests
+ * and from the log. The receipt has to travel with the charge, which is the same
+ * principle as the design system's evidence drawer, applied to money.
+ *
+ * Identical gating, identical credit feature, identical estimate — only the
+ * return type differs, so the two cannot disagree about whether a call is
+ * permitted.
+ */
+function meterEnvelope<I, T>(
+  customer: BillingCustomerContext,
+  fetcher: (input: I) => Promise<DataforseoApiResponse<T>>,
+  defaultFeature?: CreditFeature,
+  estimateUsd?: (input: I) => number,
+): (
+  input: I & { creditFeature?: CreditFeature },
+) => Promise<DataforseoApiResponse<T>> {
+  return (input) =>
+    meterDataforseoCall(
+      customer,
+      () => fetcher(input),
+      input.creditFeature ?? defaultFeature,
+      estimateUsd?.(input),
+    );
 }
 
 export function createDataforseoClient(customer: BillingCustomerContext) {
@@ -198,6 +227,20 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
     },
     domain: {
       rankOverview: meter(customer, fetchDomainRankOverview),
+      /**
+       * The envelope-returning sibling, for the nightly ETV capture.
+       *
+       * The capture's report carries `actualCostUsd` read from
+       * `response.billing.costUsd`, and that is the figure an operator reconciles
+       * against the DataForSEO invoice. Routing it through `rankOverview` would
+       * strip the billing and report a cost of `undefined` — while the budget
+       * still works, because it runs on the price-book estimate. Nothing would
+       * fail and the number would quietly stop being true.
+       *
+       * Same gate, same credit feature, same estimate — only the return type
+       * differs, so the two cannot disagree about whether a call is permitted.
+       */
+      rankOverviewEnvelope: meterEnvelope(customer, fetchDomainRankOverview),
       rankedKeywords: meter(customer, fetchRankedKeywords),
       relevantPages: meter(customer, fetchRelevantPages),
       // WHOIS and technologies are both billed at request time, so both are metered. WHOIS is the

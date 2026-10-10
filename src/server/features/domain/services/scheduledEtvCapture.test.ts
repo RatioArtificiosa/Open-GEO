@@ -131,13 +131,24 @@ afterEach(() => {
 
 const run = (
   domains: Array<ReturnType<typeof domain>>,
-  fetchOverview: FetchOverview,
+  injectOverview: FetchOverview,
   over: Partial<NonNullable<Parameters<typeof runDueEtvCaptures>[0]>> = {},
 ) =>
   runDueEtvCaptures({
     now: NOW,
     fetchDomains: (async () => domains) as FetchDomains,
-    fetchOverview,
+    // The org lookup, doubled so a metered capture can be tested without a
+    // database. Every domain in these tests belongs to one org, which is the
+    // shape a real deployment has and the one the billing context needs.
+    fetchOrgs: (async () =>
+      new Map(domains.map((d) => [d.projectId, "org_default"]))) as Parameters<
+      typeof runDueEtvCaptures
+    >[0] extends infer I
+      ? I extends { fetchOrgs?: infer F }
+        ? F
+        : never
+      : never,
+    injectOverview,
     writePoint,
     ...over,
   });
@@ -212,15 +223,18 @@ describe("runDueEtvCaptures", () => {
   });
 
   it("never retries a billed failure in the same night", async () => {
-    const fetchOverview: MockedFunction<FetchOverview> = vi.fn<FetchOverview>(
+    const injectOverview: MockedFunction<FetchOverview> = vi.fn<FetchOverview>(
       async () => {
         throw new Error("upstream exploded");
       },
     );
 
-    const report = await run([domain("a.com"), domain("b.com")], fetchOverview);
+    const report = await run(
+      [domain("a.com"), domain("b.com")],
+      injectOverview,
+    );
 
-    expect(fetchOverview).toHaveBeenCalledTimes(2);
+    expect(injectOverview).toHaveBeenCalledTimes(2);
     expect(report.failures).toHaveLength(2);
   });
 

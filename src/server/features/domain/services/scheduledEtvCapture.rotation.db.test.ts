@@ -184,7 +184,7 @@ async function askOrder(): Promise<string[]> {
   // *order*. The cap is the thing under test, so the helper must not impose a second
   // and different limit on top of it.
   await runDueEtvCaptures({
-    fetchOverview: async (input) => {
+    injectOverview: async (input) => {
       asked.push(input.target);
       return {
         data: [{ metrics: { organic: { etv: 100, count: 1 } } }],
@@ -298,7 +298,7 @@ describe("the ETV project rotation — which deployments get a night", () => {
       // **The same stub the other tests in this file use** — `target`, and the whole
       // envelope including `billing` and `etv`. A second, guessed shape in one file is
       // one more thing to keep in step, and `as never` would hide the difference.
-      fetchOverview: async (input) => {
+      injectOverview: async (input) => {
         asked.push(input.target);
         return {
           data: [{ metrics: { organic: { etv: 100, count: 1 } } }],

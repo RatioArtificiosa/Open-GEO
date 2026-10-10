@@ -44,13 +44,14 @@
  *    a series can never mix it with `ranked_keywords` — which compute ETV over
  *    different populations and comparing them means nothing.
  */
-import { and, eq, max, sql } from "drizzle-orm";
+import { and, eq, inArray, max, sql } from "drizzle-orm";
 import { db } from "@/db";
 import type { BudgetedCaptureReport } from "@/server/features/geo/services/captureReport";
 import { geoTargets } from "@/db/schema";
+import { projects } from "@/db/schema";
 import { domainMetrics } from "@/db/schema";
 import { DomainMetricsRepository } from "@/server/features/domain/repositories/DomainMetricsRepository";
-import { fetchDomainRankOverview } from "@/server/lib/dataforseo/labs";
+import { createDataforseoClient } from "@/server/lib/dataforseo/client";
 import { DFS_LABS } from "@/shared/dataforseo-pricing";
 import {
   NIGHTLY_BUDGET_USD,
@@ -378,6 +379,57 @@ type EtvNightReport = BudgetedCaptureReport & {
 };
 
 /**
+ * The identity a scheduled capture acts as.
+ *
+ * **A cron has no user**, and inventing a plausible one would put a fake
+ * `userId`/`userEmail` into the billing ledger. The scheduled GEO patrol already
+ * solved this with the same constant and the same address, so this file uses that
+ * convention rather than inventing a second one.
+ */
+const SYSTEM_ACTOR = {
+  userId: "system",
+  userEmail: "system@opengeo.so",
+} as const;
+
+/**
+ * The organization each project belongs to, so a nightly capture can bill it.
+ *
+ * ## Why a separate lookup rather than a column on `trackedDomains()`
+ *
+ * `trackedDomains()` reads `geoTargets` through two aggregate subqueries and an
+ * explicit four-term `orderBy`, and **that null-ordering is the fairness policy**
+ * — never-measured first, then oldest first. Adding a third `leftJoin` to reach
+ * `projects.organizationId` risks the one thing the query exists to get right, and
+ * a regression there would silently change which projects get a night.
+ *
+ * So the org is its own query, keyed by project: **one round trip for the night's
+ * projects, not one per domain.** The founder chose this shape over the join.
+ *
+ * ## Why a missing org is a skip, never a guess
+ *
+ * A cron has no user, so the billing context has to be assembled from real ids.
+ * An `organizationId` cast in here would let the usage-credit check pass against
+ * a customer that does not exist — the guard failing in exactly the direction it
+ * exists to prevent. A project with no org is dropped from the night and counted,
+ * so the log says which.
+ */
+export async function listProjectOrgs(
+  projectIds: string[],
+): Promise<Map<string, string>> {
+  if (projectIds.length === 0) return new Map();
+
+  const rows = await db
+    .select({
+      projectId: projects.id,
+      organizationId: projects.organizationId,
+    })
+    .from(projects)
+    .where(inArray(projects.id, projectIds));
+
+  return new Map(rows.map((row) => [row.projectId, row.organizationId]));
+}
+
+/**
  * Capture one ETV point per tracked domain, once a night.
  *
  * `limitProjects` is the shared first-deploy safety valve
@@ -389,25 +441,88 @@ export async function runDueEtvCaptures(input?: {
   limitProjects?: number;
   now?: Date;
   fetchDomains?: typeof trackedDomains;
-  fetchOverview?: typeof fetchDomainRankOverview;
+  /**
+   * A stand-in for the metered vendor call, for tests.
+   *
+   * **Typed to the metered client's envelope sibling**, not to the raw fetcher, so
+   * a double is a drop-in replacement for the production path. When present it
+   * takes precedence over the metered client, which means a test can supply a
+   * double without building a billing context — and, crucially, means the
+   * production path is the metered one by default rather than by exception.
+   */
+  injectOverview?: ReturnType<
+    typeof createDataforseoClient
+  >["domain"]["rankOverviewEnvelope"];
+  /**
+   * The org lookup, injectable for the same reason as `fetchDomains`: this file's
+   * unit tests run without a database, so a billing context that can only come
+   * from a real query would be untestable. Defaults to the real query.
+   */
+  fetchOrgs?: typeof listProjectOrgs;
   writePoint?: typeof DomainMetricsRepository.insertPoint;
 }): Promise<EtvNightReport> {
   const now = input?.now ?? new Date();
   const limit = input?.limitProjects ?? NIGHTLY_PROJECT_SWEEP_LIMIT;
   const fetchDomains = input?.fetchDomains ?? trackedDomains;
-  const fetchOverview = input?.fetchOverview ?? fetchDomainRankOverview;
+  const fetchOrgs = input?.fetchOrgs ?? listProjectOrgs;
+  const injectOverview = input?.injectOverview;
   const writePoint = input?.writePoint ?? DomainMetricsRepository.insertPoint;
 
   const domains = await fetchDomains();
 
   /**
-   * **Sliced once, here, and every count derives from the slice.** The first version
+   * Sliced once, here, and every count derives from the slice. The first version
    * counted projects from the *unlimited* list and iterated the slice, so a
    * 40-project deployment reported **40 visited while asking 3** — which is exactly
    * the kind of number an operator trusts and cannot reconcile with the log line
    * beside it. A report that disagrees with itself is worse than no report.
    */
   const admitted = domains.slice(0, limit);
+
+  /**
+   * The org per project, and the metered client built from it.
+   *
+   * **Before the slice is trusted, and only for projects that survived it.** The
+   * capture cannot bill a project without an org, and a project whose org is
+   * missing is dropped rather than guessed at — a cast-in `organizationId` would
+   * let the usage-credit check pass against a customer that does not exist.
+   *
+   * Built once per project rather than once per domain, because the billing
+   * context is the same for every domain a project tracks.
+   */
+  const orgs = await fetchOrgs(admitted.map((domain) => domain.projectId));
+
+  /**
+   * One metered client per project, because the billing context is per org.
+   *
+   * **Built here rather than at module scope**, and not once for the night: the
+   * credit gate takes a `customer`, and the customer differs per project. A single
+   * client would bill every project to whichever org happened to be read first.
+   *
+   * The client is the metered **envelope** sibling, so `report.actualCostUsd`
+   * still carries the vendor's figure. `injectOverview` remains the seam the tests
+   * use and is preferred when present, so a double needs no billing context at all.
+   */
+  const clients = new Map(
+    [...orgs].map(([projectId, organizationId]) => [
+      projectId,
+      injectOverview ??
+        createDataforseoClient({
+          ...SYSTEM_ACTOR,
+          organizationId,
+          projectId,
+        }).domain.rankOverviewEnvelope,
+    ]),
+  );
+
+  const billable = admitted
+    .map((domain) => ({
+      domain,
+      meterOverview: clients.get(domain.projectId),
+    }))
+    .filter((row) => row.meterOverview !== undefined);
+  const unbillable = admitted.length - billable.length;
+  void unbillable;
 
   const report: EtvNightReport = {
     projectsVisited: new Set(admitted.map((d) => d.projectId)).size,
@@ -420,6 +535,18 @@ export async function runDueEtvCaptures(input?: {
   };
 
   /**
+   * Projects dropped because they have no org to bill.
+   *
+   * Counted after the report literal so the value lands on a declared
+   * accumulator rather than being read before it exists — the first version put
+   * this above the literal and TypeScript rejected it outright, which is the
+   * compiler catching an ordering mistake rather than a type mistake.
+   */
+  if (unbillable > 0) {
+    report.skippedNoOrganization = unbillable;
+  }
+
+  /**
    * **The per-project cap, applied before the money check** — because a cap that can
    * be reached by spending is not a cap on a customer, it is a suggestion.
    *
@@ -430,14 +557,14 @@ export async function runDueEtvCaptures(input?: {
    * counters for one idea is one more thing to keep in step.
    */
   const perProjectSeen = new Map<string, number>();
-  const admittedWithinProjectCap: typeof admitted = [];
-  for (const row of admitted) {
-    const seen = perProjectSeen.get(row.projectId) ?? 0;
+  const admittedWithinProjectCap: typeof billable = [];
+  for (const row of billable) {
+    const seen = perProjectSeen.get(row.domain.projectId) ?? 0;
     if (seen >= MAX_DOMAINS_PER_PROJECT_PER_NIGHT) {
       report.droppedForBudget += 1;
       continue;
     }
-    perProjectSeen.set(row.projectId, seen + 1);
+    perProjectSeen.set(row.domain.projectId, seen + 1);
     admittedWithinProjectCap.push(row);
   }
 
@@ -455,11 +582,37 @@ export async function runDueEtvCaptures(input?: {
     }
 
     try {
-      const response = await fetchOverview({
-        target: row.domain,
-        locationCode: row.locationCode,
-        languageCode: row.languageCode,
+      /**
+       * **Through the metered client, not the raw fetcher.**
+       *
+       * Before this the capture called `fetchDomainRankOverview` directly, so
+       * `assertUsageCreditsAvailable` and `trackUsageCreditSpend` never ran for a
+       * nightly capture: the platform's vendor account paid, no org balance was
+       * read, and a zero-credit org kept receiving captures every night.
+       *
+       * **The metered form keeps the billing envelope** — `rankOverviewEnvelope`
+       * rather than `rankOverview` — because `report.actualCostUsd` is the figure
+       * an operator reconciles against the DataForSEO invoice, and a metered
+       * capture reporting `undefined` would be indistinguishable from a correctly
+       * metered one.
+       */
+      const meterOverview = row.meterOverview;
+      const response = await meterOverview?.({
+        target: row.domain.domain,
+        locationCode: row.domain.locationCode,
+        languageCode: row.domain.languageCode,
       });
+
+      /**
+       * Unreachable by construction, and asserted rather than assumed.
+       *
+       * `billable` filtered to rows that have a client, so a project without one
+       * never reaches this call — but `meterOverview?.()` widens the type to
+       * `undefined` and TypeScript cannot see the filter. A non-null guard here
+       * is the honest form of *"the filter guarantees it"*: the day the filter
+       * changes, this fails loudly instead of storing a point against a null.
+       */
+      if (!response) continue;
 
       report.domainsAsked += 1;
       report.estimatedCostUsd += LABS_UNIT_COST_USD;
@@ -480,10 +633,10 @@ export async function runDueEtvCaptures(input?: {
       if (!organic) continue;
 
       await writePoint({
-        projectId: row.projectId,
-        domain: row.domain,
-        locationCode: row.locationCode,
-        languageCode: row.languageCode,
+        projectId: row.domain.projectId,
+        domain: row.domain.domain,
+        locationCode: row.domain.locationCode,
+        languageCode: row.domain.languageCode,
         endpoint: ENDPOINT,
         organicEtv: organic.etv ?? null,
         /**
@@ -515,7 +668,7 @@ export async function runDueEtvCaptures(input?: {
       // so a second attempt can bill twice for one night — the same rule both
       // sibling captures follow.
       report.failures.push({
-        domain: row.domain,
+        domain: row.domain.domain,
         reason: error instanceof Error ? error.message : String(error),
       });
     }

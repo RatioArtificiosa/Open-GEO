@@ -82,6 +82,20 @@ export type BudgetedCaptureReport = CaptureCostReport & {
    * a log — so the caller names it and the omission is visible.
    */
   droppedForBudget: number;
+
+  /**
+   * Work skipped because the project had no organization to bill.
+   *
+   * A scheduled capture has no user, so its billing context is assembled from
+   * real ids. A project whose org is missing **cannot** be charged, and guessing
+   * an `organizationId` would let the usage-credit check pass against a customer
+   * that does not exist — the guard failing in the direction it exists to prevent.
+   *
+   * Counted on the shared report rather than per capture, because all three
+   * nightly captures face the same skip and a field one of them invents is a field
+   * the other two drift from.
+   */
+  skippedNoOrganization?: number;
 };
 
 /**
