@@ -286,6 +286,39 @@ one of which this document already forbids.
 config or this document — not by suppressing the rule.** A suppression is a lie
 about the state of the product.
 
+### Recorded exceptions
+
+Each of these is a case where the detector's heuristic and this document's truth
+conflict, resolved in favour of the truth and recorded here so the next person
+meeting the flag has the decision rather than re-litigating it.
+
+**1. `overused-font` on Instrument Sans.** The detector names six fonts — Inter,
+Roboto, Fraunces, Geist, Plus Jakarta Sans, Space Grotesk — and Instrument Sans is
+not one of them. `scripts/check-slop-budget.mjs` reads the built CSS and _requires_
+that the declared body font is neither Inter nor Geist, and the reasoning is in
+`web/src/styles/app.css` beside the declaration: Instrument Sans is the one that is
+both non-default and on Google Fonts, so naming it avoids the silent fallback that
+General Sans or Satoshi would have shipped. **Chasing this flag breaks the repo's
+own gate.** It will keep appearing on every run; that is expected.
+
+**2. `oversized-h1` on the marketing hero.** 72px, 61 characters, ~28vh of the
+reference viewport. Kept deliberately. Three reasons, in order of weight:
+
+- **The headline is the number.** `synthesis.md` §6 asks for a measured
+  discrepancy with its provenance one click away, and `198×` is the only figure in
+  the product that twenty files refuse to violate. Shrinking it to satisfy a
+  viewport-height guideline would trade the product's central signal for a
+  compliance tick.
+- **The composition is controlled, not accidental.** The three lines are explicit
+  `<br />` breaks, so the wrap is authored. The rule targets headlines that run
+  long and wrap arbitrarily.
+- **It is already responsive.** `.itc-display-xl` is
+  `clamp(40px, 6.5vw, 72px)`, so a 375px viewport renders 40px rather than a
+  scaled-down 72px. There is no mobile bug hiding behind the desktop finding.
+
+The detector runs on the desktop surface only. Revisit if the figure itself is
+retired or the hero becomes a single line.
+
 ---
 
 ## 10. Definition of done for any UI change
