@@ -44,17 +44,26 @@ jobs:
       - name: Build worker (eager-bundle guard)
         run: pnpm vite build
 
-      - name: Install website dependencies
-        run: pnpm --dir web install --frozen-lockfile
-
-      - name: Test free-tool abuse and spend protection
-        run: pnpm --dir web run test:protection
-
-      - name: Run website type checks
-        run: pnpm --dir web run types:check
-
-      - name: Build website
-        run: pnpm --dir web run build
+      # **The website job lived here, and it cannot any more.**
+      #
+      # It ran `pnpm --dir web install`, `pnpm --dir web run test:protection`,
+      # `pnpm --dir web run types:check` and `pnpm --dir web run build` — plus two
+      # gates, `check-slop-budget` and `check-business-model`, which read
+      # `web/dist/client`. **The marketing website now lives in the private
+      # repository**, so every one of those steps would fail on the public repo,
+      # and the whole `ci` job with them.
+      #
+      # Both gates moved to the private repo alongside the site they measure, and
+      # are registered in `web/package.json` there. `check-business-model` moved for
+      # a second reason on top of the path: it asserts the markup, the plan price
+      # and the free-tier allowance, which are commercial facts that do not belong
+      # in a public repository at all.
+      #
+      # **This is the shape to remember when moving a directory between repos: a
+      # gate that reads the directory's build output fails on the repo that no
+      # longer contains it.** Two of them did, and the express job was the same
+      # failure in a different place. A public CI that depends on a private
+      # directory is a CI that is red on `main`.
 
   # ── The dual-dialect matrix ────────────────────────────────────────────────
   #

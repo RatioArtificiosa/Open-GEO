@@ -22,6 +22,7 @@ describe("buildSamSkillSource", () => {
       "seo-audit",
       "seo-coach",
       "seo-project-setup",
+      "what-to-build",
     ]);
 
     // **The gate's own comment says why this list is the point:** SAM serves

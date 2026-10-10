@@ -1,18 +1,33 @@
 /**
- * **A throttle is HTTP 401 with the truth in the body.** Measured on this account:
- * `/v3/appendix/user_data` returned `40100` — *"You are not Authorized to Access this
- * Resource"* — and **the identical call returned `20000` seconds later.** That is a rate
- * limit wearing the auth status, because DataForSEO reuses 401.
+ * **`classify` gets the body's status code, because a non-2xx still carries one.**
  *
- * Before this file existed the run log said `DATAFORSEO_AUTH_FAILED`, so the obvious
- * operator response was **to rotate a working API key** — an expensive way to fix nothing,
- * at the worst moment to change a credential.
+ * DataForSEO answers a *logical* failure with HTTP 200 and puts the outcome in
+ * `status_code`, so `assertOk` classifies it. This is the one path that cannot: `doFetch`
+ * throws before the body is parsed, and `classify` is the only hook that sees a code
+ * extracted from an error body.
  *
- * ## Every shape, because the fix is a *fallback*
+ * ## The correction this file records
+ *
+ * An earlier version asserted that HTTP 401 + body `40100` was a **throttle** — reported as
+ * `RATE_LIMITED`, with a message telling the operator *"The credential is valid — this is a
+ * rate limit, not an auth failure."* That was generalised from a single transient on
+ * `/v3/appendix/user_data`, and it contradicts the vendor's documented error list.
+ *
+ * | Code  | Vendor message                                                   | Therefore |
+ * |-------|------------------------------------------------------------------|-----------|
+ * | 40100 | "You are not authorized to access this resource"                  | **auth**  |
+ * | 40202 | "The rate-limit per minute has been exceeded"                     | throttle  |
+ * | 40209 | "Too many simultaneous queries"                                   | throttle  |
+ *
+ * The old rule was wrong in both directions at once: a genuinely invalid credential was
+ * reported as a rate limit to wait out, and a working one was told it was about to be
+ * rotated. One observation on one endpoint does not relabel a documented status code.
+ *
+ * ## Every shape, because the body reading is a *fallback*
  *
  * | response | expected | why |
  * |---|---|---|
- * | HTTP 401 + body `40100` | `RATE_LIMITED` | the measured case |
+ * | HTTP 401 + body `40100` | `DATAFORSEO_AUTH_FAILED` | the documented meaning |
  * | HTTP 401 + body `40104` | the verification message | same HTTP code, different body |
  * | HTTP 402 + body `40200` | the billing message | unchanged, and must stay so |
  * | HTTP 401, **no body** | `DATAFORSEO_AUTH_FAILED` | a real transport failure |
@@ -83,8 +98,9 @@ describe("a non-2xx response whose body carries the real verdict", () => {
     vi.restoreAllMocks();
   });
 
-  it("reads 40100 as a throttle, not a broken credential", async () => {
-    // **The measured response, verbatim.** This is the whole finding.
+  it("reads 40100 as an auth failure, which is what the vendor documents", async () => {
+    // **The measured response, verbatim** — the same envelope this file has asserted
+    // against since it was written.
     respond(
       401,
       JSON.stringify({
@@ -98,12 +114,26 @@ describe("a non-2xx response whose body carries the real verdict", () => {
 
     // **The endpoint path is asserted, not implied.** `endpoint-path-gate.test.ts` requires
     // every client path a test exercises to be pinned by name, because a wrong URL passes
-    // every behavioural test and fails only on a billed request — and this file's subject
-    // *is* a billed request.
+    // every behavioural test and fails only on a billed request.
     expect(vi.mocked(fetch).mock.calls[0]?.[0]).toContain(PATH);
 
-    // **Not** the auth failure — that is the defect this whole file exists for.
-    expect(error.code).not.toBe("DATAFORSEO_AUTH_FAILED");
+    // **40100 is an auth failure, and this used to be the defect.** The file it replaces
+    // asserted `RATE_LIMITED` with a message claiming the credential was valid, on the
+    // strength of one observation. The vendor's own error list
+    // (`https://docs.dataforseo.com/v3/appendix/errors`, read 2026-10-10) says:
+    //
+    //   | Code  | Message                                              |
+    //   |-------|------------------------------------------------------|
+    //   | 40100 | "You are not authorized to access this resource"     |
+    //   | 40202 | "The rate-limit per minute has been exceeded"        |
+    //   | 40209 | "Too many simultaneous queries"                      |
+    //
+    // A throttle is **40202** or **40209**. Treating the auth code as a throttle sent an
+    // operator with a genuinely bad credential the exact opposite of the truth: told to
+    // wait and retry rather than to fix the key, and told the credential was valid. The
+    // one observation this rule was generalised from was a single transient on this one
+    // endpoint, which is an endpoint oddity, not a vendor-wide relabelling.
+    expect(error.code).toBe("DATAFORSEO_AUTH_FAILED");
   });
 
   it("still reads 40104 as unverified, at the same HTTP status", async () => {

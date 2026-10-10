@@ -32,10 +32,21 @@ const BILLING_STATUS_CODES = new Set([40200, 40210, 402]);
  * and came from **two unrelated product families** — `ai_optimization` and `serp` — so the
  * block is account-wide rather than a plan that lacks one endpoint.
  *
- * Note the neighbouring `40100` is **not** in here: it reads *"You are not Authorized to
- * Access this Resource"*, which looks like an auth failure and is actually **throttling** —
- * the same call succeeded seconds later. Filing it would report a rate limit as a broken
- * credential.
+ * Note the neighbouring `40100` is **not** in here, and it is not a throttle either. The
+ * vendor's documented error list (`docs.dataforseo.com/v3/appendix/errors`, read
+ * 2026-10-10) reads it plainly:
+ *
+ *   | Code  | Vendor message                                        |
+ *   |-------|-------------------------------------------------------|
+ *   | 40100 | "You are not authorized to access this resource"      |
+ *   | 40202 | "The rate-limit per minute has been exceeded"         |
+ *   | 40209 | "Too many simultaneous queries"                       |
+ *
+ * An earlier revision of `core.ts` treated it as throttling, on the strength of one
+ * transient on `/v3/appendix/user_data`. That contradicted the documented meaning *and*
+ * misreported in both directions: a genuinely bad credential was reported as a rate limit
+ * to wait out, and a working one was told it was about to be rotated. It is an auth
+ * failure, it stays out of this set, and the HTTP ladder owns it.
  */
 const VERIFICATION_STATUS_CODES = new Set([40104]);
 const VERIFICATION_SIGNALS = [

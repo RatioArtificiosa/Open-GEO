@@ -203,73 +203,22 @@ function createAuthenticatedFetch(
       if (classified) throw classified;
 
       /**
-       * **Now the body's own verdict, because a non-2xx can still carry it.**
+       * **The body's own verdict, because a non-2xx can still carry it.**
        *
        * DataForSEO's convention is to answer a *logical* failure with **HTTP 200** and put
-       * the outcome in `status_code`; `assertOk` reads that and classifies 40104 and 40200
-       * correctly. **This is the only path that cannot**, because `doFetch` throws before
-       * the body is ever parsed:
-       *
-       * ```
-       * HTTP 401 + body status_code 40100   "Please verify your account"… no, a THROTTLE
-       * ```
-       *
-       * Measured on this account: `/v3/appendix/user_data` returned exactly that, and **the
-       * identical call returned `20000` seconds later.** Without this the ladder below
-       * reports `DATAFORSEO_AUTH_FAILED`, so an operator reads the run log and **rotates a
-       * working API key** — an expensive way to fix nothing, at the worst moment to change
-       * a credential.
-       *
-       * **Routed through `classify`, not a new switch**, because that is where the
-       * knowledge already lives: `dataforseoBillingClassification.ts` documents 40100 as
-       * throttling and deliberately declines to match it, so it is never mistaken for an
-       * auth failure. **The knowledge exists and the wiring did not** — and a third copy of
-       * the rule is the thing this session has spent its length consolidating.
-       *
-       * **The charge constraint cannot bite here.** `DataforseoChargedTaskError` is thrown
-       * from `assertOk`, which only ever sees HTTP 2xx, so **the HTTP layer and the
-       * charged-task path are disjoint** and reclassifying cannot lose a charge.
+       * the outcome in `status_code`; `assertOk` reads that and classifies correctly. This
+       * is the only path that cannot, because `doFetch` throws before the body is parsed:
+       * `classify` is the one hook that sees a status code extracted from an error body.
        *
        * Falls through when there is no body code — `classify` returns null, and the HTTP
-       * ladder below decides, which is right for a genuine transport 401 with no envelope.
+       * ladder below decides, which is right for a genuine transport failure with no
+       * envelope. **A body that cannot be read must reach the ladder**, because a vendor's
+       * bad day must not become our wrong classification.
        */
       const bodyStatusCode = readBodyStatusCode(rawText);
       if (bodyStatusCode !== null) {
         const fromBody = classify?.(bodyStatusCode, rawText, path);
         if (fromBody) throw fromBody;
-
-        /**
-         * **And the one code the classifier deliberately declines: a throttle.**
-         *
-         * `40100` is *not* in `VERIFICATION_STATUS_CODES` or `BILLING_STATUS_CODES`, and
-         * that is right — it is neither. It reads *"You are not Authorized to Access this
-         * Resource"*, which is why the classifier refuses it rather than let it become an
-         * auth error, **but something must claim it**, and the HTTP ladder below claims it as
-         * `DATAFORSEO_AUTH_FAILED`.
-         *
-         * Measured on this account: `/v3/appendix/user_data` returned exactly that, and
-         * **the identical call returned `20000` seconds later.** So the ladder's answer is
-         * wrong in the most expensive direction available — an operator reads the run log and
-         * **rotates a working API key**, at the worst moment to change a credential.
-         *
-         * **Branched here rather than added to the classifier**, because the classifier
-         * answers *"is this money, or is this verification?"* — and this is neither.
-         * `core.ts` answers *"what does the transport mean?"*, and a throttle is a transport
-         * fact wearing an auth status. **Putting it in the classifier would make a third
-         * copy of a rule this session has spent its length consolidating.**
-         */
-        if (bodyStatusCode === 40100) {
-          throw new AppError(
-            "RATE_LIMITED",
-            `DataForSEO throttled this account on ${path} (status_code 40100 returned as HTTP ${response.status}). The credential is valid — this is a rate limit, not an auth failure.`,
-            {
-              provider: "dataforseo",
-              providerStatus: String(response.status),
-              providerPath: path,
-              responseBody: formatDataforseoErrorPayload(rawText),
-            },
-          );
-        }
       }
 
       const code: ErrorCode =
