@@ -85,6 +85,48 @@ describe("runSelfhostPreflight", () => {
     expect(item?.message).not.toContain("BETTER_AUTH_SECRET,");
   });
 
+  // ── The database backend ──────────────────────────────────────────────────
+  //
+  // The Postgres path used to stop at the preflight: nothing checked
+  // `DATABASE_PROVIDER`, so a self-hoster who set it got a container that started,
+  // failed the migration inside `db:migrate:pg`, and read as broken features. The
+  // preflight exists to catch exactly that in seconds.
+
+  it("treats d1 as the default and reports it", () => {
+    const result = runSelfhostPreflight({ AUTH_MODE: "local_noauth" });
+
+    expect(itemFor(result, "DATABASE_PROVIDER")?.level).toBe("ok");
+    expect(result.failed).toBe(false);
+  });
+
+  it("fails postgres when no HYPERDRIVE binding is described", () => {
+    const result = runSelfhostPreflight({
+      AUTH_MODE: "local_noauth",
+      DATABASE_PROVIDER: "postgres",
+    });
+
+    // A hard failure, not a warning: the container would start and then fail every
+    // query, which reads as broken features rather than a misconfigured backend.
+    expect(result.failed).toBe(true);
+    expect(itemFor(result, "DATABASE_PROVIDER")?.level).toBe("fail");
+    // And it names the file to edit, so the fix is one hop away.
+    expect(itemFor(result, "DATABASE_PROVIDER")?.message).toContain(
+      "wrangler.jsonc",
+    );
+  });
+
+  it("fails an unsupported provider with the valid list", () => {
+    const result = runSelfhostPreflight({
+      AUTH_MODE: "local_noauth",
+      DATABASE_PROVIDER: "mysql",
+    });
+
+    expect(result.failed).toBe(true);
+    expect(itemFor(result, "DATABASE_PROVIDER")?.message).toContain(
+      "d1, postgres",
+    );
+  });
+
   it("mentions ALLOWED_HOST when unset", () => {
     const result = runSelfhostPreflight({ AUTH_MODE: "local_noauth" });
 

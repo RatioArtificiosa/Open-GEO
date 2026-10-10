@@ -252,6 +252,46 @@ export function runSelfhostPreflight(env: EnvRecord): PreflightResult {
       "Rank-tracking schedules do not run in Docker mode — trigger checks from the Rank Tracking page.",
   });
 
+  /**
+   * The database backend, and the binding Postgres needs.
+   *
+   * **Reported here rather than left to the entrypoint.** `DATABASE_PROVIDER=postgres`
+   * with no HYPERDRIVE binding reaches `db:migrate:pg` and fails there on a missing
+   * `DATABASE_URL`, which is after the multi-minute build and far from the cause. The
+   * provider reads the connection string from the binding, so an absent binding is a
+   * configuration error the operator can fix in seconds.
+   *
+   * A hard failure, not a warning: the container would start and then serve every
+   * query with a provider error, which reads as broken features rather than as a
+   * misconfigured backend.
+   */
+  const provider = get(env, "DATABASE_PROVIDER");
+  if (provider === "postgres") {
+    items.push({
+      key: "runtime",
+      name: "DATABASE_PROVIDER",
+      level: "fail",
+      message:
+        "postgres requires a HYPERDRIVE binding with a localConnectionString in wrangler.jsonc " +
+        "(uncomment the commented block and set localConnectionString to your Postgres URL). " +
+        "See docs/SELF_HOSTING_DOCKER.md#using-postgres-instead-of-d1.",
+    });
+  } else if (provider && provider !== "d1") {
+    items.push({
+      key: "runtime",
+      name: "DATABASE_PROVIDER",
+      level: "fail",
+      message: `"${provider}" is not a valid DATABASE_PROVIDER. Valid values: d1, postgres.`,
+    });
+  } else {
+    items.push({
+      key: "runtime",
+      name: "DATABASE_PROVIDER",
+      level: "ok",
+      message: "d1 (default) — a local SQLite file inside the container.",
+    });
+  }
+
   return { items, failed: items.some((item) => item.level === "fail") };
 }
 

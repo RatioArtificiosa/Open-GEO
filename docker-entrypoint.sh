@@ -13,7 +13,33 @@ echo 'OpenGeo sends an anonymous usage heartbeat (counts only). Disable: OPENGEO
 # in seconds with the exact fix instead of after a multi-minute build.
 pnpm exec tsx scripts/selfhost-preflight.ts
 
-pnpm run db:migrate:local
+# ── Migrations, on whichever backend is configured ──────────────────────────
+#
+# `DATABASE_PROVIDER` selects the dialect, the same variable `src/db/provider.ts`
+# reads at runtime. The default is D1, which needs no URL because Wrangler binds it
+# locally.
+#
+# **The Postgres path was missing entirely.** A self-hoster on the hosted stack had
+# to exec into the container and run migrations by hand — or the container served a
+# schema 38 migrations behind the code, which reads as broken features rather than as
+# a missing migration.
+#
+# **Postgres needs a HYPERDRIVE binding, not a DATABASE_URL.** The provider reads the
+# connection string from the binding's `connectionString`, and in local dev from its
+# `localConnectionString`. See docs/SELF_HOSTING_DOCKER.md#using-postgres-instead-of-d1
+# for the two files a self-hoster edits; the preflight below reports it as a hard
+# failure when the binding is absent, because `db:migrate:pg` would otherwise fail on
+# a missing `DATABASE_URL` in drizzle-pg.config.ts after a multi-minute build.
+#
+# `db:migrate:pg` is idempotent — drizzle tracks applied migrations in its own table,
+# so re-running it on an already-migrated database is a no-op.
+if [ "${DATABASE_PROVIDER:-d1}" = "postgres" ]; then
+  echo 'Migrating Postgres (DATABASE_PROVIDER=postgres)...'
+  pnpm run db:migrate:pg
+else
+  echo 'Migrating D1 (DATABASE_PROVIDER=d1)...'
+  pnpm run db:migrate:local
+fi
 
 # POSTHOG_SOURCEMAPS (CI sourcemap uploads) moves vite's outDir; keep the
 # fingerprint marker beside the output it describes.
