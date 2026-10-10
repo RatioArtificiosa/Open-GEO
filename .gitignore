@@ -11,6 +11,9 @@ dist-sourcemaps/
 .output/
 .tanstack/
 .DS_Store
+# ctx writes a lock/cache file next to its skill; not ours to commit.
+/.kilo/skills/ctx/.ctx-skill.json*
+/.kilo/skills/ctx/..*
 .cache
 .env
 .env.

@@ -204,17 +204,48 @@ export async function checkUsageCreditsDepleted(
 }
 
 /**
- * Throws INSUFFICIENT_CREDITS when the org has no usage/topup credits left.
+ * Throws INSUFFICIENT_CREDITS when the org has no usage/topup credits left, or
+ * when the remaining balance cannot cover a call of the given size.
  * Returns the monthly remaining so a caller can split spend monthly-first.
+ *
+ * ## Why the gate takes a cost now
+ *
+ * The first version checked only `monthlyRemaining + topupRemaining <= 0`, which
+ * admits **any** call to **any** non-empty wallet: one remaining credit
+ * (~$0.001) admitted a $0.12 WHOIS read, a 100-task rank post, or 20 Lighthouse
+ * checks. The gate was a door, not a floor.
+ *
+ * Passing the estimated price turns it into a floor. A caller that does not know
+ * the price can still omit it and get the old behaviour — which is why the
+ * parameter is optional rather than a breaking change, and why this comment
+ * names what the omission costs: the only per-operation ceiling in the codebase
+ * was a hand-written `maxCostCredits` in `RankCheckWorkflow`, so most callers
+ * were admitting unbounded spend against an almost-empty wallet.
+ *
+ * The estimate is in USD and is converted here rather than by the caller, using
+ * exactly the two constants `trackUsageCreditSpend` uses to convert the real
+ * cost — a floor computed with a different rate than the charge would be a floor
+ * that does not guard the thing it guards.
  */
 export async function assertUsageCreditsAvailable(
   customerId: string,
+  estimatedCostUsd?: number,
 ): Promise<{ monthlyRemaining: number }> {
   const { monthlyRemaining, topupRemaining } =
     await getUsageCreditsRemaining(customerId);
 
   if (monthlyRemaining + topupRemaining <= 0) {
     throw new AppError("INSUFFICIENT_CREDITS");
+  }
+
+  if (estimatedCostUsd !== undefined && estimatedCostUsd > 0) {
+    const affordableCredits = Math.floor(
+      (monthlyRemaining + topupRemaining) /
+        (SEO_DATA_COST_MARKUP * AUTUMN_SEO_DATA_CREDITS_PER_USD),
+    );
+    if (estimatedCostUsd > affordableCredits) {
+      throw new AppError("INSUFFICIENT_CREDITS");
+    }
   }
 
   return { monthlyRemaining };

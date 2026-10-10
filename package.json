@@ -13,7 +13,7 @@
     "lint": "oxlint . --type-aware",
     "lint:fix": "oxlint . --type-aware --fix",
     "preview": "npm run build && vite preview --port 3001",
-    "deploy": "npm run db:migrate:prod && npm run build && wrangler deploy -c dist/open_seo_audit/wrangler.json && wrangler deploy",
+    "deploy": "npm run db:migrate:prod && npm run build && wrangler deploy -c dist/open_geo_audit/wrangler.json && wrangler deploy",
     "deploy:selfhost": "node scripts/selfhost-deploy-preflight.mjs && vite build --mode selfhost && tsc --noEmit && pnpm alchemy deploy --env-file .env.selfhost --stage selfhost",
     "deploy:postgres": "npm run db:migrate:pg && npm run build && pnpm alchemy deploy --env-file .env.production --stage hosted-prod --adopt",
     "deploy:preview": "vite build --mode preview && pnpm alchemy deploy --env-file .env.preview",
@@ -59,13 +59,15 @@
     "seed:rank-tracking": "tsx scripts/seed-rank-tracking.ts",
     "seed:projects": "tsx scripts/seed-projects.ts",
     "seed:categories": "tsx scripts/seed-categories.ts",
-    "ci:check": "prettier --check . && knip && tsc --noEmit && tsc --noEmit -p badseo/tsconfig.json && pnpm --dir web run types:check && oxlint . --type-aware && pnpm detect:slop && pnpm sync-plugin-skills && pnpm --dir web run build && node scripts/check-slop-budget.mjs && node scripts/check-business-model.mjs && node scripts/check-policy-constants.mjs && pnpm submission:check",
+    "ci:check": "prettier --check . && knip && tsc --noEmit && tsc --noEmit -p badseo/tsconfig.json && pnpm --dir web run types:check && oxlint . --type-aware && pnpm detect:slop && pnpm sync-plugin-skills && pnpm --dir web run build && node scripts/check-slop-budget.mjs && node scripts/check-business-model.mjs && node scripts/check-policy-constants.mjs && node scripts/verify-slop-budget.mjs && node scripts/verify-business-model.mjs && node scripts/verify-policy-constants.mjs && node scripts/check-migration-journals.mjs && node scripts/check-docker-selfhost-compose.mjs && pnpm submission:check",
     "geo:unread-fields": "node scripts/unread-response-fields.mjs",
     "check:slop-budget": "pnpm --dir web run build && node scripts/check-slop-budget.mjs",
     "check:business-model": "pnpm --dir web run build && node scripts/check-business-model.mjs",
     "check:policy-constants": "node scripts/check-policy-constants.mjs",
+    "check:docker-selfhost": "node scripts/check-docker-selfhost-compose.mjs",
     "verify:policy-constants": "node scripts/verify-policy-constants.mjs",
-    "verify:business-model": "node scripts/verify-business-model.mjs"
+    "verify:business-model": "node scripts/verify-business-model.mjs",
+    "verify:slop-budget": "node scripts/verify-slop-budget.mjs"
   },
   "cloudflare": {
     "bindings": {

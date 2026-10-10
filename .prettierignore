@@ -8,6 +8,12 @@ routeTree.gen.ts
 
 # vendored skills are hash-pinned in skills-lock.json; don't reformat them
 .agents/skills/
+# Kilo harness skills, copied from C:\Users\Usuario\.agents\skills. Same rule as
+# the line above: vendored documents, not code this repo authors. **Distinct
+# directory on purpose** — `.agents/skills/` is a *product* directory bundled into
+# SAM (globbed by `samSkills.ts` and guarded by an allowlist in its test), so
+# internal agent-harness skills must not land there or they leak to end users.
+.kilo/skills/
 # real copies synced from .agents/skills/ via `pnpm sync-plugin-skills` — must
 # stay byte-identical to the canonical source, not reformatted
 plugins/opengeo/skills/

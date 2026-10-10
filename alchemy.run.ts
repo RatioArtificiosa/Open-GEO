@@ -371,7 +371,20 @@ export default Alchemy.Stack(
     // always have a target. Takes no direct traffic (url off).
     const auditWorker = yield* Cloudflare.Worker("open-geo-audit", {
       name: `${workerName(stage)}-audit`,
-      main: "./dist/open_seo_audit/index.js",
+      // **The audit worker's built entry, on the path the build actually emits.**
+      //
+      // This read `./dist/open_seo_audit/index.js` — the **pre-rebrand** name —
+      // until this deploy failed with `ENOENT: no such file or directory`, because
+      // `vite.config.ts` builds the auxiliary worker to `dist/open_geo_audit/` and
+      // every other reference in the repo was renamed. Three references shared the
+      // same stale prefix.
+      //
+      // **The reason it survived:** `package.json`'s `deploy` script uses the same
+      // wrong path, so the wrangler path fails identically, and `deploy:postgres`
+      // / `deploy:preview` — the paths that actually provision the stack — had
+      // never been run to completion before. A rename is the one class of change
+      // that leaves no failing test, because nothing exercised the deploy.
+      main: "./dist/open_geo_audit/index.js",
       bundle: false,
       url: false,
       compatibility: {

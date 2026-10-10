@@ -56,6 +56,58 @@ jobs:
       - name: Build website
         run: pnpm --dir web run build
 
+  # ── The dual-dialect matrix ────────────────────────────────────────────────
+  #
+  # The repository's invariant is that schema, queries and mutations work on
+  # **both** SQLite and Postgres. `schema-parity.test.ts` enforces that shape,
+  # and `vitest.setup.ts` makes the provider a variable, but nothing ran the
+  # suite on the Postgres path until this job existed: 103 test files stub
+  # `cloudflare:workers`, all with `DATABASE_PROVIDER: "d1"`, none with
+  # `"postgres"`.
+  #
+  # That gap is not theoretical. Commit `2a785c9` is named after it — *"the
+  # postgres barrel pointed at the sqlite table, so its migration was never
+  # generated"* — and CI was green throughout, because only a human read
+  # generator output. **A green CI run on one dialect is not evidence about the
+  # other.**
+  #
+  # `scripts/dual-dialect-harness.test.ts` guards the switch itself, so this job
+  # cannot pass by silently running SQLite twice.
+  dual-dialect:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: [d1, postgres]
+    env:
+      DATABASE_PROVIDER: ${{ matrix.provider }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # No Postgres service is started: the pg barrel resolves its connection
+      # through the HYPERDRIVE binding, and a repository needs a driver while a
+      # barrel does not. What this guards is the half that was actually broken
+      # and never exercised — module resolution, barrel wiring, the
+      # `getDatabaseProvider()` branch, and every schema-parity comparison, on
+      # the Postgres path.
+      - name: Run tests on ${{ matrix.provider }}
+        run: pnpm run test:ci
+
   docker-build:
     runs-on: ubuntu-latest
 

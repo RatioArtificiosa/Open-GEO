@@ -104,9 +104,19 @@ movement is noise, and noise is the thing we exist to eliminate.
 
 ```css
 --og-font-sans:
-  "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
---og-font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+  sans-serif;
+--og-font-mono:
+  "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
 ```
+
+**Why Instrument Sans, and why not Inter or Geist.** Every competitor measured
+uses Inter or Geist, which is what makes them the fingerprint of a generated page
+— `scripts/check-slop-budget.mjs` enforces exactly this, and fails the build if
+the declared body font is either one. General Sans and Satoshi were rejected
+because neither is on Google Fonts, so naming either would have shipped a silent
+fallback. **The full rationale is in `web/src/styles/app.css` beside the token,
+and it is that comment that is authoritative; this table is a copy.**
 
 Mono is for **data only**: hashes, task ids, URLs, raw vendor payloads, ETV
 figures in tooltips. Never for prose, and never for a heading.

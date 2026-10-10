@@ -71,6 +71,8 @@ export const NIGHTLY_BUDGET_USD = {
    * these are named rather than summed.**
    */
   aiMode: 0.1,
+  /** scheduledOpportunityInputs - shared across the night's projects. */
+  opportunityInputs: 5,
 } as const;
 
 /**
@@ -85,6 +87,8 @@ export const PER_PROJECT_NIGHTLY_CAP = {
   etvDomains: 25,
   /** One vendor call per prompt. */
   aiKeywords: 25,
+  /** One keyword_overview plus a shared intent call per tracked keyword. */
+  opportunityKeywords: 25,
 } as const;
 
 /**

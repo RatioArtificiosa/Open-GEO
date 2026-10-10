@@ -113,6 +113,22 @@ const runtimeSchema =
         ...sqliteKeywordOpportunityInputs,
       };
 
+/**
+ * The provider-aware schema, exported so the dialect switch is assertable.
+ *
+ * **This export exists because of `2a785c9`** — *"the postgres barrel pointed at
+ * the sqlite table, so its migration was never generated."* The choice the
+ * `runtimeSchema` ternary makes was previously unobservable from a test: the
+ * handlers could only check the *result* of a wrong branch, and a wrong branch
+ * produced a correct-looking D1 deployment.
+ *
+ * `scripts/dual-dialect-harness.test.ts` imports this and asserts that every
+ * table comes from one dialect, under either provider. A mixed barrel is the
+ * `keywordOpportunityInputs` bug class — one table from each side — and it is
+ * invisible to a suite that only ever runs one of them.
+ */
+export { runtimeSchema };
+
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- guarded by schema-parity.test.ts
 const schema = runtimeSchema as unknown as AppSchema;
 
@@ -132,6 +148,7 @@ export const {
   dashboardStepDismissals,
   backlinkSnapshots,
   domainMetrics,
+  keywordOpportunityInputs,
   projectContextSections,
   projectCompetitors,
   projectKeyPages,

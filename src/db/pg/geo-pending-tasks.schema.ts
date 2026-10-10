@@ -3,7 +3,6 @@ import {
   index,
   integer,
   pgTable,
-  serial,
   text,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -26,10 +25,14 @@ const isoNow = sql`to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS
 export const geoPendingTasks = pgTable(
   "geo_pending_tasks",
   {
-    // The one deliberate divergence: Postgres gets a serial id because it has
-    // one, and `schema-parity.test.ts` compares presence rather than the
-    // auto-increment strategy.
-    id: serial("id").primaryKey(),
+    // App-generated UUID on both dialects. This was `serial`, which
+    // `schema-parity.test.ts` could not distinguish from SQLite's `text` id —
+    // a parity gate that compares the *set* of key columns cannot see *what
+    // generates their values*. No writer exists yet, but the tests already
+    // insert text ids (`queueDrain.test.ts`), so the column was one author away
+    // from rejecting every insert with `invalid input syntax for type bigint`.
+    // `drizzle-pg/0038` converts the existing column.
+    id: text("id").primaryKey(),
     projectId: text("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),

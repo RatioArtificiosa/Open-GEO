@@ -8,13 +8,7 @@ import { ProjectRepository } from "@/server/features/projects/repositories/Proje
 import { SamSessionRepository } from "@/server/features/sam/SamSessionRepository";
 import { runScheduledRankChecks } from "@/server/features/rank-tracking/services/scheduledRankChecks";
 import { runDueGeoPatrols } from "@/server/features/geo/services/scheduledGeoPatrol";
-import { runDueAiModeCaptures } from "@/server/features/geo/services/scheduledAiModeCapture";
-import { runDueAiKeywordCaptures } from "@/server/features/geo/services/scheduledAiKeywordCapture";
-import { runDueEtvCaptures } from "@/server/features/domain/services/scheduledEtvCapture";
-import {
-  formatCaptureCost,
-  formatDropped,
-} from "@/server/features/geo/services/captureReport";
+import { runNightlyBillableCaptures } from "@/server/features/geo/services/nightlyCaptures";
 import { runQueueDrain } from "@/server/features/geo/services/queueDrainRunner";
 import { runScheduledGeoRetention } from "@/server/features/geo/services/scheduledGeoRetention";
 import { reconcileStaleAudits } from "@/server/features/audit/services/auditReconciler";
@@ -215,6 +209,16 @@ export default {
     // becomes real the moment someone removes that filter or changes the
     // cadence. Both directions are now explicit and a test pins the schedule.
     const isDailyTick = controller.cron === MCP_OAUTH_PURGE_CRON;
+    // **The same cron expression, named for what it gates.**
+    //
+    // `isDailyTick` above gates the *free* daily work: the OAuth KV purge and the
+    // Dub referral sweep. The three billable captures below read as nightly and
+    // are gated on the identical expression, so they share one source of truth
+    // and cannot drift the way they did when each carried its own idea of a
+    // window. A second name for one expression is deliberate: the two facts are
+    // different, and collapsing them into one flag is how "this is also tonight"
+    // gets lost the next time the free daily work grows a sibling.
+    const isNightlyTick = isDailyTick;
     if (isDailyTick && isHostedAuthMode(getAuthMode(env.AUTH_MODE))) {
       // Only hosted mode runs the OAuth provider (and has OAUTH_KV bound).
       const result = await openSeoOAuthProvider.purgeExpiredData(
@@ -287,92 +291,35 @@ export default {
       console.error("[cron] GEO queue drain failed:", err);
     }
 
-    // The AI Mode capture is a **billable** step, so unlike everything above it is
-    // not dispatched unconditionally in spirit: the handler reads the watch list
-    // first, and a project with no prompts costs nothing to discover.
+    // ── The three billable nightly captures ──────────────────────────────────
     //
-    // It runs after the patrol and the drain on purpose — both of those are cheap
-    // and both must not be blocked by this one, so an AI Mode vendor failure must
-    // not stop the archive filling. Its own run log is what keeps a 5-minute tick
-    // from billing twice.
-    try {
-      const aiMode = await withPgClient(() => runDueAiModeCaptures());
-      if (aiMode.projectsVisited > 0) {
-        console.log(
-          // **Vendor cost beside the estimate**, matching the other two captures. The
-          // monitor has reported `actualCostUsd` since the billing fix, and this line
-          // never printed it — so the one figure that would show the $0.004 constant
-          // drifting was computed and then dropped at the last step, which is the same
-          // shape as the two dead captures: the value exists and nothing reads it on
-          // the way out.
-          //
-          // The `~` is dropped deliberately: a tilde means *estimated*, and this line
-          // now prints the measured figure beside the estimated one rather than
-          // calling the estimate approximate.
-          `[cron] AI Mode: ${aiMode.captured} captured, ${aiMode.failed} failed, ${formatCaptureCost(aiMode)} across ${aiMode.projectsVisited} project(s)`,
-        );
-      }
-    } catch (err) {
-      console.error("[cron] AI Mode capture failed:", err);
-    }
-
-    // AI keyword demand, for the same reasons and with the same ordering: a
-    // **billable** step, after the cheap work that must not be blocked by it.
+    // **These run on the nightly tick and on nothing else**, and that single
+    // sentence is the entire fix for the most expensive bug this repo has had.
     //
-    // **Monthly data on a five-minute tick**, so its own report is what stops a
-    // repeat: `capturedAt` moves forward each night, but the vendor returns the
-    // same history every time, so a second tick in the same window would pay for
-    // rows that already exist. The guard is the run log rather than a date
-    // comparison because "we ran tonight" and "the data is current" are different
-    // claims and only the first is true on every tick.
-    try {
-      const aiKeywords = await withPgClient(() => runDueAiKeywordCaptures());
-      if (aiKeywords.projectsVisited > 0) {
-        console.log(
-          `[cron] AI keywords: ${aiKeywords.rowsStored} monthly row(s) from ${aiKeywords.keywordsAsked} keyword(s) in ${aiKeywords.callsMade} call(s), ${formatCaptureCost(aiKeywords)} across ${aiKeywords.projectsVisited} project(s)` +
-            // Dropped work is named by the shared formatter, so "we captured
-            // everything" and "we captured what we could afford" cannot read alike.
-            formatDropped(aiKeywords.droppedForBudget),
-        );
-      }
-      // One line per failure: the night failed for this project, and a reader of
-      // the log needs to know which one rather than only how many.
-      for (const failure of aiKeywords.failures) {
-        console.error(
-          `[cron] AI keyword capture failed for project ${failure.projectId}: ${failure.reason}`,
-        );
-      }
-    } catch (err) {
-      console.error("[cron] AI keyword capture failed:", err);
-    }
-
-    // Labs ETV, and the **last** of the three nightly captures. It is here rather
-    // than folded into the patrol because it is a *different question*: the patrol
-    // asks whether a brand was named, this asks how much search traffic the domain
-    // carries — over a different population, on a different schedule, at $0.012 a
-    // call.
+    // They used to be dispatched on **every** tick, and each one's own code
+    // claimed that was safe: the AI Mode runner carried an `alreadyRanInWindow`
+    // hook that the cron caller never passed, and the AI-keyword and ETV runners
+    // had no run log at all — only a `lastAskedAt` rotation, which reorders who
+    // gets measured and never decides *whether* to measure. So on a
+    // `*/5 * * * *` tick all three ran, all day, every day.
     //
-    // **After the AI captures, and for the same reason each of those is:** a billable
-    // step must not block the cheap work that fills the archive. Its own report names
-    // dropped domains rather than omitting them, because "we captured everything" and
-    // "we captured what we could afford" are different claims.
-    try {
-      const etv = await withPgClient(() => runDueEtvCaptures());
-      if (etv.projectsVisited > 0) {
-        console.log(
-          `[cron] ETV: ${etv.rowsStored} point(s) from ${etv.domainsAsked} domain(s), ${formatCaptureCost(etv)} across ${etv.projectsVisited} project(s)` +
-            formatDropped(etv.droppedForBudget),
-        );
-      }
-      // One line per failure: the night failed for this domain, and an operator
-      // reading the log needs to know which rather than only how many.
-      for (const failure of etv.failures) {
-        console.error(
-          `[cron] ETV capture failed for ${failure.domain}: ${failure.reason}`,
-        );
-      }
-    } catch (err) {
-      console.error("[cron] ETV capture failed:", err);
+    // The cost, at the caps these files set for themselves: ETV at $0.012 a call
+    // across 25 domains is $0.30 a night — collected 288 times a night it is
+    // $86/day, ~$2,590/month per deployment. The code's own comments price a
+    // night at "$0.05" and "one point per tracked domain, per night".
+    //
+    // Nothing caught it because every number the sweeps report is internal to
+    // the sweep: `projectsVisited` counted rows the sweep itself had just
+    // chosen, so the log line read exactly the same after the first tick and the
+    // two-hundred-and-eighty-eighth. **A budget that is checked per tick bounds
+    // a tick, not a night**, and that is the shape to remember.
+    //
+    // The patrol, the queue drain, the watchdog, retention and rank checks stay
+    // on every tick below: each of those is either free or carries its own
+    // 24-hour cadence filter, and the patrol's filter is what makes a 5-minute
+    // tick a no-op for it. Only the three that *bill* are gated.
+    if (isNightlyTick) {
+      await withPgClient(() => runNightlyBillableCaptures());
     }
 
     // Retention follows the patrol on the same tick: the sweep only deletes what

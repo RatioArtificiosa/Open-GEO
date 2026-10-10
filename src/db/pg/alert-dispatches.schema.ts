@@ -3,7 +3,6 @@ import {
   index,
   integer,
   pgTable,
-  serial,
   text,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -23,9 +22,14 @@ const isoNow = sql`to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS
 export const geoAlertDispatches = pgTable(
   "geo_alert_dispatches",
   {
-    // The one deliberate divergence: a serial id, which parity compares by
-    // presence rather than by auto-increment strategy.
-    id: serial("id").primaryKey(),
+    // App-generated UUID on both dialects. This was `serial`; the writer at
+    // `alertDispatch.ts` passes `crypto.randomUUID()`, so on Postgres the insert
+    // threw `invalid input syntax for type bigint`, its `catch` swallowed it,
+    // the alert *was* delivered but never logged, and the next tick's duplicate
+    // check could not see the row — duplicate alerts on every patrol. Because
+    // the failure is caught, nothing surfaces. `drizzle-pg/0038` converts the
+    // existing column.
+    id: text("id").primaryKey(),
     projectId: text("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),

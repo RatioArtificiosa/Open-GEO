@@ -2,6 +2,7 @@ import {
   type CreditFeature,
   mapDataforseoPathToCreditFeature,
 } from "@/shared/billing-credit-features";
+import { DFS_DOMAIN, DFS_LABS } from "@/shared/dataforseo-pricing";
 import {
   assertUsageCreditsAvailable,
   getOrCreateOrganizationCustomer,
@@ -104,16 +105,38 @@ export { mapDataforseoPathToCreditFeature };
  * spend to its own feature). The extra field is ignored by the fetchers, which
  * read named fields rather than spreading the input.
  */
+/**
+ * Wrap one vendor fetcher in the metering + credit gate.
+ *
+ * `estimateUsd` is what the call is *expected* to cost, drawn from
+ * `@/shared/dataforseo-pricing`. It is passed to `assertUsageCreditsAvailable`
+ * so the gate can refuse a call the wallet cannot cover, rather than only a call
+ * against an empty wallet. One remaining credit used to admit a $0.12 WHOIS read.
+ *
+ * **A function of the input, not a number**, because the expensive endpoints
+ * bill per task: `rankCheckTaskPost` posts up to 100 tasks and
+ * `domainMetricsByCategories` bills per returned row. A fixed estimate would
+ * understate them by exactly the factor that makes them dangerous.
+ *
+ * Endpoints that omit it keep the old "any non-empty wallet" behaviour. That is
+ * deliberate: the price book's own header calls most of its rows the
+ * least-verified part of the file, and a floor built on an unverified price
+ * would refuse legitimate work. The estimate only has to be right to be useful —
+ * a wrong one that is too low is the old behaviour, and a wrong one that is too
+ * high is a refusal, which is loud rather than silent.
+ */
 function meter<I, T>(
   customer: BillingCustomerContext,
   fetcher: (input: I) => Promise<DataforseoApiResponse<T>>,
   defaultFeature?: CreditFeature,
+  estimateUsd?: (input: I) => number,
 ): (input: I & { creditFeature?: CreditFeature }) => Promise<T> {
   return (input) =>
     meterDataforseoCall(
       customer,
       () => fetcher(input),
       input.creditFeature ?? defaultFeature,
+      estimateUsd?.(input),
     );
 }
 
@@ -171,8 +194,22 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       // WHOIS and technologies are both billed at request time, so both are metered. WHOIS is the
       // expensive one (~$0.12) and technologies the cheap one (~$0.012) that carries the contact
       // fields the lead list is built from.
-      whoisOverview: meter(customer, fetchWhoisOverview),
-      domainTechnologies: meter(customer, fetchDomainTechnologies),
+      //
+      // WHOIS is the clearest case for an estimate: it is the priciest single read in the platform
+      // and the only one whose whole price is a per-request fee with no per-row component, so the
+      // number is both large and certain. A wallet holding one credit admitted it without a floor.
+      whoisOverview: meter(
+        customer,
+        fetchWhoisOverview,
+        undefined,
+        () => DFS_DOMAIN.whois.perRequest,
+      ),
+      domainTechnologies: meter(
+        customer,
+        fetchDomainTechnologies,
+        undefined,
+        () => DFS_DOMAIN.technologies.perRequest,
+      ),
       // The categories a domain ranks in. Metered with everything else in Labs, and the
       // `includeClickstreamData` flag doubles the vendor's price — a caller's decision, never a
       // default.
@@ -183,10 +220,16 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       // categories usually means.
       keywordsForCategories: meter(customer, fetchKeywordsForCategories),
       // The comparison read: who ranks in a set of categories and how their traffic moved between
-      // two months. Priced at `heavyHistorical` — about 10× the standard Labs rate.
+      // two months. Priced at `heavyHistorical` — about 10× the standard Labs rate, and billed
+      // **per returned row**, so the estimate scales with the task rather than being a constant.
+      // A wallet with a handful of credits could previously start a read priced at several dollars.
       domainMetricsByCategories: meter(
         customer,
         fetchDomainMetricsByCategories,
+        undefined,
+        (input) =>
+          DFS_LABS.heavyHistorical.perRequest +
+          DFS_LABS.heavyHistorical.perUnit * Math.max(input.limit, 1),
       ),
     },
     serp: {
@@ -281,6 +324,7 @@ async function meterDataforseoCall<T>(
   customer: BillingCustomerContext,
   execute: () => Promise<DataforseoApiResponse<T>>,
   creditFeature?: CreditFeature,
+  estimatedCostUsd?: number,
 ): Promise<T> {
   const isHostedMode = await isHostedServerAuthMode();
 
@@ -293,6 +337,7 @@ async function meterDataforseoCall<T>(
 
   const { monthlyRemaining } = await assertUsageCreditsAvailable(
     billingCustomer.id,
+    estimatedCostUsd,
   );
 
   let result: DataforseoApiResponse<T>;

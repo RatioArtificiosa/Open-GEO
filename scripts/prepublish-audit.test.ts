@@ -43,14 +43,12 @@ const ROOT = process.cwd();
  * The repository root, which is **not** the same directory as `ROOT`.
  *
  * `G:\opengeo` is the git repository; `G:\opengeo\Open-GEO` is a nested working
- * tree inside it, with its own `.git`. Every gate in this file walks `ROOT`, so
- * the repository's own documents — `OPENGEO_CHECKLIST.md`,
- * `OPENGEO_MASTER_REFERENCE.md`, `docs/**` — have never been scanned by any of
- * them.
+ * tree inside it, with its own `.git`. Every gate in this file walks `ROOT`, so a
+ * repository's own documents sit outside their walk.
  *
- * That is not hypothetical. **`OPENGEO_CHECKLIST.md` was carrying 20 corrupted
+ * That is not hypothetical. **A checklist document was carrying 20 corrupted
  * characters while both encoding gates reported "0 files, 0 sequences" on every
- * run**, because the file is outside their walk: two NUL bytes where a digit `0`
+ * run**, because the file was outside their walk: two NUL bytes where a digit `0`
  * belonged, two `null`s that had lost their leading `n`, and fourteen control
  * bytes (BEL, BS, FF) sitting exactly where the first letter of an identifier
  * belonged — `atRiskUsd`, `ai_mention_history`, `failed`, `fetch`,
@@ -179,7 +177,7 @@ const TEXT_EXTENSIONS = new Set([
  * rather than merely inconvenient:
  *
  * - `prepublish-audit.test.ts` names the byte values it searches for.
- * - `observations-and-memories.md` is the project's ledger, and its row 6 records
+ * - the project's ledger records the row-6 excision, which is why that file is
  *   the incident in which 174 files were double-encoded — quoting `â€¦` for `…`
  *   as the evidence. That is a file *correctly containing* mojibake, and the
  *   detector read its own historical record as a fresh finding.
@@ -368,9 +366,15 @@ describe("proposal §12.4 — what stays out of the repo", () => {
   });
 
   it("reads the clause list from the proposal, so the two cannot drift", () => {
-    // The audit's value is that it is derived from the document, not a copy of
-    // it. This reads §12.4 out of the ledger repo when it is reachable, and
-    // asserts the six phrases appear there verbatim.
+    // **The list in `CLAUSES` above is the public repo's own. CI clones only this
+    // repository and never reads the private ledger, so the gate cannot depend on
+    // it — everything asserted below this point stands on `CLAUSES` alone.**
+    //
+    // When the ledger *is* reachable (a maintainer's full checkout, with the
+    // private repo beside this one), this additionally verifies the two still agree
+    // phrase for phrase. That is a bonus consistency check, not a dependency: if
+    // the ledger is absent, skipping is the honest outcome, because inventing a
+    // pass here would be the exact overstatement this file exists to prevent.
     const proposal = join(ROOT, "..", "OPENGEO_PROPOSAL.md");
     if (!existsSync(proposal)) {
       // The ledger lives in a sibling repo and is not present in every checkout
@@ -908,7 +912,7 @@ describe("mojibake must not get worse", () => {
  * U+00E2, which is what a cp1252 round trip produces. That is one specific way
  * for a file to be damaged, and it is a good detector for it.
  *
- * **`OPENGEO_CHECKLIST.md` was damaged in a completely different way while the
+ * **A checklist document was damaged in a completely different way while the
  * mojibake gate reported "0 files, 0 sequences" every single run.** Two NUL bytes
  * had replaced two digit zeros, and two `null`s had lost their leading `n` to a
  * stray line feed — so the sentence stating the project's core rule read

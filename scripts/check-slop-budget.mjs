@@ -15,8 +15,9 @@
  *
  * ## What it asserts, and why each is structural rather than stylistic
  *
- * The research that produced these (`docs/design-research/synthesis.md` §12) found
- * slop is a **macrostructure**, not a bad element:
+ * The research that produced these found that slop is a **macrostructure**, not a
+ * bad element — and that the pages which read as *product* use few grid
+ * containers while the pages which read as *marketing* are built from them:
  *
  * 1. **Fewer than 10 grid containers on the homepage.** Measured across the
  *    category: Otterly 12, Raycast 57, Peec 3. The pages that read as *product*

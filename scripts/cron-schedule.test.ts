@@ -111,4 +111,91 @@ describe("the cron schedule", () => {
     // "clean up" the filter and unknowingly trigger the billing bug.
     expect(source).toMatch(/billed|re-billed/i);
   });
+
+  // ── The billable nightly captures ──────────────────────────────────────────
+  //
+  // These four assertions are the second instance of the exact bug the file
+  // header describes, and they exist because the first instance was caught by a
+  // *reader* rather than by a gate.
+  //
+  // The three nightly captures that bill the vendor were dispatched on every
+  // tick. Each one's own code said that was safe — the AI Mode runner carried an
+  // `alreadyRanInWindow` hook the cron caller never passed, and the AI-keyword
+  // and ETV runners had no run log at all, only a `lastAskedAt` rotation that
+  // reorders who is measured and never decides whether to measure. So they ran
+  // 288 times a night on a `*/5` schedule: at their own caps, ETV alone is
+  // ~$2,590/month instead of ~$9.
+  //
+  // The reason no gate saw it is the reason these assertions are written the way
+  // they are: **every number the sweeps report is internal to the sweep.**
+  // `projectsVisited` counted rows the sweep had just chosen, so the log line
+  // read identically after the first tick and the two-hundred-and-eighty-eighth.
+  // A budget checked per tick bounds a tick, not a night. The only thing that
+  // can catch it is an assertion about the dispatch itself.
+
+  it("gates the three billable captures on the nightly tick", async () => {
+    const source = await read(SCHEDULE_SOURCE);
+    // The captures are dispatched through one call, not three inline blocks,
+    // so a fourth billable capture has an obvious place to go and one gate to
+    // inherit rather than a fresh chance to forget.
+    expect(source).toContain("runNightlyBillableCaptures");
+    // …and that call is inside the nightly gate, not merely present in the file.
+    const gateIndex = source.indexOf("const isNightlyTick =");
+    expect(gateIndex).toBeGreaterThan(-1);
+    const afterGate = source.slice(gateIndex);
+    const callIndex = afterGate.indexOf("runNightlyBillableCaptures()");
+    expect(callIndex).toBeGreaterThan(-1);
+    // No early `return` between the flag and the dispatch — the same shape as
+    // the original inversion, and just as invisible.
+    expect(afterGate.slice(0, callIndex)).not.toMatch(/^\s*return;/m);
+    expect(afterGate.slice(0, callIndex)).toMatch(/isNightlyTick\)\s*\{/);
+  });
+
+  it("does not dispatch a billable capture outside the nightly gate", async () => {
+    // The negative assertion the first version of this gate lacked: the three
+    // runners must not appear as bare calls anywhere in the handler, or the
+    // gate above is decoration around a second copy.
+    const source = await read(SCHEDULE_SOURCE);
+    for (const runner of [
+      "runDueAiModeCaptures(",
+      "runDueAiKeywordCaptures(",
+      "runDueEtvCaptures(",
+    ]) {
+      expect(source).not.toContain(`withPgClient(() => ${runner})`);
+      expect(source).not.toContain(`withPgClient(() => ${runner}`);
+    }
+    // They must also not be imported into the handler at all: an import that
+    // nothing calls is the first half of a second dispatch path.
+    expect(source).not.toMatch(/^import .*runDueAiModeCaptures/m);
+  });
+
+  it("keeps the nightly gate on the same cron expression as the daily work", async () => {
+    // One expression, two names, one reason: `isDailyTick` gates the free daily
+    // work and `isNightlyTick` gates the billable work, and they must be the
+    // same `17 3 * * *` or one of them silently reverts to a five-minute tick.
+    const source = await read(SCHEDULE_SOURCE);
+    expect(source).toMatch(
+      /const isDailyTick = controller\.cron === MCP_OAUTH_PURGE_CRON/,
+    );
+    expect(source).toMatch(/const isNightlyTick = isDailyTick;/);
+    // And the constant itself must still be the daily expression.
+    expect(source).toContain('"17 3 * * *"');
+  });
+
+  it("still runs the free daily work on the nightly tick", async () => {
+    // The gate must not have become another `return`. The patrol, the drain,
+    // retention and rank checks all still run at 03:17 alongside the captures.
+    const source = await read(SCHEDULE_SOURCE);
+    const nightlyGate = source.indexOf("if (isNightlyTick)");
+    expect(nightlyGate).toBeGreaterThan(-1);
+    for (const shared of [
+      "reconcileStaleAudits()",
+      "runDueGeoPatrols()",
+      "runQueueDrain()",
+      "runScheduledGeoRetention(env)",
+      "runScheduledRankChecks(env)",
+    ]) {
+      expect(source.indexOf(shared)).toBeGreaterThan(-1);
+    }
+  });
 });

@@ -1,0 +1,35 @@
+-- **The column `0059` was supposed to create, four migrations late.**
+--
+-- `src/db/audit.schema.ts` has declared `fixesJson` since `7f3ae49`, and
+-- `drizzle-pg/0036_labs_categories.sql` created it on Postgres. But
+-- `0059_audit_readiness.sql` — the D1 migration that creates this table —
+-- omitted it, and then `b490045` hand-edited that same file (plain index →
+-- unique index) *still* without noticing.
+--
+-- The result was a table that exists on both dialects with a different column
+-- set, reachable from both directions on D1:
+--   • written  — `auditReadinessReports.ts:50`  `fixesJson: JSON.stringify(...)`
+--   • read     — `auditReadinessReports.parse.ts:97` `parseFixes(row.fixesJson)`
+-- and, via `db.query.auditReadiness.findFirst`, a relational query that selects
+-- every column, so the read path fails even when the write is never reached.
+--
+-- ## Why this is a new migration and not an edit to `0059`
+--
+-- Journal-tracked migrations are content-addressed by their snapshot. Rewriting
+-- `0059` would leave every already-migrated D1 database — local dev, Docker
+-- self-host, production — believing it had applied a migration whose checksum
+-- no longer matches, and `wrangler d1 migrations apply` would skip it forever.
+-- The column is additive and nullable, so the forward-only fix is an `ALTER`.
+--
+-- ## And why `drizzle-kit generate` did not catch the drift
+--
+-- `drizzle/meta/0060_snapshot.json` and `0061_snapshot.json` both already
+-- declare `fixes_json`, because the snapshot chain was regenerated from the
+-- *schema* while the *SQL* was hand-written. Run `pnpm db:generate` and
+-- drizzle-kit diffs the schema against a snapshot that already claims the
+-- column exists, finds nothing to do, and prints "No schema changes, nothing to
+-- migrate". **The drift was invisible to the tool whose job is to see it**, and
+-- would have stayed that way permanently — which is why
+-- `scripts/migration-parity.test.ts` now diffs the SQL files against the
+-- snapshots directly.
+ALTER TABLE `audit_readiness` ADD `fixes_json` text;

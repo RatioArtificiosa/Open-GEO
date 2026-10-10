@@ -6,12 +6,14 @@ import { describe, expect, it } from "vitest";
  *
  * ## Why this file exists
  *
- * The accent was settled by the founder on 2026-09-28, written into
- * `OPENGEO_PROPOSAL.md:1037` (*"Settled by the founder: the accent is amber
- * `#F59E0B`. Not cyan."*) and carried in `DESIGN.md` §2.3. **It was never
- * implemented.** `app.css` kept upstream's `oklch(50% 0.12 262)` — hue 262, which
- * is blue — through the global rename, and nothing failed, because no test looked
- * at a stylesheet.
+ * The accent is amber `#F59E0B`, and `DESIGN.md` §2.3 is the design system of
+ * record: *"amber is a signal colour, not a chrome colour. It marks the single
+ * most important thing on a screen."* **It was never implemented.** `app.css` kept
+ * upstream's `oklch(50% 0.12 262)` — hue 262, which is blue — through the global
+ * rename, and nothing failed, because no test looked at a stylesheet.
+ *
+ * That last sentence is the point: a stylesheet is the one place a decision can be
+ * recorded, agreed, and still not shipped, with no gate to notice.
  *
  * A colour is a decision with no compiler behind it. This file is the compiler.
  *

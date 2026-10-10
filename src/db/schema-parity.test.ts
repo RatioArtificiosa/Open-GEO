@@ -5,32 +5,31 @@ import { getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core"
 import { getTableConfig as getPgTableConfig } from "drizzle-orm/pg-core";
 import { sort } from "remeda";
 import { describe, expect, it } from "vitest";
-import * as sqliteApp from "./app.schema";
-import * as sqliteDomainMetrics from "./domain-metrics.schema";
-import * as sqliteProjectContext from "./project-context.schema";
-import * as sqliteReports from "./reports.schema";
-import * as sqliteReportTemplates from "./report-templates.schema";
-import * as sqliteAudit from "./audit.schema";
-import * as sqliteSam from "./sam.schema";
-import * as sqliteAuth from "./better-auth-schema";
-import * as sqliteBilling from "./billing.schema";
-import * as sqliteGa4 from "./ga4.schema";
-import * as sqliteGsc from "./gsc.schema";
-import * as sqliteTelemetry from "./telemetry.schema";
-import * as sqliteGeo from "./geo.schema";
-import * as pgApp from "./pg/app.schema";
-import * as pgDomainMetrics from "./pg/domain-metrics.schema";
-import * as pgProjectContext from "./pg/project-context.schema";
-import * as pgReports from "./pg/reports.schema";
-import * as pgReportTemplates from "./pg/report-templates.schema";
-import * as pgAudit from "./pg/audit.schema";
-import * as pgSam from "./pg/sam.schema";
-import * as pgAuth from "./pg/better-auth-schema";
-import * as pgBilling from "./pg/billing.schema";
-import * as pgGa4 from "./pg/ga4.schema";
-import * as pgGsc from "./pg/gsc.schema";
-import * as pgTelemetry from "./pg/telemetry.schema";
-import * as pgGeo from "./pg/geo.schema";
+// **The barrels the repositories import, not a hand-typed list of modules.**
+//
+// The first version of this file imported 13 schema modules per dialect, and
+// `src/db/schema.ts` registered 19. The six it missed — `vendor-tasks`,
+// `monitor-runs`, `geo-pending-tasks`, `alert-dispatches`, `labs-categories`,
+// `keyword-opportunity-inputs` — included `keywordOpportunityInputs`, the exact
+// table whose Postgres barrel pointed at the SQLite file and whose migration was
+// therefore never generated (`2a785c9`, "the postgres barrel pointed at the
+// sqlite table, so its migration was never generated"). The gate that claims to
+// catch a table added to one dialect but not the other was blind to 6 of 60
+// tables, and one of them was the table that had just shipped the bug.
+//
+// A hand-maintained import list is a gate that decays on every new table. These
+// two barrels are the same objects every repository binds, so enumerating them
+// means the coverage cannot drift: adding a 20th schema module to both barrels
+// adds it to this test's population automatically, in either dialect.
+import * as sqliteSchema from "./d1/schema";
+import * as pgSchema from "./pg/schema";
+// Imported only to partition the population: better-auth's generated schemas are
+// compared with relaxed rules below (column names + nullability, not dataType),
+// because `auth:generate` is intentionally dialect-native there. The set of names
+// is what separates the two groups — not a hand-typed list, which is the whole
+// point of this file's new shape.
+import * as sqliteBetterAuth from "./better-auth-schema";
+import * as pgBetterAuth from "./pg/better-auth-schema";
 
 // Guards the ONE structural artifact `db:generate` does not regenerate: the
 // hand-written Postgres schema. The provider-aware `db`/`@/db/schema` barrel
@@ -39,6 +38,14 @@ import * as pgGeo from "./pg/geo.schema";
 // moment they drift (e.g. a table added to one dialect but not the other).
 
 type Dialect = "sqlite" | "pg";
+
+/**
+ * Resolved from the repo root, because the barrel assertion below reads
+ * `src/db/schema.ts` and vitest's cwd varies by invocation.
+ */
+const REPO_ROOT = process.cwd().endsWith("\\src")
+  ? process.cwd().replace(/[\\/]src[\\/]?$/, "")
+  : process.cwd();
 
 const sortStrings = (values: string[]) =>
   sort(values, (a, b) => a.localeCompare(b));
@@ -69,6 +76,28 @@ type ColumnInfo = {
   enumValues: string[] | null;
 };
 
+/**
+ * Column shape, with SQLite's rowid aliasing made explicit.
+ *
+ * ## Why this normalizes `hasDefault` for one exact case
+ *
+ * In SQLite, `INTEGER PRIMARY KEY` is **not** a plain column — it is an alias for
+ * the rowid, so the engine assigns a value whenever an insert omits it. Drizzle
+ * reports that truthfully as `hasDefault: true`, and it does so whether or not
+ * `autoIncrement` is passed, because it is a fact about the engine rather than
+ * about the declaration.
+ *
+ * Postgres has no equivalent: a bare `integer PRIMARY KEY` has no default at all.
+ *
+ * That is an irreducible engine difference, not schema drift — the same kind of
+ * exemption `schema-parity.test.ts` already makes for better-auth's `timestamptz`
+ * / `jsonb` columns. `category_taxonomy` is the only table where it bites: its
+ * `criterion_id` is the *vendor's* id, supplied on every insert, so the SQLite
+ * default never fires and the Postgres column never needs one.
+ *
+ * The normalization is scoped to SQLite integer primary keys and to nothing else,
+ * so a real default appearing or disappearing on any other column still fails.
+ */
 function columnsOf(table: Table): ColumnInfo[] {
   return Object.values(getTableColumns(table)).map((col) => ({
     name: col.name,
@@ -78,6 +107,52 @@ function columnsOf(table: Table): ColumnInfo[] {
     hasDefault: col.hasDefault,
     enumValues: asStringArray(col.enumValues),
   }));
+}
+
+/**
+ * `columnsOf` with the SQLite rowid aliasing normalized away.
+ *
+ * In SQLite, `INTEGER PRIMARY KEY` is an alias for the rowid, so the engine
+ * assigns a value when an insert omits it — Drizzle reports that as
+ * `hasDefault: true`, and does so whether or not `autoIncrement` is declared,
+ * because it is a fact about the engine rather than about the declaration.
+ * Postgres has no equivalent: a bare `integer PRIMARY KEY` has no default.
+ *
+ * This is an irreducible engine difference, not schema drift — the same class of
+ * exemption the file already makes for better-auth's `timestamptz` / `jsonb`
+ * columns. `category_taxonomy.criterion_id` is the only table where it bites:
+ * its id is the *vendor's*, supplied on every insert, so the SQLite default never
+ * fires and the Postgres column never needs one.
+ *
+ * Scoped to integer primary keys and to nothing else, so a real default
+ * appearing or disappearing on any other column still fails loudly.
+ */
+function columnsOfIgnoringRowidDefault(
+  sqliteTable: Table,
+  pgTable: Table,
+): { sqlite: ColumnInfo[]; pg: ColumnInfo[] } {
+  const integerPrimaryKeys = new Set<string>();
+  for (const table of [sqliteTable, pgTable]) {
+    // **Keyed by the *column name*, not the JS property key.** drizzle tables
+    // expose both — `getTableColumns` is keyed by `criterionId` while the column
+    // reports `criterion_id` — and the first version of this normalization keyed
+    // the set by the property and compared against `row.name`, so it matched
+    // nothing and silently normalized nothing. A gate that normalizes on a key
+    // it can never match is worse than no gate: it reads as coverage.
+    for (const [, col] of Object.entries(getTableColumns(table))) {
+      if (col.primary && col.dataType === "number") {
+        integerPrimaryKeys.add(col.name);
+      }
+    }
+  }
+  const normalize = (rows: ColumnInfo[]) =>
+    rows.map((row) =>
+      integerPrimaryKeys.has(row.name) ? { ...row, hasDefault: false } : row,
+    );
+  return {
+    sqlite: normalize(columnsOf(sqliteTable)),
+    pg: normalize(columnsOf(pgTable)),
+  };
 }
 
 function columnName(candidate: unknown): string | null {
@@ -152,36 +227,98 @@ function checkNames(table: Table, dialect: Dialect): string[] {
   );
 }
 
-const sqliteAppTables = tablesFrom(
-  sqliteApp,
-  sqliteDomainMetrics,
-  sqliteProjectContext,
-  sqliteReports,
-  sqliteReportTemplates,
-  sqliteAudit,
-  sqliteSam,
-  sqliteBilling,
-  sqliteGa4,
-  sqliteGsc,
-  sqliteTelemetry,
-  sqliteGeo,
-);
-const pgAppTables = tablesFrom(
-  pgApp,
-  pgDomainMetrics,
-  pgProjectContext,
-  pgReports,
-  pgReportTemplates,
-  pgAudit,
-  pgSam,
-  pgBilling,
-  pgGa4,
-  pgGsc,
-  pgTelemetry,
-  pgGeo,
-);
-const sqliteAuthTables = tablesFrom(sqliteAuth);
-const pgAuthTables = tablesFrom(pgAuth);
+const sqliteAllTables = tablesFrom(sqliteSchema);
+const pgAllTables = tablesFrom(pgSchema);
+
+/**
+ * better-auth's generated tables, by name on each dialect.
+ *
+ * They are compared with the relaxed rules below, so the population is split *by
+ * the module that defines it* rather than by a list someone maintains — that
+ * list is exactly what went stale and left six tables unguarded.
+ */
+const sqliteAuthTableNames = new Set(tablesFrom(sqliteBetterAuth).keys());
+const pgAuthTableNames = new Set(tablesFrom(pgBetterAuth).keys());
+
+/** Every table except better-auth's: the ones strict parity holds for. */
+function appTablesOnly(all: Map<string, Table>): Map<string, Table> {
+  const out = new Map<string, Table>();
+  for (const [name, table] of all) {
+    if (sqliteAuthTableNames.has(name) || pgAuthTableNames.has(name)) continue;
+    out.set(name, table);
+  }
+  return out;
+}
+
+const sqliteAppTables = appTablesOnly(sqliteAllTables);
+const pgAppTables = appTablesOnly(pgAllTables);
+const sqliteAuthTables = tablesFrom(sqliteBetterAuth);
+const pgAuthTables = tablesFrom(pgBetterAuth);
+
+/**
+ * **The assertion this file was missing for two releases.**
+ *
+ * A hand-maintained import list left 6 of 60 tables unguarded — including
+ * `keyword_opportunity_inputs`, the table whose Postgres barrel pointed at the
+ * SQLite file so its migration was never generated (`2a785c9`). The population is
+ * now derived from the barrels, so this describe block is the belt to that
+ * braces: if the two dialects' barrels ever disagree about which modules exist,
+ * the table-set assertion reports it instead of quietly comparing fewer tables.
+ */
+describe("schema parity: the barrels agree", () => {
+  it("define the same number of tables on both backends", () => {
+    expect(pgAllTables.size).toBe(sqliteAllTables.size);
+  });
+
+  it("register the same better-auth tables on both backends", () => {
+    // Set comparison, not a sort: the repo lib target predates
+    // Array#toSorted, and the claim is membership rather than order.
+    expect(new Set(pgAuthTableNames)).toEqual(new Set(sqliteAuthTableNames));
+    // Non-empty, or the partition above silently excludes everything and the
+    // strict comparisons below pass by doing nothing.
+    expect(sqliteAuthTableNames.size).toBeGreaterThan(0);
+  });
+
+  it("leaves a non-empty strict population", () => {
+    // The same guard for the app side: a partition that matched everything would
+    // make every assertion below vacuous.
+    expect(sqliteAppTables.size).toBeGreaterThan(40);
+    expect(pgAppTables.size).toBe(sqliteAppTables.size);
+  });
+
+  it("re-exports every table the dialect barrels export", () => {
+    // `src/db/schema.ts` destructures `runtimeSchema` — the spread of both
+    // barrels — into named exports. A table that exists in a barrel but not in
+    // that destructuring is unreachable: no repository can import it, and the
+    // `as unknown as AppSchema` cast at the bottom of the file covers a type the
+    // app never sees. That is not hypothetical — `keywordOpportunityInputs` was
+    // in the dialect barrels and absent from the provider barrel for exactly
+    // long enough to ship a pg-only migration bug.
+    //
+    // Filtered to Tables, because the barrels also export `relations` objects
+    // and the odd constant — those are not re-exported by the provider barrel
+    // and asserting otherwise would fail on the first one added.
+    const tableExportNames = [
+      ...new Set(
+        [...Object.entries(sqliteSchema), ...Object.entries(pgSchema)]
+          .filter(([, value]) => is(value, Table))
+          .map(([name]) => name),
+      ),
+    ];
+    const source = readFileSync(join(REPO_ROOT, "src/db/schema.ts"), "utf8");
+    const destructured = new Set(
+      [...source.matchAll(/\b(\w+),/g)].map((m) => m[1]),
+    );
+    const unreachable = tableExportNames.filter(
+      (name) => !destructured.has(name),
+    );
+    expect(
+      unreachable,
+      `tables a dialect barrel exports that src/db/schema.ts does not ` +
+        `re-export — no repository can import them:\n  ${unreachable.join("\n  ")}`,
+    ).toEqual([]);
+  });
+});
 
 describe("schema parity: application tables", () => {
   it("define the same set of tables on both backends", () => {
@@ -198,8 +335,12 @@ describe("schema parity: application tables", () => {
       it("has matching columns (name, nullability, type, default, enum)", () => {
         // dataType is dialect-agnostic ("string"/"number"/"boolean"/"date") so
         // text/text, boolean/boolean, serial/autoincrement match; a real type
-        // mismatch is caught.
-        expect(columnsOf(pgTable)).toEqual(columnsOf(sqliteTable));
+        // mismatch is caught. `columnsOfIgnoringRowidDefault` is the documented
+        // SQLite-rowid exemption above — scoped to integer primary keys, so it
+        // cannot hide a real default difference anywhere else.
+        expect(columnsOfIgnoringRowidDefault(sqliteTable, pgTable).pg).toEqual(
+          columnsOfIgnoringRowidDefault(sqliteTable, pgTable).sqlite,
+        );
       });
       it("has matching primary key", () => {
         expect(primaryKeyColumns(pgTable, "pg")).toEqual(

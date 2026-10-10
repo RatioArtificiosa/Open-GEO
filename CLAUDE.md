@@ -1,5 +1,25 @@
 # Agent guidance
 
+## Skills
+
+Load the matching skill _before_ acting when a task matches its description. Project-local skills live in `.agents/skills/`; the ones listed here are the ones installed in this repo for the Kilo harness. When a task matches more than one, load the most specific.
+
+| Skill                                      | Load it when                                                                                                                                                                                                                                               |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `coderabbit`                               | A non-trivial change is complete and needs an independent second opinion before commit or push — especially security posture, capability/permission logic, parsers, output-format contracts, and error paths, where a silent pass is worse than a failure. |
+| `ultra-audit`                              | The user asks for an ultra-audit, an exhaustive correctness/edge-case/race review, or "check all code you just wrote".                                                                                                                                     |
+| `ctx`                                      | Tracing code provenance with blame, recalling what an earlier session decided, or inspecting local graph relationships. Output compaction only on explicit opt-in.                                                                                         |
+| `graf`                                     | Navigating stored code/document graphs, or adding sources, running analysis, exporting, or refreshing a graph.                                                                                                                                             |
+| `context7` / `find-docs`                   | Any question about a specific library, framework, SDK, CLI tool, or API — including "check the docs" and version-migration issues. Prefer over web search.                                                                                                 |
+| `browser-use` / `web-research-browser-use` | A site blocks, bot-protects, or JS-renders and a plain fetch mangles it — competitive teardowns, pricing-page extraction, and UX inspection.                                                                                                               |
+| `desktop-commander`                        | A shell must persist between turns, a dev server or interactive process must keep running, or a large-tree filesystem search is needed.                                                                                                                    |
+| `papercuts`                                | Small non-blocking repository friction happens — a retried call, a confusing setup step, a flaky command, a stale cache, a misleading error. Append it to `.agents/PAPERCUTS.md` in the moment and continue.                                               |
+| `merge-ready`                              | A branch is heading for merge and needs the full `pnpm ci:check` plus review gates.                                                                                                                                                                        |
+| `opengeo-design`                           | Any OpenGeo surface is being designed, reviewed, or polished — the dashboard, audit, citation graph, answer diff, marketing pages, or any new component.                                                                                                   |
+| `deslop`                                   | Copy or prose has drifted into filler, hedging, marketing mush, or banned words.                                                                                                                                                                           |
+
+**Triggers are not optional.** If a task matches a row above and the skill was not loaded, say so rather than improvising.
+
 ## Engineering principles
 
 - Prefer simple, readable, flat code with minimal indirection.

@@ -98,6 +98,34 @@ Open **http://localhost:3001**. You need one thing: a
 
 **Prefer not to sign up yet?** Run with `DEMO_MODE=true` — seeded data, no key, no cost.
 
+---
+
+## Don't want to run a server? That's what [opengeo.so](https://opengeo.so) is for.
+
+Self-hosting is genuinely free and genuinely uncapped. It is also a **job**: a database to migrate, a
+scheduler that has to run every night whether you remember it or not, a Wrangler setup for the
+Cloudflare path, a vendor account to fund and watch, and a history archive you have to keep restoring
+from backups. That is fine if tinkering is the point. It is expensive if running your business is.
+
+**The hosted version is the same code with none of that.** From **$10/month**:
+
+| What you get                       | Self-hosting                                                                        | Hosted                                                                          |
+| ---------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| **The nightly scheduler**          | You run it. Miss a night and your history has a hole.                                | It runs. Every night, without you.                                              |
+| **Your DataForSEO account**        | You create one, fund it, and watch the spend.                                        | We run it. One plan, itemised.                                                   |
+| **History and forecasts**          | You back up the archive, or lose the trend line.                                     | Kept, and the forecasts are computed from it.                                    |
+| **Rank tracking on a schedule**    | You keep the cron alive.                                                            | Kept.                                                                           |
+| **Multi-client workspaces**        | You build it.                                                                       | Built.                                                                          |
+| **Upgrades**                       | You pull and re-migrate.                                                            | Done.                                                                           |
+| **Price**                          | ~$3.30 per brand monitored daily per month, plus your time.                          | **$10/month**, $0.50 to start with no card.                                     |
+
+**The honest version of this pitch:** if you want to read the code, change it, or run it on hardware
+you control, self-host. It is MIT and it will stay that way. If you would rather pay a small monthly
+bill than think about any of the above, [see the plans →](https://opengeo.so/pricing) — you can be
+answering "does ChatGPT recommend me?" in about two minutes, not an afternoon.
+
+---
+
 ## Hosted, or self-hosted
 
 **Most teams are better off on the hosted version.** [opengeo.so](https://opengeo.so) runs the nightly scheduler, keeps the history, computes the forecasts and manages the vendor account — the parts that have to run whether you remember or not.

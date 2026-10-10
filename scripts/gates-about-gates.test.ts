@@ -487,6 +487,11 @@ describe("the gates about gates", () => {
         // A real gate comparing two schemas, with no negative control. Included
         // precisely because it is load-bearing: a parity test that stopped
         // comparing anything would pass, and nothing here would notice.
+        //
+        // It is still blind, and adding a ledger table to close the hole was
+        // the cheaper answer: the gate cannot take a second input without a
+        // way to stand up a second schema, and a fixture schema would prove the
+        // detector fires on the fixture rather than on drift.
         "src/db/schema-parity.test.ts",
         // A component test that reads the source to assert a string is absent.
         // The `assertsOnContent` filter does not exclude it because it uses
@@ -497,6 +502,20 @@ describe("the gates about gates", () => {
         "src/client/features/geo/GeoTargetForm.test.ts",
       ].sort(),
     );
+  });
+
+  it("does not list a gate that has a negative control", () => {
+    // The mirror of the pin above, and the reason `migration-parity.test.ts`
+    // is NOT on it: its control removes the real `0062` migration and asserts
+    // the check reports `audit_readiness.fixes_json`. A control built from the
+    // shipped bug rather than a synthetic fixture is the only kind that proves
+    // the gate catches the thing it claims to catch.
+    const report = REPORT.map((g) => g.file);
+    expect(report).toContain("scripts/migration-parity.test.ts");
+    expect(
+      REPORT.find((g) => g.file === "scripts/migration-parity.test.ts")
+        ?.negativeControls,
+    ).toBeGreaterThan(0);
   });
 
   it("has a negative control for the blindness rule itself", () => {

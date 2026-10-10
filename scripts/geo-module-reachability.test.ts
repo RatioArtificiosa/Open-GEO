@@ -264,6 +264,24 @@ const WRITER_EXEMPT = new Map<string, string>([
     "Method-on-an-instance writers, called as turn.recordStep(...) rather than Namespace.member(). The gate does not resolve this.x, so these read as orphans.",
   ],
   [
+    // **A test-support module, the third kind of exemption and the one this list
+    // was already carrying an entry for in `EXEMPT`.**
+    //
+    // `captureWrites` is the write-capturing spy for the nightly opportunity-input
+    // capture. Its only consumers are `scheduledOpportunityInputs.test.ts` and
+    // `.sweep.test.ts`, because that is its purpose: a shared vendor-double module
+    // means one copy of the `keyword_properties.keyword_difficulty` shape rather
+    // than two, and the flat-shape duplicate is precisely the drift that shipped a
+    // capture storing two guaranteed nulls every night.
+    //
+    // It is listed rather than filtered out of the walk, because a classifier
+    // exception is a judgement call and hiding it in the detector would be worse
+    // than showing it — the same reasoning the gate already applies to
+    // `alertFixture.ts` in `EXEMPT`.
+    "src/server/features/domain/services/scheduledOpportunityInputs.fixtures.ts",
+    "Test infrastructure: the vendor doubles and write-capturing spy shared by two test files. Test-only consumers are the point, not the symptom — and sharing exists so the vendor response shape has exactly one definition.",
+  ],
+  [
     // **A different kind of exemption from the one above, and the difference matters.**
     // There the writer *is* called and the gate cannot see the call shape. Here
     // `destroyForErasure` **should not be called by this repository at all** — it is a
@@ -284,6 +302,12 @@ const EXEMPT: Array<{ module: string; reason: string }> = [
     module: "src/server/features/geo/services/alertFixture.ts",
     reason:
       "A shared in-memory SQLite harness for alertRunner.test.ts and alertBrandScoping.test.ts. It is test infrastructure, so test-only consumers are its purpose rather than a symptom — and it is shared precisely because two copies of a migration harness drift.",
+  },
+  {
+    module:
+      "src/server/features/domain/services/scheduledOpportunityInputs.fixtures.ts",
+    reason:
+      "The vendor doubles and the `captureWrites` spy for scheduledOpportunityInputs.test.ts and .sweep.test.ts. Test-only consumers are its purpose, and it is shared because a double written once per test file drifts the moment one of them is rewritten — the flat-shape double is exactly the drift that shipped the `keyword_difficulty` bug this suite guards. Note the directory split this enforces: `.agents/skills/` is a product directory bundled into SAM, so agent-harness skills live in `.kilo/skills/` instead.",
   },
 ];
 

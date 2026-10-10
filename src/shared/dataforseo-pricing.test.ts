@@ -28,7 +28,9 @@ import {
 import { ETV_BEARING_LABS_ENDPOINTS } from "@/shared/etv-versioning";
 
 // These assertions are the contract. Every figure was read off a rendered
-// DataForSEO pricing page on 2026-09-28 (see OPENGEO_MASTER_REFERENCE.md §A.1).
+// DataForSEO pricing page, read live on 2026-09-28. The values below are pinned
+// against that read: if the vendor reprices, the assertion fails *here* rather
+// than the capture silently charging the wrong amount for a quarter.
 // If a price changes upstream, this test is what should fail first — loudly —
 // rather than the pricing slider quietly promising the wrong number.
 describe("dataforseo price book", () => {

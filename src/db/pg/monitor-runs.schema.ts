@@ -3,7 +3,6 @@ import {
   index,
   integer,
   pgTable,
-  serial,
   text,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -30,10 +29,18 @@ const isoNow = sql`to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS
 export const monitorRuns = pgTable(
   "monitor_runs",
   {
-    // The one deliberate divergence from SQLite: Postgres gets a serial id
-    // because it has one, and `schema-parity.test.ts` compares *presence*, not
-    // the auto-increment strategy — `primaryKeyColumns` returns the same set.
-    id: serial("id").primaryKey(),
+    // **App-generated UUID, on both dialects.** This used to be `serial` here
+    // while SQLite used `text`, and `schema-parity.test.ts` could not see it
+    // because `primaryKeyColumns` returns the same set either way — it reports
+    // which columns form the key, not what generates their values.
+    //
+    // `MonitorRunRepository.tryBeginRun` inserts `${identity.id}` where
+    // `identity.id` is `crypto.randomUUID()`, so on Postgres this column
+    // rejected every insert with `invalid input syntax for type bigint`, the
+    // patrol never began a run, and `scheduledGeoPatrol` recorded an error and
+    // skipped every project. The divergence is now removed at the source rather
+    // than worked around, and `drizzle-pg/0038` converts the existing column.
+    id: text("id").primaryKey(),
     projectId: text("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),

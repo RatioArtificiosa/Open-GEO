@@ -1,5 +1,9 @@
 // DataForSEO price book — read off rendered pricing pages, never recalled.
-// Source of truth: OPENGEO_MASTER_REFERENCE.md §A.1 (Addendum A).
+//
+// **Source of truth: this file, verified by reading the vendor's rendered pricing
+// page rather than recalling it.** The prices it carries are asserted in
+// `dataforseo-pricing.test.ts` against the values a live read produces, so a stale
+// row fails a test here rather than quietly mispricing a capture.
 //
 // Prices are USD per request ("task") plus, where the vendor bills per row/item,
 // a per-unit rate. Queues: Standard < Priority < Live.

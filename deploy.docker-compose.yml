@@ -14,8 +14,16 @@
 #   BETTER_AUTH_SECRET   at least 32 random characters (required for GSC + hosted auth)
 #   DEMO_MODE            set true to explore with seeded data before adding a key
 #
-# Persistence: mount a volume at /app/data so the SQLite database survives
+# Persistence: mount a volume at /app/.wrangler so the SQLite database survives
 # redeploys. Without it you lose local data on every push.
+#
+# **The path is the whole point of this line.** `db:migrate:local` is
+# `wrangler d1 migrations apply DB --local`, and Wrangler persists local D1 state
+# under the *project working directory* — `/app/.wrangler/state/...`. An earlier
+# revision of this file mounted `/app/data`, which nothing in the image ever
+# writes to: every Coolify/Dokploy redeploy then silently created a fresh empty
+# database, with no error and no log line, and the comment above it promised the
+# opposite. Keep this in lockstep with `compose.yaml`, which mounts the same path.
 
 services:
   opengeo:
@@ -26,13 +34,23 @@ services:
     ports:
       - "3001:3001"
     environment:
+      # Required for a Workers-based app: exposes Compose env vars to
+      # cloudflare:workers bindings. Without it the values below are set in the
+      # shell and invisible to `env.DATAFORSEO_API_KEY` and friends.
+      - CLOUDFLARE_INCLUDE_PROCESS_ENV=true
       - PORT=3001
       - AUTH_MODE=${AUTH_MODE:-local_noauth}
       - DEMO_MODE=${DEMO_MODE:-false}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-}
+      # The DataForSEO credential this file's own header calls required. It was
+      # previously absent from the `environment:` list, so a quickstart following
+      # the documented steps got a green healthcheck and dead SEO features.
+      - DATAFORSEO_API_KEY=${DATAFORSEO_API_KEY:-}
+      # Optional: AI features (the SAM agent). Forwarded, not silently dropped.
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-}
     volumes:
-      - opengeo-data:/app/data
+      - opengeo-data:/app/.wrangler
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/"]
       interval: 30s
