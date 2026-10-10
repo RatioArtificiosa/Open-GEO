@@ -239,11 +239,30 @@ export async function assertUsageCreditsAvailable(
   }
 
   if (estimatedCostUsd !== undefined && estimatedCostUsd > 0) {
-    const affordableCredits = Math.floor(
-      (monthlyRemaining + topupRemaining) /
-        (SEO_DATA_COST_MARKUP * AUTUMN_SEO_DATA_CREDITS_PER_USD),
+    // **Convert the estimate to credits with the same arithmetic the charge
+    // uses, then compare credits to credits.**
+    //
+    // The first version of this check divided the balance by the rate to get an
+    // "affordable USD" figure and compared *that* against the estimate:
+    //
+    //   const affordableUsd = balance / (MARKUP * CREDITS_PER_USD);
+    //   if (estimatedCostUsd > affordableUsd) throw;
+    //
+    // That used the same two constants and was still a different conversion,
+    // because it skipped both `roundUsdForBilling` and the `Math.ceil` — the two
+    // steps that decide what a charge actually is. CodeRabbit caught it: *"Keep
+    // the balance and estimated charge in the same units."* A floor and a ceil
+    // are the same shape of operation pointing in opposite directions, and one
+    // of them is what the invoice is built from.
+    //
+    // So the estimate goes through exactly `trackUsageCreditSpend`'s three steps,
+    // and the comparison is one number against another in the same unit. A
+    // division is not needed at all — the balance is already in credits.
+    const requiredCredits = Math.ceil(
+      roundUsdForBilling(estimatedCostUsd * SEO_DATA_COST_MARKUP) *
+        AUTUMN_SEO_DATA_CREDITS_PER_USD,
     );
-    if (estimatedCostUsd > affordableCredits) {
+    if (requiredCredits > monthlyRemaining + topupRemaining) {
       throw new AppError("INSUFFICIENT_CREDITS");
     }
   }
