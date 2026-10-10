@@ -65,6 +65,15 @@ import {
   PER_PROJECT_NIGHTLY_CAP,
 } from "@/shared/nightly-budgets";
 import { GeoRunRepository } from "@/server/features/geo/repositories/GeoRunRepository";
+/**
+ * The shared org lookup, the same one the ETV capture uses.
+ *
+ * **One lookup, not three.** All three nightly captures need the org behind a
+ * project in order to bill it, and a copy in each is a copy that drifts — the
+ * pattern this repo has spent its length consolidating.
+ */
+import { listProjectOrgs } from "@/server/features/domain/services/scheduledEtvCapture";
+import { createDataforseoClient } from "@/server/lib/dataforseo/client";
 
 /**
  * The vendor's own batch ceiling, not a number chosen here.
@@ -466,6 +475,19 @@ function toMonthlyRows(input: {
  * and the dropped-work count are the three fields every budgeted nightly capture
  * reports — and a fourth one cannot omit the first two.
  */
+/**
+ * The identity a scheduled capture acts as.
+ *
+ * A cron has no user, and inventing a plausible one would put a fake
+ * userId/userEmail into the billing ledger. The scheduled GEO patrol already
+ * solved this with the same constant and the same address, so this file uses that
+ * convention rather than inventing a second one.
+ */
+const SYSTEM_ACTOR = {
+  userId: "system",
+  userEmail: "system@opengeo.so",
+} as const;
+
 type AiKeywordNightReport = BudgetedCaptureReport & {
   /** Keywords whose demand we asked about, after batching. */
   keywordsAsked: number;
@@ -490,11 +512,13 @@ export async function runDueAiKeywordCaptures(input?: {
   now?: Date;
   fetchProjects?: typeof projectsWatchingKeywords;
   fetchVolume?: typeof fetchAiKeywordVolume;
+  fetchOrgs?: typeof listProjectOrgs;
   writeRows?: typeof GeoRunRepository.upsertAiKeywordMetrics;
 }): Promise<AiKeywordNightReport> {
   const now = input?.now ?? new Date();
   const limit = input?.limitProjects ?? NIGHTLY_PROJECT_SWEEP_LIMIT;
   const fetchProjects = input?.fetchProjects ?? projectsWatchingKeywords;
+  const fetchOrgs = input?.fetchOrgs ?? listProjectOrgs;
   const fetchVolume = input?.fetchVolume ?? fetchAiKeywordVolume;
   const writeRows = input?.writeRows ?? GeoRunRepository.upsertAiKeywordMetrics;
 
@@ -517,7 +541,23 @@ export async function runDueAiKeywordCaptures(input?: {
   // explicitly fixed the other way round.
   let remaining = AI_KEYWORD_NIGHTLY_BUDGET_USD;
 
-  for (const watcher of watchers.slice(0, limit)) {
+  /**
+   * The org behind each project, so a capture can bill it.
+   *
+   * Before the loop, and only for the projects it will visit. A cron has no
+   * user, so the billing context is assembled from real ids: a project whose org
+   * is missing is skipped rather than guessed at, because a cast-in
+   * organizationId would let the usage-credit check pass against a customer that
+   * does not exist.
+   */
+  const admitted = watchers.slice(0, limit);
+  const orgs = await fetchOrgs(admitted.map((w) => w.projectId));
+  const billable = admitted.filter((w) => orgs.has(w.projectId));
+  if (billable.length < admitted.length) {
+    report.skippedNoOrganization = admitted.length - billable.length;
+  }
+
+  for (const watcher of billable) {
     report.projectsVisited += 1;
 
     // **Two slices, and the order matters.** The per-project cap comes first
@@ -575,7 +615,27 @@ export async function runDueAiKeywordCaptures(input?: {
     }
 
     try {
-      const response = await fetchVolume({
+      /**
+       * Through the metered client, not the raw fetcher.
+       *
+       * Before this the capture called the section fetcher directly, so the
+       * credit gate never ran for a nightly capture: the platform vendor account
+       * paid, no org balance was read, and a zero-credit org kept receiving
+       * captures every night. The client is built per project, because the gate
+       * takes a customer and the customer differs per project; a single client
+       * would bill every project to whichever org was read first.
+       *
+       * The envelope sibling, so report.actualCostUsd still carries the vendor
+       * figure rather than undefined.
+       */
+      const meterVolume =
+        fetchVolume ??
+        createDataforseoClient({
+          ...SYSTEM_ACTOR,
+          organizationId: orgs.get(watcher.projectId) ?? "",
+          projectId: watcher.projectId,
+        }).aiSearch.keywordVolumeEnvelope;
+      const response = await meterVolume({
         keywords,
         locationCode: watcher.locationCode,
         languageCode: watcher.languageCode,

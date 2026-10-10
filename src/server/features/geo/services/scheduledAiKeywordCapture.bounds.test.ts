@@ -46,6 +46,14 @@ const run = (watchers: Watcher[], over: Record<string, unknown> = {}) =>
   runDueAiKeywordCaptures({
     now: NOW,
     fetchProjects: async () => watchers,
+    /**
+     * The org lookup, injected so a metered capture is testable without a
+     * database. The capture needs an org per project to bill it; these tests
+     * give every project the same one, which is the shape a real deployment
+     * has for a single-customer install.
+     */
+    fetchOrgs: async () =>
+      new Map(watchers.map((w) => [w.projectId, "org_default"])),
     fetchVolume: noItems(),
     writeRows: async () => {},
     ...over,
@@ -72,6 +80,7 @@ describe("runDueAiKeywordCaptures — what it refuses to spend", () => {
     const report = await runDueAiKeywordCaptures({
       now: NOW,
       fetchProjects: async () => [watcher("p1", batch)],
+      fetchOrgs: async () => new Map([["p1", "org_default"]]),
       fetchVolume: vi.fn(async () => ({
         data: { locationCode: 2840, languageCode: "en", items: [] },
         billing: { path: ["/v3/x"], costUsd: 0.11 },
@@ -91,6 +100,7 @@ describe("runDueAiKeywordCaptures — what it refuses to spend", () => {
           Array.from({ length: 1000 }, (_, i) => `f${i}`),
         ),
       ],
+      fetchOrgs: async () => new Map([["p2", "org_default"]]),
       fetchVolume: vi.fn(async () => ({
         data: { locationCode: 2840, languageCode: "en", items: [] },
         billing: { path: ["/v3/x"], costUsd: 0.11 },
@@ -298,6 +308,7 @@ describe("runDueAiKeywordCaptures — what it refuses to spend", () => {
     const report = await runDueAiKeywordCaptures({
       now: NOW,
       fetchProjects: async () => [watcher("p1", ["k"])],
+      fetchOrgs: async () => new Map([["p1", "org_default"]]),
       fetchVolume: vi.fn(async () => ({
         data: { locationCode: 2840, languageCode: "en", items: [] },
         billing: { path: ["/v3/x"], costUsd: 0.0006 },

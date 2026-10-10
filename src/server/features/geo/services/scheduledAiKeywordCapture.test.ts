@@ -38,8 +38,20 @@ type VolumeItem = {
   }> | null;
 };
 
-/** A watcher list, as the repository would return it. */
-const watchers = (list: Watcher[]) => async () => list;
+/**
+ * The project list **and** the org behind each one.
+ *
+ * Replaces a bare project list: the capture meters per project, so its billing
+ * context has to come from somewhere. A cron has no user, and a project whose org
+ * is missing is skipped rather than guessed at — a cast-in `organizationId` would
+ * let the usage-credit check pass against a customer that does not exist. The
+ * unit tests run without a database, so both halves are injected from one list so
+ * they cannot disagree about which projects exist.
+ */
+const watchersAndOrgs = (list: Watcher[]) => ({
+  fetchProjects: async () => list,
+  fetchOrgs: async () => new Map(list.map((w) => [w.projectId, "org_default"])),
+});
 
 /**
  * A vendor response, as `fetchAiKeywordVolume` resolves it.
@@ -73,7 +85,7 @@ describe("runDueAiKeywordCaptures", () => {
     const w = sink();
     const report = await runDueAiKeywordCaptures({
       now: NOW,
-      fetchProjects: watchers([
+      ...watchersAndOrgs([
         {
           projectId: "p1",
           keywords: ["best crm"],
@@ -110,7 +122,7 @@ describe("runDueAiKeywordCaptures", () => {
     const w = sink();
     await runDueAiKeywordCaptures({
       now: NOW,
-      fetchProjects: watchers([
+      ...watchersAndOrgs([
         {
           projectId: "p1",
           keywords: ["Best CRM"],
@@ -138,7 +150,7 @@ describe("runDueAiKeywordCaptures", () => {
     const w = sink();
     await runDueAiKeywordCaptures({
       now: NOW,
-      fetchProjects: watchers([
+      ...watchersAndOrgs([
         {
           projectId: "p1",
           keywords: ["k"],
@@ -172,7 +184,7 @@ describe("runDueAiKeywordCaptures", () => {
 
     await runDueAiKeywordCaptures({
       now: NOW,
-      fetchProjects: watchers([
+      ...watchersAndOrgs([
         {
           projectId: "p1",
           keywords: ["k"],
@@ -199,7 +211,7 @@ describe("runDueAiKeywordCaptures", () => {
 
     const report = await runDueAiKeywordCaptures({
       now: NOW,
-      fetchProjects: watchers([
+      ...watchersAndOrgs([
         {
           projectId: "p1",
           keywords: ["k"],
@@ -220,7 +232,7 @@ describe("runDueAiKeywordCaptures", () => {
     const w = sink();
     const report = await runDueAiKeywordCaptures({
       now: NOW,
-      fetchProjects: watchers([
+      ...watchersAndOrgs([
         {
           projectId: "bad",
           keywords: ["k"],
@@ -268,7 +280,7 @@ describe("runDueAiKeywordCaptures", () => {
     const w = sink();
     await runDueAiKeywordCaptures({
       now: NOW,
-      fetchProjects: watchers([
+      ...watchersAndOrgs([
         {
           projectId: "p1",
           keywords: ["k"],
@@ -298,7 +310,7 @@ describe("runDueAiKeywordCaptures", () => {
     // the two apart so a reader is not told the keyword was skipped.
     const report = await runDueAiKeywordCaptures({
       now: NOW,
-      fetchProjects: watchers([
+      ...watchersAndOrgs([
         {
           projectId: "p1",
           keywords: ["k"],

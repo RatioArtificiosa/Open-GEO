@@ -362,6 +362,18 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       keywordVolume: meter(customer, (input: AiKeywordVolumeInput) =>
         fetchAiKeywordVolume(input),
       ),
+      /**
+       * The envelope-returning sibling, for the nightly AI keyword capture.
+       *
+       * Same reason as `rankOverviewEnvelope`: `report.actualCostUsd` is read from
+       * `response.billing.costUsd`, and the unwrapping form would charge the org
+       * correctly while recording a cost of `undefined` — indistinguishable from a
+       * correctly metered capture, from the tests and from the log.
+       */
+      keywordVolumeEnvelope: meterEnvelope(
+        customer,
+        (input: AiKeywordVolumeInput) => fetchAiKeywordVolume(input),
+      ),
       // LLM Scraper: authentic ChatGPT Search and Gemini answers, scraped rather than
       // generated. The POST is where the vendor charges, so it is metered; the `task_get`
       // collection is not — reading a task already paid for is the `waterfall` case above,
