@@ -282,6 +282,21 @@ const dataEnv = {
    * left alone.
    */
   DATAFORSEO_BASE_URL: optionalVar("DATAFORSEO_BASE_URL"),
+  /**
+   * Arms the shared-secret gate for open deployments.
+   *
+   * **Declared, not because the gate runs by default, but because an undeclared
+   * variable is never bound** — the first deploy attempt proved it: the gate code
+   * shipped in the bundle, `AUTH_MODE` was bound to `local_noauth`, and
+   * `/projects` still answered 200, because `env.PREVIEW_GATE_SECRET` was
+   * `undefined` and the gate correctly treats that as "open". An env file alone
+   * does not make a worker binding; only this block does.
+   *
+   * `optionalVar`, not a required declaration, because a production deploy that
+   * does not set it must still provision. Inert unless `AUTH_MODE=local_noauth`,
+   * which is what keeps a self-hosted Docker operator unprompted.
+   */
+  PREVIEW_GATE_SECRET: optionalVar("PREVIEW_GATE_SECRET"),
   BYPASS_EMAIL_VERIFICATION: optionalVar("BYPASS_EMAIL_VERIFICATION"),
   BETTER_AUTH_SECRET: optionalSecret("BETTER_AUTH_SECRET"),
   GOOGLE_CLIENT_ID: optionalVar("GOOGLE_CLIENT_ID"),

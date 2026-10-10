@@ -20,6 +20,7 @@ import {
   type OpenSeoOAuthEnv,
 } from "@/server/mcp/oauth-provider";
 import { requestWithPublicOrigin } from "@/server/mcp/public-origin";
+import { enforceOpenDeploymentGate } from "@/server/auth/previewGate";
 import { MCP_ROUTE } from "@/server/mcp/context";
 import { handleSelfHostedOpenSeoMcpRequest } from "@/server/mcp/transport";
 import { withPgClient } from "@/db";
@@ -145,6 +146,27 @@ function handleFetch(
   ctx: ExecutionContext,
 ): Response | Promise<Response> {
   const authMode = getAuthMode(env.AUTH_MODE);
+
+  /**
+   * **Close the open-deployment window before anything else runs.**
+   *
+   * `local_noauth` grants a full admin identity, so a stage running it on a
+   * public `workers.dev` URL is an unauthenticated application. This gate is the
+   * stopgap until Zero Trust is enabled on the account; see
+   * `src/server/auth/previewGate.ts` for why neither real auth mode was an
+   * option at the time.
+   *
+   * Checked against the **original** request, before `requestWithPublicOrigin`
+   * rewrites it — the rewrite exists to stop a forwarded host from becoming an
+   * Open Redirect, and the gate must not depend on which host a caller claimed.
+   */
+  const gated = enforceOpenDeploymentGate(
+    request,
+    authMode,
+    env.PREVIEW_GATE_SECRET,
+  );
+  if (gated) return gated;
+
   const publicRequest = requestWithPublicOrigin(request);
   const pathname = new URL(publicRequest.url).pathname;
   ctx.waitUntil(maybeSendSelfHostHeartbeat(pathname));

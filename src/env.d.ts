@@ -54,6 +54,12 @@ declare namespace Cloudflare {
 
     // DataForSEO API Basic auth value (base64 of login:password)
     DATAFORSEO_API_KEY: string;
+    /**
+     * Shared-secret gate for open deployments. See
+     * `src/server/auth/previewGate.ts` — it only applies when
+     * `AUTH_MODE=local_noauth`, and unset means open, never closed.
+     */
+    PREVIEW_GATE_SECRET?: string;
 
     // OpenRouter API key for the SAM in-app chat agent.
     OPENROUTER_API_KEY?: string;
