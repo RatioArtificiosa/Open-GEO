@@ -1,5 +1,8 @@
 import { AppError } from "@/server/lib/errors";
-import { getRequiredEnvValue } from "@/server/lib/runtime-env";
+import {
+  getOptionalEnvValue,
+  getRequiredEnvValue,
+} from "@/server/lib/runtime-env";
 import { demoResponseFor } from "@/server/lib/dataforseo/demo-fixtures";
 import {
   gateFor,
@@ -16,6 +19,80 @@ import type {
 } from "@/server/lib/dataforseo/envelope";
 
 const API_BASE = "https://api.dataforseo.com";
+
+/**
+ * The sandbox host: the same request surface, the same auth, canned results, and
+ * **zero cost**.
+ *
+ * `serp-location-validate.ts` has used it since the beginning to check whether a
+ * location/language pair is accepted before committing to a real task. This
+ * constant generalises it, because the sandbox is how the whole client can be
+ * exercised without spending money — CI, a self-hoster's first run, and the
+ * benchmark in §"why this file" below.
+ */
+export const DATAFORSEO_SANDBOX_URL = "https://sandbox.dataforseo.com";
+
+/**
+ * The env var that points the DataForSEO client at a host other than production.
+ *
+ * ## Why this exists
+ *
+ * The DataForSEO live account had **$1** in it when this was written. A single
+ * mis-shaped request costs real money, and a whole end-to-end run — one patrol,
+ * one nightly capture, one audit — costs many more than the account held. The
+ * sandbox validates every request exactly as production does (auth, envelope,
+ * task limits, rate gates) and returns canned rows, so the entire request path
+ * can be exercised for free.
+ *
+ * ## What it is for, and what it is not for
+ *
+ * **For:** throughput and concurrency benchmarks, CI smoke tests, a self-hoster's
+ * first run, validating a new endpoint's request shape.
+ *
+ * **Not for:** validating business logic. The sandbox returns **fixture rows**,
+ * so volume, difficulty and ranking numbers are not real. A capture run against
+ * the sandbox stores sandbox rows; the *shape* is right and the *figures* are not.
+ *
+ * ## Why an env var and not a code branch
+ *
+ * The alternative is a sandbox flag threaded through the client factory, the
+ * section fetchers, the nightly captures and the tests, which is a change in
+ * every file that touches the vendor. Reading one env var at the single seam —
+ * `requestDataforseo` and `dataforseoPostResponse`, the only two places a host is
+ * composed — means nothing else needs to know.
+ *
+ * ## It defaults to production, deliberately
+ *
+ * An unset variable means `api.dataforseo.com`. There is no `DEMO`-style
+ * implicit switch: an operator who forgets to set this spends real money, and an
+ * operator who forgets to unset it gets fixture data, which is the more visible
+ * of the two mistakes.
+ */
+const SANDBOX_BASE_URL_ENV = "DATAFORSEO_BASE_URL";
+
+/**
+ * The base URL for DataForSEO calls, resolved per request.
+ *
+ * Read as a function, and async, because the Cloudflare Worker environment is
+ * only available inside a request: a `const baseUrl = env.X` at module scope is
+ * evaluated during Worker startup, where the env bindings do not exist yet. The
+ * two call sites are the only places a host is composed.
+ */
+async function dataforseoBaseUrl(): Promise<string> {
+  const override = await getOptionalEnvValue(SANDBOX_BASE_URL_ENV);
+  // An empty string, or a value with no scheme, is a mistake worth failing on:
+  // silently falling back to production after a partial env config is how a
+  // sandbox run spends real money.
+  if (override === undefined || override === "") return API_BASE;
+  if (!/^https?:\/\//.test(override)) {
+    throw new Error(
+      `${SANDBOX_BASE_URL_ENV} must be an absolute http(s) URL, got "${override}". ` +
+        `Unset it to use production (${API_BASE}), or set it to the sandbox ` +
+        `(${DATAFORSEO_SANDBOX_URL}) to run at zero cost.`,
+    );
+  }
+  return override;
+}
 const MAX_DATAFORSEO_ERROR_PAYLOAD_LENGTH = 1600;
 // Safety ceiling on any live call (Lighthouse is the slowest, ~tens of seconds).
 const DATAFORSEO_REQUEST_TIMEOUT_MS = 60_000;
@@ -267,7 +344,19 @@ type DataforseoRequestOptions = {
    * be replayed. Defaults to retrying idempotent reads on transient 5xx.
    */
   maxServerErrorRetries?: number;
-  /** The sandbox host validates requests like production at zero cost. */
+  /**
+   * Points one call at a host other than the resolved default.
+   *
+   * **Precedence: this option, then `DATAFORSEO_BASE_URL`, then production.**
+   * An explicit argument wins because it is the narrowest declaration and is what
+   * the test stubs use — `concurrency.test.ts` runs the whole gate against a
+   * local server, and `serp-location-validate.ts` pins its own call to the
+   * sandbox so a location check never bills regardless of the ambient setting.
+   *
+   * Prefer the env var for anything real: an argument has to be threaded through
+   * a client factory, a section fetcher and every capture, and the env var
+   * reaches all of them from one place.
+   */
   baseUrl?: string;
   signal?: AbortSignal;
 };
@@ -307,7 +396,7 @@ async function requestDataforseo<TTask extends DataforseoTaskLike>(
   // queueing rather than sitting in line for a slot it will never use.
   const gate = gateFor(path);
   const send = async (): Promise<Response> =>
-    doFetch(`${options.baseUrl ?? API_BASE}${path}`, {
+    doFetch(`${options.baseUrl ?? (await dataforseoBaseUrl())}${path}`, {
       method,
       headers: {
         Accept: "application/json",
@@ -352,7 +441,7 @@ export function dataforseoPost<
  * gates its multi-MB body reads behind a parse lock in the audit worker, and
  * passes its own `signal` so the timeout can be cleared once headers arrive.
  */
-export function dataforseoPostResponse(
+export async function dataforseoPostResponse(
   path: string,
   tasks: unknown[],
   options: DataforseoRequestOptions & { signal?: AbortSignal } = {},
@@ -361,7 +450,11 @@ export function dataforseoPostResponse(
     options.classify,
     options.maxServerErrorRetries,
   );
-  return doFetch(`${API_BASE}${path}`, {
+  // Resolved before the call rather than inline in the template, because an
+  // `await` inside a template literal reads like part of the string and is the
+  // first thing a reader has to unpick. The host is the only thing that awaits.
+  const baseUrl = await dataforseoBaseUrl();
+  return doFetch(`${baseUrl}${path}`, {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify(tasks),

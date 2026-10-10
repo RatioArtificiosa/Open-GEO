@@ -313,6 +313,24 @@ export default Alchemy.Stack(
     const authMode = yield* Config.string("AUTH_MODE").pipe(
       Config.withDefault("cloudflare_access"),
     );
+
+    // **Whether the account is on the Workers paid plan. Opt-in, and the default
+    // is safe.**
+    //
+    // Configurable CPU limits (`limits: { cpuMs }`) are a paid-plan feature, and
+    // nothing in the deploy path can answer "is this account paid". The previous
+    // gate used the auth mode as a proxy for the plan, which is two unrelated
+    // facts: a self-hoster can be paying for the paid plan and want the allowance,
+    // and a hosted preview can be on the free plan. The proxy broke the first
+    // hosted preview with `BadRequest: CPU limits are not supported for the Free
+    // plan`.
+    //
+    // Set it when the account is paying: a hosted production deploy wants the CPU
+    // allowance every worker carries. Leave it unset for a free-plan or first-time
+    // deploy — omitting the allowance deploys everywhere, which is the failure mode
+    // that resolves instead of the one that blocks.
+    const paidWorkersPlan =
+      (yield* optionalVar("CLOUDFLARE_WORKERS_PAID_PLAN")) === "true";
     const databaseProvider = yield* optionalVar("DATABASE_PROVIDER");
     const workersSubdomain = yield* readWorkersSubdomain({ required: false });
 
@@ -392,12 +410,22 @@ export default Alchemy.Stack(
         flags: wrangler.compatibility_flags,
       },
       // Audit workflow steps parse and persist batches of HTML — the same
-      // CPU allowance the app worker used to carry for them. Configurable
-      // CPU limits are a paid-plan feature; self-host deploys
-      // (cloudflare_access) may run on the free plan, which rejects them.
-      ...(authMode === "cloudflare_access"
-        ? {}
-        : { limits: { cpuMs: 300_000 } }),
+      // CPU allowance the app worker used to carry for them.
+      //
+      // Configurable CPU limits are a paid-plan feature, and the account's plan
+      // is not something a deploy can read: there is no API that answers "is this
+      // account on the Workers paid plan" for the deploy path. The previous gate
+      // inferred the plan from the **auth mode**, which conflates two unrelated
+      // things — a self-hoster may well be paying for the paid plan and want the
+      // allowance, and a hosted preview on the free plan does not. It broke the
+      // first hosted preview with `BadRequest: CPU limits are not supported for the
+      // Free plan`.
+      //
+      // So this is opt-in and defaults to safe: `CLOUDFLARE_WORKERS_PAID_PLAN=true`
+      // sets the allowance, anything else omits it. The wrong default in the other
+      // direction is a deploy that works nowhere; in this direction it is a deploy
+      // that works everywhere, with a smaller CPU allowance until opted in.
+      ...(paidWorkersPlan ? { limits: { cpuMs: 300_000 } } : {}),
       observability: {
         enabled: wrangler.observability?.enabled ?? true,
         traces: { enabled: wrangler.observability?.traces?.enabled ?? false },
@@ -450,15 +478,11 @@ export default Alchemy.Stack(
         date: wrangler.compatibility_date,
         flags: wrangler.compatibility_flags,
       },
-      // Site audits moved to the open-geo-audit worker, but RankCheckWorkflow
-      // still parses SERP batches here — keep the CPU allowance until that
-      // workflow's per-tick CPU is measured or it moves too. Configurable CPU
-      // limits are a paid-plan feature, and self-host deploys
-      // (cloudflare_access) may run on the free plan — which rejects them —
-      // so those get the plan default instead.
-      ...(authMode === "cloudflare_access"
-        ? {}
-        : { limits: { cpuMs: 300_000 } }),
+      // RankCheckWorkflow still parses SERP batches here — keep the CPU allowance
+      // until that workflow's per-tick CPU is measured or it moves too.
+      // Opt-in for the same reason as `open-geo-audit`: a paid-plan feature is
+      // opt-in because omitting it is the failure that still deploys.
+      ...(paidWorkersPlan ? { limits: { cpuMs: 300_000 } } : {}),
       observability: {
         enabled: wrangler.observability?.enabled ?? true,
         traces: { enabled: wrangler.observability?.traces?.enabled ?? false },
