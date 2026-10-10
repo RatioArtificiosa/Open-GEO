@@ -59,7 +59,7 @@
     "seed:rank-tracking": "tsx scripts/seed-rank-tracking.ts",
     "seed:projects": "tsx scripts/seed-projects.ts",
     "seed:categories": "tsx scripts/seed-categories.ts",
-    "ci:check": "prettier --check . && knip && tsc --noEmit && tsc --noEmit -p badseo/tsconfig.json && oxlint . --type-aware && pnpm detect:slop && pnpm sync-plugin-skills && node scripts/check-migration-journals.mjs && node scripts/check-docker-selfhost-compose.mjs && pnpm submission:check",
+    "ci:check": "prettier --check . && knip && tsc --noEmit && tsc --noEmit -p badseo/tsconfig.json && oxlint . --type-aware && pnpm test:ci && pnpm detect:slop && pnpm sync-plugin-skills && node scripts/check-migration-journals.mjs && node scripts/check-docker-selfhost-compose.mjs && pnpm submission:check",
     "geo:unread-fields": "node scripts/unread-response-fields.mjs",
     "check:docker-selfhost": "node scripts/check-docker-selfhost-compose.mjs"
   },
