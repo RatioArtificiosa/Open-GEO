@@ -117,6 +117,68 @@ jobs:
       - name: Run tests on ${{ matrix.provider }}
         run: pnpm run test:ci
 
+  # ── Browser coverage, which CI has never run ─────────────────────────────
+  #
+  # The e2e suite has been absent from CI for its whole life, because the only spec
+  # that covered it set **absolute wall-clock budgets** — a 2.5-second action budget
+  # under 6x CPU throttle on a shared runner is a coin-flip. So the suite was either
+  # red always or skipped, and a skipped suite has zero value while reading as
+  # coverage.
+  #
+  # The budgets are now scaled by DOMAIN_FILTER_BUDGET_SCALE rather than replaced: the
+  # numbers a human maintains locally stay the ones that decide, and a slower machine
+  # multiplies them. The value here is deliberately generous — the perf spec is in CI
+  # to catch a **regression**, and a factor of a few is the difference between "the
+  # filter got slow" and "the runner was busy". Local development keeps the tight
+  # defaults, which is where a precise number is actually useful.
+  #
+  # The two functional specs are what earn their keep: the domain-overview filter flow
+  # and keyword-research navigation, both of which have had zero automated browser
+  # coverage until now.
+  #
+  # **No free-tier gates here.** Free-tier route protection is checked in-process by
+  # web/ (turnstile, spend reservation, rate limits), not by a browser; running a
+  # worker per branch for a unit-level gate is the cost with no coverage it adds.
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      DOMAIN_FILTER_BUDGET_SCALE: "4"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Chrome is driven over CDP by the perf spec, which is why the spec pins
+      # channel: chrome rather than bundled chromium.
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps --only-shell || pnpm exec playwright install --with-deps
+
+      - name: Run e2e
+        run: pnpm exec playwright test
+
+      - name: Upload test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7
+
   docker-build:
     runs-on: ubuntu-latest
 

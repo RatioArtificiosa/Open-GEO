@@ -18,13 +18,67 @@ import {
 } from "./domain-overview-test-utils";
 
 const CPU_THROTTLE_RATE = Number(process.env.DOMAIN_FILTER_CPU_THROTTLE ?? 6);
+
+/**
+ * How much slower this machine is than the reference.
+ *
+ * **The budgets below are wall-clock, and a wall-clock number is a property of the
+ * machine it was measured on.** That is why this spec was absent from CI: a
+ * two-and-a-half-second action budget measured on a developer laptop is a coin-flip
+ * on a shared runner at six times CPU throttle, so the suite either failed always
+ * or had to be skipped — and a skipped suite has zero value while reading as
+ * coverage.
+ *
+ * A multiplier, not a different set of numbers: the budgets stay the ones a human
+ * maintains locally, and a slower machine scales them. `1` is the default so local
+ * behaviour is unchanged. CI sets a documented generous value.
+ *
+ * **Scale multiplies, never replaces.** A caller who sets an absolute budget *and* a
+ * scale gets both, because the absolute override is the narrower declaration and
+ * there is no reason for the scale to silently undo it.
+ */
+function budgetScale(): number {
+  const raw = process.env.DOMAIN_FILTER_BUDGET_SCALE;
+  if (raw === undefined || raw.trim() === "") return 1;
+
+  const parsed = Number(raw);
+  /**
+   * **A non-numeric scale would be the worst possible bug here.**
+   *
+   * `Number("abc")` is `NaN`, and `NaN > measuredMs` is `false` for every input,
+   * so every budget check would pass on a green run while checking nothing at all —
+   * a perf spec that can never fail is worse than no spec, because it reads as
+   * coverage.
+   *
+   * So a value that does not parse to a finite number above zero is a hard error at
+   * load, naming the variable and the value, rather than a silent fallback to the
+   * local default. A typo should not look like a decision.
+   */
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    throw new Error(
+      `DOMAIN_FILTER_BUDGET_SCALE must parse to a number >= 1, got ${JSON.stringify(raw)}. ` +
+        `Unset it to use the local budgets unscaled.`,
+    );
+  }
+  return parsed;
+}
+
+const BUDGET_SCALE = budgetScale();
+
+/** Apply the machine factor to one baseline budget. */
+const scaled = (baseline: number) => Math.round(baseline * BUDGET_SCALE);
+
 const PERF_BUDGETS = {
-  actionMs: Number(process.env.DOMAIN_FILTER_ACTION_MS ?? 2_500),
-  maxLongTaskMs: Number(process.env.DOMAIN_FILTER_MAX_LONG_TASK_MS ?? 1_000),
-  maxRafGapMs: Number(process.env.DOMAIN_FILTER_MAX_RAF_GAP_MS ?? 1_500),
-  maxInputMs: Number(process.env.DOMAIN_FILTER_MAX_INPUT_MS ?? 4_000),
-  totalLongTaskMs: Number(
-    process.env.DOMAIN_FILTER_TOTAL_LONG_TASK_MS ?? 8_000,
+  actionMs: scaled(Number(process.env.DOMAIN_FILTER_ACTION_MS ?? 2_500)),
+  maxLongTaskMs: scaled(
+    Number(process.env.DOMAIN_FILTER_MAX_LONG_TASK_MS ?? 1_000),
+  ),
+  maxRafGapMs: scaled(
+    Number(process.env.DOMAIN_FILTER_MAX_RAF_GAP_MS ?? 1_500),
+  ),
+  maxInputMs: scaled(Number(process.env.DOMAIN_FILTER_MAX_INPUT_MS ?? 4_000)),
+  totalLongTaskMs: scaled(
+    Number(process.env.DOMAIN_FILTER_TOTAL_LONG_TASK_MS ?? 8_000),
   ),
 };
 
