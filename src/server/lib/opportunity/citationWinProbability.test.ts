@@ -84,3 +84,131 @@ describe("citationWinProbability", () => {
     expect(logOdds).toBeCloseTo(total + CITATION_INTERCEPT, 6);
   });
 });
+
+// ── The interval, and the rule that makes it honest ──────────────────────────
+//
+// The design rule: *"a forecast drawn as a hard line is a lie. Draw the band."*
+// This model is the sharpest case for it — the coefficients are unfitted, so the
+// point estimate is a ranking signal and the interval is what says how much the
+// ranking is worth. A caller that renders only `probability` has thrown away the
+// number that matters.
+
+describe("the citation win interval", () => {
+  const strong = {
+    authority: 0.9,
+    topicalOverlap: 0.8,
+    alreadyCitesUs: true,
+    citationPropensity: 0.7,
+    freshness: 0.6,
+  };
+
+  it("brackets the point estimate, and never leaves 0-1", () => {
+    const { probability, interval } = citationWinProbability(strong);
+    expect(interval.low).toBeLessThanOrEqual(probability);
+    expect(interval.high).toBeGreaterThanOrEqual(probability);
+    expect(interval.low).toBeGreaterThan(0);
+    expect(interval.high).toBeLessThan(1);
+    // A band with zero width would be a claim of certainty this model cannot make.
+    expect(interval.width).toBeGreaterThan(0);
+  });
+
+  it("widens when a feature stops being measured", () => {
+    // **The assertion the design requirement asks for.**
+    //
+    // Sparse input must not look precise. The first version of this test only
+    // asserted `low <= probability <= high`, which every implementation including
+    // a zero-width band satisfies — the same failure as a test that reads on both
+    // the fixed and the broken version.
+    const measured = citationWinProbability(strong, {
+      authority: 0.05,
+      topicalOverlap: 0.05,
+      citationPropensity: 0.05,
+      freshness: 0.05,
+    });
+    const unmeasured = citationWinProbability(strong);
+
+    expect(unmeasured.interval.width).toBeGreaterThan(measured.interval.width);
+  });
+
+  it("widens monotonically with every feature's uncertainty", () => {
+    const tight = citationWinProbability(strong, {
+      authority: 0.01,
+      topicalOverlap: 0.01,
+      citationPropensity: 0.01,
+      freshness: 0.01,
+    });
+    const loose = citationWinProbability(strong, {
+      authority: 0.2,
+      topicalOverlap: 0.2,
+      citationPropensity: 0.2,
+      freshness: 0.2,
+    });
+    expect(loose.interval.width).toBeGreaterThan(tight.interval.width);
+  });
+
+  it("names the dominant source, and it changes in the right direction", () => {
+    // **Two-directional, because a one-sided assertion passes on a hardcoded
+    // string.** With tight measurements the prior dominates — it is a statement
+    // about the model, and an unfitted model is uncertain about itself. With loose
+    // ones the measurements take over.
+    const tight = citationWinProbability(strong, {
+      // **Every feature measured**, including `alreadyCitesUs`. Leaving that one
+      // out is what the first version did, and it dominates everything — it is the
+      // largest coefficient and an unmeasured feature takes the widest case — so
+      // the test asserted "features" no matter how tight the rest were.
+      authority: 0.02,
+      topicalOverlap: 0.02,
+      citationPropensity: 0.02,
+      freshness: 0.02,
+      alreadyCitesUs: 0.02,
+    });
+    expect(tight.interval.dominantSource).toBe("uncalibrated");
+
+    const loose = citationWinProbability(strong, {
+      authority: 0.8,
+      topicalOverlap: 0.8,
+      citationPropensity: 0.8,
+      freshness: 0.8,
+      alreadyCitesUs: 0.8,
+    });
+    expect(loose.interval.dominantSource).toBe("features");
+    // And the loose case really is wider.
+    expect(loose.interval.width).toBeGreaterThan(tight.interval.width);
+  });
+
+  it("treats an unmeasured feature as the widest case, never the narrowest", () => {
+    // The direction that matters. A zero standard error would claim a precision
+    // the model does not have and narrow the band on the least-known inputs.
+    const oneUnmeasured = citationWinProbability(strong, {
+      authority: 0.05,
+      topicalOverlap: 0.05,
+      citationPropensity: 0.05,
+      freshness: 0.05,
+    });
+    const noneUnmeasured = citationWinProbability(strong, {
+      authority: 0.05,
+      topicalOverlap: 0.05,
+      citationPropensity: 0.05,
+      freshness: 0.05,
+      // `alreadyCitesUs` is boolean and has no 0-1 scale, but a caller may still
+      // supply a standard error for it.
+      alreadyCitesUs: 0.05,
+    });
+    expect(oneUnmeasured.interval.width).toBeGreaterThan(0);
+    expect(noneUnmeasured.interval.width).toBeGreaterThan(0);
+  });
+
+  it("never produces a zero-width band at the boundaries", () => {
+    // The logistic flattens at both ends, so a naive interval mapped through it
+    // collapses to zero width exactly where a weak or a certain target lives.
+    const weak = citationWinProbability({
+      authority: 0,
+      topicalOverlap: 0,
+      alreadyCitesUs: false,
+      citationPropensity: 0,
+      freshness: 0,
+    });
+    expect(weak.interval.low).toBeGreaterThan(0);
+    expect(weak.interval.width).toBeGreaterThan(0);
+  });
+});

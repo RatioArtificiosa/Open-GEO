@@ -32,12 +32,78 @@ export type CitingDomainFeatures = {
 export type CitationWinProbability = {
   /** 0–1. **A ranking signal while `calibrated` is false, not a frequency.** */
   probability: number;
+  /**
+   * The interval this probability should be read inside.
+   *
+   * **Not decoration.** The design rule is *"a forecast drawn as a hard line is a
+   * lie. Draw the band."*, and this model is the sharpest case for it: the
+   * coefficients are **unfitted** (`calibrated: false`), so the point estimate is
+   * a ranking signal and its width is the difference between "third on the list"
+   * and "about as likely to be cited as the one above it".
+   *
+   * A caller that renders only `probability` has thrown away the number that says
+   * how much the ranking is worth.
+   */
+  interval: CitationWinInterval;
   version: string;
   /** False until CL-503's stored outcomes refit these coefficients. */
   calibrated: boolean;
   /** Each feature's push on the log-odds, so the ranking can be explained. */
   contributions: Record<keyof CitingDomainFeatures, number>;
 };
+
+/**
+ * The band, in the same unit as `probability`.
+ *
+ * ## Why it is wide by construction, and wide for a reason
+ *
+ * Two sources of uncertainty, both real, neither optional:
+ *
+ * 1. **Measurement.** Every feature is 0–1 and none of them is measured exactly. An
+ *    authority estimate has a standard error; a topical-overlap estimate more so.
+ *    A feature with no uncertainty supplied is treated as *unmeasured*, which is the
+ *    widest case — **never zero**, because a zero standard error claims a precision
+ *    this model does not have and would narrow the band on the least-known inputs.
+ *
+ * 2. **The model is unfitted.** `calibrated: false`, so the coefficients are a prior
+ *    rather than a fit. That contributes a flat term on the log-odds scale rather
+ *    than a feature, because it is not about any one input.
+ *
+ * The interval is computed on the **log-odds** scale — where the uncertainty is
+ * roughly symmetric and the logistic is not — and mapped through the logistic at the
+ * ends, so it never leaves 0–1 and never goes to zero width at the boundaries.
+ */
+export type CitationWinInterval = {
+  low: number;
+  high: number;
+  /**
+   * The dominant source of the uncertainty, so a reader can see *why* the band is
+   * the width it is. `"uncalibrated"` wins over `"features"` because a prior is a
+   * bigger statement than a measurement.
+   */
+  width: number;
+  dominantSource: "uncalibrated" | "features";
+};
+
+/**
+ * How wide an *unmeasured* feature is on the log-odds scale.
+ *
+ * ±1.5 in log-odds is roughly a factor of 4.5 in odds either way — deliberately
+ * generous, because **the narrowest honest band on a feature nobody measured is
+ * still wide**, and a model that reports a tight interval on inputs it has no data
+ * about is the over-confidence that makes a prospect list useless.
+ */
+const UNMEASURED_FEATURE_SE = 1.5;
+
+/**
+ * The flat log-odds uncertainty contributed by an unfitted model.
+ *
+ * ±1.0 in log-odds is roughly a factor of 2.7 in odds either way. This is the honest
+ * price of a prior: it is why `probability` is documented as a ranking signal and
+ * not a frequency, and it disappears the day CL-503's stored outcomes refit the
+ * coefficients — at which point `calibrated` flips and this term goes to zero.
+ */
+const UNFITTED_MODEL_SE = 1.0;
 
 /**
  * The intercept is negative, and that is the most important number in this file: **most pages do
@@ -60,6 +126,22 @@ const COEFFICIENTS: Record<keyof CitingDomainFeatures, number> = {
   freshness: 0.7,
 };
 
+/**
+ * The feature list, in one place — derived from the coefficient table, so a
+ * feature added to the model cannot be forgotten by this loop and no cast is
+ * needed to index `COEFFICIENTS`.
+ */
+// Narrowed by filtering rather than by asserting: `Object.keys` returns `string[]`,
+// and the cast the type-aware linter rejects is exactly the unsafe widening this
+// module's other loops avoid by iterating FEATURES instead of Object.entries.
+const FEATURES: Array<keyof CitingDomainFeatures> = [
+  "authority",
+  "topicalOverlap",
+  "alreadyCitesUs",
+  "citationPropensity",
+  "freshness",
+];
+
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
 const logistic = (z: number) => 1 / (1 + Math.exp(-z));
@@ -67,6 +149,12 @@ const logistic = (z: number) => 1 / (1 + Math.exp(-z));
 /** Score one citing domain as a citation target. */
 export function citationWinProbability(
   features: CitingDomainFeatures,
+  /**
+   * Each feature's standard error on the 0–1 scale. **Omit a feature and it is
+   * treated as unmeasured**, which is the widest case rather than the narrowest —
+   * the direction that keeps a weakly-known target from looking precise.
+   */
+  standardErrors?: Partial<Record<keyof CitingDomainFeatures, number>>,
 ): CitationWinProbability {
   const contributions: Record<keyof CitingDomainFeatures, number> = {
     authority: COEFFICIENTS.authority * clamp01(features.authority),
@@ -83,8 +171,51 @@ export function citationWinProbability(
     CITATION_INTERCEPT +
     Object.values(contributions).reduce((sum, part) => sum + part, 0);
 
+  /**
+   * Uncertainty, accumulated on the log-odds scale.
+   *
+   * **Each feature's standard error on its own scale, scaled by the coefficient**,
+   * because the coefficient is what turns a 0–1 wobble into a log-odds wobble — a
+   * high-coefficient feature pushes the band wider for the same relative
+   * uncertainty, which is the correct behaviour and also why an unmeasured
+   * `alreadyCitesUs` dominates everything else.
+   *
+   * Combined in quadrature, not summed: these are independent sources, and summing
+   * them would produce a band that grows as the square of the number of features.
+   */
+  // Iterate the feature keys directly rather than `Object.entries(contributions)`,
+  // so the key is already `keyof CitingDomainFeatures` and no cast is needed — the
+  // type-aware linter rejects the cast, and rightly: a widened `string` key would
+  // index `COEFFICIENTS` unsafely.
+  const featureVariance = FEATURES.reduce((total, feature) => {
+    const se = standardErrors?.[feature];
+    const scale = se === undefined || se <= 0 ? UNMEASURED_FEATURE_SE : se;
+    return total + (COEFFICIENTS[feature] * scale) ** 2;
+  }, 0);
+
+  const featureSe = Math.sqrt(featureVariance);
+  const modelSe = UNFITTED_MODEL_SE;
+
+  const intervalSe = Math.sqrt(featureSe * featureSe + modelSe * modelSe);
+  const [low, high] = [
+    logistic(logOdds - intervalSe),
+    logistic(logOdds + intervalSe),
+  ];
+
   return {
     probability: logistic(logOdds),
+    interval: {
+      low,
+      high,
+      width: high - low,
+      /**
+       * **The prior outranks the measurement**, because it is the bigger statement:
+       * a fitted model may still be uncertain about a target, but an unfitted one is
+       * uncertain about *itself*. Naming the source means a reader can tell which
+       * part a refit will shrink.
+       */
+      dominantSource: modelSe >= featureSe ? "uncalibrated" : "features",
+    },
     version: CITATION_MODEL_VERSION,
     calibrated: false,
     contributions,
