@@ -35,7 +35,21 @@ const CUTOVER_LABEL = new Date(
 type GeoVisibilitySeries = {
   /** Points carrying their own formula version. */
   points: EtvChartPoint[];
-  /** Whether any points were dropped for missing provenance. */
+  /**
+   * Whether the archive holds points whose formula version was never recorded.
+   *
+   * **Derived by the caller, because only the caller can see the whole
+   * archive.** The points handed to this panel are already the *plottable* ones
+   * — `buildEtvSeriesView` in the chart drops the unattributable ones — so
+   * counting the nulls here sees only the survivors and reports zero withheld
+   * for a series that had three. The first version of this prop therefore
+   * existed, was documented, was passed by the page, and changed nothing: a
+   * prop that no code reads is the same bug as a prop no caller passes, and
+   * it hides better because the type says it is wired.
+   *
+   * `undefined` means "the caller did not check", which falls back to
+   * deriving from the points — the honest answer when nobody knows better.
+   */
   hasUnstampedPoints?: boolean;
 };
 
@@ -44,13 +58,20 @@ export function GeoVisibilityPanel({
 }: {
   series: GeoVisibilitySeries;
 }) {
-  const droppedCount = useMemo(
-    () =>
-      series.points.filter(
-        (point) => point.etv === null || point.formulaVersion === null,
-      ).length,
-    [series.points],
-  );
+  /**
+   * Prefer the caller's count, fall back to deriving it.
+   *
+   * Both are reported, because they answer different questions: the derived
+   * count is "these specific plotted points lack provenance", the caller's
+   * flag is "the archive has points we refused to draw". A chart that shows
+   * only the first reads as complete while data sits behind it.
+   */
+  const droppedCount = useMemo(() => {
+    const derived = series.points.filter(
+      (point) => point.etv === null || point.formulaVersion === null,
+    ).length;
+    return series.hasUnstampedPoints ? Math.max(derived, 1) : derived;
+  }, [series.points, series.hasUnstampedPoints]);
 
   return (
     <section aria-label="Estimated organic traffic over time">

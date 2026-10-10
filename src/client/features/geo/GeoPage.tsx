@@ -299,7 +299,28 @@ export function GeoPage({ projectId }: { projectId: string }) {
             </section>
 
             <section className="rounded-xl border border-base-300 bg-base-100 p-4">
-              <GeoVisibilityPanel series={{ points: data.etvPoints }} />
+              {/*
+                **The formula versions are passed, not just the points.**
+                `GeoVisibilityPanel` accepts `hasUnstampedPoints` so the
+                withheld-points note explains *why* points are missing, and
+                without it the derived count is the only signal — the panel
+                cannot tell a reader that the archive has horizons it refuses
+                to draw. `etvFormulaVersions` was computed through three
+                layers (repository → server fn → hook) and then dropped at
+                this call site, which is the "correct component with an
+                unreachable input" failure: everything downstream was already
+                built and already tested, and the one line that carries the
+                provenance to the chart was missing.
+              */}
+              <GeoVisibilityPanel
+                series={{
+                  points: data.etvPoints,
+                  hasUnstampedPoints:
+                    data.etvFormulaVersions.length > 0
+                      ? data.etvFormulaVersions.length > 1
+                      : undefined,
+                }}
+              />
             </section>
           </>
         ) : null}
