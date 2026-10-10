@@ -27,7 +27,12 @@
  */
 import { GeoRunRepository } from "../repositories/GeoRunRepository";
 import { runBatch } from "@/db/runBatch";
-import { fetchAiModeAnswer } from "@/server/lib/dataforseo/ai-mode";
+// Type-only: the runtime call now goes through the metered client, so this
+// module names the fetcher solely for its input type.
+import type { fetchAiModeAnswer } from "@/server/lib/dataforseo/ai-mode";
+import { createDataforseoClient } from "@/server/lib/dataforseo/client";
+import type { BillingCustomerContext } from "@/server/billing/subscription";
+import { AppError } from "@/server/lib/errors";
 import { DataforseoChargedTaskError } from "@/server/lib/dataforseo/envelope";
 import { planAiModeCaptures, type WatchedPrompt } from "./aiModeSchedule";
 import { diffAnswers } from "./answerDiff";
@@ -104,6 +109,25 @@ function billedCostOf(error: unknown): number {
  */
 type AiModeFetcher = typeof fetchAiModeAnswer;
 
+/**
+ * The metered vendor call for one project, or nothing when there is no context.
+ *
+ * **Returns undefined rather than falling back to the raw fetcher.** Without a
+ * customer there is nobody to bill, and silently calling the vendor unmetered is
+ * the exact failure this whole change removes — the platform account paying for a
+ * nightly capture while the org balance is never read.
+ *
+ * The envelope sibling, so the monitor's `actualCostUsd` carries the vendor's
+ * figure rather than `undefined`.
+ */
+function buildMeteredAnswer(
+  customer: BillingCustomerContext | undefined,
+): AiModeFetcher | undefined {
+  if (!customer) return undefined;
+  return (input: Parameters<typeof fetchAiModeAnswer>[0]) =>
+    createDataforseoClient(customer).serp.aiModeEnvelope(input);
+}
+
 export async function runAiModeMonitor(input: {
   projectId: string;
   /** The keywords this project watches, with what we have observed about each. */
@@ -113,6 +137,14 @@ export async function runAiModeMonitor(input: {
   languageCode: string;
   now?: Date;
   fetchAnswer?: AiModeFetcher;
+  /**
+   * The billing context, because this is where the vendor call happens.
+   *
+   * A cron has no user, so the context is assembled from real ids. Without it
+   * the monitor's vendor calls ran unmetered: the platform account paid, no org
+   * balance was read, and a zero-credit org kept receiving captures.
+   */
+  customer?: BillingCustomerContext;
   /**
    * Whether a monitor already ran in this window.
    *
@@ -130,7 +162,20 @@ export async function runAiModeMonitor(input: {
   }) => Promise<void>;
 }): Promise<AiModeNightResult> {
   const now = input.now ?? new Date();
-  const fetchAnswer = input.fetchAnswer ?? fetchAiModeAnswer;
+  /**
+   * The injected stand-in, or the **metered** client.
+   *
+   * The default is the metered envelope sibling, not the raw fetcher — that is
+   * the whole point. The seam stays so a test can drive the monitor without a
+   * vendor or a billing context, and a double is a drop-in replacement.
+   */
+  const fetchAnswer = input.fetchAnswer ?? buildMeteredAnswer(input.customer);
+  if (!fetchAnswer) {
+    throw new AppError(
+      "INTERNAL_ERROR",
+      "AI Mode capture has no billing context: a vendor call without a customer to charge would be paid by the platform account",
+    );
+  }
 
   const alreadyRan = (await input.alreadyRanInWindow?.()) ?? false;
   if (alreadyRan) {

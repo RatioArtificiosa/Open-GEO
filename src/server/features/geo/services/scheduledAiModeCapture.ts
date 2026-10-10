@@ -29,7 +29,7 @@
  * and the **budget** is what bounds cost.
  */
 import { eq, max, sql } from "drizzle-orm";
-import type { CaptureCostReport } from "@/server/features/geo/services/captureReport";
+import type { BudgetedCaptureReport } from "@/server/features/geo/services/captureReport";
 import { db } from "@/db";
 import {
   aiModeSnapshots,
@@ -38,6 +38,7 @@ import {
   geoTargets,
 } from "@/db/schema";
 import { runAiModeMonitor, type AiModeNightResult } from "./aiModeMonitor";
+import { listProjectOrgs } from "@/server/features/domain/services/scheduledEtvCapture";
 import type { WatchedPrompt } from "./aiModeSchedule";
 import {
   NIGHTLY_BUDGET_USD,
@@ -214,7 +215,7 @@ async function projectsWatchingAiMode(): Promise<Watcher[]> {
  * carries each project's own failures, and a count beside it would be a second
  * place to read the same fact.
  */
-type AiModeNightReport = CaptureCostReport & {
+type AiModeNightReport = BudgetedCaptureReport & {
   captured: number;
   failed: number;
   /** Per project, so an operator can see which keyword went unanswered. */
@@ -228,11 +229,26 @@ type AiModeNightReport = CaptureCostReport & {
  * ({@link NIGHTLY_PROJECT_SWEEP_LIMIT}, which `runDuePatrols` also reads): an
  * unbounded sweep could fan out across every customer in one tick.
  */
+/**
+ * The identity a scheduled capture acts as.
+ *
+ * A cron has no user, and inventing a plausible one would put a fake
+ * userId/userEmail into the billing ledger. The scheduled GEO patrol already
+ * solved this with the same constant and the same address, so this file uses that
+ * convention rather than inventing a second one.
+ */
+const SYSTEM_ACTOR = {
+  userId: "system",
+  userEmail: "system@opengeo.so",
+} as const;
+
 export async function runDueAiModeCaptures(input?: {
   limitProjects?: number;
   now?: Date;
   /** Injected so a test can drive the monitor without a vendor or a database. */
   runMonitor?: typeof runAiModeMonitor;
+  /** Injected for the same reason; the capture meters per project. */
+  fetchOrgs?: typeof listProjectOrgs;
   /** Injected for the same reason. */
   fetchWatchers?: typeof projectsWatchingAiMode;
 }): Promise<AiModeNightReport> {
@@ -240,11 +256,13 @@ export async function runDueAiModeCaptures(input?: {
   const limit = input?.limitProjects ?? NIGHTLY_PROJECT_SWEEP_LIMIT;
   const runMonitor = input?.runMonitor ?? runAiModeMonitor;
   const fetchWatchers = input?.fetchWatchers ?? projectsWatchingAiMode;
+  const fetchOrgs = input?.fetchOrgs ?? listProjectOrgs;
 
   const watchers = await fetchWatchers();
 
   const report: AiModeNightReport = {
     projectsVisited: 0,
+    droppedForBudget: 0,
     captured: 0,
     failed: 0,
     actualCostUsd: 0,
@@ -252,12 +270,32 @@ export async function runDueAiModeCaptures(input?: {
     projects: [],
   };
 
-  for (const watcher of watchers.slice(0, limit)) {
+  const admitted = watchers.slice(0, limit);
+  const orgs = await fetchOrgs(admitted.map((w) => w.projectId));
+  const billable = admitted.filter((w) => orgs.has(w.projectId));
+  if (billable.length < admitted.length) {
+    report.skippedNoOrganization = admitted.length - billable.length;
+  }
+
+  for (const watcher of billable) {
     // Each project gets the **full** budget rather than a share: the cap exists to
     // bound one project's night, and dividing it would make the bound depend on how
     // many other customers happen to be watching.
     const result = await runMonitor({
       projectId: watcher.projectId,
+      /**
+       * The billing context, because the monitor holds the vendor call.
+       *
+       * A cron has no user, so the context is assembled from real ids: the org
+       * comes from the lookup above and the system identity from the shared
+       * convention the GEO patrol already uses. A project whose org is missing
+       * never reaches here.
+       */
+      customer: {
+        ...SYSTEM_ACTOR,
+        organizationId: orgs.get(watcher.projectId) ?? "",
+        projectId: watcher.projectId,
+      },
       prompts: watcher.prompts,
       budgetUsd: AI_MODE_NIGHTLY_BUDGET_USD,
       locationCode: watcher.locationCode,

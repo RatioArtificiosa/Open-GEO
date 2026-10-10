@@ -294,6 +294,19 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       local: meter(customer, fetchLocalSerp, "local_seo"),
       // Google AI Mode: the answer-change monitor (G6). Cites only, no retrieval.
       aiMode: meter(customer, fetchAiModeAnswer, "rank_tracking"),
+      /**
+       * The envelope-returning sibling, for the nightly AI Mode capture.
+       *
+       * Same reason as the other two: report.actualCostUsd is read from
+       * response.billing.costUsd, and the unwrapping form would charge the org
+       * correctly while recording a cost of undefined — which is
+       * indistinguishable from a correctly metered capture.
+       */
+      aiModeEnvelope: meterEnvelope(
+        customer,
+        fetchAiModeAnswer,
+        "rank_tracking",
+      ),
       // "Ask the SERP anything". Two billed steps, so both are metered: the
       // SERP post that yields a task id, and the summary asked against it.
       serpTaskForSummary: meter(customer, postSerpTaskForSummary),

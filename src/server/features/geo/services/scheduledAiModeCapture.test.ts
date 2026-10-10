@@ -85,6 +85,8 @@ const run = (input: {
   runDueAiModeCaptures({
     now: NOW,
     fetchWatchers: async () => input.watchers,
+    fetchOrgs: async () =>
+      new Map(input.watchers.map((w) => [w.projectId, "org_default"])),
     runMonitor: async () => input.results.shift() ?? result({}),
   });
 
@@ -171,6 +173,8 @@ describe("runDueAiModeCaptures", () => {
       now: NOW,
       limitProjects: 3,
       fetchWatchers: async () => many,
+      fetchOrgs: async () =>
+        new Map(many.map((w) => [w.projectId, "org_default"])),
       runMonitor: async () => result({}),
     });
 
