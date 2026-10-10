@@ -170,4 +170,71 @@ describe.skipIf(!RUN)("the DataForSEO sandbox", () => {
       }),
     ).rejects.toThrow();
   });
+
+  // ── The three paths suspected of being wrong ──────────────────────────────
+  //
+  // `aggregated_metrics`, `top_pages` and `cross_aggregated_metrics` do not appear
+  // in the vendor-assistant transcript at `docs/SOFIA_AI_OPTIMIZATION_CONVERSATION.md`,
+  // which listed `target_metrics`, `top_mentioned_pages`, `top_mentioned_domains`
+  // and `multi_target_metrics`. That looked like the client using invented paths —
+  // the kind of error that ships broken for as long as nobody calls it.
+  //
+  // **It is not an error. All three answer 20000 on the sandbox.** The transcript's
+  // list was incomplete, not authoritative.
+  //
+  // The failure that produced the suspicion is recorded because it looked exactly
+  // like evidence: a probe reported HTTP 401 on *every* `llm_mentions` path,
+  // including the known-good `target_metrics`. The cause was a typo in the probe's
+  // own shell command — `../../.env` instead of `../.env` from `Open-GEO/` — so the
+  // API key was empty and the request went to production with no credentials.
+  // **A uniformly failing probe usually means the probe is broken, not the system**,
+  // and the giveaway was `target_metrics` failing alongside endpoints already proven
+  // good.
+
+  it("answers llm_mentions/aggregated_metrics, absent from the vendor transcript", async () => {
+    const { fetchLlmAggregatedMetrics } = await import("./ai");
+
+    const response = await fetchLlmAggregatedMetrics({
+      target: MENTIONS_INPUT.target,
+      platform: MENTIONS_INPUT.platform,
+      locationCode: MENTIONS_INPUT.locationCode,
+      languageCode: MENTIONS_INPUT.languageCode,
+    });
+
+    expect(response.data).toBeTruthy();
+  });
+
+  it("answers llm_mentions/top_pages, also absent from the transcript", async () => {
+    const { fetchLlmTopPages } = await import("./ai");
+
+    const response = await fetchLlmTopPages({
+      target: MENTIONS_INPUT.target,
+      platform: MENTIONS_INPUT.platform,
+      locationCode: MENTIONS_INPUT.locationCode,
+      languageCode: MENTIONS_INPUT.languageCode,
+    });
+
+    expect(response.data).toBeTruthy();
+  });
+
+  it("answers cross_aggregated_metrics with its own group shape", async () => {
+    // The only one of the three needing a different body: `targets` (plural, an
+    // array of groups), not `target`. A probe that sent the single-target shape
+    // got `40501 Invalid Field: 'targets' is required` — the sandbox correctly
+    // rejecting the body, not the path missing. Same answer on the vendor's own
+    // `multi_target_metrics`, which is the same shape under a different name.
+    const { fetchLlmCrossAggregatedMetrics } = await import("./ai");
+
+    const response = await fetchLlmCrossAggregatedMetrics({
+      groups: [
+        { key: "us", target: MENTIONS_INPUT.target },
+        { key: "uk", target: MENTIONS_INPUT.target },
+      ],
+      platform: MENTIONS_INPUT.platform,
+      locationCode: MENTIONS_INPUT.locationCode,
+      languageCode: MENTIONS_INPUT.languageCode,
+    });
+
+    expect(response.data).toBeTruthy();
+  });
 });
