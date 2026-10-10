@@ -131,13 +131,22 @@ function meter<I, T>(
   defaultFeature?: CreditFeature,
   estimateUsd?: (input: I) => number,
 ): (input: I & { creditFeature?: CreditFeature }) => Promise<T> {
+  /**
+   * Unwraps the envelope.
+   *
+   * `meterDataforseoCall` now returns the whole `DataforseoApiResponse` so a
+   * caller can read the billing receipt, and this unwrps it back to the payload
+   * — which is what every existing consumer of the metered client was written
+   * against, so none of them change. `meterEnvelope` is the sibling for a caller
+   * that wants both.
+   */
   return (input) =>
     meterDataforseoCall(
       customer,
       () => fetcher(input),
       input.creditFeature ?? defaultFeature,
       estimateUsd?.(input),
-    );
+    ).then((response) => response.data);
 }
 
 export function createDataforseoClient(customer: BillingCustomerContext) {
@@ -320,17 +329,37 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
   } as const;
 }
 
+/**
+ * Run one vendor call through the credit gate, and return the **envelope**.
+ *
+ * ## Why this returns the envelope while `meter` unwraps it
+ *
+ * This returned `T` — the payload with the billing envelope stripped — and every
+ * consumer was written against that. A scheduled capture is not.
+ *
+ * `scheduledEtvCapture.ts` reads `response.billing.costUsd` into its report, and
+ * `report.actualCostUsd` is the figure an operator reconciles against the
+ * DataForSEO invoice. The metered client had charged the customer and thrown the
+ * receipt away, so a capture routed through it would silently report an
+ * `actualCostUsd` of `undefined` — the budget still works, because it runs on the
+ * price-book estimate, but the one number that shows what the vendor actually
+ * billed would read as zero forever. **A charge with no receipt is exactly the
+ * trust failure the evidence-drawer design exists to prevent.**
+ *
+ * So the internal helper keeps the envelope — strictly more information — and
+ * `meter` unwraps, which leaves every existing consumer's type and behaviour
+ * untouched. `meterEnvelope` is the sibling for a caller that needs the receipt.
+ */
 async function meterDataforseoCall<T>(
   customer: BillingCustomerContext,
   execute: () => Promise<DataforseoApiResponse<T>>,
   creditFeature?: CreditFeature,
   estimatedCostUsd?: number,
-): Promise<T> {
+): Promise<DataforseoApiResponse<T>> {
   const isHostedMode = await isHostedServerAuthMode();
 
   if (!isHostedMode) {
-    const result = await execute();
-    return result.data;
+    return execute();
   }
 
   const billingCustomer = await getOrCreateOrganizationCustomer(customer);
@@ -372,7 +401,11 @@ async function meterDataforseoCall<T>(
     creditFeature,
   });
 
-  return result.data;
+  // The whole envelope, so a caller that needs the receipt — a nightly capture
+  // reconciling `actualCostUsd` against the vendor invoice — is not handed a
+  // charge with the billing stripped off. `meter` below unwraps it for the
+  // callers that want the payload.
+  return result;
 }
 
 async function trackDataforseoCost(args: {
