@@ -15,11 +15,24 @@ describe("normalizeAndValidateStartUrl", () => {
   });
 
   it("adds https when protocol is missing and strips hash", async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ Status: 0, Answer: [] }), {
-        status: 200,
-        headers: { "content-type": "application/dns-json" },
-      }),
+    // **`mockImplementation` returning a NEW `Response` per call, not
+    // `mockResolvedValue` on one.** A `Response` body is a stream that can be read once, and
+    // the resolver issues **two** lookups — A and AAAA — from the one host. Handing the
+    // same `Response` to both makes the second `.json()` throw `body stream already read`,
+    // `hostnameResolvesToBlockedAddress` catches it, and *fail-closed* turns a broken double
+    // into `CRAWL_TARGET_BLOCKED`. The first version of this case failed on a module that
+    // was correct.
+    //
+    // **This is the same trap the SSRF file records** — an assertion that passes for a
+    // reason unrelated to the code under test — except here the direction is worse: the
+    // double's failure is indistinguishable from a real safety refusal.
+    vi.mocked(fetch).mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ Status: 0, Answer: [] }), {
+          status: 200,
+          headers: { "content-type": "application/dns-json" },
+        }),
+      ),
     );
 
     await expect(

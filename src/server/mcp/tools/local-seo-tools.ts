@@ -8,7 +8,11 @@ import {
   type BusinessTaskOutcome,
 } from "@/server/lib/dataforseo";
 import { AppError } from "@/server/lib/errors";
-import { buildCacheKey, getCached, setCached } from "@/server/lib/r2-cache";
+import {
+  buildCacheKey,
+  getReferenceCached,
+  setReferenceCached,
+} from "@/server/lib/r2-cache";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { mcpResponse } from "@/server/mcp/formatters";
 import {
@@ -639,13 +643,22 @@ export const listBusinessCategoriesTool = {
         {},
       );
       const cached = cachedCategoriesSchema.safeParse(
-        await getCached(cacheKey),
+        await getReferenceCached(cacheKey),
       );
       let all = cached.success ? cached.data : null;
       if (!all) {
         // Free at DataForSEO, so this skips the metered client — see index.ts.
         all = (await fetchBusinessListingsCategories()).data;
-        await setCached(cacheKey, all, BUSINESS_CATEGORIES_TTL_SECONDS);
+        // Reference, not tenant data: the category list is a global vendor
+        // table, so it lives in `vendor-reference/` and carries no
+        // `organizationId`. Writing it through `setCached` would stamp the
+        // tenant that happened to warm it and hand anyone's erasure request the
+        // power to delete a list every other caller is reading.
+        await setReferenceCached(
+          cacheKey,
+          all,
+          BUSINESS_CATEGORIES_TTL_SECONDS,
+        );
       }
 
       const query = args.query?.toLowerCase();

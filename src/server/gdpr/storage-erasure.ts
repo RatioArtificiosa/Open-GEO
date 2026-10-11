@@ -5,10 +5,7 @@ import {
   DUB_REFERRED_ORG_KV_PREFIX,
   DUB_REFERRED_USER_KV_PREFIX,
 } from "@/server/referrals/dub";
-import {
-  AI_SEARCH_PROMPT_CACHE_NAMESPACE,
-  cacheObjectPrefix,
-} from "@/server/lib/r2-cache";
+import { CACHE_ROOT_PREFIX } from "@/server/lib/r2-cache";
 import { VENDOR_ASSET_PREFIX as VENDOR_ASSET_PREFIX_ROOT } from "@/server/lib/vendorAssetCopy";
 import {
   gdprStorageErasurePayloadSchema,
@@ -19,7 +16,6 @@ import {
 const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
 const GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
-const PROMPT_CACHE_PREFIX = cacheObjectPrefix(AI_SEARCH_PROMPT_CACHE_NAMESPACE);
 // **Imported from the copier, not re-typed.** A prefix duplicated across the writer and the
 // deleter is one that drifts the first time either is renamed — and the deleter goes on
 // deleting nothing while reporting success. **The trailing slash is added here**, because the
@@ -255,18 +251,29 @@ async function eraseStorage(env: Env, payload: GdprStorageErasurePayload) {
   for (let index = 0; index < payload.r2Keys.length; index += 1_000) {
     await env.R2.delete(payload.r2Keys.slice(index, index + 1_000));
   }
-  // **Both organisation-scoped R2 prefixes, in one call.**
+  // **Every organisation-scoped R2 prefix, in one call.**
   //
-  // `PROMPT_CACHE_PREFIX` is the AI-search prompt cache. `VENDOR_ASSET_PREFIX` is the
-  // copied Lighthouse screenshots from CL-703 — **added here because the copier stamps
-  // `organizationId` on every copy, which is the field this sweep matches on.** Without the
-  // stamp a sweep would have deleted nothing; without this entry a stamped copy survives.
+  // `CACHE_ROOT_PREFIX` is the whole DataForSEO payload cache — *not* one
+  // namespace, and that is the change. It used to list `ai-search:prompt-response`
+  // alone, so the prompt cache was erasable and the four other payload kinds were
+  // not: brand lookup, keyword research, SERP rows and the domain-overview /
+  // backlinks archives all cached under the same root and all survived an erasure
+  // for the full TTL. The root prefix also covers namespaces added later, which is
+  // the point — a per-namespace list is stale the moment a new cache writer lands.
   //
-  // **Two halves of one mechanism, and both were needed.** A prefix sweep added before the
-  // stamp is worse than no sweep, because it looks finished.
+  // The root prefix is still **deletion-by-`organizationId`, not by prefix alone**,
+  // so widening the sweep widens nothing: `deleteOrganizationScopedObjects` reads
+  // `customMetadata.organizationId` on every listed object and deletes only the
+  // requested tenants' rows. Without that stamp — which `setCached` now requires
+  // positionally — the wider sweep would delete nothing, which is why the two
+  // halves had to land together.
+  //
+  // `VENDOR_ASSET_PREFIX` is the copied Lighthouse screenshots from CL-703:
+  // **a second bucket, added as a new argument rather than a new mechanism**, so a
+  // third bucket stays one more string and never a second shape.
   const organizationScopedObjects = await deleteOrganizationScopedObjects(
     env.R2,
-    [PROMPT_CACHE_PREFIX, VENDOR_ASSET_PREFIX],
+    [CACHE_ROOT_PREFIX, VENDOR_ASSET_PREFIX],
     payload.organizationIds,
   );
 

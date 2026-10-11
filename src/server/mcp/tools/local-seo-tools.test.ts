@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   getProjectForOrganization: vi.fn(),
   getCached: vi.fn(),
   setCached: vi.fn(),
+  getReferenceCached: vi.fn(),
+  setReferenceCached: vi.fn(),
 }));
 
 vi.mock("cloudflare:workers", () => ({ env: {} }));
@@ -31,6 +33,13 @@ vi.mock("@/server/lib/r2-cache", () => ({
   buildCacheKey: (prefix: string) => Promise.resolve(`${prefix}:key`),
   getCached: mocks.getCached,
   setCached: mocks.setCached,
+  // **The reference pair, mocked separately from the tenant pair on purpose.**
+  // The Business categories list is tenant-less, so it reads and writes through
+  // `getReferenceCached`/`setReferenceCached`. Mocking them as aliases of the tenant
+  // functions would hide which cache a tool actually used — and the whole point of
+  // splitting the two is that the erasure sweep reaches one and not the other.
+  getReferenceCached: mocks.getReferenceCached,
+  setReferenceCached: mocks.setReferenceCached,
 }));
 
 vi.mock("@/server/features/projects/services/ProjectService", () => ({
@@ -50,6 +59,7 @@ beforeEach(() => {
     languageCode: "en",
   });
   mocks.getCached.mockResolvedValue(null);
+  mocks.getReferenceCached.mockResolvedValue(null);
 });
 
 describe("get_business_profile", () => {
@@ -438,7 +448,12 @@ describe("list_business_categories", () => {
     // Free endpoint: must never touch the metered client (a zero-credit org
     // would otherwise be refused by the credit gate).
     expect(mocks.createDataforseoClient).not.toHaveBeenCalled();
-    expect(mocks.setCached).toHaveBeenCalledTimes(1);
+    // **`setReferenceCached`, not `setCached`.** The category list is a global vendor
+    // table, so it belongs to no tenant — and asserting the reference function is
+    // what catches a regression back to the tenant cache, where one customer's
+    // erasure would delete a list everyone reads.
+    expect(mocks.setReferenceCached).toHaveBeenCalledTimes(1);
+    expect(mocks.setCached).not.toHaveBeenCalled();
     expect(result.structuredContent.categories).toEqual([
       { category: "pizza_restaurant", businessCount: 120 },
     ]);
@@ -446,7 +461,7 @@ describe("list_business_categories", () => {
   });
 
   it("serves a cache hit without calling the provider", async () => {
-    mocks.getCached.mockResolvedValue(categories);
+    mocks.getReferenceCached.mockResolvedValue(categories);
 
     const result = await listBusinessCategoriesTool.handler(
       { projectId: "project_1" },
@@ -454,7 +469,7 @@ describe("list_business_categories", () => {
     );
 
     expect(mocks.fetchBusinessListingsCategories).not.toHaveBeenCalled();
-    expect(mocks.setCached).not.toHaveBeenCalled();
+    expect(mocks.setReferenceCached).not.toHaveBeenCalled();
     expect(result.structuredContent.categories).toEqual(categories);
   });
 });

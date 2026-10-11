@@ -120,9 +120,12 @@ async function runModel(
   const shaped = shapeSuccess(args.model, rawResponse);
 
   waitUntil(
-    setCached(cacheKey, shaped, PROMPT_RESPONSE_TTL_SECONDS, {
-      organizationId: args.billingCustomer.organizationId,
-    }).catch((err) => {
+    setCached(
+      cacheKey,
+      shaped,
+      PROMPT_RESPONSE_TTL_SECONDS,
+      args.billingCustomer.organizationId,
+    ).catch((err) => {
       console.error("ai-search.prompt-response.cache-write failed:", err);
     }),
   );

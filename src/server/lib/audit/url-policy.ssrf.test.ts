@@ -70,13 +70,6 @@ function dohNoSuchName(): Response {
   return new Response(JSON.stringify({ Status: 3 }), { status: 200 });
 }
 
-const A_QUERY = (hostname: string) =>
-  MOCK_FETCH.mock.calls.some((call) =>
-    String(call[0]).includes(`name=${hostname}&type=1`),
-  );
-
-class AppError extends Error {}
-
 describe("the synchronous pre-filter", () => {
   it("blocks the metadata endpoint as a literal", () => {
     // The case the old policy did cover, kept so a regression here is visible.
@@ -161,7 +154,7 @@ describe("the resolution layer", () => {
   it("admits a public hostname that resolves to a public address", async () => {
     // The positive control. Without it a resolver that blocks everything would
     // pass every assertion above.
-    MOCK_FETCH.mockImplementation((input: string) =>
+    MOCK_FETCH.mockImplementation(() =>
       Promise.resolve(
         dohResponse("www.example.com", [{ type: 1, data: "93.184.216.34" }]),
       ),

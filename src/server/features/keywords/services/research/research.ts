@@ -348,7 +348,12 @@ export async function research(
             creditFeature,
           );
 
-  await setCached(cacheKey, result, CACHE_TTL.researchResult);
+  await setCached(
+    cacheKey,
+    result,
+    CACHE_TTL.researchResult,
+    billingCustomer.organizationId,
+  );
   persistRows(effectiveInput, result.rows);
 
   return result;

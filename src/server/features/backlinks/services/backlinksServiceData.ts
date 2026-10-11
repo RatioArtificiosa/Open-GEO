@@ -71,7 +71,19 @@ const backlinksOverviewCacheSchema = z.object({
 
 export type BacklinksCache = {
   get(key: string): Promise<unknown>;
-  set(key: string, data: unknown, ttlSeconds: number): Promise<void>;
+  /**
+   * `organizationId` is required, not part of `metadata`.
+   *
+   * An object written without it is invisible to the GDPR erasure sweep — it
+   * matches no tenant, so it is never deleted, and it looks identical to an
+   * object that would have been.
+   */
+  set(
+    key: string,
+    data: unknown,
+    ttlSeconds: number,
+    organizationId: string,
+  ): Promise<void>;
 };
 
 type BacklinksDateRange = {
@@ -114,6 +126,7 @@ export async function profileBacklinksOverview(
       cacheKey,
       { overview },
       BACKLINKS_OVERVIEW_TTL_SECONDS,
+      billingCustomer.organizationId,
     );
     return { overview };
   }
@@ -148,6 +161,7 @@ export async function profileBacklinksOverview(
     cacheKey,
     { overview },
     BACKLINKS_OVERVIEW_TTL_SECONDS,
+    billingCustomer.organizationId,
   );
 
   return { overview };
@@ -197,7 +211,13 @@ export async function profileBacklinksRowsPage(
     rows: mapBacklinksRows(response.items),
     totalCount: response.totalCount,
   });
-  await cacheValue(cache, cacheKey, result, BACKLINKS_TAB_TTL_SECONDS);
+  await cacheValue(
+    cache,
+    cacheKey,
+    result,
+    BACKLINKS_TAB_TTL_SECONDS,
+    billingCustomer.organizationId,
+  );
 
   return result;
 }
@@ -245,7 +265,13 @@ export async function profileReferringDomainsPage(
     rows: mapReferringDomainsRows(response.items),
     totalCount: response.totalCount,
   });
-  await cacheValue(cache, cacheKey, result, BACKLINKS_TAB_TTL_SECONDS);
+  await cacheValue(
+    cache,
+    cacheKey,
+    result,
+    BACKLINKS_TAB_TTL_SECONDS,
+    billingCustomer.organizationId,
+  );
 
   return result;
 }
@@ -285,7 +311,13 @@ export async function profileTopPagesPage(
     rows: mapTopPagesRows(response.items),
     totalCount: response.totalCount,
   });
-  await cacheValue(cache, cacheKey, result, BACKLINKS_TAB_TTL_SECONDS);
+  await cacheValue(
+    cache,
+    cacheKey,
+    result,
+    BACKLINKS_TAB_TTL_SECONDS,
+    billingCustomer.organizationId,
+  );
 
   return result;
 }
@@ -379,8 +411,11 @@ async function cacheValue(
   key: string,
   data: unknown,
   ttlSeconds: number,
+  organizationId: string,
 ) {
-  await cache.set(key, data, ttlSeconds).catch((error: unknown) => {
-    console.error("backlinks.cache-write failed:", error);
-  });
+  await cache
+    .set(key, data, ttlSeconds, organizationId)
+    .catch((error: unknown) => {
+      console.error("backlinks.cache-write failed:", error);
+    });
 }

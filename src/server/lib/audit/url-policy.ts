@@ -147,7 +147,9 @@ async function resolveAddressRecords(
     `${DOH_ENDPOINT}?name=${encodeURIComponent(hostname)}&type=${type}`,
     {
       headers: { Accept: "application/dns-json" },
-      signal: AbortSignal.timeout(2_500),
+      // The declared constant, not a second inline 2_500. Two copies of a timeout is
+      // one that gets tightened for the start URL and left loose for every link.
+      signal: AbortSignal.timeout(LINK_RESOLUTION_TIMEOUT_MS),
     },
   );
 

@@ -108,11 +108,14 @@ async function getOverview(
     // waitUntil, not void: workerd cancels unregistered pending I/O once the
     // response is sent, so a fire-and-forget put never persists the cache.
     waitUntil(
-      setCached(cacheKey, stored, DOMAIN_OVERVIEW_TTL_SECONDS).catch(
-        (error) => {
-          console.error("domain.overview.cache-write failed:", error);
-        },
-      ),
+      setCached(
+        cacheKey,
+        stored,
+        DOMAIN_OVERVIEW_TTL_SECONDS,
+        billingCustomer.organizationId,
+      ).catch((error) => {
+        console.error("domain.overview.cache-write failed:", error);
+      }),
     );
   }
 
@@ -202,14 +205,14 @@ async function getSuggestedKeywords(
 
   if (keywords.length > 0) {
     waitUntil(
-      setCached(cacheKey, keywords, DOMAIN_OVERVIEW_TTL_SECONDS).catch(
-        (error) => {
-          console.error(
-            "domain.keyword-suggestions.cache-write failed:",
-            error,
-          );
-        },
-      ),
+      setCached(
+        cacheKey,
+        keywords,
+        DOMAIN_OVERVIEW_TTL_SECONDS,
+        billingCustomer.organizationId,
+      ).catch((error) => {
+        console.error("domain.keyword-suggestions.cache-write failed:", error);
+      }),
     );
   }
 

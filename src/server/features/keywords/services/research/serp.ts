@@ -123,7 +123,12 @@ async function getSerpLiveAnalysis(
   // waitUntil, not void: workerd cancels unregistered pending I/O once the
   // response is sent, so a fire-and-forget put never persists the cache.
   waitUntil(
-    setCached(cacheKey, result, SERP_CACHE_TTL_SECONDS).catch((error) => {
+    setCached(
+      cacheKey,
+      result,
+      SERP_CACHE_TTL_SECONDS,
+      billingCustomer.organizationId,
+    ).catch((error) => {
       console.error("keywords.serp.cache-write failed:", error);
     }),
   );

@@ -115,10 +115,16 @@ describe("getSerpAnalysis cache depth", () => {
     expect(live).toHaveBeenCalledWith(expect.objectContaining({ depth: 100 }));
     expect(result.items[0]?.title).toBe("Live");
     // The deeper snapshot replaces the shallow entry under the same key.
+    //
+    // **The fourth argument is the tenant, and it is asserted.** The C2 fix made
+    // `organizationId` a required positional argument on `setCached` precisely so a
+    // caller cannot write an object no GDPR erasure can reach. An assertion that
+    // stopped at the ttl would still pass if the argument were dropped.
     expect(mocks.setCached).toHaveBeenCalledWith(
       "serp:analysis:key",
       expect.objectContaining({ depth: 100 }),
       expect.any(Number),
+      billingCustomer.organizationId,
     );
   });
 });

@@ -124,11 +124,14 @@ export async function getKeywordsPage(
   // waitUntil, not void: workerd cancels unregistered pending I/O once the
   // response is sent, so a fire-and-forget put never persists the cache.
   waitUntil(
-    setCached(cacheKey, result, DOMAIN_KEYWORDS_PAGE_TTL_SECONDS).catch(
-      (error) => {
-        console.error("domain.keywords-page.cache-write failed:", error);
-      },
-    ),
+    setCached(
+      cacheKey,
+      result,
+      DOMAIN_KEYWORDS_PAGE_TTL_SECONDS,
+      billingCustomer.organizationId,
+    ).catch((error) => {
+      console.error("domain.keywords-page.cache-write failed:", error);
+    }),
   );
 
   return result;

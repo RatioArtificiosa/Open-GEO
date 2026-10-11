@@ -175,7 +175,12 @@ export async function getBrandLookup(
     ) && crossOutcomes.every((c) => c.status === "success");
   if (allSucceeded && result.hasData) {
     waitUntil(
-      setCached(cacheKey, result, BRAND_LOOKUP_TTL_SECONDS).catch((err) => {
+      setCached(
+        cacheKey,
+        result,
+        BRAND_LOOKUP_TTL_SECONDS,
+        billingCustomer.organizationId,
+      ).catch((err) => {
         console.error("ai-search.brand-lookup.cache-write failed:", err);
       }),
     );

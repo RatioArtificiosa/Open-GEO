@@ -302,11 +302,38 @@ describe("the response cache's freshness policy", () => {
     // deletion request is a privacy bug that no table-level sweep can find, because the
     // data is not in a table — it is an R2 object with no row pointing at it.
     const erasure = readFileSync("src/server/gdpr/storage-erasure.ts", "utf8");
+    const cache = readFileSync("src/server/lib/r2-cache.ts", "utf8");
 
-    expect(erasure).toMatch(/AI_SEARCH_PROMPT_CACHE_NAMESPACE/);
-    expect(erasure).toMatch(/cacheObjectPrefix/);
+    // **The ROOT prefix, not one namespace.**
+    //
+    // This gate used to require `AI_SEARCH_PROMPT_CACHE_NAMESPACE` and
+    // `cacheObjectPrefix` — the two symbols that listed exactly one namespace — and
+    // that meant the gate-of-gates was asserting the defect itself. The sweep deleted
+    // the AI-search prompt cache and left brand lookup, keyword research, SERP rows,
+    // domain overview and backlinks untouched, and every check in the repo said yes.
+    //
+    // **A gate that enshrines a narrow prefix is worse than no gate**, because it turns
+    // "we sweep one bucket" from a bug into a requirement. The root prefix covers what
+    // exists now and what lands later; `customMetadata.organizationId` is still the
+    // only thing that decides deletion, so a wider sweep deletes no more.
+    expect(erasure).toMatch(/CACHE_ROOT_PREFIX/);
+    // **The vendor screenshots, in the same call.** A second bucket added as a second
+    // mechanism is how the two drift, so the argument list carries both.
+    expect(erasure).toMatch(/VENDOR_ASSET_PREFIX/);
     // Listing by prefix rather than deleting by key, because **the key set is unbounded** —
     // a target with forty brand lookups has forty objects and the eraser holds one target.
     expect(erasure).toMatch(/\.list\(/);
+
+    // **And the write side stamps the tenant.** The sweep can only match what the
+    // writer labelled, so a required `organizationId` on `setCached` is the other half
+    // of the same rule — and this is the half the old gate never looked at, which is
+    // why four call sites were writing unerasable objects while the grep passed.
+    expect(cache).toMatch(
+      /export async function setCached<T>\([^)]*organizationId: string/,
+    );
+    // **And the reference subtree is genuinely separate**, so a tenant-less payload
+    // cannot sit in the tree the sweep lists.
+    expect(cache).toMatch(/REFERENCE_CACHE_ROOT_PREFIX/);
+    expect(cache).toMatch(/setReferenceCached/);
   });
 });
