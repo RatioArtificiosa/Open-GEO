@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { createClient, type Client } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as RunBatchModule from "@/db/runBatch";
 import type { GeoService as GeoServiceNamespace } from "./GeoService";
 
 /**
@@ -110,7 +111,7 @@ beforeEach(async () => {
   // test. This is the fourth appearance of "died for an unrelated reason" in this
   // codebase; the pattern is always the same, a mock that replaced more than it meant to.
   vi.doMock("@/db/runBatch", async (importOriginal) => ({
-    ...(await importOriginal<typeof import("@/db/runBatch")>()),
+    ...(await importOriginal<typeof RunBatchModule>()),
     /**
      * `runBatch` takes a **build callback**, not a list of statements, and
      * hands the callback a `tx`. The real D1 `batch` is a driver-only API, so

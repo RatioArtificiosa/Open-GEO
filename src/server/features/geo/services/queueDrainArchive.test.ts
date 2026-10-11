@@ -14,6 +14,7 @@ import {
 vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
 
 import type { runQueueDrain } from "@/server/features/geo/services/queueDrainRunner";
+import type * as RunBatchModule from "@/db/runBatch";
 
 /**
  * The drain **archives** what it collects.
@@ -125,7 +126,7 @@ beforeAll(async () => {
   // test. This is the fourth appearance of "died for an unrelated reason" in this
   // codebase; the pattern is always the same, a mock that replaced more than it meant to.
   vi.doMock("@/db/runBatch", async (importOriginal) => ({
-    ...(await importOriginal<typeof import("@/db/runBatch")>()),
+    ...(await importOriginal<typeof RunBatchModule>()),
     runBatch: async (
       build: (tx: typeof testDb) => readonly Promise<unknown>[],
     ): Promise<void> => {
