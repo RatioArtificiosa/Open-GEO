@@ -18,6 +18,7 @@ import type { fetchSearchIntent } from "@/server/lib/dataforseo/search-intent";
 import { KeywordOpportunityInputsRepository } from "@/server/features/domain/repositories/KeywordOpportunityInputsRepository";
 import type { DataforseoApiCallCost } from "@/server/lib/dataforseo/envelope";
 import { DFS_LABS } from "@/shared/dataforseo-pricing";
+import { etvFields, unverifiedEtvProvenance } from "@/shared/etv-versioning";
 
 /**
  * The billing envelope every `DataforseoApiResponse` carries.
@@ -87,7 +88,7 @@ export const overviewRows =
   (
     rows: Array<{ keyword: string; keyword_difficulty?: number }>,
   ): typeof fetchKeywordOverview =>
-  async ({ keywords }) => ({
+  async ({ keywords, now }) => ({
     data: keywords.flatMap((keyword) => {
       // Matched case-insensitively, because the service lowercases what it sends
       // while a real keyword is stored however it was typed. A case-sensitive
@@ -108,6 +109,10 @@ export const overviewRows =
       ];
     }),
     billing,
+    // The real endpoint returns `etv` but is not on the vendor's confirmed list
+    // for the flag, so the double must return unverifiable provenance too — a
+    // fixture that pinned a version would be a fixture that lied.
+    etv: unverifiedEtvProvenance("keyword_overview", now),
   });
 
 /**
@@ -120,6 +125,7 @@ export const competitorRows =
   async () => ({
     data: domains.map((domain) => ({ domain, etv: 100 })),
     billing,
+    etv: etvFields("serp_competitors"),
   });
 
 /**

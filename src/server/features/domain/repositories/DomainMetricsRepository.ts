@@ -78,10 +78,29 @@ type InsertPoint = {
  * caller cannot compile a path that writes an ETV without its provenance.
  */
 async function insertPoint(input: InsertPoint): Promise<DomainMetricRow> {
-  if (!input.etv || typeof input.etv.requestedAt !== "string") {
+  // **Three separate conditions, because they are three different mistakes.**
+  //
+  // The first two are the original ones: no provenance at all, or provenance
+  // without a request time. The third is new and is the interesting one.
+  // `formulaVersion: null` is what an endpoint on `ETV_UNVERIFIED_LABS_ENDPOINTS`
+  // returns — it carries an `etv` value, but we cannot claim which model
+  // produced it. That is a real answer for a *display*, and not a storable one
+  // for a *trend*: the column is NOT NULL, and it is in the unique key, so
+  // admitting `null` here would make a mixed-origins series representable
+  // instead of refused.
+  //
+  // So the check stays schema-shaped rather than being loosened to match the
+  // new provenance. The right way to record one of these values is beside the
+  // display that produced it, or after CL-712a confirms the endpoint accepts
+  // the flag and moves it onto the pinned list.
+  if (
+    !input.etv ||
+    typeof input.etv.requestedAt !== "string" ||
+    input.etv.formulaVersion == null
+  ) {
     throw new AppError(
       "VALIDATION_ERROR",
-      "Refusing to store an ETV value without its formula version and request time. A value that cannot be attributed to a model is unreadable after the 2026-11-01 ETV change.",
+      "Refusing to store an ETV value without a known formula version and request time. A value that cannot be attributed to a model is unreadable after the 2026-11-01 ETV change.",
     );
   }
 

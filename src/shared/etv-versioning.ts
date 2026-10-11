@@ -69,18 +69,97 @@ export type EtvBearingLabsEndpoint =
   (typeof ETV_BEARING_LABS_ENDPOINTS)[number];
 
 /**
+ * Endpoints whose items carry an `etv` field but which are **not** on the
+ * vendor's list of endpoints the flag applies to.
+ *
+ * These are the honest third category, and they exist because leaving them out
+ * of both lists would make them invisible: an endpoint that returns an ETV and
+ * gets no provenance is exactly the stored value that becomes unreadable on
+ * 2026-11-01, and a gate that checks only the confirmed list would report it
+ * clean.
+ *
+ * **What we do here is deliberately weaker than pinning.** We do not know
+ * whether these endpoints accept `use_new_etv`, so we cannot claim a formula
+ * version for their values — we record `formulaVersion: null`, which
+ * {@link trendCaveat} already handles by always attaching a caveat. Guessing
+ * `legacy` would be the failure this module exists to prevent: an assumption
+ * stated as a fact.
+ *
+ * The list is short and the reason to shorten it is a live verification call
+ * (CL-712a), not a code change. When one is confirmed, move its name to
+ * {@link ETV_BEARING_LABS_ENDPOINTS} and start pinning it.
+ */
+export const ETV_UNVERIFIED_LABS_ENDPOINTS = [
+  "categories_for_domain",
+  "keywords_for_categories",
+  "domain_metrics_by_categories",
+  "keyword_overview",
+] as const;
+
+export type EtvUnverifiedLabsEndpoint =
+  (typeof ETV_UNVERIFIED_LABS_ENDPOINTS)[number];
+
+/** True when an endpoint returns `etv` but does not take the flag. */
+export function isEtvUnverifiedLabsEndpoint(endpoint: string): boolean {
+  return (ETV_UNVERIFIED_LABS_ENDPOINTS as readonly string[]).includes(
+    endpoint,
+  );
+}
+
+/**
  * How an ETV-bearing call was parameterised, carried on the response so the
  * caller can persist it beside the value. A stored ETV without its formula
  * version becomes unreadable after the cutover.
  */
 export type EtvProvenance = {
-  /** Which model produced the numbers in this response. */
-  formulaVersion: EtvFormulaVersion;
+  /**
+   * Which model produced the numbers in this response, or `null` when the
+   * endpoint is on {@link ETV_UNVERIFIED_LABS_ENDPOINTS} and we cannot claim
+   * to know. **`null` is the honest answer, not a gap in the type.**
+   */
+  formulaVersion: EtvFormulaVersion | null;
   /** The flag actually sent, so the request is reproducible. */
   useNewEtv: boolean;
   /** When the request was made, for the audit trail. */
   requestedAt: string;
 };
+
+/**
+ * Provenance for an endpoint that returns `etv` but is not confirmed to accept
+ * the flag.
+ *
+ * `useNewEtv: false` records that no flag was sent — which is the fact, and a
+ * different thing from "the legacy model produced this". `formulaVersion: null`
+ * then marks the value as unreadable-in-isolation rather than wrong.
+ *
+ * A caller that persists these values must let {@link trendCaveat} attach its
+ * unknown-version caveat. **An unstamped value is never filtered away** — we do
+ * not know which model produced it, and assuming one is exactly the guess this
+ * feature exists to avoid.
+ */
+export function unverifiedEtvProvenance(
+  /**
+   * Takes a plain `string`, not the union. The whole point of the function is
+   * that it validates its input, and a validated input should not be narrowed
+   * by its type — callers arrive holding an endpoint name from a response path
+   * or a config value, which is a string at the boundary. Typing the parameter
+   * as the union would move the check to compile time for the callers that can
+   * already satisfy it, and leave it unchecked for the ones that cannot.
+   */
+  endpoint: string,
+  now?: Date,
+): EtvProvenance {
+  if (!isEtvUnverifiedLabsEndpoint(endpoint)) {
+    throw new Error(
+      `${endpoint} is not an unverified ETV endpoint; use resolveEtvMode and pin the flag instead`,
+    );
+  }
+  return {
+    formulaVersion: null,
+    useNewEtv: false,
+    requestedAt: (now ?? new Date()).toISOString(),
+  };
+}
 
 type EtvModeInput = {
   /**
@@ -176,6 +255,40 @@ export function resolveEtvMode(input: EtvModeInput = {}): {
     useNewEtv: true,
     reason:
       "after the cutover date; pinning the flag explicitly because the account registration date is unknown",
+  };
+}
+
+/**
+ * Resolve and apply the ETV mode for a Labs call, as a request body field plus
+ * its provenance.
+ *
+ * ## Why this lives here rather than in the Labs client
+ *
+ * It is a pure function of `resolveEtvMode` with no dependency on the transport,
+ * so it belongs beside the resolver it wraps. It lived in `labs.ts` until a test
+ * double needed it to build a stub's provenance, at which point the choice was
+ * between importing a server module from a fixture and duplicating the three
+ * fields — and both are the same mistake in different clothes: a second place
+ * the flag's value is decided.
+ *
+ * ## Why the two spellings are in one object
+ *
+ * `useNewEtv` is camelCase for callers, `use_new_etv` is the wire name. Spreading
+ * the returned object into a task body puts the right name on the wire while the
+ * provenance keeps the readable one, and a mismatch between the two would be a
+ * silent lie in the archive — so they are computed from the same value rather
+ * than passed separately.
+ */
+export function etvFields(
+  endpoint: EtvBearingLabsEndpoint,
+  now?: Date,
+): EtvProvenance & { use_new_etv: boolean } {
+  const mode = resolveEtvMode({ endpoint, now });
+  return {
+    formulaVersion: mode.version,
+    useNewEtv: mode.useNewEtv,
+    use_new_etv: mode.useNewEtv,
+    requestedAt: (now ?? new Date()).toISOString(),
   };
 }
 

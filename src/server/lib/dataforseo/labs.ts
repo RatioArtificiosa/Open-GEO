@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { dataforseoPost } from "@/server/lib/dataforseo/core";
 import {
-  resolveEtvMode,
-  type EtvBearingLabsEndpoint,
+  etvFields,
+  unverifiedEtvProvenance,
   type EtvProvenance,
 } from "@/shared/etv-versioning";
 import {
@@ -12,26 +12,6 @@ import {
   type DataforseoApiResponse,
   type DataforseoItemsTask,
 } from "@/server/lib/dataforseo/envelope";
-
-/**
- * Resolve and apply the ETV mode for a Labs call.
- *
- * The returned `useNewEtv` is spread into the task body, so the flag we
- * recorded is literally the flag we sent — a mismatch between the two would be a
- * silent lie in the archive.
- */
-export function etvFields(
-  endpoint: EtvBearingLabsEndpoint,
-  now?: Date,
-): EtvProvenance & { use_new_etv: boolean } {
-  const mode = resolveEtvMode({ endpoint, now });
-  return {
-    formulaVersion: mode.version,
-    useNewEtv: mode.useNewEtv,
-    use_new_etv: mode.useNewEtv,
-    requestedAt: (now ?? new Date()).toISOString(),
-  };
-}
 
 // Labs payload types: the fields the app reads, typed honestly (the wire nulls
 // any of them); the index signature carries everything else through untyped,
@@ -349,7 +329,8 @@ export async function fetchRelevantPages(input: {
   offset?: number;
   orderBy?: string[];
   filters?: unknown[];
-}): Promise<DataforseoApiResponse<RelevantPagesPage>> {
+}): Promise<DataforseoApiResponse<RelevantPagesPage> & { etv: EtvProvenance }> {
+  const etv = etvFields("relevant_pages");
   const response = await dataforseoPost<DataforseoItemsTask<RelevantPagesItem>>(
     "/v3/dataforseo_labs/google/relevant_pages/live",
     [
@@ -361,6 +342,9 @@ export async function fetchRelevantPages(input: {
         offset: input.offset,
         order_by: input.orderBy,
         filters: input.filters,
+        // Pin the ETV model explicitly so the stored value stays comparable with
+        // our history after the vendor's 2026-11-01 cutover.
+        use_new_etv: etv.useNewEtv,
       },
     ],
   );
@@ -371,6 +355,10 @@ export async function fetchRelevantPages(input: {
       totalCount: task.result?.[0]?.total_count ?? null,
     },
     billing: buildTaskBilling(task),
+    // The task envelope does not carry which flag was sent, so provenance is
+    // captured here or not at all — and an ETV stored without its formula
+    // version becomes unreadable after the cutover.
+    etv,
   };
 }
 
@@ -379,7 +367,15 @@ export async function fetchKeywordOverview(input: {
   locationCode: number;
   languageCode: string;
   includeClickstreamData?: boolean;
-}): Promise<DataforseoApiResponse<KeywordOverviewItem[]>> {
+  now?: Date;
+}): Promise<
+  DataforseoApiResponse<KeywordOverviewItem[]> & { etv: EtvProvenance }
+> {
+  // No flag is sent: the endpoint's items carry `etv` but it is not on the
+  // vendor's confirmed list of endpoints the flag applies to, so claiming a
+  // formula version would be a guess stated as a fact. `null` marks the value
+  // as uncomparable rather than wrong.
+  const etv = unverifiedEtvProvenance("keyword_overview", input.now);
   const response = await dataforseoPost<
     DataforseoItemsTask<KeywordOverviewItem>
   >("/v3/dataforseo_labs/google/keyword_overview/live", [
@@ -394,6 +390,7 @@ export async function fetchKeywordOverview(input: {
   return {
     data: task.result?.[0]?.items ?? [],
     billing: buildTaskBilling(task),
+    etv,
   };
 }
 
@@ -405,7 +402,10 @@ export async function fetchSerpCompetitors(input: {
   includeSubdomains?: boolean;
   limit: number;
   offset?: number;
-}): Promise<DataforseoApiResponse<SerpCompetitorItem[]>> {
+}): Promise<
+  DataforseoApiResponse<SerpCompetitorItem[]> & { etv: EtvProvenance }
+> {
+  const etv = etvFields("serp_competitors");
   const response = await dataforseoPost<
     DataforseoItemsTask<SerpCompetitorItem>
   >("/v3/dataforseo_labs/google/serp_competitors/live", [
@@ -417,11 +417,15 @@ export async function fetchSerpCompetitors(input: {
       include_subdomains: input.includeSubdomains,
       limit: input.limit,
       offset: input.offset,
+      // Pin the ETV model explicitly so the stored value stays comparable with
+      // our history after the vendor's 2026-11-01 cutover.
+      use_new_etv: etv.useNewEtv,
     },
   ]);
   const task = assertOk(response);
   return {
     data: task.result?.[0]?.items ?? [],
     billing: buildTaskBilling(task),
+    etv,
   };
 }

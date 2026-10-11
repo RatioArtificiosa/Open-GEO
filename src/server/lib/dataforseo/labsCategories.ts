@@ -13,6 +13,10 @@
 import { dataforseoPost } from "@/server/lib/dataforseo/core";
 import { AppError } from "@/server/lib/errors";
 import {
+  unverifiedEtvProvenance,
+  type EtvProvenance,
+} from "@/shared/etv-versioning";
+import {
   assertOk,
   buildTaskBilling,
   type DataforseoApiResponse,
@@ -88,12 +92,14 @@ type CategoryKeywordItem = {
  * `includeClickstreamData` **doubles the vendor's price**, so it is an explicit caller choice
  * rather than a default.
  *
- * **No `use_new_etv` flag is sent, and that is a known gap rather than an oversight.** The
+ * **No `use_new_etv` flag is sent, and that is a decision rather than an oversight.** The
  * endpoint returns `etv`, but it is not on `ETV_BEARING_LABS_ENDPOINTS` — the vendor's list of
  * endpoints that take the flag — so an unversioned number is what comes back, and the vendor
- * switches ETV models on 2026-11-01. Verifying whether this endpoint accepts the parameter is
- * CL-712a's job; until then, a caller recording these values should know they carry no formula
- * version.
+ * switches ETV models on 2026-11-01. Instead of leaving that implicit, the response carries
+ * `etv` provenance with `formulaVersion: null` from `ETV_UNVERIFIED_LABS_ENDPOINTS`, which makes
+ * a caller recording these values unable to record them as versioned. Verifying whether the
+ * endpoint accepts the parameter is CL-712a's job; when it is confirmed the name moves to the
+ * confirmed list and the flag starts being pinned.
  */
 export async function fetchCategoriesForDomain(input: {
   target: string;
@@ -104,7 +110,10 @@ export async function fetchCategoriesForDomain(input: {
   limit: number;
   offset?: number;
   orderBy?: string[];
-}): Promise<DataforseoApiResponse<CategoryForDomainItem[]>> {
+  now?: Date;
+}): Promise<
+  DataforseoApiResponse<CategoryForDomainItem[]> & { etv: EtvProvenance }
+> {
   const response = await dataforseoPost<
     DataforseoItemsTask<CategoryForDomainItem>
   >("/v3/dataforseo_labs/google/categories_for_domain/live", [
@@ -123,6 +132,10 @@ export async function fetchCategoriesForDomain(input: {
   return {
     data: task.result?.[0]?.items ?? [],
     billing: buildTaskBilling(task),
+    // The endpoint returns `etv` but is not on the vendor's confirmed list for the
+    // flag, so no formula version is claimed. `formulaVersion: null` is the honest
+    // value and `trendCaveat` attaches the caveat it requires.
+    etv: unverifiedEtvProvenance("categories_for_domain", input.now),
   };
 }
 
@@ -150,6 +163,7 @@ export async function fetchCategoriesForDomain(input: {
  * the task's own `cost` are the authorities.
  */
 export async function fetchKeywordsForCategories(input: {
+  now?: Date;
   categoryCodes: number[];
   locationCode: number;
   languageCode: string;
@@ -191,5 +205,9 @@ export async function fetchKeywordsForCategories(input: {
   return {
     data: task.result?.[0]?.items ?? [],
     billing: buildTaskBilling(task),
+    // The endpoint returns `etv` but is not on the vendor's confirmed list for the
+    // flag, so no formula version is claimed. `formulaVersion: null` is the honest
+    // value and `trendCaveat` attaches the caveat it requires.
+    etv: unverifiedEtvProvenance("keywords_for_categories", input.now),
   };
 }

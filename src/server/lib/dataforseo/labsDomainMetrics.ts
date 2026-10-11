@@ -32,6 +32,10 @@
 import { dataforseoPost } from "@/server/lib/dataforseo/core";
 import { AppError } from "@/server/lib/errors";
 import {
+  unverifiedEtvProvenance,
+  type EtvProvenance,
+} from "@/shared/etv-versioning";
+import {
   assertOk,
   buildTaskBilling,
   type DataforseoApiResponse,
@@ -139,7 +143,9 @@ export async function fetchDomainMetricsByCategories(input: {
   orderBy?: string[];
   /** Injectable so the future-date rule is testable rather than clock-dependent. */
   now?: Date;
-}): Promise<DataforseoApiResponse<CategoryDomainMetricsItem[]>> {
+}): Promise<
+  DataforseoApiResponse<CategoryDomainMetricsItem[]> & { etv: EtvProvenance }
+> {
   // Refused rather than truncated, as with its sibling: answering about three categories when five
   // were asked for is a different answer, and the caller would have no way to see that.
   if (
@@ -186,5 +192,8 @@ export async function fetchDomainMetricsByCategories(input: {
   return {
     data: task.result?.[0]?.items ?? [],
     billing: buildTaskBilling(task),
+    // Carries `etv` on its items but is not on the vendor's confirmed list for the
+    // flag, so no formula version is claimed: `formulaVersion: null`.
+    etv: unverifiedEtvProvenance("domain_metrics_by_categories", input.now),
   };
 }

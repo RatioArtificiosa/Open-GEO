@@ -25,10 +25,10 @@ import {
   type DataforseoApiResponse,
   type DataforseoItemsTask,
 } from "@/server/lib/dataforseo/envelope";
-import { etvFields } from "./labs";
-import type {
-  EtvBearingLabsEndpoint,
-  EtvProvenance,
+import {
+  etvFields,
+  type EtvBearingLabsEndpoint,
+  type EtvProvenance,
 } from "@/shared/etv-versioning";
 
 /**

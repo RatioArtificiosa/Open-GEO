@@ -19,6 +19,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { runDueOpportunityInputCaptures } from "./scheduledOpportunityInputs";
 import { DFS_LABS } from "@/shared/dataforseo-pricing";
+import { etvFields, unverifiedEtvProvenance } from "@/shared/etv-versioning";
 import {
   NIGHTLY_BUDGET_USD,
   NIGHTLY_PROJECT_SWEEP_LIMIT,
@@ -136,11 +137,15 @@ describe("runDueOpportunityInputCaptures", () => {
             path: ["/v3/dataforseo_labs/google/keyword_overview/live"],
             costUsd: UNIT,
           },
+          // keyword_overview is not on the vendor's confirmed list for the flag,
+          // so the stub returns unverifiable provenance, exactly like the real one.
+          etv: unverifiedEtvProvenance("keyword_overview"),
         };
       },
       fetchCompetitors: async () => ({
         data: [],
         billing: { path: ["serp_competitors"], costUsd: UNIT },
+        etv: etvFields("serp_competitors"),
       }),
       fetchIntent: async () => ({
         data: { items: [] },

@@ -41,6 +41,22 @@ const PROVENANCE: EtvProvenance = {
  */
 const MISSING_PROVENANCE: EtvProvenance | undefined = undefined;
 
+/**
+ * Unverifiable provenance: the endpoint returns an `etv` value but is not on
+ * the vendor's confirmed list for the flag, so no formula version is claimed.
+ *
+ * **This is a distinct refusal, not a variant of the one above.** A caller that
+ * only checks for `undefined` sails past it, and a `null` version reaching a
+ * NOT NULL column would be a constraint failure at the database rather than the
+ * error message the caller needs — so it is asserted here, in the layer that
+ * owns the rule.
+ */
+const UNVERIFIABLE_PROVENANCE: EtvProvenance = {
+  formulaVersion: null,
+  useNewEtv: false,
+  requestedAt: "2026-10-11T00:00:00.000Z",
+};
+
 beforeAll(async () => {
   client = createClient({ url: "file::memory:" });
   const testDb = drizzle(client);
@@ -99,7 +115,26 @@ describe("DomainMetricsRepository", () => {
         ...POINT,
         etv: MISSING_PROVENANCE,
       }),
-    ).rejects.toThrow(/without its formula version/i);
+    ).rejects.toThrow(/without a known formula version/i);
+
+    const rows = await client.execute(
+      "SELECT COUNT(*) AS n FROM domain_metrics",
+    );
+    expect(Number(rows.rows[0]?.n)).toBe(0);
+  });
+
+  it("refuses an unverifiable formula version rather than storing it as null", async () => {
+    // `formulaVersion: null` is the honest answer for an endpoint on
+    // ETV_UNVERIFIED_LABS_ENDPOINTS — it carries a value we cannot attribute to
+    // a model. It is not a storable answer for a trend, because the column is
+    // NOT NULL *and* part of the unique key: admitting null would make a
+    // mixed-origins series representable instead of refused.
+    await expect(
+      DomainMetricsRepository.insertPoint({
+        ...POINT,
+        etv: UNVERIFIABLE_PROVENANCE,
+      }),
+    ).rejects.toThrow(/without a known formula version/i);
 
     const rows = await client.execute(
       "SELECT COUNT(*) AS n FROM domain_metrics",
