@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { getRequiredEnvValue } from "@/server/lib/runtime-env";
-import { captureServerError } from "@/server/lib/posthog";
+import { captureServerError, captureServerEvent } from "@/server/lib/posthog";
 import { trackDubSalesForOrganization } from "@/server/referrals/dub";
 import { syncAutumnCustomerStatus } from "./customer-status-sync";
 import { verifySvixSignature } from "./svix";
+import { FUNNEL_EVENTS } from "@/shared/analytics-events";
 
 export const AUTUMN_WEBHOOK_PATH = "/api/autumn/webhook";
 
@@ -78,6 +79,25 @@ export async function handleAutumnWebhookRequest(request: Request) {
     // Referral revenue attribution; internally fire-and-forget and can never
     // fail the webhook response.
     await trackDubSalesForOrganization(customerId);
+
+    // The funnel's paid stage.
+    //
+    // Fired after the sync, not before, because the sync is what makes the
+    // claim true — an event recorded for a billing state that failed to land is
+    // a conversion that did not happen, counted as one that did. The failure
+    // path above has already returned by the time this runs.
+    //
+    // **No plan name is recorded**, deliberately. A webhook payload's customer
+    // record is Autumn's shape and we do not parse it here; the sync writes the
+    // durable state. Recording a plan we did not read would be inventing a
+    // property, and a funnel whose stage carries a field nothing verified is
+    // worse than one whose stage carries a count.
+    await captureServerEvent({
+      distinctId: customerId,
+      event: FUNNEL_EVENTS.planChanged,
+      properties: { source: "autumn_webhook" },
+      organizationId: customerId,
+    });
   }
 
   return json({ received: true });

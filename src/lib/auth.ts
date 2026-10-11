@@ -20,6 +20,8 @@ import {
 } from "@/lib/auth-turnstile";
 import { resolveSignInHostedOrganization } from "@/server/auth/default-hosted-organization";
 import { onInvitationAccepted } from "@/server/auth/invited-member";
+import { recordFunnelSignup } from "@/shared/analytics-funnel";
+import { captureServerEvent } from "@/server/lib/posthog";
 import { AuthRepository } from "@/server/auth/repositories/AuthRepository";
 import { captureDubReferralSignup } from "@/server/referrals/dub";
 import {
@@ -230,6 +232,26 @@ function createAuth() {
             if (isHostedAuthMode(env.AUTH_MODE)) {
               await captureDubReferralSignup(user.id, ctx?.request);
             }
+            // **The funnel's signup stage**, from the only seam that has one.
+            //
+            // `databaseHooks.user.create.after` runs exactly once per user row,
+            // which is the fact the funnel needs — every other option either runs
+            // per request (the hosted context resolution, which resolves on every
+            // authenticated call) or guesses at "first dashboard seen", which is
+            // activation, not signup.
+            //
+            // Fired outside the hosted check on purpose: a self-hosted install
+            // has no pool to protect, but a funnel should not be defined by which
+            // deployment it ran on. `captureServerEvent` itself is a no-op when
+            // not hosted, so the cost is one call that returns immediately.
+            await recordFunnelSignup(user, (event, properties) =>
+              captureServerEvent({
+                distinctId: user.id,
+                event,
+                properties,
+                organizationId: user.id,
+              }),
+            );
           },
         },
       },

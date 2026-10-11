@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { AlertTriangle, RefreshCw, SearchCheck } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { GeoVisibilityPanel } from "./GeoVisibilityPanel";
@@ -9,6 +10,8 @@ import { VisibilityForecast } from "./VisibilityForecast";
 import { NewLostPanel, TopCitedPanel, MetricFootnote } from "./LivePanels";
 import { ScoreRing } from "./ScoreRing";
 import { useGeoPageData } from "./useGeoPageData";
+import { FUNNEL_EVENTS } from "@/shared/analytics-events";
+import { captureClientEvent } from "@/client/lib/posthog";
 
 /**
  * The GEO page: what AI systems actually say about this brand, kept over time.
@@ -22,6 +25,32 @@ import { useGeoPageData } from "./useGeoPageData";
 
 export function GeoPage({ projectId }: { projectId: string }) {
   const data = useGeoPageData(projectId);
+
+  // The GEO activation stage (CL-617), once per project per browser session.
+  //
+  // **Session-scoped rather than server-verified, and that is a limitation worth
+  // stating.** A "first dashboard" is a fact about the user's history, and the
+  // honest way to know it is a server query per page view, which is a request on
+  // the critical path to render a counter. The browser's sessionStorage is the
+  // cheap approximation, and it is biased in a known direction: it over-counts,
+  // because two browsers or a cleared storage both read as first.
+  //
+  // An approximate activation count is still the difference between a funnel with
+  // a visible stage and one that guesses at its own middle. What it is not is a
+  // precise figure, so it must not be reported as one.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = "geoActivationRecorded";
+    try {
+      if (window.sessionStorage.getItem(key) === projectId) return;
+      window.sessionStorage.setItem(key, projectId);
+    } catch {
+      // Storage can be unavailable (private mode, a blocked API). An event that
+      // cannot be de-duplicated is not worth failing a page over, and the honest
+      // degradation is to record it and accept the count may be high.
+    }
+    captureClientEvent(FUNNEL_EVENTS.geoActivation, { projectId });
+  }, [projectId]);
 
   return (
     <div className="overflow-auto px-4 py-4 pb-24 md:px-6 md:py-6 md:pb-8">

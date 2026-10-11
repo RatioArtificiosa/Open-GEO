@@ -33,8 +33,10 @@
  * - an insight and no outreach — everything cited is already reachable;
  * - an insight with a list.
  */
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { CitationGraphView } from "./CitationGraphView";
+import { FUNNEL_EVENTS } from "@/shared/analytics-events";
+import { captureClientEvent } from "@/client/lib/posthog";
 
 /** One row, as `buildCitationGraph` produces it. */
 type EarnableDomain = {
@@ -92,6 +94,26 @@ export function EarnTheCitationPanel({
       </section>
     );
   }
+
+  // **The wow event (CL-617), fired once per insight, not once per paint.**
+  //
+  // The insight is the moment the proposal names: the reader learns whose pages
+  // are cited instead of theirs, and the product exists for that sentence. It is
+  // recorded because a funnel's activation stage is otherwise invisible — a GEO
+  // dashboard that loads but never produces an insight is a dashboard nobody
+  // used, and nothing else distinguishes the two.
+  //
+  // The `insight === null` case is excluded deliberately. "Not enough archived
+  // answers yet" is not the wow moment, and counting it as one would make the
+  // stage include everyone who ever opened the page.
+  //
+  // Declared above the error return so it never becomes a conditional hook.
+  useEffect(() => {
+    if (data.insight === null) return;
+    captureClientEvent(FUNNEL_EVENTS.citationGapViewed, {
+      target: targetName,
+    });
+  }, [data.insight, targetName]);
 
   const hasWork = data.outreach.some((row) => row.nextStep !== null);
 
