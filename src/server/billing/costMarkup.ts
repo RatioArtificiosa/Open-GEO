@@ -144,14 +144,33 @@ export async function setConfiguredCostMarkupOverride(args: {
       key: COST_MARKUP_CONFIG_KEY,
       value: String(markup),
       updatedByUserId: args.updatedByUserId ?? null,
+      updatedAt: nowIso(),
     })
     .onConflictDoUpdate({
       target: billingConfig.key,
       set: {
         value: String(markup),
         updatedByUserId: args.updatedByUserId ?? null,
+        // **Set it here too, or it only ever holds the insert time.** A column
+        // default runs on INSERT and never on the UPDATE half of an upsert, so
+        // an audit row that records who changed the markup would keep saying
+        // when it was first created. The same mistake in a log line is a
+        // timestamp that never moves; in a billing audit trail it is a row
+        // that lies about when the margin was changed.
+        updatedAt: nowIso(),
       },
     });
+}
+
+/**
+ * An ISO-8601 UTC timestamp, matching how both dialects store `updated_at`.
+ *
+ * Passed in from the application rather than left to a SQL default, because a
+ * default does not fire on the UPDATE half of an upsert — which is exactly
+ * where this column is needed.
+ */
+function nowIso(): string {
+  return new Date().toISOString();
 }
 
 /**

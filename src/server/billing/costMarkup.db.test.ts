@@ -118,6 +118,66 @@ it("records who changed the dial", async () => {
   });
 });
 
+// The column default fires on INSERT and never on the UPDATE half of an upsert,
+// so an explicit value is the only thing that makes this column mean "when the
+// dial moved" rather than "when the dial was first written". CodeRabbit caught
+// the omission; the row would have kept its insert timestamp forever.
+it("moves the timestamp when the dial changes, and the actor with it", async () => {
+  // Both actors, because the foreign key is real. The column records who made
+  // the change, so a change attributed to a user who does not exist is not a
+  // record of anything.
+  await client.executeMultiple(`
+    INSERT INTO user (id, name, email) VALUES ('user_first', 'First', 'first@example.com');
+    INSERT INTO user (id, name, email) VALUES ('user_second', 'Second', 'second@example.com');
+  `);
+  await mod.setConfiguredCostMarkupOverride({
+    markup: 1.4,
+    updatedByUserId: "user_first",
+  });
+  const before = await readUpdatedAt();
+  expect(before).not.toBeNull();
+
+  // A timestamp written by the same clock one millisecond later is the
+  // smallest difference the column is able to represent, and the smallest one
+  // that still proves the value is not frozen.
+  await sleep(2);
+  await mod.setConfiguredCostMarkupOverride({
+    markup: 1.75,
+    updatedByUserId: "user_second",
+  });
+  const after = await readUpdatedAt();
+  expect(after).not.toBeNull();
+  expect(after).not.toBe(before);
+
+  // And the actor, for the same reason — an audit row with the right timestamp
+  // and the wrong person attributes the change to somebody else.
+  const rows = await client.execute(
+    "SELECT updated_by_user_id FROM billing_config",
+  );
+  expect(rows.rows[0]?.updated_by_user_id).toBe("user_second");
+});
+
+/**
+ * The raw value of `updated_at`, whatever the driver hands back.
+ *
+ * The value is only ever compared for change, so its exact runtime type does
+ * not matter — and reading it as `unknown` rather than through `String()` avoids
+ * both no-base-to-string, which flags stringifying a value the type system
+ * cannot vouch for, and pretending to know a type the untyped SQL path does not
+ * give us.
+ */
+async function readUpdatedAt(): Promise<unknown> {
+  const rows = await client.execute({
+    sql: "SELECT updated_at FROM billing_config WHERE key = ?",
+    args: [mod.COST_MARKUP_CONFIG_KEY],
+  });
+  return rows.rows[0]?.updated_at ?? null;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // A row holding garbage must fail loudly. Swallowing it would fall through to
 // no markup — the one failure mode this design exists to avoid, because a
 // charge that never happened looks exactly like a free product.
