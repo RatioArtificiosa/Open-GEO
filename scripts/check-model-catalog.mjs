@@ -39,6 +39,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 /**
  * Declared in JSDoc rather than TypeScript, because this file has to be
@@ -237,7 +238,13 @@ function main() {
 const isMain = (() => {
   const entry = process.argv[1];
   if (!entry) return false;
-  return resolve(entry) === resolve(import.meta.url.replace("file:///", ""));
+  // **`fileURLToPath`, not a string replace.** The first version stripped
+  // `"file:///"` from `import.meta.url` and prefixed `"/"`, which works on Windows
+  // and is wrong on POSIX: there the leading slash is part of the drive-root
+  // handling, so the two sides of the comparison differ by one character, `main()`
+  // never runs, and the gate exits 0 having checked nothing. CodeRabbit flagged it;
+  // the fix is the module that does the conversion rather than a hand-rolled one.
+  return resolve(entry) === resolve(fileURLToPath(import.meta.url));
 })();
 
 if (isMain) main();

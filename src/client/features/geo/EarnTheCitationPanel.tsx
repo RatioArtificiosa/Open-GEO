@@ -83,6 +83,35 @@ export function EarnTheCitationPanel({
   // the error return, since a hook after it would be conditional.
   const [view, setView] = useState<"list" | "graph">("list");
 
+  // **The wow event (CL-617), fired once per insight, not once per paint.**
+  //
+  // The insight is the moment the proposal names: the reader learns whose pages
+  // are cited instead of theirs, and the product exists for that sentence. It is
+  // recorded because a funnel's activation stage is otherwise invisible — a GEO
+  // dashboard that loads but never produces an insight is a dashboard nobody
+  // used, and nothing else distinguishes the two.
+  //
+  // Two states are excluded deliberately, and both are "no finding" rather than
+  // "no reader": `insight === null` means the archive is too thin, and
+  // `errorMessage` means the read failed. Counting either as the wow moment would
+  // make the stage include everyone who ever opened the page.
+  //
+  // **Declared above the error return, because a hook after an early return is a
+  // conditional hook.** CodeRabbit flagged the first placement for exactly this:
+  // the effect sat below the `errorMessage !== null` return, so an error state
+  // arriving or clearing changed the number of hooks React saw and corrupted the
+  // order. The failure is invisible in the passing tests — an error that arrives
+  // while the panel is mounted is the case that breaks, and nothing in the suite
+  // mounts the error state and then clears it. `errorMessage` is in the dependency
+  // list for the same reason: without it the effect would re-run on the stale
+  // closure after the error cleared.
+  useEffect(() => {
+    if (errorMessage !== null || data.insight === null) return;
+    captureClientEvent(FUNNEL_EVENTS.citationGapViewed, {
+      target: targetName,
+    });
+  }, [data.insight, targetName, errorMessage]);
+
   if (errorMessage !== null) {
     return (
       <section
@@ -94,26 +123,6 @@ export function EarnTheCitationPanel({
       </section>
     );
   }
-
-  // **The wow event (CL-617), fired once per insight, not once per paint.**
-  //
-  // The insight is the moment the proposal names: the reader learns whose pages
-  // are cited instead of theirs, and the product exists for that sentence. It is
-  // recorded because a funnel's activation stage is otherwise invisible — a GEO
-  // dashboard that loads but never produces an insight is a dashboard nobody
-  // used, and nothing else distinguishes the two.
-  //
-  // The `insight === null` case is excluded deliberately. "Not enough archived
-  // answers yet" is not the wow moment, and counting it as one would make the
-  // stage include everyone who ever opened the page.
-  //
-  // Declared above the error return so it never becomes a conditional hook.
-  useEffect(() => {
-    if (data.insight === null) return;
-    captureClientEvent(FUNNEL_EVENTS.citationGapViewed, {
-      target: targetName,
-    });
-  }, [data.insight, targetName]);
 
   const hasWork = data.outreach.some((row) => row.nextStep !== null);
 
