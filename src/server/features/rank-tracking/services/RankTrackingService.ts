@@ -3,6 +3,7 @@ import {
   customerHasPaidPlan,
   type BillingCustomerContext,
 } from "@/server/billing/subscription";
+import { resolveCostMarkup } from "@/server/billing/costMarkup";
 import {
   createDataforseoClient,
   fetchKeywordMetricsForList,
@@ -231,11 +232,16 @@ async function triggerCheck(input: {
   }
 
   if (input.maxCostCredits != null) {
+    // The approval ceiling is priced at the live rate, the same one the
+    // workflow will charge at. See src/server/billing/costMarkup.ts for why the
+    // value is resolved rather than read from a constant.
+    const markup = await resolveCostMarkup();
     const { costCredits } = estimateRankCheckCredits(
       keywords.length,
       config.devices,
       config.serpDepth,
       "live",
+      markup,
     );
     if (costCredits > input.maxCostCredits) {
       throw new AppError(

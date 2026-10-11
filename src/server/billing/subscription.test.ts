@@ -4,7 +4,6 @@ import {
   AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
   AUTUMN_SEO_DATA_CREDITS_PER_USD,
   AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
-  SEO_DATA_COST_MARKUP,
 } from "@/shared/billing";
 
 const { checkMock, getOrCreateMock, kvGetMock, kvPutMock } = vi.hoisted(() => ({
@@ -15,7 +14,13 @@ const { checkMock, getOrCreateMock, kvGetMock, kvPutMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("cloudflare:workers", () => ({
-  env: { KV: { get: kvGetMock, put: kvPutMock } },
+  env: {
+    KV: { get: kvGetMock, put: kvPutMock },
+    // The markup resolver is partially mocked below, and the real one loads
+    // `@/db` for the operator-override read. The handle is never queried in
+    // this file (the dial is pinned), but the import chain needs the binding.
+    DATABASE_PROVIDER: "d1",
+  },
 }));
 
 vi.mock("@/server/billing/autumn", () => ({
@@ -35,6 +40,19 @@ vi.mock("@/server/lib/runtime-env", () => ({
 // the test doesn't pull in the cloudflare:workers runtime it depends on.
 vi.mock("@/server/lib/posthog", () => ({
   captureServerEvent: vi.fn(),
+}));
+
+// The multiplier is an operator dial resolved from configuration at request
+// time, so a unit test pins it rather than reading whatever the environment
+// happens to hold. `costMarkup.db.test.ts` covers the resolution order
+// against the real table; this file covers the arithmetic that consumes it.
+const TEST_MARKUP = 1.28;
+
+vi.mock(import("@/server/billing/costMarkup"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  // Only the dial is pinned; the arithmetic stays the real one, so these
+  // cases still exercise the rounding and ceiling that decide a charge.
+  resolveCostMarkup: vi.fn(async () => TEST_MARKUP),
 }));
 
 import {
@@ -106,7 +124,13 @@ describe("subscription billing", () => {
     const result = assertUsageCreditsAvailable("org_123");
     await vi.runAllTimersAsync();
 
-    await expect(result).resolves.toEqual({ monthlyRemaining: 250 });
+    // `markup` comes back so the caller can hand the same value to
+    // `trackUsageCreditSpend`: a floor priced at one rate and a charge priced
+    // at another is the disagreement this gate exists to prevent.
+    await expect(result).resolves.toEqual({
+      monthlyRemaining: 250,
+      markup: TEST_MARKUP,
+    });
     expect(monthlyChecks).toBe(2);
   });
 
@@ -284,8 +308,7 @@ describe("assertUsageCreditsAvailable's affordability floor", () => {
     // `AUTUMN_SEO_DATA_CREDITS_PER_USD` is 1000, not 10_000. A test whose
     // arithmetic disagrees with the module it is testing passes for the wrong
     // reason, and only the failing case exposed it.
-    const affordable =
-      57_000 / (SEO_DATA_COST_MARKUP * AUTUMN_SEO_DATA_CREDITS_PER_USD);
+    const affordable = 57_000 / (TEST_MARKUP * AUTUMN_SEO_DATA_CREDITS_PER_USD);
     expect(await assert(57_000, affordable)).toBeNull();
     expect(await assert(57_000, affordable + 0.01)).toBe(
       "INSUFFICIENT_CREDITS",

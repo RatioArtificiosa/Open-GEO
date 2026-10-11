@@ -4,11 +4,7 @@ import { Info, Loader2, X } from "lucide-react";
 import { Modal } from "@/client/components/Modal";
 import type { RankTrackingConfig } from "@/types/schemas/rank-tracking";
 import { domainField, normalizeDomain } from "@/types/schemas/domain";
-import {
-  depthToPages,
-  pagesToDepth,
-  estimateRankCheckCredits,
-} from "@/shared/rank-tracking";
+import { depthToPages, pagesToDepth } from "@/shared/rank-tracking";
 import { getLanguageCode } from "@/client/features/keywords/locations";
 import {
   SERP_LANGUAGE_OPTIONS,
@@ -18,6 +14,7 @@ import { LocationSelect } from "@/client/components/LocationSelect";
 import type { ProjectMarket } from "@/client/features/projects/types";
 import { useProjectMarket } from "@/client/features/projects/useProjectMarket";
 import { SearchTargetingField } from "./SearchTargetingField";
+import { RankCheckCostBreakdown } from "./RankCheckCostBreakdown";
 import { KeywordSuggestionStep } from "./KeywordSuggestionStep";
 import { useSaveConfigMutations } from "./useSaveConfigMutations";
 
@@ -342,37 +339,12 @@ function RankTrackingConfigModalContent({
           </div>
         </div>
 
-        {(() => {
-          // Scheduled checks run through the cheaper task queue; manual
-          // configs only ever pay the live price.
-          const { costUsd: costPerKeyword } = estimateRankCheckCredits(
-            1,
-            devices,
-            serpDepth,
-            schedule === "manual" ? "live" : "queued",
-          );
-          const checksPerMonth =
-            schedule === "daily" ? 30 : schedule === "weekly" ? 4 : 1;
-          return (
-            <div className="rounded-lg bg-base-200/50 px-3 py-2.5 text-xs text-base-content/70 space-y-0.5">
-              <div>
-                <span className="font-mono font-semibold text-base-content">
-                  ~${costPerKeyword.toFixed(4)}
-                </span>{" "}
-                per keyword per check
-              </div>
-              {schedule !== "manual" && (
-                <div>
-                  50 keywords would cost{" "}
-                  <span className="font-mono font-semibold text-base-content">
-                    ~${(costPerKeyword * 50 * checksPerMonth).toFixed(2)}
-                  </span>
-                  /month
-                </div>
-              )}
-            </div>
-          );
-        })()}
+        <RankCheckCostBreakdown
+          projectId={projectId}
+          devices={devices}
+          serpDepth={serpDepth}
+          schedule={schedule}
+        />
 
         <div className="flex justify-end gap-2 pt-2">
           <button

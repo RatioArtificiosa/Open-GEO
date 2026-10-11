@@ -1,14 +1,16 @@
 import { Loader2, Zap } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Modal } from "@/client/components/Modal";
 import type { RankTrackingConfig } from "@/types/schemas/rank-tracking";
 import {
-  estimateRankCheckCredits,
   devicesCount,
   KEYWORDS_PER_BATCH,
   SECONDS_PER_BATCH,
 } from "@/shared/rank-tracking";
+import { estimateRankCheckSpend } from "@/serverFunctions/billing";
 
 export function CheckConfirmModal({
+  projectId,
   keywordCount,
   devices,
   serpDepth,
@@ -16,6 +18,7 @@ export function CheckConfirmModal({
   onRunNow,
   onCancel,
 }: {
+  projectId: string;
   keywordCount: number;
   devices: RankTrackingConfig["devices"];
   serpDepth: number;
@@ -23,12 +26,22 @@ export function CheckConfirmModal({
   onRunNow: () => void;
   onCancel: () => void;
 }) {
-  const { costUsd } = estimateRankCheckCredits(
-    keywordCount,
-    devices,
-    serpDepth,
-    "live",
-  );
+  // Priced by the server, at the live multiplier. The number the confirm
+  // dialog shows and the number the charge deducts have to come from the same
+  // place, and the multiplier itself must not be a value the client can hold.
+  const { data: spend } = useQuery({
+    queryKey: [
+      "rankCheckSpendEstimate",
+      projectId,
+      keywordCount,
+      devices,
+      serpDepth,
+    ],
+    queryFn: () =>
+      estimateRankCheckSpend({
+        data: { projectId, keywordCount, devices, serpDepth, method: "live" },
+      }),
+  });
   const dc = devicesCount(devices);
   const totalChecks = keywordCount * dc;
   const liveTime =
@@ -67,7 +80,9 @@ export function CheckConfirmModal({
           </p>
         </div>
         <div className="text-right">
-          <p className="font-mono font-semibold">~${costUsd.toFixed(2)}</p>
+          <p className="font-mono font-semibold">
+            {spend ? `~$${spend.costUsd.toFixed(2)}` : "—"}
+          </p>
           {isPending && <Loader2 className="size-3 animate-spin ml-auto" />}
         </div>
       </button>

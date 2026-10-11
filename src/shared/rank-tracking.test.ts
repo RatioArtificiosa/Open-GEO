@@ -5,6 +5,13 @@ import {
   scheduleLabel,
 } from "./rank-tracking";
 
+// The estimator takes the multiplier as a parameter now, because it is an
+// operator dial (see src/server/billing/costMarkup.ts) rather than a constant
+// in a browser-bundled module. These cases are priced at the rate the hosted
+// service ran at when the expected figures were recorded; the parameter is
+// what makes the figure a test input instead of a hidden assumption.
+const TEST_MARKUP = 1.28;
+
 describe("rank tracking cost estimates", () => {
   it.each([
     {
@@ -43,7 +50,13 @@ describe("rank tracking cost estimates", () => {
     "matches per-call billing for $method checks",
     ({ keywordCount, devices, depth, method, costUsd, costCredits }) => {
       expect(
-        estimateRankCheckCredits(keywordCount, devices, depth, method),
+        estimateRankCheckCredits(
+          keywordCount,
+          devices,
+          depth,
+          method,
+          TEST_MARKUP,
+        ),
       ).toEqual({ costUsd, costCredits });
     },
   );

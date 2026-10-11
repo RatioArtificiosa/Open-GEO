@@ -2,7 +2,10 @@ import type { InferSelectModel } from "drizzle-orm";
 import { z } from "zod";
 import { rankTrackingConfigs } from "@/db/schema";
 import { isSupportedLanguageCode } from "@/shared/keyword-locations";
-import { MAX_TRACKED_KEYWORD_LENGTH } from "@/shared/rank-tracking";
+import {
+  MAX_KEYWORDS_PER_CONFIG,
+  MAX_TRACKED_KEYWORD_LENGTH,
+} from "@/shared/rank-tracking";
 import { domainField } from "@/types/schemas/domain";
 
 // ---------------------------------------------------------------------------
@@ -109,6 +112,25 @@ export const getLatestRunSchema = z.object({
 export const estimateCostSchema = z.object({
   projectId: z.string().uuid(),
   configId: z.string().uuid(),
+});
+
+/**
+ * A what-if spend estimate, priced against the *live* multiplier.
+ *
+ * The UI needs to answer "what would this cost" for state that is not saved
+ * yet — a depth slider being dragged, a selection of keywords in a confirm
+ * dialog. Those are client-side values, so the shape travels to the server and
+ * the number comes back. The markup never travels the other way: see
+ * `src/server/billing/costMarkup.ts` for why a rate in the browser bundle is
+ * the defect this replaces.
+ */
+export const estimateRankCheckSpendSchema = z.object({
+  projectId: z.string().uuid(),
+  keywordCount: z.number().int().min(1).max(MAX_KEYWORDS_PER_CONFIG),
+  devices: devicesEnum,
+  serpDepth: z.number().int().min(10).max(100).multipleOf(10),
+  /** "live" for a manual run, "queued" for a scheduled one — they price differently. */
+  method: z.enum(["live", "queued"]),
 });
 
 export const addKeywordsSchema = z.object({

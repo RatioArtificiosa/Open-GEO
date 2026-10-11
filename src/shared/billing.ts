@@ -13,7 +13,6 @@ export const AUTUMN_MANAGED_ACCESS_FEATURE_ID = "managed_service_access";
 export const AUTUMN_SEO_DATA_BALANCE_FEATURE_ID = "usage_credits";
 export const AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID = "topup_credits";
 export const AUTUMN_SEO_DATA_CREDITS_PER_USD = 1000;
-export const SEO_DATA_COST_MARKUP = 1.28;
 export const LOW_CREDITS_THRESHOLD_USD = 0.25;
 
 // Passed through to Stripe's checkout.sessions.create so checkout collects the
@@ -35,13 +34,16 @@ export function autumnSeoDataCreditsToUsd(credits: number) {
 }
 
 /**
- * Convert a raw DataForSEO USD cost into the USD amount a hosted customer is
- * actually billed, applying the platform markup. Use this when displaying
- * cost estimates so the number matches what the user will be charged.
+ * The hosted markup multiplier is deliberately **not** here.
  *
- * Self-hosted deployments pay DataForSEO directly at the raw rate and should
- * show the raw number — gate at the call site with `isHostedClientAuthMode`.
+ * It used to be `SEO_DATA_COST_MARKUP = 1.28` on the line below, and
+ * `src/shared/` is bundled for the browser — so the platform's margin shipped
+ * inside the public repository's client JavaScript, readable from devtools on
+ * every hosted session. The number is now resolved per request on the server,
+ * from `src/server/billing/costMarkup.ts`: operator override, then the
+ * `BILLING_COST_MARKUP` env binding, then no markup at all.
+ *
+ * A self-hoster who configures nothing pays DataForSEO's raw rate. That is
+ * the honest default for an MIT-licensed repository, and it is the reason the
+ * constant is gone rather than moved.
  */
-export function applyBillingMarkupUsd(rawUsd: number): number {
-  return roundUsdForBilling(rawUsd * SEO_DATA_COST_MARKUP);
-}

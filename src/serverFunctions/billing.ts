@@ -4,6 +4,16 @@ import {
   AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
   AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
 } from "@/shared/billing";
+import { estimateRankCheckCredits } from "@/shared/rank-tracking";
+import {
+  BRAND_LOOKUP_COMPETITOR_RAW_COST_USD,
+  BRAND_LOOKUP_RAW_COST_USD,
+} from "@/shared/brand-lookup-cost";
+import { estimateRankCheckSpendSchema } from "@/types/schemas/rank-tracking";
+import {
+  applyCostMarkup,
+  resolveCostMarkup,
+} from "@/server/billing/costMarkup";
 import { AppError } from "@/server/lib/errors";
 import {
   getRequiredEnvValue,
@@ -52,6 +62,53 @@ export type BillingUsageEvent = {
   value: number;
   properties: Record<string, z.infer<typeof billingUsagePropertySchema>>;
 };
+
+/**
+ * What an unsaved rank-check configuration would cost, priced at the live
+ * multiplier.
+ *
+ * The UI asks this for state that has not been written yet — a depth slider
+ * mid-drag, a keyword selection in a confirm dialog. The request carries the
+ * shape of the check and the response carries the number, so the markup is
+ * resolved here and never rendered into the browser. There is deliberately no
+ * client-side fallback estimate: a figure computed from a rate the client
+ * happens to hold is the defect this endpoint exists to replace.
+ */
+export const estimateRankCheckSpend = createServerFn({ method: "POST" })
+  .middleware(requireAuthenticatedContext)
+  .validator(estimateRankCheckSpendSchema)
+  .handler(async ({ data }) => {
+    const markup = await resolveCostMarkup();
+    return estimateRankCheckCredits(
+      data.keywordCount,
+      data.devices,
+      data.serpDepth,
+      data.method,
+      markup,
+    );
+  });
+
+/**
+ * What a Brand Lookup costs the customer, priced at the live multiplier.
+ *
+ * The figure used to be computed in the browser from
+ * `applyBillingMarkupUsd`, which made the platform's markup part of the
+ * client bundle — readable from devtools on any hosted session. The raw vendor
+ * prices stay in `src/shared/brand-lookup-cost.ts` because they are
+ * DataForSEO's numbers, not ours; only the markup moved.
+ */
+export const getBrandLookupCostEstimate = createServerFn({ method: "GET" })
+  .middleware(requireAuthenticatedContext)
+  .handler(async () => {
+    const markup = await resolveCostMarkup();
+    return {
+      baseUsd: applyCostMarkup(BRAND_LOOKUP_RAW_COST_USD, markup),
+      competitorUsd: applyCostMarkup(
+        BRAND_LOOKUP_COMPETITOR_RAW_COST_USD,
+        markup,
+      ),
+    };
+  });
 
 export const getBillingUsageEvents = createServerFn({ method: "POST" })
   .middleware(requireAuthenticatedContext)

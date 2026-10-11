@@ -6,6 +6,7 @@ import {
 import { NonRetryableError } from "cloudflare:workflows";
 import { withPgClient } from "@/db";
 import type { BillingCustomerContext } from "@/server/billing/subscription";
+import { resolveCostMarkup } from "@/server/billing/costMarkup";
 import { RankTrackingRepository } from "@/server/features/rank-tracking/repositories/RankTrackingRepository";
 import { failRunIfActive } from "@/server/features/rank-tracking/services/rankCheckRunGuards";
 import {
@@ -90,6 +91,7 @@ export async function prepareRankCheckKeywords(input: {
     input.devices,
     input.serpDepth,
     input.trigger === "scheduled" ? "queued" : "live",
+    await resolveCostMarkup(),
   );
   if (input.maxCostCredits != null && costCredits > input.maxCostCredits) {
     throw new AppError(

@@ -351,6 +351,7 @@ export function RankTrackingDomainDetail({
 
       {pendingCheck && (
         <CheckConfirmModal
+          projectId={projectId}
           keywordCount={pendingCheck.count}
           devices={config.devices}
           serpDepth={config.serpDepth}

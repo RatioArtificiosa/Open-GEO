@@ -1,8 +1,4 @@
-import {
-  AUTUMN_SEO_DATA_CREDITS_PER_USD,
-  SEO_DATA_COST_MARKUP,
-  roundUsdForBilling,
-} from "./billing";
+import { AUTUMN_SEO_DATA_CREDITS_PER_USD, roundUsdForBilling } from "./billing";
 import type { RankTrackingConfig } from "@/types/schemas/rank-tracking";
 
 // ---------------------------------------------------------------------------
@@ -72,11 +68,25 @@ export function pagesToDepth(pages: number): number {
   return pages * 10;
 }
 
+/**
+ * What a rank check costs, in USD and in credits.
+ *
+ * **The markup is a parameter, not a constant.** It used to be applied from
+ * `SEO_DATA_COST_MARKUP` inside this function, and because this module is
+ * shared with the browser that made the platform's margin part of the client
+ * bundle. It is now resolved per request on the server — see
+ * `src/server/billing/costMarkup.ts` — and passed in, which also means the
+ * client cannot quietly estimate with a stale rate it happens to hold.
+ *
+ * Pass 1 for a self-hosted deployment: the caller pays DataForSEO directly at
+ * the raw rate and must see the raw rate.
+ */
 export function estimateRankCheckCredits(
   keywordCount: number,
   devices: RankTrackingConfig["devices"],
   depth: number,
   method: RankCheckMethod,
+  markup: number,
 ) {
   const totalChecks = keywordCount * devicesCount(devices);
   const checksPerMeteredCall = method === "queued" ? MAX_TASKS_PER_POST : 1;
@@ -90,7 +100,7 @@ export function estimateRankCheckCredits(
   for (let offset = 0; offset < totalChecks; offset += checksPerMeteredCall) {
     const checksInCall = Math.min(checksPerMeteredCall, totalChecks - offset);
     const callCostUsd = roundUsdForBilling(
-      checksInCall * costPerSerpAtDepth(depth, method) * SEO_DATA_COST_MARKUP,
+      checksInCall * costPerSerpAtDepth(depth, method) * markup,
     );
     costUsd += callCostUsd;
     costCredits += Math.ceil(callCostUsd * AUTUMN_SEO_DATA_CREDITS_PER_USD);
@@ -118,17 +128,24 @@ export type RankTrackingSkipReason =
   | "no_keywords"
   | "insufficient_credits";
 
+/**
+ * The scheduled-config estimate. Like `estimateRankCheckCredits`, the markup is
+ * a parameter: the server resolves it once per request and threads it through,
+ * so a monthly figure shown in the UI is the monthly figure the charge uses.
+ */
 export function estimateScheduledRankCheckCredits(
   keywordCount: number,
   devices: RankTrackingConfig["devices"],
   depth: number,
   scheduleInterval: ScheduledRankTrackingInterval,
+  markup: number,
 ) {
   const { costUsd, costCredits } = estimateRankCheckCredits(
     keywordCount,
     devices,
     depth,
     "queued",
+    markup,
   );
   const checksPerMonth =
     scheduleInterval === "daily" ? 30 : scheduleInterval === "weekly" ? 4 : 1;

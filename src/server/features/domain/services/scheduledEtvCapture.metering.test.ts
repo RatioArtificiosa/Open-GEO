@@ -102,6 +102,16 @@ vi.mock("@/server/lib/dataforseo/labs", async (importOriginal) => {
 
 vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
 
+// The markup dial is an operator setting resolved from configuration. It is
+// pinned here so the estimates under test are priced at a known rate, and
+// `costMarkup.db.test.ts` covers the resolution order against a real table.
+const TEST_MARKUP = 1.28;
+
+vi.mock(import("@/server/billing/costMarkup"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  resolveCostMarkup: vi.fn(async () => TEST_MARKUP),
+}));
+
 const { runDueEtvCaptures } = await import("./scheduledEtvCapture");
 
 /** The write double, typed from the capture's own injection field. */

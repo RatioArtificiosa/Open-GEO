@@ -1,4 +1,5 @@
 import { RankTrackingRepository } from "@/server/features/rank-tracking/repositories/RankTrackingRepository";
+import { resolveCostMarkup } from "@/server/billing/costMarkup";
 import type { rankTrackingKeywords } from "@/db/schema";
 import { AppError } from "@/server/lib/errors";
 import {
@@ -62,15 +63,21 @@ async function addKeywords(
   )
     ? config.scheduleInterval
     : null;
+  // One resolution for the whole write. The approval ceiling, the pre-write
+  // estimate and the post-write re-check must all be priced at the same rate,
+  // or a dial that moves mid-request makes a ceiling that was satisfied stop
+  // being satisfied without anyone noticing.
+  const markup = scheduleInterval ? await resolveCostMarkup() : null;
   let scheduledEstimate:
     | ReturnType<typeof estimateScheduledRankCheckCredits>
     | undefined;
-  if (rows.length > 0 && scheduleInterval) {
+  if (rows.length > 0 && scheduleInterval && markup !== null) {
     scheduledEstimate = estimateScheduledRankCheckCredits(
       existing.length + rows.length,
       config.devices,
       config.serpDepth,
       scheduleInterval,
+      markup,
     );
     if (
       approval.kind === "credit_ceiling" &&
@@ -90,6 +97,7 @@ async function addKeywords(
   if (
     scheduledEstimate &&
     scheduleInterval &&
+    markup !== null &&
     addedIds.length > 0 &&
     approval.kind === "credit_ceiling"
   ) {
@@ -100,6 +108,7 @@ async function addKeywords(
       config.devices,
       config.serpDepth,
       scheduleInterval,
+      markup,
     );
     if (
       approval.maxEstimatedScheduledCheckCredits == null ||
@@ -142,11 +151,13 @@ async function estimateCost(
       existingKeywordCount + additionalKeywordCount,
     ),
   );
+  const markup = await resolveCostMarkup();
   const { costUsd, costCredits } = estimateRankCheckCredits(
     keywordCount,
     config.devices,
     config.serpDepth,
     "live",
+    markup,
   );
   const scheduleInterval = isScheduledRankTrackingInterval(
     config.scheduleInterval,
@@ -168,6 +179,7 @@ async function estimateCost(
           config.devices,
           config.serpDepth,
           scheduleInterval,
+          markup,
         )
       : undefined,
   };

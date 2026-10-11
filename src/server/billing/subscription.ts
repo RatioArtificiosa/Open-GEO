@@ -6,11 +6,13 @@ import {
   AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
   AUTUMN_SEO_DATA_CREDITS_PER_USD,
   AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
-  SEO_DATA_COST_MARKUP,
-  roundUsdForBilling,
 } from "@/shared/billing";
 import type { CreditFeature } from "@/shared/billing-credit-features";
 import { autumn, AUTUMN_TRACK_RETRY_OPTIONS } from "@/server/billing/autumn";
+import {
+  applyCostMarkup,
+  resolveCostMarkup,
+} from "@/server/billing/costMarkup";
 import { captureServerEvent } from "@/server/lib/posthog";
 import { AppError } from "@/server/lib/errors";
 
@@ -223,20 +225,31 @@ export async function checkUsageCreditsDepleted(
  * were admitting unbounded spend against an almost-empty wallet.
  *
  * The estimate is in USD and is converted here rather than by the caller, using
- * exactly the two constants `trackUsageCreditSpend` uses to convert the real
+ * exactly the arithmetic `trackUsageCreditSpend` uses to convert the real
  * cost — a floor computed with a different rate than the charge would be a floor
  * that does not guard the thing it guards.
+ *
+ * ## The markup is resolved once, here, and handed back
+ *
+ * The multiplier is an operator dial (see `src/server/billing/costMarkup.ts`),
+ * so it can move between the floor and the charge. A floor computed at the
+ * old rate and a charge computed at the new one is exactly the disagreement
+ * this function exists to prevent, so the resolved value is **returned** and
+ * the caller passes it straight to `trackUsageCreditSpend`. A caller that
+ * resolves it again instead has opted out of that guarantee.
  */
 export async function assertUsageCreditsAvailable(
   customerId: string,
   estimatedCostUsd?: number,
-): Promise<{ monthlyRemaining: number }> {
+): Promise<{ monthlyRemaining: number; markup: number }> {
   const { monthlyRemaining, topupRemaining } =
     await getUsageCreditsRemaining(customerId);
 
   if (monthlyRemaining + topupRemaining <= 0) {
     throw new AppError("INSUFFICIENT_CREDITS");
   }
+
+  const markup = await resolveCostMarkup();
 
   if (estimatedCostUsd !== undefined && estimatedCostUsd > 0) {
     // **Convert the estimate to credits with the same arithmetic the charge
@@ -259,7 +272,7 @@ export async function assertUsageCreditsAvailable(
     // and the comparison is one number against another in the same unit. A
     // division is not needed at all — the balance is already in credits.
     const requiredCredits = Math.ceil(
-      roundUsdForBilling(estimatedCostUsd * SEO_DATA_COST_MARKUP) *
+      applyCostMarkup(estimatedCostUsd, markup) *
         AUTUMN_SEO_DATA_CREDITS_PER_USD,
     );
     if (requiredCredits > monthlyRemaining + topupRemaining) {
@@ -267,7 +280,7 @@ export async function assertUsageCreditsAvailable(
     }
   }
 
-  return { monthlyRemaining };
+  return { monthlyRemaining, markup };
 }
 
 /**
@@ -275,7 +288,9 @@ export async function assertUsageCreditsAvailable(
  * the platform markup, converts to credits, spends monthly `usage_credits`
  * first then `topup_credits`, and emits the usage:credits_consume event. Both
  * DataForSEO and agent-LLM spend route through here, so they draw from the
- * one pool. Pass `monthlyRemaining` from the balance check that gated the call.
+ * one pool. Pass `monthlyRemaining` from the balance check that gated the
+ * call, and `markup` from the same one — the floor and the charge must have
+ * been computed at the same rate, which only holds if they share the value.
  */
 export async function trackUsageCreditSpend(args: {
   customer: BillingCustomerContext;
@@ -283,9 +298,12 @@ export async function trackUsageCreditSpend(args: {
   creditFeature: CreditFeature;
   costUsd: number;
   monthlyRemaining: number;
+  /** From the `assertUsageCreditsAvailable` call that gated this one. */
+  markup?: number;
   properties?: Record<string, unknown>;
 }): Promise<{ monthlyCredits: number; topupCredits: number }> {
-  const totalCostUsd = roundUsdForBilling(args.costUsd * SEO_DATA_COST_MARKUP);
+  const markup = args.markup ?? (await resolveCostMarkup());
+  const totalCostUsd = applyCostMarkup(args.costUsd, markup);
   const totalCostCredits = Math.ceil(
     totalCostUsd * AUTUMN_SEO_DATA_CREDITS_PER_USD,
   );

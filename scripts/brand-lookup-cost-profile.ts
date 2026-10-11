@@ -11,7 +11,10 @@ import {
   CHATGPT_LOCATION_CODE,
   type LlmPlatform,
 } from "@/server/lib/dataforseo/shared";
-import { applyBillingMarkupUsd } from "@/shared/billing";
+import {
+  applyCostMarkup,
+  resolveCostMarkup,
+} from "@/server/billing/costMarkup";
 import { resolveCompetitorGroups } from "@/server/features/ai-search/services/shareOfVoice";
 import { parseCompetitorList } from "@/types/schemas/ai-search";
 import { loadLocalEnv, parseArgs } from "./cli-utils";
@@ -71,6 +74,11 @@ async function main() {
   ];
   const platforms: LlmPlatform[] = ["chat_gpt", "google"];
 
+  // The billed column is priced with the same live multiplier the hosted
+  // service charges at, so "Est. $X" on screen and this profile agree. It is
+  // resolved once, before the runs, and printed with the report.
+  const markup = await resolveCostMarkup();
+
   const allRuns: RunSummary[] = [];
 
   for (let runIndex = 0; runIndex < repeat; runIndex += 1) {
@@ -91,7 +99,9 @@ async function main() {
         languageCode,
         internalListLimit: 20,
       });
-      calls.push(toRecord(platform, "aggregated_metrics", aggregated.billing));
+      calls.push(
+        toRecord(platform, "aggregated_metrics", aggregated.billing, markup),
+      );
 
       const topPages = await fetchLlmTopPages({
         target: llmTarget,
@@ -100,7 +110,7 @@ async function main() {
         languageCode,
         itemsListLimit: 10,
       });
-      calls.push(toRecord(platform, "top_pages", topPages.billing));
+      calls.push(toRecord(platform, "top_pages", topPages.billing, markup));
 
       // Prompt rows provide examples for the cited-source table.
       const mentions = await fetchLlmMentionsSearch({
@@ -110,7 +120,9 @@ async function main() {
         languageCode,
         limit: 100,
       });
-      calls.push(toRecord(platform, "mentions_search", mentions.billing));
+      calls.push(
+        toRecord(platform, "mentions_search", mentions.billing, markup),
+      );
 
       if (competitorGroups.length > 0) {
         const cross = await fetchLlmCrossAggregatedMetrics({
@@ -120,7 +132,7 @@ async function main() {
           languageCode,
         });
         calls.push(
-          toRecord(platform, "cross_aggregated_metrics", cross.billing),
+          toRecord(platform, "cross_aggregated_metrics", cross.billing, markup),
         );
       }
     }
@@ -139,12 +151,12 @@ async function main() {
       baseRawUsd: round(totalRawUsd - crossRawUsd),
       crossRawUsd: round(crossRawUsd),
       totalRawUsd: round(totalRawUsd),
-      totalBilledUsd: applyBillingMarkupUsd(totalRawUsd),
+      totalBilledUsd: applyCostMarkup(totalRawUsd, markup),
     });
   }
 
   const aggregateRawUsd = sum(allRuns.map((r) => r.totalRawUsd));
-  const aggregateBilledUsd = applyBillingMarkupUsd(aggregateRawUsd);
+  const aggregateBilledUsd = applyCostMarkup(aggregateRawUsd, markup);
 
   console.log(
     JSON.stringify(
@@ -152,6 +164,7 @@ async function main() {
         input: {
           target,
           targetType,
+          markup,
           userLocationCode,
           userLanguageCode,
           competitors: competitorGroups.map((group) => group.label),
@@ -192,13 +205,14 @@ function toRecord(
   platform: LlmPlatform,
   endpoint: string,
   billing: { costUsd: number; path: string[] },
+  markup: number,
 ): CallRecord {
   return {
     platform,
     endpoint,
     path: billing.path.join("/"),
     rawUsd: round(billing.costUsd),
-    billedUsd: applyBillingMarkupUsd(billing.costUsd),
+    billedUsd: applyCostMarkup(billing.costUsd, markup),
   };
 }
 

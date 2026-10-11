@@ -16,6 +16,17 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("cloudflare:workers", () => ({ env: { RANK_CHECK_WORKFLOW: {} } }));
+
+// The markup dial is an operator setting resolved from configuration. It is
+// pinned here so the estimates under test are priced at a known rate, and
+// `costMarkup.db.test.ts` covers the resolution order against a real table.
+const TEST_MARKUP = 1.28;
+
+vi.mock(import("@/server/billing/costMarkup"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  resolveCostMarkup: vi.fn(async () => TEST_MARKUP),
+}));
+
 vi.mock(
   "@/server/features/rank-tracking/repositories/RankTrackingRepository",
   () => ({ RankTrackingRepository: mocks }),
