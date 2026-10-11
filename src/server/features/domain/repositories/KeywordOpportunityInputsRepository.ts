@@ -110,4 +110,62 @@ export const KeywordOpportunityInputsRepository = {
       .orderBy(desc(keywordOpportunityInputs.capturedAt))
       .limit(input.limit ?? 30);
   },
+
+  /**
+   * Every keyword this project has measurements for, newest-first per keyword.
+   *
+   * ## Why it groups by keyword, and the market stays part of the key
+   *
+   * `seriesFor` keys on `(project, keyword, location)` because a keyword is
+   * measured *per market* — difficulty for "hiking boots" in the US and in Spain
+   * are different numbers, and the capture stores them as separate rows. So the
+   * ranking's unit is the keyword-in-market, not the bare keyword, and grouping
+   * by keyword alone would average two markets into a value neither reports.
+   *
+   * ## Why `perKeyword` is a bound, not a default
+   *
+   * The decision layer's band is a bootstrap over the measurements, and a
+   * bootstrap over unbounded history would score a keyword from rows the vendor
+   * has long revised. Bounding the window is the same reasoning as every other
+   * cap in the capture layer: **an unbounded query is a query whose cost nobody
+   * has agreed to**, and this one runs per request.
+   *
+   * ## Why newest-first is part of the contract
+   *
+   * The service groups the result and scores the first row of each group, so the
+   * order is not a convenience. A repository that returned oldest-first would
+   * make every score a stale reading while the band described the archive.
+   */
+  async listRecentByProject(input: { projectId: string; perKeyword: number }) {
+    const bounded = Math.max(1, Math.floor(input.perKeyword));
+
+    /**
+     * One row per `(keyword, market)`.
+     *
+     * The keyword set is not known to the caller, so the query cannot take both
+     * from it. Selecting distinct pairs first, then bounding each, is the same
+     * work as looping an unknown number of keywords — and it does not require the
+     * caller to have already answered the question the query is meant to answer.
+     */
+    const distinct = await db
+      .selectDistinct({
+        keyword: keywordOpportunityInputs.keyword,
+        locationCode: keywordOpportunityInputs.locationCode,
+      })
+      .from(keywordOpportunityInputs)
+      .where(eq(keywordOpportunityInputs.projectId, input.projectId));
+
+    const rows = [];
+    for (const { keyword, locationCode } of distinct) {
+      const series = await this.seriesFor({
+        projectId: input.projectId,
+        keyword,
+        locationCode,
+        limit: bounded,
+      });
+      rows.push(...series);
+    }
+
+    return rows;
+  },
 };
