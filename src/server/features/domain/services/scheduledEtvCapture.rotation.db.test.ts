@@ -155,19 +155,26 @@ async function seed(domain: string, lastAskedAt: string | null): Promise<void> {
     ],
   );
   if (lastAskedAt === null) return;
+  // **`id` is not supplied.** It used to be, as `Date.now() + Math.random() * 1000`,
+  // and that was the cause of an unreproduced flake that failed roughly one full
+  // run in seven.
+  //
+  // The column is `integer PRIMARY KEY AUTOINCREMENT`. A seed supplies a value,
+  // three seeds run back to back in the same millisecond, and two of them draw
+  // the same spiteful 1-in-1000 — which is a `SQLITE_CONSTRAINT_PRIMARYKEY` on a
+  // surrogate key whose value nothing reads, in a file whose whole purpose is the
+  // rotation order. Twelve runs were spent looking for the rotation bug it
+  // resembled, and the cause was in the test's own arithmetic.
+  //
+  // **A surrogate the test has no reason to choose is one it should not choose.**
+  // Omitting the column lets the database assign it, which is both what the
+  // schema says and the one guarantee that cannot collide.
   await client.execute(
     `INSERT INTO domain_metrics
-       (id, project_id, domain, location_code, language_code, endpoint, organic_etv,
+       (project_id, domain, location_code, language_code, endpoint, organic_etv,
         etv_formula_version, etv_requested_at)
-     VALUES (?, ?, ?, ?, ?, 'domain_rank_overview', 100, 'new', ?)`,
-    [
-      Date.now() + Math.floor(Math.random() * 1000),
-      PROJECT,
-      domain,
-      2840,
-      "en",
-      lastAskedAt,
-    ],
+     VALUES (?, ?, ?, ?, 'domain_rank_overview', 100, 'new', ?)`,
+    [PROJECT, domain, 2840, "en", lastAskedAt],
   );
 }
 
@@ -422,5 +429,71 @@ describe("the ETV rotation — what makes the per-project cap fair", () => {
     // The observation is one string; the market and project assertions belong to the
     // query itself, which this file cannot reach while the harness is broken.
     expect(row).toBe("a.com");
+  });
+});
+
+/**
+ * The seed can be called repeatedly, in the same millisecond, without colliding.
+ *
+ * ## Why this test exists, and why it is not about the rotation
+ *
+ * The seed used to generate its own surrogate id as `Date.now() + Math.random() * 1000`
+ * and insert it into `domain_metrics.id`, an `integer PRIMARY KEY AUTOINCREMENT`. Three
+ * seeds run back to back inside one millisecond draw a new value from a 1,000-wide
+ * window, and two of them sometimes draw the same one: `SQLITE_CONSTRAINT_PRIMARYKEY`
+ * on a key nobody reads.
+ *
+ * It failed about one full run in seven and passed 5/5 in isolation, so it read as a
+ * suite-ordering problem. It was not: it was the seed's own arithmetic, and the
+ * fix is that the seed supplies none.
+ *
+ * **This assertion is the control that makes the fix observable.** It reproduces the
+ * original defect deliberately — three seeds in one tick — which is the shape that
+ * was left to chance, and it would fail against the old seed on every attempt rather
+ * than one in seven. Reintroducing a supplied id makes this test the canary that
+ * notices, instead of an intermittent failure nobody can bisect.
+ */
+describe("seeding cannot collide with itself", () => {
+  it("accepts three domains seeded while the clock and the random are pinned", async () => {
+    // **The original defect, reproduced deterministically rather than by luck.**
+    //
+    // The old seed built its surrogate id from `Date.now() + Math.random() * 1000`.
+    // Three seeds called back to back span a few milliseconds in practice, so the
+    // clock moves and the draw differs, and the collision is a 1-in-1000 accident.
+    //
+    // Pinning `Date.now` and `Math.random` to fixed values makes every one of those
+    // computations return the SAME number, which is what a same-millisecond run
+    // occasionally produced by chance. **A flake reproduced deterministically is a
+    // bug; the same flake reproduced by waiting for the timing is a coin toss**, and
+    // a control you cannot run on demand is a control nobody trusts.
+    //
+    // Against the fixed seed this passes, because it supplies no id and lets
+    // AUTOINCREMENT assign one. Against a seed that supplies one, it fails on every
+    // attempt with SQLITE_CONSTRAINT_PRIMARYKEY — not one run in seven.
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_800_000_000_000);
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    try {
+      const stamp = "2026-10-01T00:00:00.000Z";
+      await expect(seed("a.com", stamp)).resolves.toBeUndefined();
+      await expect(seed("b.com", stamp)).resolves.toBeUndefined();
+      await expect(seed("c.com", stamp)).resolves.toBeUndefined();
+    } finally {
+      nowSpy.mockRestore();
+      randomSpy.mockRestore();
+    }
+  });
+
+  it("keeps the ids the database assigned distinct", async () => {
+    await seed("a.com", "2026-10-01T00:00:00.000Z");
+    await seed("b.com", "2026-10-01T00:00:00.000Z");
+    await seed("c.com", "2026-10-01T00:00:00.000Z");
+
+    const rows = await client.execute(
+      "SELECT id FROM domain_metrics WHERE project_id = ? ORDER BY id",
+      [PROJECT],
+    );
+    const ids = rows.rows.map((row) => Number(row.id));
+    expect(ids.length).toBe(3);
+    expect(new Set(ids).size).toBe(3);
   });
 });

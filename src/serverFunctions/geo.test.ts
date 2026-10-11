@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { ZodType } from "zod";
 
 /**
@@ -170,11 +170,32 @@ function projectIdOf(value: object): string | undefined {
   return undefined;
 }
 
+/**
+ * The loaded geo module, filled in `beforeAll`.
+ *
+ * ## Why the import is moved out of the tests
+ *
+ * It was a dynamic `await import` inside whichever test reached it first, which
+ * pulled in the whole geo entry-point graph — providers, services, Zod schemas —
+ * on the *test's* 5-second budget rather than the setup's. Five tests called it,
+ * so which one timed out under load was decided by ordering, and the failure
+ * looked like a flaky assertion rather than a module graph that takes seconds to
+ * load.
+ *
+ * **A test whose cost is loading a module is not a test, it is a loader.** Moving
+ * it to `beforeAll` puts the cost where the budget for it is, and makes the first
+ * test's runtime whatever the assertions actually cost.
+ *
+ * `vi.doMock` is used because every `vi.mock` in this file is hoisted above the
+ * import, and a hoisted factory cannot see a variable the setup file assigns.
+ */
+let cachedFns: Array<[string, ServerFn]> | undefined;
+
 async function loadServerFns(): Promise<Array<[string, ServerFn]>> {
-  const module: Record<string, unknown> = await import("@/serverFunctions/geo");
-  return Object.entries(module).filter((entry): entry is [string, ServerFn] =>
-    isServerFn(entry[1]),
-  );
+  cachedFns ??= Object.entries(
+    (await import("@/serverFunctions/geo")) as Record<string, unknown>,
+  ).filter((entry): entry is [string, ServerFn] => isServerFn(entry[1]));
+  return cachedFns;
 }
 
 const EXPECTED = [
@@ -208,6 +229,15 @@ const EXPECTED = [
 ];
 
 describe("GEO server functions", () => {
+  // **Timeout stated, not inherited.** The hook's default has moved between
+  // vitest majors, and "the loader got longer" is exactly the failure that
+  // arrives without anyone editing this file. Twenty seconds is generous for a
+  // module graph that takes two on an idle machine and still fails fast enough
+  // to notice a genuine Hang.
+  beforeAll(async () => {
+    await loadServerFns();
+  }, 20_000);
+
   it("refuses to treat a non-Zod validator as a schema", async () => {
     // The control for the test below, and the reason it is not a tautology.
     //
