@@ -55,6 +55,10 @@ import {
 } from "@/server/gdpr/storage-erasure.test-support";
 // Imported **after** the support module, because that module registers the `vi.mock` calls.
 import { handleGdprStorageErasure } from "@/server/gdpr/storage-erasure";
+import {
+  CACHE_ROOT_PREFIX,
+  REFERENCE_CACHE_ROOT_PREFIX,
+} from "@/server/lib/r2-cache";
 
 describe("the GDPR storage erasure, and what it reaches", () => {
   beforeEach(() => {
@@ -242,8 +246,14 @@ describe("the GDPR storage erasure, and what it reaches", () => {
     // **`vendor-reference/` is never listed.** The Business categories list is a free global
     // vendor table with no tenant; if it were swept, one tenant's erasure would delete a list
     // every other tenant reads. It sits outside the tenant subtree precisely so this holds.
+    // **The reference subtree by constant, not by literal.** A copy of the string in
+    // this assertion is a copy that can drift: the sweep changes, the constant does
+    // not follow, and the case passes against a prefix nobody sweeps any more.
     const prefixes = R2.list.mock.calls.map((call) => call[0]?.prefix ?? "");
-    expect(prefixes).not.toContain("vendor-reference/");
+    expect(prefixes).not.toContain(REFERENCE_CACHE_ROOT_PREFIX);
+    // **And what it does list is the tenant root, also by constant** — the mirror
+    // assertion, so a change to either root fails here rather than in a review.
+    expect(prefixes).toContain(CACHE_ROOT_PREFIX);
   });
 
   it("deletes every page, not just the first", async () => {

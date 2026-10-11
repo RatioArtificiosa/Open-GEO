@@ -39,6 +39,7 @@
     "release:publish": "node scripts/publish-release.mjs",
     "sync-plugin-skills": "node scripts/sync-plugin-skills.mjs",
     "check:journals": "node scripts/check-migration-journals.mjs",
+    "check:unwired-exports": "node scripts/check-unwired-exports.mjs",
     "submission:generate": "tsx scripts/generate-app-submission.ts && prettier --write chatgpt-app-submission.json",
     "submission:check": "tsx scripts/check-submission-justifications.ts",
     "test": "vitest run",
@@ -59,7 +60,7 @@
     "seed:rank-tracking": "tsx scripts/seed-rank-tracking.ts",
     "seed:projects": "tsx scripts/seed-projects.ts",
     "seed:categories": "tsx scripts/seed-categories.ts",
-    "ci:check": "prettier --check . && knip && tsc --noEmit && tsc --noEmit -p badseo/tsconfig.json && oxlint . --type-aware && pnpm test:ci && pnpm detect:slop && pnpm sync-plugin-skills && node scripts/check-migration-journals.mjs && node scripts/check-docker-selfhost-compose.mjs && pnpm submission:check",
+    "ci:check": "prettier --check . && knip && tsc --noEmit && tsc --noEmit -p badseo/tsconfig.json && oxlint . --type-aware && pnpm test:ci && pnpm detect:slop && pnpm sync-plugin-skills && node scripts/check-unwired-exports.mjs && node scripts/check-migration-journals.mjs && node scripts/check-docker-selfhost-compose.mjs && pnpm submission:check",
     "geo:unread-fields": "node scripts/unread-response-fields.mjs",
     "check:docker-selfhost": "node scripts/check-docker-selfhost-compose.mjs"
   },

@@ -39,7 +39,10 @@
 // and the `Math.max` fix that replaced it were both settled by re-reading what
 // DataForSEO prints, not by working it out from the tier names.
 
-import { ETV_BEARING_LABS_ENDPOINTS } from "@/shared/etv-versioning";
+import {
+  ETV_BEARING_LABS_ENDPOINTS,
+  HISTORICAL_LABS_ENDPOINTS,
+} from "@/shared/etv-versioning";
 
 /** Which DataForSEO queue/priority a call runs on. */
 export type DfsQueue = "standard" | "priority" | "live";
@@ -448,10 +451,12 @@ export const ETV_VERSION = {
    * endpoints are explicitly EXCLUDED, so a historical series stays legacy and
    * cannot be restated.
    */
-  historicalEndpointsExcluded: [
-    "historical_rank_overview",
-    "historical_bulk_traffic_estimation",
-  ],
+  // **Referenced, not restated.** This file's own note on `endpointsWithNewEtv` explains
+  // why: a second list is a second fact that cannot track the first, and this one had
+  // drifted already — the module carries three excluded endpoints and this carried two, so
+  // `bulk_traffic_estimation_history` would have read as included. `etv-versioning.ts` is
+  // the module that acts on the rule, so its list governs.
+  historicalEndpointsExcluded: HISTORICAL_LABS_ENDPOINTS,
   /**
    * `estimated_paid_traffic_cost` derives from organic ETV and paid CPC, so it
    * moves with the change even though it is not an `etv` field.

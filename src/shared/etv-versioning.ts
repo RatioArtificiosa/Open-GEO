@@ -150,8 +150,11 @@ export function resolveEtvMode(input: EtvModeInput = {}): {
     return {
       version: "new",
       useNewEtv: true,
-      reason:
-        "account registered on or after the new-default date, so the new formula is already the default",
+      // **The date constant interpolated, not restated in prose.** It was an exported
+      // constant nothing referenced — a documented fact with no code depending on it, so
+      // it could drift from the resolver it explains. The reason string is what a support
+      // engineer reads, so naming the same constant makes it the single source.
+      reason: `account registered on or after ${ETV_NEW_DEFAULT_REGISTRATION_DATE}, so the new formula is already the default`,
     };
   }
 
@@ -174,18 +177,6 @@ export function resolveEtvMode(input: EtvModeInput = {}): {
     reason:
       "after the cutover date; pinning the flag explicitly because the account registration date is unknown",
   };
-}
-
-/** True when a series spans the cutover, so a trend across it is unsound. */
-export function seriesSpansCutover(
-  requestedAtIso: string[],
-  cutover = ETV_CUTOVER_DATE,
-): boolean {
-  const boundary = new Date(`${cutover}T00:00:00Z`).getTime();
-  return (
-    requestedAtIso.some((iso) => new Date(iso).getTime() < boundary) &&
-    requestedAtIso.some((iso) => new Date(iso).getTime() >= boundary)
-  );
 }
 
 /**

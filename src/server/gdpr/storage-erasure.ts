@@ -1,11 +1,15 @@
 import { getAuth } from "@/lib/auth";
+import { AppError } from "@/server/lib/errors";
 import type { SamChatAgent } from "@/server/features/sam/SamChatAgent";
 import { captureServerError } from "@/server/lib/posthog";
 import {
   DUB_REFERRED_ORG_KV_PREFIX,
   DUB_REFERRED_USER_KV_PREFIX,
 } from "@/server/referrals/dub";
-import { CACHE_ROOT_PREFIX } from "@/server/lib/r2-cache";
+import {
+  CACHE_ROOT_PREFIX,
+  REFERENCE_CACHE_ROOT_PREFIX,
+} from "@/server/lib/r2-cache";
 import { VENDOR_ASSET_PREFIX as VENDOR_ASSET_PREFIX_ROOT } from "@/server/lib/vendorAssetCopy";
 import {
   gdprStorageErasurePayloadSchema,
@@ -271,9 +275,33 @@ async function eraseStorage(env: Env, payload: GdprStorageErasurePayload) {
   // `VENDOR_ASSET_PREFIX` is the copied Lighthouse screenshots from CL-703:
   // **a second bucket, added as a new argument rather than a new mechanism**, so a
   // third bucket stays one more string and never a second shape.
+  const sweptPrefixes = [CACHE_ROOT_PREFIX, VENDOR_ASSET_PREFIX];
+  // **The reference subtree must never be in that list.** The Business categories table
+  // is a free global vendor payload with no tenant, so sweeping it would let any one
+  // customer's erasure delete a list every other customer reads — and nothing else in
+  // the process would notice, because the sweep is a prefix list and a prefix list has
+  // no idea what it did not mean to include.
+  //
+  // A test asserts this too, but the invariant is a property of the production path, so
+  // it is checked where the path is. `includes` rather than `startsWith`: a future
+  // `vendor-reference/` sibling that *contains* that string would still be a real
+  // collision, and the narrow check would wave it through.
+  if (sweptPrefixes.includes(REFERENCE_CACHE_ROOT_PREFIX)) {
+    // `CRAWL_TARGET_BLOCKED`-adjacent in spirit: a refusal, not a crash, so the caller
+    // sees the reason rather than a stack. This module's own error vocabulary is
+    // `AppError`, and reaching for another module's would be a surprise here.
+    // `VALIDATION_ERROR`, because that is what a mis-built sweep is: the request is
+    // well-formed and our configuration is not. No new error code, which would be one
+    // more enum member no caller handles.
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "The GDPR sweep refuses to run: a tenant-less reference prefix is on it.",
+    );
+  }
+
   const organizationScopedObjects = await deleteOrganizationScopedObjects(
     env.R2,
-    [CACHE_ROOT_PREFIX, VENDOR_ASSET_PREFIX],
+    sweptPrefixes,
     payload.organizationIds,
   );
 

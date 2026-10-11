@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  ETV_BEARING_LABS_ENDPOINTS,
   ETV_CUTOVER_DATE,
   ETV_NEW_DEFAULT_REGISTRATION_DATE,
   HISTORICAL_LABS_ENDPOINTS,
   isHistoricalLabsEndpoint,
   resolveEtvMode,
-  seriesSpansCutover,
+  ETV_BEARING_LABS_ENDPOINTS,
   trendCaveat,
 } from "@/shared/etv-versioning";
 
@@ -135,27 +134,25 @@ describe("resolving which formula a request runs under", () => {
   });
 });
 
-describe("detecting a series that crosses the cutover", () => {
-  it("is false for a series entirely on one side", () => {
-    expect(
-      seriesSpansCutover(["2026-01-01T00:00:00Z", "2026-10-01T00:00:00Z"]),
-    ).toBe(false);
-    expect(
-      seriesSpansCutover(["2026-11-02T00:00:00Z", "2026-12-01T00:00:00Z"]),
-    ).toBe(false);
-  });
-
-  it("is true when the series straddles the boundary", () => {
-    expect(
-      seriesSpansCutover(["2026-10-31T00:00:00Z", "2026-11-02T00:00:00Z"]),
-    ).toBe(true);
-  });
-
+describe("the boundary constants", () => {
   it("uses the documented cutover date, not a clock", () => {
-    // A test that read the system clock would pass or fail depending on when it
-    // ran. The constant is the contract.
+    // A test that read the system clock would pass or fail depending on when it ran. The
+    // constant is the contract: a chart, a test and a support answer all agree on the day.
     expect(ETV_CUTOVER_DATE).toBe("2026-11-01");
     expect(ETV_NEW_DEFAULT_REGISTRATION_DATE).toBe("2026-09-01");
+  });
+
+  it("keeps the excluded endpoints where the resolver reads them", () => {
+    // The resolver acts on these, so the list is the authority — and the price book's
+    // `historicalEndpointsExcluded` references it rather than restating it, so a third
+    // copy cannot drift from either.
+    expect(HISTORICAL_LABS_ENDPOINTS).toContain("historical_rank_overview");
+    expect(isHistoricalLabsEndpoint("bulk_traffic_estimation_history")).toBe(
+      true,
+    );
+    // **The negative control.** Without it a resolver that excluded everything would
+    // also satisfy the assertions above.
+    expect(isHistoricalLabsEndpoint("ranked_keywords")).toBe(false);
   });
 });
 
