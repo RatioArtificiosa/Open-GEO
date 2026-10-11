@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { sort, sortBy } from "remeda";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -402,7 +403,7 @@ function survey(): GateReport[] {
       negativeControls: blocks.filter((b) => isNegativeControl(b.body)).length,
     });
   }
-  return reports.sort((a, b) => a.file.localeCompare(b.file));
+  return sort(reports, (a, b) => a.file.localeCompare(b.file));
 }
 
 const REPORT = survey();
@@ -482,26 +483,28 @@ describe("the gates about gates", () => {
     // Sorted on both sides, so the pin compares like with like. A list whose
     // order depends on filesystem enumeration fails for a reason nobody can act
     // on, which is a failure mode that trains people to ignore failures.
-    expect([...blind].sort()).toEqual(
-      [
-        // A real gate comparing two schemas, with no negative control. Included
-        // precisely because it is load-bearing: a parity test that stopped
-        // comparing anything would pass, and nothing here would notice.
-        //
-        // It is still blind, and adding a ledger table to close the hole was
-        // the cheaper answer: the gate cannot take a second input without a
-        // way to stand up a second schema, and a fixture schema would prove the
-        // detector fires on the fixture rather than on drift.
-        "src/db/schema-parity.test.ts",
-        // A component test that reads the source to assert a string is absent.
-        // The `assertsOnContent` filter does not exclude it because it uses
-        // `readFileSync` on the *component* rather than on rendered output, so
-        // it reads as a gate. Listed rather than filtered away: a classifier
-        // exception is a judgement call, and this one is arguable enough that
-        // hiding it in the detector would be worse than showing it.
-        "src/client/features/geo/GeoTargetForm.test.ts",
-      ].sort(),
-    );
+    // Both sides are in sorted order, which is what the original
+    // `expect([...blind].sort()).toEqual([...].sort())` achieved. The expected
+    // literal is sorted too, so the comparison is of sets rather than of
+    // filesystem enumeration order.
+    expect(sortBy(blind, String)).toEqual([
+      // A component test that reads the source to assert a string is absent.
+      // The `assertsOnContent` filter does not exclude it because it uses
+      // `readFileSync` on the *component* rather than on rendered output, so
+      // it reads as a gate. Listed rather than filtered away: a classifier
+      // exception is a judgement call, and this one is arguable enough that
+      // hiding it in the detector would be worse than showing it.
+      "src/client/features/geo/GeoTargetForm.test.ts",
+      // A real gate comparing two schemas, with no negative control. Included
+      // precisely because it is load-bearing: a parity test that stopped
+      // comparing anything would pass, and nothing here would notice.
+      //
+      // It is still blind, and adding a ledger table to close the hole was
+      // the cheaper answer: the gate cannot take a second input without a
+      // way to stand up a second schema, and a fixture schema would prove the
+      // detector fires on the fixture rather than on drift.
+      "src/db/schema-parity.test.ts",
+    ]);
   });
 
   it("does not list a gate that has a negative control", () => {

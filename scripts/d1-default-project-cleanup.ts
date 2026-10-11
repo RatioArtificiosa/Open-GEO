@@ -657,12 +657,24 @@ function runJsonQuery(sql: string) {
       env: process.env,
     },
   );
-  const parsed = JSON.parse(output) as WranglerJsonResult;
-  const failed = parsed.find((result) => result.success === false);
+  // **`unknown` then narrowed.** An annotation on `JSON.parse`'s result is still
+  // an unsafe assignment, because `any` assigns to anything — the annotation
+  // documents the shape without proving it, and the compiler says so. Reading it
+  // as `unknown` forces the check, and the array check is the one that can
+  // actually fail: a wrangler whose output shape changed becomes a named error
+  // rather than `undefined` at `.find`.
+  const parsed: unknown = JSON.parse(output);
+  if (!Array.isArray(parsed)) {
+    throw new Error(
+      `Wrangler output for ${databaseName} is not an array of results.`,
+    );
+  }
+  const results = parsed as WranglerJsonResult; // eslint-disable-line typescript/no-unsafe-type-assertion
+  const failed = results.find((result) => result.success === false);
   if (failed) {
     throw new Error(`Wrangler query failed for ${databaseName}.`);
   }
-  return parsed.flatMap((result) => result.results ?? []);
+  return results.flatMap((result) => result.results ?? []);
 }
 
 function runWrangler(extraArgs: string[]) {

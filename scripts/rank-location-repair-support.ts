@@ -33,9 +33,31 @@ export async function fetchRegistry(
   mkdirSync(cacheDir, { recursive: true });
   const cachePath = join(cacheDir, `serp-locations-${iso}.json`);
   if (existsSync(cachePath)) {
-    return JSON.parse(
-      readFileSync(cachePath, "utf8"),
-    ) as SerpRegistryLocation[];
+    // **A validated read, not a cast.** The cache is on disk and repo-local, but
+    // it is still untyped JSON: an `as` here is a claim nothing checks, and a
+    // stale hand-edited file would satisfy the type while being empty at
+    // runtime. Checking the shape turns that into a named failure.
+    const parsed: unknown = JSON.parse(readFileSync(cachePath, "utf8"));
+    if (!Array.isArray(parsed)) {
+      throw new Error(`${cachePath}: expected an array of locations`);
+    }
+    // **Still an array of `unknown` after the shape check**, and each entry is
+    // narrowed rather than cast: the entry-level check is the one that can
+    // actually fail on a hand-edited file, so it is worth doing for real rather
+    // than claiming a shape the compiler cannot see.
+    return parsed.map((entry): SerpRegistryLocation => {
+      if (
+        typeof entry !== "object" ||
+        entry === null ||
+        !("location_name" in entry) ||
+        !("country_iso_code" in entry)
+      ) {
+        throw new Error(
+          `${cachePath}: an entry is not a location: ${JSON.stringify(entry)}`,
+        );
+      }
+      return entry as SerpRegistryLocation; // eslint-disable-line typescript/no-unsafe-type-assertion
+    });
   }
   const response = await fetch(
     `https://api.dataforseo.com/v3/serp/google/locations/${encodeURIComponent(iso)}`,

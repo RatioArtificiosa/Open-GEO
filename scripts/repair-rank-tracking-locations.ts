@@ -46,6 +46,17 @@ import {
   type SerpRegistryLocation,
 } from "./serp-location-match";
 import { loadLocalEnv, parseArgs, requiredEnv } from "./cli-utils";
+
+/**
+ * The per-name, per-language verdict key.
+ *
+ * At module scope because it captures nothing from its caller. **The NUL
+ * separator is chosen because neither a display name nor a language code can
+ * contain one**, so two distinct pairs cannot collide into a single key — a
+ * delimiter either part could contain would produce a false "already verified".
+ */
+const verdictKey = (name: string, language: string) =>
+  `${name}\u0000${language}`;
 import { fetchRegistry, sandboxAccepts } from "./rank-location-repair-support";
 
 loadLocalEnv();
@@ -145,6 +156,86 @@ function describe(outcome: Outcome): string {
 function csvCell(value: string | number): string {
   const text = String(value);
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+/**
+ * Verify the rewrites against the vendor sandbox, one call per distinct name.
+ *
+ * **Extracted from `main`, which the lint flagged at 42 branches against a cap
+ * of 40.** That was not the threshold being wrong: this block makes its own
+ * sandbox calls, batches them five at a time to stay inside the rate limit, and
+ * reports a summary that reads none of `main`'s local state. It is a step with
+ * its own input and its own output, and inlining it made `main` harder to read
+ * than the two halves separately.
+ *
+ * Extracting it also names it, which is the more useful result: a reader looking
+ * for where the sandbox is consulted finds a function rather than a branch in the
+ * middle of the CLI.
+ *
+ * **The parameter is `input`, not `args`**, because `args` is already the parsed
+ * CLI flags at module scope and a parameter sharing that name is a shadow that
+ * reads as a reuse.
+ *
+ * `verdictKey` is not a parameter: it is module-scoped now, so passing it in would
+ * be an argument that only ever receives the module's own function.
+ */
+async function verifyRewrites(input: {
+  rewrites: Outcome[];
+  /** Populated in place, because the apply step below reads the same map. */
+  verdicts: Map<string, { ok: boolean; message: string }>;
+}): Promise<void> {
+  const { rewrites, verdicts } = input;
+  // One sandbox call per distinct (name, language) pair, current and
+  // proposed, so the report shows both the rejection and the fix.
+  const pairs = new Map<string, { name: string; language: string }>();
+  for (const outcome of rewrites) {
+    if (!outcome.match || !("location" in outcome.match)) continue;
+    for (const name of [
+      outcome.config.locationName,
+      outcome.match.location.locationName,
+    ]) {
+      pairs.set(verdictKey(name, outcome.config.languageCode), {
+        name,
+        language: outcome.config.languageCode,
+      });
+    }
+  }
+  const entries = [...pairs.entries()];
+  for (let i = 0; i < entries.length; i += 5) {
+    await Promise.all(
+      entries.slice(i, i + 5).map(async ([key, pair]) => {
+        verdicts.set(key, await sandboxAccepts(pair.name, pair.language));
+      }),
+    );
+  }
+  let currentAccepted = 0;
+  let proposedRejected = 0;
+  console.log(`\n== SANDBOX VERIFY (${entries.length} distinct names)`);
+  for (const outcome of rewrites) {
+    if (!outcome.match || !("location" in outcome.match)) continue;
+    const language = outcome.config.languageCode;
+    const before = verdicts.get(
+      verdictKey(outcome.config.locationName, language),
+    );
+    const after = verdicts.get(
+      verdictKey(outcome.match.location.locationName, language),
+    );
+    if (before?.ok) {
+      currentAccepted += 1;
+      console.log(
+        `  KEEP NAME ${outcome.config.id} "${outcome.config.locationName}" (${language}) is already accepted; only a location_code fix (if any) will be applied`,
+      );
+    }
+    if (!after?.ok) {
+      proposedRejected += 1;
+      console.log(
+        `  REJECTED ${outcome.config.id} "${outcome.match.location.locationName}" (${language}): ${after?.message ?? "no verdict"}`,
+      );
+    }
+  }
+  console.log(
+    `  proposed names accepted: ${rewrites.length - proposedRejected}/${rewrites.length}; current names already accepted: ${currentAccepted}/${rewrites.length}`,
+  );
 }
 
 async function main() {
@@ -279,60 +370,12 @@ async function main() {
     console.log(`\nReport: ${reportPath}`);
 
     const verdicts = new Map<string, { ok: boolean; message: string }>();
-    const verdictKey = (name: string, language: string) =>
-      `${name}\u0000${language}`;
+    // **One call, and the map is populated in place.** The apply step below reads
+    // `verdicts` directly, so the verification writes into the map `main` owns
+    // rather than returning it. That is the one seam this extraction does not
+    // remove, and it is stated rather than hidden.
     if (verify) {
-      // One sandbox call per distinct (name, language) pair, current and
-      // proposed, so the report shows both the rejection and the fix.
-      const pairs = new Map<string, { name: string; language: string }>();
-      for (const outcome of rewrites) {
-        if (!outcome.match || !("location" in outcome.match)) continue;
-        for (const name of [
-          outcome.config.locationName,
-          outcome.match.location.locationName,
-        ]) {
-          pairs.set(verdictKey(name, outcome.config.languageCode), {
-            name,
-            language: outcome.config.languageCode,
-          });
-        }
-      }
-      const entries = [...pairs.entries()];
-      for (let i = 0; i < entries.length; i += 5) {
-        await Promise.all(
-          entries.slice(i, i + 5).map(async ([key, pair]) => {
-            verdicts.set(key, await sandboxAccepts(pair.name, pair.language));
-          }),
-        );
-      }
-      let currentAccepted = 0;
-      let proposedRejected = 0;
-      console.log(`\n== SANDBOX VERIFY (${entries.length} distinct names)`);
-      for (const outcome of rewrites) {
-        if (!outcome.match || !("location" in outcome.match)) continue;
-        const language = outcome.config.languageCode;
-        const before = verdicts.get(
-          verdictKey(outcome.config.locationName, language),
-        );
-        const after = verdicts.get(
-          verdictKey(outcome.match.location.locationName, language),
-        );
-        if (before?.ok) {
-          currentAccepted += 1;
-          console.log(
-            `  KEEP NAME ${outcome.config.id} "${outcome.config.locationName}" (${language}) is already accepted; only a location_code fix (if any) will be applied`,
-          );
-        }
-        if (!after?.ok) {
-          proposedRejected += 1;
-          console.log(
-            `  REJECTED ${outcome.config.id} "${outcome.match.location.locationName}" (${language}): ${after?.message ?? "no verdict"}`,
-          );
-        }
-      }
-      console.log(
-        `  proposed names accepted: ${rewrites.length - proposedRejected}/${rewrites.length}; current names already accepted: ${currentAccepted}/${rewrites.length}`,
-      );
+      await verifyRewrites({ rewrites, verdicts });
     }
 
     if (!apply) {

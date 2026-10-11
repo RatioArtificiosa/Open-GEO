@@ -31,7 +31,7 @@
  * It is the difference between a rule and a preference, which is the distinction the
  * whole CL-819 series turned on.
  */
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const ROOT = process.cwd();

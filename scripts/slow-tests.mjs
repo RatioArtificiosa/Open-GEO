@@ -56,6 +56,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { sort } from "remeda";
 
 const argv = process.argv.slice(2);
 
@@ -86,7 +87,7 @@ if (!Number.isFinite(top) || top < 1) {
   process.exit(2);
 }
 
-const ANSI = /\u001b\[[0-9;]*m/g;
+const ANSI = new RegExp(String.raw`\u001b\[[0-9;]*m`, "g");
 
 /**
  * `  ✓ suite > nested > name  123ms` — also × for a failure and ↓ for a skip.
@@ -170,7 +171,10 @@ if (tests.length === 0) {
   process.exit(1);
 }
 
-const slowest = [...tests].sort((a, b) => b.ms - a.ms);
+// Remeda's sort, not the mutating `.sort()`: the repo's lint flags the mutating
+// shape and the ES2022 floor means `toSorted` is not available. `[...tests]` is
+// still copied first, so both the copy and the non-mutation are explicit.
+const slowest = sort([...tests], (a, b) => b.ms - a.ms);
 const total = tests.reduce((sum, t) => sum + t.ms, 0);
 
 console.log(`files: ${files.size}   tests timed: ${tests.length}`);

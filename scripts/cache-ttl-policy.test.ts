@@ -80,7 +80,15 @@ function extractTtl(source: string, constName: string): number | null {
   const expr = raw.replace(/_/g, "").replace(/\s+/g, "");
   if (!/^[\d*]+$/.test(expr)) return null;
 
-  return eval(expr) as number; // eslint-disable-line no-eval
+  // `eval` returns `any`, and `as number` on top of it is a claim nothing checks —
+  // which is the shape the repo's lint flags. The guard above is the reason this
+  // is safe at all (only digits and `*` reach here), so the assertion is on the
+  // one property that actually matters: that the result is a number. A source
+  // constant that parses but is not a number becomes a named failure instead of
+  // `NaN` propagating into a comparison nobody can read.
+  const result: unknown = eval(expr); // eslint-disable-line no-eval
+  if (typeof result !== "number") return null;
+  return result;
 }
 
 /** {@link extractTtl} against a module on disk. */

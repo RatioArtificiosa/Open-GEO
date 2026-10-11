@@ -24,13 +24,9 @@
  * nobody noticing because the run is still green.
  */
 import { spawnSync } from "node:child_process";
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+
+import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -145,7 +141,7 @@ describe("the cost-profile gate", () => {
     // directory directly is not possible without a git repo in the scratch tree, so the
     // assertion is on the guard's shape rather than on a run — and the shape is the
     // thing that changes if someone removes it.
-    const source = require("node:fs").readFileSync(SCRIPT, "utf8");
+    const source = readFileSync(SCRIPT, "utf8");
     expect(source).toMatch(
       /realTreeWasScanned:\s*tracked\.length\s*>=\s*MIN_TEST_FILES/,
     );

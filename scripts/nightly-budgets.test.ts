@@ -99,6 +99,24 @@ const CAPS = PER_PROJECT_NIGHTLY_CAP;
 const AI_KEYWORD_UNIT = AI_KEYWORD_UNIT_COST_USD;
 const AI_MODE_UNIT = DFS_AI_OPTIMIZATION.llmScraper.standard.perRequest ?? 0;
 
+/**
+ * A source file with its comment lines removed.
+ *
+ * At module scope because it captures nothing from the caller. **What it strips is
+ * deliberate:** comment lines only, so the rule under test still fires on the
+ * `watchers.slice(0, 25)` inside `scheduledAiModeCapture.ts`'s own account of the
+ * bug this consolidation fixed — stripping the string too would have hidden the
+ * defect by removing its own description.
+ */
+const strip = (source: string): string =>
+  source
+    .split("\n")
+    .filter((line) => {
+      const t = line.trim();
+      return !t.startsWith("//") && !t.startsWith("*") && !t.startsWith("/*");
+    })
+    .join("\n");
+
 describe("the nightly budgets, and what they buy", () => {
   it("an ETV night can afford one project's documented domain cap", () => {
     // Read from the price book rather than retyped, so a price change moves this test
@@ -207,17 +225,6 @@ describe("the nightly budgets, and what they buy", () => {
      * fixes**. So the check fired on the file's own account of the defect — and the fix,
      * stripping comment lines, could itself be overdone.
      */
-    const strip = (source: string): string =>
-      source
-        .split("\n")
-        .filter((line) => {
-          const t = line.trim();
-          return (
-            !t.startsWith("//") && !t.startsWith("*") && !t.startsWith("/*")
-          );
-        })
-        .join("\n");
-
     const RE_RETYPE = /limitProjects\s*\?\?\s*25/;
 
     /**

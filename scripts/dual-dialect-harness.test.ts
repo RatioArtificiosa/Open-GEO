@@ -54,30 +54,56 @@ type Dialect = "sqlite" | "pg";
  * That is also why the config type carries no `dialect` field: drizzle's types
  * never claimed to expose it, and only the call itself is reliable.
  */
-function dialectOf(table: unknown): Dialect | null {
+/**
+ * Which dialect a value is a drizzle table for, and the table itself.
+ *
+ * **Returns the table rather than a string, and that is the whole point.** The
+ * probe is real — `getSqliteTableConfig` throws for a table it does not recognise
+ * — so the previous version *proved* the type and then discarded the proof,
+ * casting `unknown` to `Table` at each use site anyway. Carrying it in the return
+ * type removes those casts and makes the narrowing checkable at compile time
+ * The two `as Table` below are the probe's mechanism, not a shortcut: drizzle's
+ * introspectors take a `Table`, and this function's whole input is `unknown`, so
+ * there is no way to reach the config reader without asserting. A documented
+ * assertion here is the honest option — the alternative is reimplementing
+ * drizzle's introspection inside this test, which is how a test ends up testing
+ * its own stub instead of the barrel.
+ */
+function dialectOf(value: unknown): { table: Table; dialect: Dialect } | null {
   try {
-    getSqliteTableConfig(table as Table);
-    return "sqlite";
+    getSqliteTableConfig(
+      value as Table, // eslint-disable-line typescript/no-unsafe-type-assertion
+    );
+    return {
+      table: value as Table, // eslint-disable-line typescript/no-unsafe-type-assertion
+      dialect: "sqlite",
+    };
   } catch {
     /* not a sqlite table */
   }
   try {
-    getPgTableConfig(table as Table);
-    return "pg";
+    getPgTableConfig(
+      value as Table, // eslint-disable-line typescript/no-unsafe-type-assertion
+    );
+    return {
+      table: value as Table, // eslint-disable-line typescript/no-unsafe-type-assertion
+      dialect: "pg",
+    };
   } catch {
     /* not a pg table either — not a drizzle table */
   }
   return null;
 }
 
-/** Every drizzle table the provider-aware barrel exports. */
-const barrelTables = (Object.entries(runtimeSchema) as Array<[string, unknown]>)
-  .map(([name, value]) => [name, value, dialectOf(value)] as const)
-  .filter((entry): entry is [string, unknown, Dialect] => entry[2] !== null)
-  .map(
-    ([name, value, dialect]) =>
-      [name, value, dialect] as [string, Table, Dialect],
-  );
+/** Every drizzle table the provider-aware barrel exports, with its dialect. */
+type BarrelTable = readonly [string, { table: Table; dialect: Dialect }];
+
+const barrelTables: BarrelTable[] = Object.entries(runtimeSchema).flatMap(
+  ([name, value]) => {
+    const identified = dialectOf(value);
+    return identified === null ? [] : [[name, identified] as BarrelTable];
+  },
+);
 
 describe("the dual-dialect test harness", () => {
   it("finds the barrel's tables, so the checks below are not vacuous", () => {
@@ -90,12 +116,11 @@ describe("the dual-dialect test harness", () => {
 
   it("classifies every table as exactly one dialect", () => {
     // Not a third value, and not both. drizzle declares every table as one or
-    // the other, so anything else is a barrel that is neither of the two
+    // Both are valid, and nothing else is: a barrel that is neither of the two
     // schemas the application has.
-    for (const [name, table] of barrelTables) {
-      const dialect = dialectOf(table)!;
+    for (const [name, identified] of barrelTables) {
       expect(
-        dialect === "sqlite" || dialect === "pg",
+        identified.dialect === "sqlite" || identified.dialect === "pg",
         `${name} has an unrecognised dialect`,
       ).toBe(true);
     }
@@ -105,8 +130,12 @@ describe("the dual-dialect test harness", () => {
     // The claim the setup file exists to make checkable. A mixed barrel is the
     // `keywordOpportunityInputs` bug class from `2a785c9` — one table from each
     // side — and it is invisible to a suite that only ever runs one dialect.
-    const sqliteCount = barrelTables.filter(([, , d]) => d === "sqlite").length;
-    const pgCount = barrelTables.filter(([, , d]) => d === "pg").length;
+    const sqliteCount = barrelTables.filter(
+      ([, identified]) => identified.dialect === "sqlite",
+    ).length;
+    const pgCount = barrelTables.filter(
+      ([, identified]) => identified.dialect === "pg",
+    ).length;
 
     expect(sqliteCount + pgCount).toBe(barrelTables.length);
     expect(
@@ -126,7 +155,7 @@ describe("the dual-dialect test harness", () => {
       provider === "postgres" ? "postgres" : "d1",
     );
     expect(
-      barrelTables.every(([, , d]) => d === expectedDialect),
+      barrelTables.every(([, d]) => d.dialect === expectedDialect),
       `under DATABASE_PROVIDER=${provider} every barrel table should be ${expectedDialect}`,
     ).toBe(true);
   });

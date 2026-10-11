@@ -37,7 +37,19 @@
  * the point: **the cost of an ignored field becomes a decision rather than a silence.**
  */
 import { readFileSync } from "node:fs";
+import { sortBy } from "remeda";
 import { describe, expect, it } from "vitest";
+
+/**
+ * Which of the declared names are not read by the module under test.
+ *
+ * At module scope because it captures nothing from the caller — the repo's lint
+ * flags a closure over nothing, which reads as local when it is pure.
+ */
+const unconsumed = (
+  names: string[],
+  isRead: (name: string) => boolean,
+): string[] => names.filter((name) => !isRead(name));
 
 const DASHBOARD_PAGE = readFileSync(
   "src/client/features/dashboard/DashboardPage.tsx",
@@ -82,9 +94,10 @@ describe("the dashboard overview boundary", () => {
     // `not.toContain` reads as "found nothing", which is the *positive* case for a
     // scanner — the same mistake `geo-module-reachability.test.ts` documents in its own
     // negative control.
-    const unconsumed = FIELDS.filter(
-      (f) => !f.consumed && clientReads(f.name) > 0,
-    );
+    // Named apart from the `unconsumed` helper above, which is a different
+    // thing: this one is the *subset that matters*, and shadowing a module-level
+    // helper with a local of the same name is how a reader mistakes one for the
+    // other.
     const missing = FIELDS.filter(
       (f) => f.consumed && clientReads(f.name) === 0,
     );
@@ -101,8 +114,6 @@ describe("the dashboard overview boundary", () => {
         (f) => `${f.name}: ${clientReads(f.name)} reads`,
       ),
     ).toEqual(["audit: 2 reads", "backlinks: 4 reads"]);
-
-    void unconsumed;
   });
 
   it("names the one field nothing reads, and what it costs", () => {
@@ -164,11 +175,6 @@ describe("the dashboard overview boundary", () => {
      * nothing would pass this file — which is exactly the blindness the survey exists to
      * catch.
      */
-    const unconsumed = (
-      names: string[],
-      isRead: (name: string) => boolean,
-    ): string[] => names.filter((name) => !isRead(name));
-
     const declared = ["audit", "backlinks"];
 
     // Positive: a rule that reports nothing when everything is consumed.
@@ -210,6 +216,6 @@ describe("the dashboard overview boundary", () => {
       ),
     ].map((m) => m[1]);
 
-    expect(declared.sort()).toEqual(["audit", "backlinks", "rank"]);
+    expect(sortBy(declared, String)).toEqual(["audit", "backlinks", "rank"]);
   });
 });

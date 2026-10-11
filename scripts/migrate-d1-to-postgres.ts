@@ -58,6 +58,7 @@
  */
 import { readFileSync } from "node:fs";
 import process from "node:process";
+import { sortBy } from "remeda";
 import {
   getTableColumns,
   getTableName,
@@ -129,11 +130,16 @@ async function d1Query<T = Record<string, unknown>>(
       body: JSON.stringify({ sql: statement }),
     },
   );
-  const json = (await response.json()) as {
+  // **Annotated rather than asserted.** `response.json()` returns `any`, and an
+  // `as` cast from `any` is exactly the shape the repo's lint flags: it silences
+  // the very value that would have shown a mismatch. A variable annotation still
+  // cannot be proven at runtime — the response is untyped JSON — but it fails
+  // loudly at read time if the field names drift, which a cast would not.
+  const json: {
     success: boolean;
     errors?: unknown;
     result?: { results: T[] }[];
-  };
+  } = await response.json();
   if (!response.ok || !json.success) {
     throw new Error(`D1 query failed: ${JSON.stringify(json.errors ?? json)}`);
   }
@@ -166,11 +172,13 @@ function fkSafeOrder(tables: Map<string, Table>): string[] {
   const ordered: string[] = [];
   const placed = new Set<string>();
   while (ordered.length < tables.size) {
-    const ready = [...deps]
-      .filter(([name]) => !placed.has(name))
-      .filter(([, refs]) => [...refs].every((r) => placed.has(r)))
-      .map(([name]) => name)
-      .sort();
+    const ready = sortBy(
+      [...deps]
+        .filter(([name]) => !placed.has(name))
+        .filter(([, refs]) => [...refs].every((r) => placed.has(r)))
+        .map(([name]) => name),
+      String,
+    );
     if (ready.length === 0) {
       // No FK cycle exists in this schema, so this is unreachable. Fail loud
       // rather than copy the remaining tables in an arbitrary order that could
@@ -268,10 +276,11 @@ function buildUpsert(pgTable: Table, arbiterNames: string[]) {
     pk.has(c.name),
   );
   const set: Record<string, SQL> = {};
-  for (const [jsKey, col] of Object.entries(getTableColumns(pgTable)) as [
-    string,
-    Column,
-  ][]) {
+  // **No cast on the entries.** `getTableColumns` returns
+  // `Record<string, Column>`, so `Object.entries` already gives
+  // `[string, Column][]` — the `as` was restating what the return type already
+  // says, and the lint flags an assertion that changes nothing.
+  for (const [jsKey, col] of Object.entries(getTableColumns(pgTable))) {
     if (!pk.has(col.name)) {
       set[jsKey] = sql`excluded.${sql.identifier(col.name)}`;
     }
@@ -287,9 +296,7 @@ function convertRow(
   row: Record<string, unknown>,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const [jsKey, column] of Object.entries(
-    getTableColumns(sqliteTable),
-  ) as [string, Column][]) {
+  for (const [jsKey, column] of Object.entries(getTableColumns(sqliteTable))) {
     const raw = row[column.name];
     if (raw === null || raw === undefined) {
       out[jsKey] = null;
@@ -322,15 +329,30 @@ type PgDb = ReturnType<typeof drizzlePg>;
 // Copy one table from D1 to Postgres, paginating in PK order. `predicate` scopes
 // the read (null = whole table); `upsert` overwrites on PK conflict (--update)
 // vs insert-or-ignore (full migration). Returns the row count read from D1.
-async function copyTable(
-  databaseId: string,
-  dest: PgDb,
-  name: string,
-  sqliteTable: Table,
-  pgTable: Table,
-  predicate: string | null,
-  upsert: boolean,
-): Promise<number> {
+/** One table's copy, and everything the copy needs to know. */
+type CopyTableOptions = {
+  databaseId: string;
+  dest: PgDb;
+  name: string;
+  sqliteTable: Table;
+  pgTable: Table;
+  predicate: string | null;
+  upsert: boolean;
+};
+
+/**
+ * Copy one SQLite table into Postgres, page by page.
+ *
+ * **An options object rather than seven positional parameters.** The lint flags
+ * the arity, and the reason it exists is the one that applies here: the two
+ * `Table` arguments and the two booleans sit next to each other at the call site,
+ * where nothing prevents swapping them. `copyTable(targets.get("x")!, ...)`
+ * with the dialect tables transposed would typecheck and copy Postgres from
+ * Postgres.
+ */
+async function copyTable(options: CopyTableOptions): Promise<number> {
+  const { databaseId, dest, name, sqliteTable, pgTable, predicate, upsert } =
+    options;
   const orderBy = primaryKeyOrder(sqliteTable);
   const where = predicate ? `WHERE ${predicate} ` : "";
   // Keep each INSERT's bound-parameter count (rows × columns) well under
@@ -352,7 +374,9 @@ async function copyTable(
   let offset = 0;
   let count = 0;
   for (;;) {
-    const page = await d1Query<Record<string, unknown>>(
+    // No type argument: `Record<string, unknown>` is the declared default, so
+    // writing it out adds nothing the signature does not already say.
+    const page = await d1Query(
       databaseId,
       `SELECT * FROM "${name}" ${where}${orderBy} LIMIT ${tablePageSize} OFFSET ${offset}`,
     );
@@ -430,15 +454,15 @@ async function main() {
   const written = new Map<string, number>();
   for (const name of order) {
     const predicate = updateMode ? deltaPredicate(name, cutoffIso) : null;
-    const count = await copyTable(
+    const count = await copyTable({
       databaseId,
       dest,
       name,
-      sqliteTables.get(name)!,
-      pgTables.get(name)!,
+      sqliteTable: sqliteTables.get(name)!,
+      pgTable: pgTables.get(name)!,
       predicate,
-      updateMode,
-    );
+      upsert: updateMode,
+    });
     written.set(name, count);
     const verb = updateMode ? "synced" : "wrote";
     console.log(`  ${name.padEnd(34)} ${verb} ${String(count).padStart(7)}`);

@@ -136,8 +136,24 @@ async function main() {
         const checkedAt = dbTimestamp(run.date);
         const path = `/${slugify(kw.keyword)}`;
         snapshotValues.push(
-          snapshot(run.id, kw, "desktop", desktopRank, domain, path, checkedAt),
-          snapshot(run.id, kw, "mobile", mobileRank, domain, path, checkedAt),
+          snapshot({
+            runId: run.id,
+            kw,
+            device: "desktop",
+            rank: desktopRank,
+            domain,
+            path,
+            checkedAt,
+          }),
+          snapshot({
+            runId: run.id,
+            kw,
+            device: "mobile",
+            rank: mobileRank,
+            domain,
+            path,
+            checkedAt,
+          }),
         );
       });
     });
@@ -270,15 +286,30 @@ function toStored(rank: number | null): number | null {
   return r > SERP_DEPTH ? null : r;
 }
 
+/** One rank snapshot's values. Seven of them, and two are two fields of it. */
+type SnapshotInput = {
+  runId: string;
+  kw: { id: string; keyword: string };
+  device: "desktop" | "mobile";
+  rank: number | null;
+  domain: string;
+  path: string;
+  checkedAt: string;
+};
+
+/**
+ * Build a stored rank snapshot.
+ *
+ * **An options object rather than seven positional parameters.** Two of the seven
+ * are strings a call site can transpose (`domain` and `path`), and the resulting
+ * snapshot is a plausible-looking URL with the wrong host — which is the kind of
+ * defect a passing test cannot see, because the test asserts on the function it
+ * wrote and the function is fine.
+ */
 function snapshot(
-  runId: string,
-  kw: { id: string; keyword: string },
-  device: "desktop" | "mobile",
-  rank: number | null,
-  domain: string,
-  path: string,
-  checkedAt: string,
+  input: SnapshotInput,
 ): typeof schema.rankSnapshots.$inferInsert {
+  const { runId, kw, device, rank, domain, path, checkedAt } = input;
   const position = toStored(rank);
   return {
     runId,

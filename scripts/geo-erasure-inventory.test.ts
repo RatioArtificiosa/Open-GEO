@@ -24,7 +24,6 @@ vi.mock("cloudflare:workers", () => ({ env: {} }));
 let client: ReturnType<typeof createClient>;
 let db: ReturnType<typeof drizzle<typeof schema>>;
 
-const PROJECT_IDS = ["p1", "p2"];
 const ANSWER_A = "answer_a";
 const ANSWER_B = "answer_b";
 

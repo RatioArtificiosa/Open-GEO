@@ -1,7 +1,55 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { join, dirname, relative } from "node:path";
+import { sortBy } from "remeda";
 import { describe, expect, it } from "vitest";
+
+/**
+ * How many properly-encoded U+00E2 bytes a buffer holds.
+ *
+ * At module scope because it captures nothing from the caller. **The mechanism is
+ * specific and needs to be:** the damaged bytes are valid UTF-8, so the only
+ * reliable tell is the `C3 A2` pair — a properly-encoded U+00E2 that nobody
+ * writes. The first version of this test re-encoded the three characters back to
+ * the original bytes and then asserted those were broken, which is why it
+ * reported zero detected on demonstrably mangled text. A control that inverts the
+ * mechanism it tests passes or fails for reasons unrelated to the detector.
+ */
+const countSignature = (buf: Buffer): number => {
+  let n = 0;
+  for (let i = 0; i < buf.length - 1; i += 1) {
+    if (buf[i] === 0xc3 && buf[i + 1] === 0xa2) n += 1;
+  }
+  return n;
+};
+
+/**
+ * A package's `scripts` map, read and checked.
+ *
+ * **`JSON.parse` returns `any`**, so a variable annotation on its result is a
+ * claim the compiler cannot see was checked — which is exactly what
+ * `no-unsafe-assignment` reports, and what this audit exists to notice elsewhere:
+ * a gate that reads `undefined` as "not wired" and says so confidently. Reading
+ * the field and asserting its shape turns a malformed package.json into a named
+ * failure instead of a green audit over an empty map.
+ */
+function readScripts(): Record<string, string> {
+  const parsed: unknown = JSON.parse(
+    readFileSync(join(ROOT, "package.json"), "utf8"),
+  );
+  if (typeof parsed !== "object" || parsed === null || !("scripts" in parsed)) {
+    throw new Error("package.json has no scripts object");
+  }
+  const scripts: unknown = (parsed as { scripts: unknown }).scripts;
+  if (typeof scripts !== "object" || scripts === null) {
+    throw new Error("package.json's scripts is not an object");
+  }
+  const out: Record<string, string> = {};
+  for (const [name, value] of Object.entries(scripts)) {
+    if (typeof value === "string") out[name] = value;
+  }
+  return out;
+}
 
 /**
  * §12.4 "What stays OUT of the repo", clause by clause.
@@ -356,7 +404,12 @@ describe("proposal §12.4 — what stays out of the repo", () => {
     // this file, so the count is pinned here to stop it drifting silently upward
     // in the ledger.
     const manual = CLAUSES.filter((c) => c.enforcement === "manual");
-    expect(manual.map((c) => c.clause).sort()).toEqual([
+    expect(
+      sortBy(
+        manual.map((c) => c.clause),
+        String,
+      ),
+    ).toEqual([
       "cloud-only config",
       "the agent's private prompts",
       "the managed scheduler's internals",
@@ -402,9 +455,13 @@ describe("the gate files themselves", () => {
     // `ci:check` is the only thing standing between a gate and a file nobody
     // executes. A gate not named in it is a gate that has stopped protecting
     // anything while still appearing in this audit as enforcement.
-    const pkg = JSON.parse(
-      readFileSync(join(ROOT, "package.json"), "utf8"),
-    ) as { scripts?: Record<string, string> };
+    // **`unknown` first, then narrowed.** `JSON.parse` returns `any`, and
+    // even a variable annotation on an `any` source is still an unsafe assignment
+    // — the annotation is a claim the linter can see is unchecked. Reading it as
+    // `unknown` and asserting the one field this audit depends on is the version
+    // that can actually fail: a package.json with no `scripts` object becomes a
+    // named error rather than a silent path to an empty `ci` string.
+    const pkg = { scripts: readScripts() };
     const ci = pkg.scripts?.["ci:check"] ?? "";
     expect(ci).toContain("knip");
     // The two §12.4 gates are vitest files, so they run under `vitest run`
@@ -660,9 +717,13 @@ describe("scripts run on every platform the product supports", () => {
       { rule: "an env VAR= prefix", re: /(?:^|[\s;&|])env\s+[A-Z_]+=/ },
     ];
 
-    const pkg = JSON.parse(
-      readFileSync(join(ROOT, "package.json"), "utf8"),
-    ) as { scripts?: Record<string, string> };
+    // **`unknown` first, then narrowed.** `JSON.parse` returns `any`, and
+    // even a variable annotation on an `any` source is still an unsafe assignment
+    // — the annotation is a claim the linter can see is unchecked. Reading it as
+    // `unknown` and asserting the one field this audit depends on is the version
+    // that can actually fail: a package.json with no `scripts` object becomes a
+    // named error rather than a silent path to an empty `ci` string.
+    const pkg = { scripts: readScripts() };
     const scripts = Object.entries(pkg.scripts ?? {});
 
     // A control: the rule has to be able to fail, or it is decoration. The
@@ -722,13 +783,6 @@ describe("mojibake must not get worse", () => {
   // matcher no longer needs a list of mangled forms: damage is now detected as a
   // broken UTF-8 continuation byte, which is a property of the encoding rather
   // than of any particular character.
-  const GOOD = {
-    emDash: 0x2014,
-    rightQuote: 0x2019,
-    leftQuote: 0x201c,
-    rightDQuote: 0x201d,
-    ellipsis: 0x2026,
-  };
 
   /**
    * The ceiling. Lower it when files are repaired; raise it only with a reason.
@@ -810,14 +864,6 @@ describe("mojibake must not get worse", () => {
     // why it reported zero detected on text that was demonstrably mangled.
     // **A control that inverts the mechanism it tests passes or fails for
     // reasons unrelated to the detector.**
-    const countSignature = (buf: Buffer): number => {
-      let n = 0;
-      for (let i = 0; i < buf.length - 1; i += 1) {
-        if (buf[i] === 0xc3 && buf[i + 1] === 0xa2) n += 1;
-      }
-      return n;
-    };
-
     const GOOD = {
       emDash: 0x2014,
       rightQuote: 0x2019,

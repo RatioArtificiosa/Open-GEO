@@ -194,9 +194,7 @@ const isExportLine =
   /^export\s+(?:async\s+)?(?:function|const|class)\s+[A-Za-z0-9_]+/;
 
 const unwired = [];
-for (const entry of corpus.filter((entry) =>
-  invariantFiles.includes(entry.file),
-)) {
+for (const entry of corpus.filter((hit) => invariantFiles.includes(hit.file))) {
   const testFile = `${entry.file.slice(0, -3)}.test.ts`;
   if (!tracked.includes(testFile)) continue;
 

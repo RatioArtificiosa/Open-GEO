@@ -170,6 +170,7 @@
 import ts from "typescript";
 import path from "node:path";
 import process from "node:process";
+import { sort } from "remeda";
 
 const ROOT = process.cwd();
 
@@ -422,16 +423,19 @@ for (const sf of program.getSourceFiles()) {
   visit(sf);
 }
 
-const candidates = [...findings.entries()]
-  .filter(([name]) => !owner.get(name) || mounted.has(owner.get(name)))
-  .sort((a, b) => b[1] - a[1]);
+const candidates = sort(
+  [...findings.entries()].filter(
+    ([name]) => !owner.get(name) || mounted.has(owner.get(name)),
+  ),
+  (a, b) => b[1] - a[1],
+);
 
 const unmounted = [...findings.entries()].filter(
   ([name]) => owner.get(name) && !mounted.has(owner.get(name)),
 );
 
 console.log(`surface files scanned: ${surfaceFiles}`);
-console.log(`handlers examined:     ${new Set([...owner.values()]).size}`);
+console.log(`handlers examined:     ${new Set(owner.values()).size}`);
 console.log(`unread fields total:   ${findings.size}`);
 console.log("");
 console.log(

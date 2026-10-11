@@ -45,6 +45,43 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { sort } from "remeda";
+
+/**
+ * The feature a test file belongs to.
+ *
+ * **At module scope, because it captures nothing from the caller.** It was declared
+ * inside `main()` and the linter flagged it, which was right: a closure over
+ * nothing is a function that reads as if it were local when it is pure, and a
+ * hoisted one can be reasoned about on its own.
+ *
+ * The key has to be the **feature**, so a feature's server and client tests share
+ * one row — grouping by directory instead put `src/client/features/geo` and
+ * `src/server/features/geo/services` in different rows, which is a table that cannot
+ * answer the question this is for, because the question is "which feature", not
+ * "which layer of which feature".
+ *
+ * A file sitting directly inside `features/` is not a feature either: it returns the
+ * parent, so a stray test file lands with its neighbours rather than becoming a
+ * one-row "feature" of its own.
+ */
+function featureOf(file) {
+  const parts = file.split("/");
+  if (parts[0] === "scripts") return "scripts"; // the repo's own gates, as one family
+  const features = parts.indexOf("features");
+  if (features !== -1 && parts[features + 1]?.includes("/") === false) {
+    const name = parts[features + 1];
+    if (!name.endsWith(".test.ts") && !name.endsWith(".test.tsx")) return name;
+    return parts.slice(0, features + 1).join("/");
+  }
+  if (file.startsWith("src/server/lib/dataforseo/")) {
+    // **Named, not left as a path.** This is the one row in the table that carries
+    // every spend capability the scan can find, so it is labelled as what it is
+    // rather than as the directory it happens to live in.
+    return "vendor client (src/server/lib/dataforseo)";
+  }
+  return parts.slice(0, parts.length - 1).join("/");
+}
 
 /**
  * The floor this scan refuses to report below.
@@ -152,8 +189,6 @@ export function classify(text) {
     ? "pinned"
     : "BILLABLE";
 }
-
-const LB = String.fromCharCode(96);
 
 /** The defect, as a fixture: reaches the vendor with nothing pinned. */
 const BILLABLE_FIXTURE = [
@@ -405,30 +440,6 @@ async function main() {
   // cannot answer the question CL-710 asks, because the question is "which feature",
   // not "which layer of which feature".
   //
-  // **A file directly inside `features/` is not a feature.** The first version
-  // returned `chart-rules.test.ts` as a key, which is one file that happens to sit
-  // outside a subdirectory. Every key is normalised to a directory-shaped one, and
-  // anything that still names a file falls back to its parent — so a stray test
-  // file lands with its neighbours instead of becoming a one-row feature.
-  const featureOf = (file) => {
-    const parts = file.split("/");
-    if (parts[0] === "scripts") return "scripts"; // the repo's own gates, as one family
-    const features = parts.indexOf("features");
-    if (features !== -1 && parts[features + 1]?.includes("/") === false) {
-      const name = parts[features + 1];
-      if (!name.endsWith(".test.ts") && !name.endsWith(".test.tsx"))
-        return name;
-      return parts.slice(0, features + 1).join("/");
-    }
-    if (file.startsWith("src/server/lib/dataforseo/")) {
-      // **Named, not left as a path.** This is the one row in the table that carries
-      // every spend capability the scan can find, so it is labelled as what it is
-      // rather than as the directory it happens to live in.
-      return "vendor client (src/server/lib/dataforseo)";
-    }
-    return parts.slice(0, parts.length - 1).join("/");
-  };
-
   const byFeature = {};
   for (const file of tracked) {
     // Counted from the full scan rather than from `rows`, so the row's share is
@@ -468,11 +479,14 @@ async function main() {
     folded[feature].reaching += counts.reaching;
   }
 
-  const features = Object.entries(folded)
-    .map(([feature, counts]) => ({ feature, ...counts }))
-    .sort(
-      (a, b) => b.reaching - a.reaching || a.feature.localeCompare(b.feature),
-    );
+  // Remeda's `sort` returns a new array. `.sort()` here would mutate a fresh
+  // `.map()` result and be harmless, but the repo's lint flags the shape and the
+  // ES2022 floor means `toSorted` is not available — so the non-mutating form is
+  // the one that compiles and the one that does not need justifying.
+  const features = sort(
+    Object.entries(folded).map(([feature, counts]) => ({ feature, ...counts })),
+    (a, b) => b.reaching - a.reaching || a.feature.localeCompare(b.feature),
+  );
 
   /**
    * **The roll-up has a vacuity guard of its own.** The same refusal shape as the
@@ -506,7 +520,9 @@ async function main() {
   console.log(
     `=== per-migration cost class (${migrations.length} migrations) ===`,
   );
-  for (const [k, v] of Object.entries(byClass).sort()) {
+  for (const [k, v] of sort(Object.entries(byClass), ([a], [b]) =>
+    String(a).localeCompare(String(b)),
+  )) {
     console.log(`  ${k.padEnd(13)} ${v}`);
   }
   // The expensive and destructive ones are named, not just counted. "table-change: 3" is a

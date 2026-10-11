@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { sortBy } from "remeda";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -55,22 +56,116 @@ const REPO_ROOT = process.cwd().endsWith("scripts")
   : process.cwd();
 
 /** Read the final snapshot: the one no other snapshot names as `prevId`. */
+/** What a drizzle snapshot journal file contains, as far as this gate reads it. */
+type Snapshot = {
+  id?: unknown;
+  prevId?: unknown;
+  tables: Record<string, { columns: Record<string, unknown> }>;
+};
+
+/**
+ * Read a snapshot by filename and parse it as one.
+ *
+ * **A validated parse, not a cast.** `JSON.parse` returns `any`, and every use of
+ * that value then went through `as string` or an unguarded `.id` — which is the
+ * shape the repo's lint flags, and rightly: an `any` flowing into a `Map<string,
+ * string>` is a type claim nothing checks. Here the parse is followed by an
+ * explicit check for the field the gate actually reads, so a malformed snapshot
+ * fails with a name rather than becoming `undefined` three functions later.
+ *
+ * The other fields are typed `unknown` on purpose. Narrowing them would be a
+ * claim about a generated artifact this repo does not own, and the day the
+ * generator changes shape the claim would be wrong. Only what the gate reads is
+ * asserted.
+ */
+function readSnapshot(metaDir: string, name: string): Snapshot {
+  const parsed: unknown = JSON.parse(readFileSync(join(metaDir, name), "utf8"));
+  if (typeof parsed !== "object" || parsed === null || !("tables" in parsed)) {
+    throw new Error(`${name}: not a drizzle snapshot (no "tables" object)`);
+  }
+  // **A documented assertion, not a restatement.** `"tables" in parsed` narrows
+  // the object but not the *shape* of `tables`, and the run-time check that would
+  // (walking every table's columns) is the work the snapshot-filling test already
+  // does further down. So the assertion here is the seam between "is this a
+  // snapshot" and "is this snapshot well-formed", and it is called out rather than
+  // hidden — the next person to see `as` here should read this and know there are
+  // two questions, not one.
+  return parsed as Snapshot; // eslint-disable-line typescript/no-unsafe-type-assertion
+}
+
+/**
+ * A value narrowed to a string, or a named failure.
+ *
+ * **Why not `String()`.** `parsed.prevId` is `unknown`, and interpolating it
+ * would print `[object Object]` for an object — which matches nothing, so a
+ * malformed snapshot would look like a broken chain instead of a malformed
+ * file. Reading it through here makes the difference visible.
+ */
+function rowString(value: unknown, field: string): string {
+  if (typeof value !== "string") {
+    throw new Error(
+      `snapshot's ${field} is not a string: ${JSON.stringify(value)}`,
+    );
+  }
+  return value;
+}
+
+/**
+ * The `prevId` this chain declares, or the empty string for the first snapshot.
+ */
+function readPrevId(snapshot: Snapshot): string {
+  return snapshot.prevId === undefined
+    ? ""
+    : rowString(snapshot.prevId, "prevId");
+}
+
+/** The snapshot id, as the string the journal actually uses. */
+function snapshotId(snapshot: Snapshot): string {
+  const id = snapshot.id;
+  if (typeof id !== "string") throw new Error("snapshot has no string id");
+  return id;
+}
+
+/**
+ * A result row's `name` column, narrowed rather than cast.
+ *
+ * **`node:sqlite`'s `.all()` is untyped**, so every caller of this column used to
+ * write `row as { name: string }`, which is the shape the repo's lint flags: a
+ * cast from `any` to a narrower type asserts a claim nothing checks. Three sites
+ * needed it and all three are now one helper that reads the field and says so if
+ * it is not there — a malformed row becomes a named failure instead of
+ * `undefined` inside a Set lookup that quietly matches nothing.
+ */
+function rowName(row: unknown): string {
+  if (typeof row !== "object" || row === null || !("name" in row)) {
+    throw new Error(`sqlite row has no name column: ${JSON.stringify(row)}`);
+  }
+  const name = (row as { name: unknown }).name;
+  if (typeof name !== "string") {
+    throw new Error(
+      `sqlite row's name is not a string: ${JSON.stringify(row)}`,
+    );
+  }
+  return name;
+}
+
 function readFinalSnapshot(dir: string) {
   const metaDir = join(REPO_ROOT, dir, "meta");
-  const snapshots = readdirSync(metaDir)
-    .filter((name) => name.endsWith("_snapshot.json"))
-    .sort();
+  const snapshots = sortBy(
+    readdirSync(metaDir).filter((name) => name.endsWith("_snapshot.json")),
+    String,
+  );
   const referenced = new Map<string, string>();
   for (const name of snapshots) {
-    const parsed = JSON.parse(readFileSync(join(metaDir, name), "utf8"));
-    referenced.set(parsed.id as string, parsed.prevId as string);
+    const parsed = readSnapshot(metaDir, name);
+    referenced.set(snapshotId(parsed), readPrevId(parsed));
   }
   const finalName = snapshots.find((name) => {
-    const parsed = JSON.parse(readFileSync(join(metaDir, name), "utf8"));
-    return ![...referenced.values()].includes(parsed.id as string);
+    const parsed = readSnapshot(metaDir, name);
+    return ![...referenced.values()].includes(snapshotId(parsed));
   });
   if (!finalName) throw new Error(`${dir}: no final snapshot found`);
-  return JSON.parse(readFileSync(join(metaDir, finalName), "utf8"));
+  return readSnapshot(metaDir, finalName);
 }
 
 /** Snapshot column names, keyed by table, with the dialect schema prefix off. */
@@ -92,9 +187,12 @@ function snapshotColumnsByTable(snapshot: {
  * started testing nothing the moment a migration was added.
  */
 function d1MigrationFiles(): string[] {
-  return readdirSync(join(REPO_ROOT, "drizzle"))
-    .filter((name) => name.endsWith(".sql"))
-    .sort();
+  return sortBy(
+    readdirSync(join(REPO_ROOT, "drizzle")).filter((name) =>
+      name.endsWith(".sql"),
+    ),
+    String,
+  );
 }
 
 /**
@@ -141,7 +239,7 @@ function unaccountedColumnsFor(
       db
         .prepare(`PRAGMA table_info(${JSON.stringify(table)})`)
         .all()
-        .map((row) => (row as { name: string }).name),
+        .map(rowName),
     );
     for (const column of columns) {
       if (!actual.has(column)) unaccounted.push(`${table}.${column}`);
@@ -179,7 +277,7 @@ describe("the D1 migrations build the schema the snapshot claims", () => {
           "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
         )
         .all()
-        .map((row) => (row as { name: string }).name),
+        .map(rowName),
     );
     expect([...declared.keys()].filter((t) => !existing.has(t))).toEqual([]);
   });
@@ -207,7 +305,7 @@ describe("the D1 migrations build the schema the snapshot claims", () => {
       for (const row of db
         .prepare(`PRAGMA table_info(${JSON.stringify(table)})`)
         .all()) {
-        const name = (row as { name: string }).name;
+        const name = rowName(row);
         if (!snapshotSet.has(name)) extra.push(`${table}.${name}`);
       }
     }
@@ -223,9 +321,10 @@ describe("the D1 migrations build the schema the snapshot claims", () => {
 
 describe("the Postgres migrations build the schema the snapshot claims", () => {
   const dir = "drizzle-pg";
-  const sql = readdirSync(join(REPO_ROOT, dir))
-    .filter((name) => name.endsWith(".sql"))
-    .sort()
+  const sql = sortBy(
+    readdirSync(join(REPO_ROOT, dir)).filter((name) => name.endsWith(".sql")),
+    String,
+  )
     .map((name) => readFileSync(join(REPO_ROOT, dir, name), "utf8"))
     .join("\n");
 

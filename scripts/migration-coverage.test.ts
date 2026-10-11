@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { sortBy } from "remeda";
 
 /**
  * Repository tests build a database by naming migration files.
@@ -55,10 +56,12 @@ export function tablesWrittenBy(source: string): string[] {
 
 /** Every migration the repository has, oldest first. */
 function everyMigration(): string[] {
-  return readdirSync("drizzle")
-    .filter((name) => name.endsWith(".sql"))
-    .map((name) => name.replace(/\.sql$/, ""))
-    .sort();
+  return sortBy(
+    readdirSync("drizzle")
+      .filter((name) => name.endsWith(".sql"))
+      .map((name) => name.replace(/\.sql$/, "")),
+    String,
+  );
 }
 
 /** Every migration the repository has, oldest first, with its SQL. */
@@ -101,7 +104,7 @@ export function stalenessVerdict(
 ): string[] {
   const named = migrationsNamedIn(source);
   if (named.length === 0) return [];
-  const newest = [...named].sort().at(-1)!;
+  const newest = sortBy(named, String).at(-1)!;
   const writes = tablesWrittenBy(source);
   const findings: string[] = [];
   for (const migration of newerMigrations.filter((m) => m.name > newest)) {

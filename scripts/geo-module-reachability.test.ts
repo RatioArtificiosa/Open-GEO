@@ -51,7 +51,7 @@ function isRouteModule(rel: string): boolean {
   return (
     rel.includes("/routes/") ||
     rel.startsWith("routes/") ||
-    /Route\.tsx$/.test(rel)
+    rel.endsWith("Route.tsx")
   );
 }
 
@@ -362,7 +362,6 @@ function isDeadModule(importers: readonly string[]): boolean {
 
 describe("a GEO module must be reachable from production", () => {
   const files = walk(join(ROOT, GEO_ROOT));
-  const sources = new Map(files.map((f) => [f, readFileSync(f, "utf8")]));
 
   /** Every module in the consumer roots, which is a superset of `files`. */
   const consumerFiles = CONSUMER_ROOTS.flatMap((r) => walk(join(ROOT, r)));
