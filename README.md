@@ -38,16 +38,22 @@ That's a traffic leak with no dashboard. OpenGeo is the dashboard.
 
 ## The receipts
 
-**Every tool in this category prices by prompt and volume. None of them publish what the underlying data costs them**, so you cannot check whether you are being marked up, or by how much. **We print both columns** — ours comes from [the price book in our repo](./src/shared/dataforseo-pricing.ts), and a vendor price change breaks our build rather than quietly changing your bill.
+**Every tool in this category prices by prompt and volume. None of them publish what the underlying data costs them**, so you cannot check whether you are being marked up, or by how much. **We print what the data costs**, at the vendor's published rates, beside the endpoint and the billing unit that produced each figure — from [the price book in our repo](./src/shared/dataforseo-pricing.ts), and a vendor price change breaks our build rather than quietly changing your bill.
 
-What one brand monitored daily for thirty days costs:
+What one brand monitored daily for thirty days costs, at DataForSEO's published rates:
 
-| What                                                      | Billed as            | We pay |  You pay |
-| --------------------------------------------------------- | -------------------- | -----: | -------: |
-| AI keyword volume, 1,000 keywords                         | 1 task + 1,000 items |  $0.11 |    $0.14 |
-| LLM mentions, 10 rows                                     | 1 task + 10 rows     |  $0.11 |    $0.14 |
-| One brand, monitored daily, 30 days                       | 30 nightly runs      |  $3.30 |    $4.22 |
-| **The difference — flat, and the same on every endpoint** |                      |        | **+28%** |
+| What                                | Billed as            | Vendor price |
+| ----------------------------------- | -------------------- | -----------: |
+| AI keyword volume, 1,000 keywords   | 1 task + 1,000 items |        $0.11 |
+| LLM mentions, 10 rows               | 1 task + 10 rows     |        $0.11 |
+| One brand, monitored daily, 30 days | 30 nightly runs      |        $3.30 |
+
+**What we charge on top is not published, deliberately.** It is an operator setting rather
+than a constant, it moves with volume pricing and with the market, and a figure printed
+here would become false on the first adjustment — on a page whose entire argument is that
+its numbers can be checked. What you can always check is your own bill: the hosted service
+shows the exact per-run cost after every run, and self-hosting pays the vendor's rate
+directly, with no rate of ours involved at all.
 
 The same honesty runs through the measurement. Every visibility number links to the prompt that was asked, the answer that came back, the sources that were cited, and where your page was retrieved and dropped. [`docs/METHODOLOGY.md`](./docs/METHODOLOGY.md) documents how every metric is computed, date-stamped and versioned, including a "what we do not claim" section.
 
@@ -159,7 +165,9 @@ month** (10 rows returned). The full price book is in
 [`src/shared/dataforseo-pricing.ts`](./src/shared/dataforseo-pricing.ts) and pinned by tests, so a
 vendor price change fails the build rather than quietly changing your bill.
 
-The hosted service adds a flat 28% on those requests, the same on every endpoint. No seat fees, no annual contracts.
+The hosted service is billed in credits against that same vendor cost. What a credit covers is a
+setting rather than a published rate, and the app shows the exact figure for every run after it
+runs. No seat fees, no annual contracts.
 
 ## Local development
 
@@ -193,4 +201,6 @@ OpenGeo is a derivative work of **[OpenSEO](https://github.com/every-app/open-se
 Senescu), extended with the GEO suite. Upstream attribution is preserved in [`LICENSE`](./LICENSE)
 and [`NOTICE.md`](./NOTICE.md). We are grateful to the OpenSEO authors.
 
-Data provided by [DataForSEO](https://dataforseo.com).
+Data provided by [DataForSEO](https://dataforseo.com), used under their API terms of
+service. OpenGeo is not affiliated with or endorsed by DataForSEO; the rates above are
+theirs, and any change to them is theirs to make.
