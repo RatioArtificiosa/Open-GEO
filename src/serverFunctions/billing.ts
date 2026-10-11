@@ -12,10 +12,17 @@ import {
 import { estimateRankCheckSpendSchema } from "@/types/schemas/rank-tracking";
 import {
   applyCostMarkup,
+  describeCostMarkup,
   resolveCostMarkup,
+  setConfiguredCostMarkupOverride,
 } from "@/server/billing/costMarkup";
+import {
+  isPlatformAdmin,
+  PLATFORM_ADMIN_ENV_VAR,
+} from "@/server/billing/platformAdmin";
 import { AppError } from "@/server/lib/errors";
 import {
+  getOptionalEnvValue,
   getRequiredEnvValue,
   isHostedServerAuthMode,
 } from "@/server/lib/runtime-env";
@@ -109,6 +116,59 @@ export const getBrandLookupCostEstimate = createServerFn({ method: "GET" })
       ),
     };
   });
+
+/**
+ * The operator billing settings, for the admin area.
+ *
+ * The markup is the only dial an MVP needs, so this returns it and the source
+ * it came from. "Which source" is the first question when an invoice looks
+ * wrong, and answering it by reading two sources in a shell is not an answer.
+ *
+ * Hidden behind `PLATFORM_ADMIN_USER_IDS` rather than any organization role:
+ * the dial is a property of the platform, so a tenant's administrator must
+ * never reach it, and an unconfigured deployment has no owner and therefore
+ * no admin.
+ */
+export const getBillingAdminSettings = createServerFn({ method: "GET" })
+  .middleware(requireAuthenticatedContext)
+  .handler(async ({ context }) => {
+    await requirePlatformAdmin(context.userId);
+
+    return describeCostMarkup();
+  });
+
+export const setCostMarkupSetting = createServerFn({ method: "POST" })
+  .middleware(requireAuthenticatedContext)
+  .validator(
+    z.object({
+      /** `null` clears the override, handing control back to the env binding. */
+      markup: z.number().positive().finite().nullable(),
+    }),
+  )
+  .handler(async ({ data, context }) => {
+    await requirePlatformAdmin(context.userId);
+
+    await setConfiguredCostMarkupOverride({
+      markup: data.markup,
+      updatedByUserId: context.userId,
+    });
+
+    return describeCostMarkup();
+  });
+
+/**
+ * The one door into the operator settings.
+ *
+ * Throws FORBIDDEN rather than returning an empty list, because an empty
+ * admin response is indistinguishable from an unconfigured deployment and
+ * would let a stranger learn which mode the app is in.
+ */
+async function requirePlatformAdmin(userId: string): Promise<void> {
+  const allowlist = await getOptionalEnvValue(PLATFORM_ADMIN_ENV_VAR);
+  if (!isPlatformAdmin(userId, allowlist)) {
+    throw new AppError("FORBIDDEN");
+  }
+}
 
 export const getBillingUsageEvents = createServerFn({ method: "POST" })
   .middleware(requireAuthenticatedContext)

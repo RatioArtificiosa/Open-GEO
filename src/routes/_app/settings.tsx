@@ -1,5 +1,7 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { isHostedClientAuthMode } from "@/lib/auth-mode";
+import { useQuery } from "@tanstack/react-query";
+import { getBillingAdminSettings } from "@/serverFunctions/billing";
 
 export const Route = createFileRoute("/_app/settings")({
   component: SettingsLayout,
@@ -9,11 +11,18 @@ export const Route = createFileRoute("/_app/settings")({
 // signed-in user (theme, API keys, analytics); Organization = the active org
 // (team). Billing keeps its own page — it's linked from paywalls all over.
 function SettingsLayout() {
+  // The operator tab is only shown when it would open. Asking the server keeps
+  // the tab out of everyone else's settings instead of 404ing them, and a
+  // deployment with no configured owner never sees it either.
+  const canAdministerBilling = useCanAdministerBilling();
   const tabs = [
     { to: "/settings" as const, label: "Personal", exact: true },
     // Self-host has no memberships — the organization tab would 404.
     ...(isHostedClientAuthMode()
       ? [{ to: "/settings/organization" as const, label: "Organization" }]
+      : []),
+    ...(canAdministerBilling
+      ? [{ to: "/settings/platform" as const, label: "Platform" }]
       : []),
   ];
 
@@ -46,4 +55,21 @@ function SettingsLayout() {
       </div>
     </div>
   );
+}
+
+/**
+ * Whether this signed-in user holds the operator role.
+ *
+ * A failed request — including the 403 that is the normal answer for everyone
+ * else — reads as "not an operator" rather than as an error, so a non-owner
+ * never sees a broken request in their settings page.
+ */
+function useCanAdministerBilling() {
+  const { data } = useQuery({
+    queryKey: ["billingAdminSettings"],
+    queryFn: () => getBillingAdminSettings(),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+  return data !== undefined;
 }
