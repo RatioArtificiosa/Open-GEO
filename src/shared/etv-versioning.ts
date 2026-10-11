@@ -189,6 +189,32 @@ export function seriesSpansCutover(
 }
 
 /**
+ * The month-keyed form of {@link seriesSpansCutover}, for data keyed by `YYYYMM`.
+ *
+ * ## Why a second predicate rather than reusing the first
+ *
+ * `domain_metrics_by_categories` returns its history keyed by `YYYYMM`, not by ISO
+ * timestamps — the vendor's `first_date`/`second_date` are month-granular by design.
+ * Converting `202610` to a timestamp needs an arbitrary day of the month, and a
+ * day-of-month chosen for convenience is exactly the kind of guess that turns a
+ * boundary check into a boundary *approximation*: `2026-11-01` and `2026-10-31` are
+ * in different months, so a helper that picked the first of each would disagree with
+ * one that picked the last.
+ *
+ * So the comparison is on the month keys directly, which needs no convention: the
+ * cutover month `202611` lies in `(fromMonth, toMonth]`. `202610 → 202611` spans;
+ * `202611 → 202612` does not, because both months are already on the new model.
+ */
+export function monthSpanSpansCutover(
+  fromMonth: string,
+  toMonth: string,
+  cutover = ETV_CUTOVER_DATE,
+): boolean {
+  const cutoverMonth = cutover.slice(0, 4) + cutover.slice(5, 7);
+  return fromMonth < cutoverMonth && cutoverMonth <= toMonth;
+}
+
+/**
  * What a chart must say when a series crosses the boundary.
  *
  * Returns `null` only when the series is internally consistent AND fully known.

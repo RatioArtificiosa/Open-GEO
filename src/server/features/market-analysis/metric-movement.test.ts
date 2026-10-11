@@ -73,4 +73,60 @@ describe("describeMetricsMovement", () => {
     } as Record<string, { organic: { etv: number } }>;
     expect(describeMetricsMovement(withNoise)?.toMonth).toBe("202110");
   });
+
+  // ------------------------------------------------- the 2026-11-01 ETV boundary
+
+  /**
+   * **The C6 gap, and the reason these cases are here rather than in `etv-versioning.test.ts`.**
+   *
+   * `domain_metrics_by_categories` takes two **caller-supplied** dates and returns a
+   * `metrics_history` keyed by `YYYYMM`, so a caller can ask about `2026-10` and `2026-11`
+   * — a window straddling the day the vendor switched ETV models. Across that boundary
+   * `etvChange` is the difference between two formulas, not between two traffic figures,
+   * and it is non-zero even for a site whose rankings never moved.
+   *
+   * Phase 1 closed every *chart* and forecast that plots ETV across the boundary. This is
+   * the movement read in `market-tools`, which was not one of the surfaces that closed —
+   * and it was reachable from a tool whose text said "grew between them", which is the
+   * claim the boundary invalidates.
+   */
+  describe("a window straddling 2026-11-01", () => {
+    it("refuses to report a direction, because two formulas apart there is none", () => {
+      // **The negative control's mirror.** Before the fix this returned `growing: true`, so
+      // a tool would have said a domain "grew" on the strength of a model change.
+      const straddling = describeMetricsMovement({
+        "202610": { organic: { etv: 100 } },
+        "202611": { organic: { etv: 260 } },
+      });
+
+      expect(straddling?.spansCutover).toBe(true);
+      // **The raw change is still reported**, because witholding it would be a different
+      // lie: a caller can see the number AND that it is not comparable, which is a better
+      // answer than hiding either half.
+      expect(straddling?.etvChange).toBe(160);
+      expect(straddling?.growing).toBeNull();
+    });
+
+    it("still reports direction on the far side of the cutover", () => {
+      // Both months on the new model: a normal comparison. Without this, a boundary check
+      // that flagged everything would pass the case above by never reporting growth at all.
+      const after = describeMetricsMovement({
+        "202611": { organic: { etv: 100 } },
+        "202612": { organic: { etv: 120 } },
+      });
+
+      expect(after?.spansCutover).toBe(false);
+      expect(after?.growing).toBe(true);
+    });
+
+    it("still reports direction entirely before the cutover", () => {
+      const before = describeMetricsMovement({
+        "202601": { organic: { etv: 100 } },
+        "202602": { organic: { etv: 80 } },
+      });
+
+      expect(before?.spansCutover).toBe(false);
+      expect(before?.growing).toBe(false);
+    });
+  });
 });

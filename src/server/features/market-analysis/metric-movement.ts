@@ -1,4 +1,5 @@
 import { sortBy } from "remeda";
+import { monthSpanSpansCutover } from "@/shared/etv-versioning";
 /**
  * Movement between the two months a category-metrics call asked about.
  *
@@ -41,6 +42,15 @@ type MetricsMovement = {
   /** `toEtv - fromEtv`, or null when either month's ETV is missing. */
   etvChange: number | null;
   /**
+   * Whether the two months straddle 2026-11-01, the day the vendor switches ETV models.
+   *
+   * **When this is true, `etvChange` is not a change in traffic** -- it is the difference
+   * between two formulas, and it is non-zero even for a site whose rankings did not move.
+   * The endpoint takes two *caller-supplied* dates, so a straddling window is a question a
+   * caller can ask, and it must not be answered with an unlabelled number.
+   */
+  spansCutover: boolean;
+  /**
    * Whether the later month has more estimated traffic.
    *
    * Null rather than false when either month is missing, because "no data" and "it fell" are
@@ -80,6 +90,7 @@ export function describeMetricsMovement(
   const fromEtv = organicEtv(history[fromMonth]);
   const toEtv = organicEtv(history[toMonth]);
   const etvChange = fromEtv !== null && toEtv !== null ? toEtv - fromEtv : null;
+  const spansCutover = monthSpanSpansCutover(fromMonth, toMonth);
 
   return {
     fromMonth,
@@ -87,6 +98,11 @@ export function describeMetricsMovement(
     fromEtv,
     toEtv,
     etvChange,
-    growing: etvChange === null ? null : etvChange > 0,
+    spansCutover,
+    // **A straddling movement carries no direction.** Two formulas apart, "grew" and
+    // "fell" are both claims about the formula rather than about the site — so the
+    // null that already means "not measurable" is also the right answer here, and a
+    // consumer cannot accidentally report a growth the boundary explains.
+    growing: spansCutover ? null : etvChange === null ? null : etvChange > 0,
   };
 }

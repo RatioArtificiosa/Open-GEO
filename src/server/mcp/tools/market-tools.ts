@@ -385,6 +385,19 @@ export const getCategoryDomainMetricsTool = {
             domain: z.string().nullable(),
             organicEtv: z.number().nullable(),
             etvChange: z.number().nullable(),
+            /**
+             * Whether the window straddles 2026-11-01, the ETV formula switch.
+             *
+             * In the schema as a **required** boolean rather than an optional one: a
+             * consumer has to be able to see "this change is a formula artifact"
+             * without having to reason about an absent field, and omitting it means
+             * a caller reads a number they cannot interpret.
+             */
+            spansCutover: z.boolean(),
+            /**
+             * Null when the window straddles the cutover as well as when a month is
+             * missing -- two formulas apart there is no direction to report.
+             */
             growing: z.boolean().nullable(),
           }),
         ),
@@ -418,6 +431,7 @@ export const getCategoryDomainMetricsTool = {
         domain: item.domain ?? null,
         organicEtv: item.organic_etv ?? null,
         etvChange: movement?.etvChange ?? null,
+        spansCutover: movement?.spansCutover ?? false,
         growing: movement?.growing ?? null,
         fromMonth: movement?.fromMonth ?? null,
         toMonth: movement?.toMonth ?? null,
@@ -426,13 +440,21 @@ export const getCategoryDomainMetricsTool = {
 
     const requestCostUsd = DFS_LABS.heavyHistorical.perRequest;
     const perDomainCostUsd = DFS_LABS.heavyHistorical.perUnit;
+    const straddling = domains.filter((domain) => domain.spansCutover).length;
     const grew = domains.filter((domain) => domain.growing === true).length;
     const measurable = domains.filter(
       (domain) => domain.growing !== null,
     ).length;
 
     return mcpResponse({
-      text: `${domains.length} domain${domains.length === 1 ? "" : "s"} in these categories, about $${requestCostUsd.toFixed(2)} + $${perDomainCostUsd.toFixed(4)} each. ${grew} of the ${measurable} with both months on record grew between them${domains.length > measurable ? `; ${domains.length - measurable} lack a reading for one of the months and are reported without a direction` : ""}.`,
+      // **A straddling window is named, not folded into the growth count.**
+      //
+      // Two months either side of 2026-11-01 are two ETV formulas, so `etvChange` there is
+      // the difference between the formulas rather than between the traffic. Counting those
+      // domains as "grew" would put a vendor model change into the customer's growth numbers,
+      // which is the one thing this product's whole ETV-versioning rule exists to prevent —
+      // and the tool's text is where a reader would find out.
+      text: `${domains.length} domain${domains.length === 1 ? "" : "s"} in these categories, about $${requestCostUsd.toFixed(2)} + $${perDomainCostUsd.toFixed(4)} each. ${grew} of the ${measurable} with both months on record grew between them${domains.length > measurable ? `; ${domains.length - measurable} lack a reading for one of the months and are reported without a direction` : ""}${straddling > 0 ? `; ${straddling} of these windows straddle 2026-11-01, the day the vendor changed the ETV formula, so their etvChange compares two formulas and carries no direction — do not read it as traffic growth` : ""}.`,
       meta: buildProjectMeta(
         context,
         args.projectId,

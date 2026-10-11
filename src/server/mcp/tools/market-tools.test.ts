@@ -197,6 +197,41 @@ function setDomainMetrics(items: unknown[]) {
 }
 
 describe("get_category_domain_metrics", () => {
+  it("says so when the window straddles the ETV cutover, instead of calling it growth", async () => {
+    // **The C6 gap, at the tool's surface rather than the function's.**
+    //
+    // `firstDate`/`secondDate` are caller-supplied, so a straddling window is a question a
+    // caller can ask. `metric-movement` returns `spansCutover` and no direction — but the
+    // *text* is where a reader would find out, and a tool that answered "1 of the 1 grew
+    // between them" for a window spanning the vendor's formula switch would be reporting a
+    // model change as traffic growth.
+    setDomainMetrics([
+      {
+        domain: "acmeexample.com",
+        metrics_history: {
+          "202610": { organic: { etv: 100 } },
+          "202611": { organic: { etv: 260 } },
+        },
+      },
+    ]);
+
+    const result = await getCategoryDomainMetricsTool.handler(
+      {
+        projectId: "project_1",
+        categoryCodes: [11494],
+        firstDate: "2026-10-01",
+        secondDate: "2026-11-15",
+      },
+      toolContext,
+    );
+
+    const text = textOf(result.content);
+    expect(text).toContain("2026-11-01");
+    // **The change is still shown**, so the reader has the number; what is refused is
+    // the claim about what it means.
+    expect(text).not.toMatch(/1 of the 1 with both months on record grew/);
+  });
+
   it("states the price, because this is the expensive endpoint", async () => {
     setDomainMetrics([{ domain: "acmeexample.com" }]);
 
