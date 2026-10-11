@@ -21,6 +21,7 @@
  * | a count is reported | a count is what makes a **partial** erasure visible in an audit |
  * | the reference subtree is never listed | one tenant's erasure **deletes a global vendor list** |
  */
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -59,6 +60,50 @@ import {
   CACHE_ROOT_PREFIX,
   REFERENCE_CACHE_ROOT_PREFIX,
 } from "@/server/lib/r2-cache";
+
+function guardPrecedesDestruction(source: string): boolean {
+  const lines = source.split("\n");
+  const guardAt = lines.findIndex((line) =>
+    line.includes("SWEPT_PREFIXES.includes(REFERENCE_CACHE_ROOT_PREFIX)"),
+  );
+  const firstDestruction = Math.min(
+    ...lines
+      .map((line: string, index: number) => ({ line, index }))
+      .filter(({ line }: { line: string }) =>
+        /await (terminateWorkflows|revokeGoogleAccount|deleteOauthGrants)\(/.test(
+          line,
+        ),
+      )
+      .map(({ index }: { index: number }) => index),
+  );
+  if (guardAt < 0 || firstDestruction < 0) return false;
+  return guardAt < firstDestruction;
+}
+
+/**
+ * The defect, as a fixture: the guard placed where it used to sit, below every
+ * destructive call.
+ *
+ * **A negative control for the ordering rule, and the reason `guardPrecedesDestruction`
+ * is a predicate rather than an inline assertion.** Run only against the real file it could
+ * never fail; handed the defect it has to say no, and that is what makes the real-file
+ * assertion mean anything.
+ */
+const GUARD_BELOW_DESTRUCTION = [
+  "async function eraseStorage() {",
+  "  await terminateWorkflows(env.SITE_AUDIT_WORKFLOW, []);",
+  "  if (SWEPT_PREFIXES.includes(REFERENCE_CACHE_ROOT_PREFIX)) {",
+  '    throw new AppError("VALIDATION_ERROR", "refuse");',
+  "  }",
+  "  const organizationScopedObjects = await deleteOrganizationScopedObjects(",
+  "    env.R2,",
+  "    SWEPT_PREFIXES,",
+  "  );",
+  "}",
+].join("\n");
+function erasureSource(): string {
+  return readFileSync("src/server/gdpr/storage-erasure.ts", "utf8");
+}
 
 describe("the GDPR storage erasure, and what it reaches", () => {
   beforeEach(() => {
@@ -213,6 +258,41 @@ describe("the GDPR storage erasure, and what it reaches", () => {
       ok: true,
       result: { organizationScopedObjects: 5 },
     });
+  });
+
+  it("refuses before anything is destroyed, not after", () => {
+    // **The CodeRabbit finding, and the defect it named.**
+    //
+    // The reference-prefix guard used to sit *after* `terminateWorkflows`,
+    // `revokeGoogleAccount`, `destroyScratchpad`, the Dub pins and four `KV.delete` calls.
+    // A refusal there would have left a **half-executed erasure**: live workflows
+    // terminated, Google grants revoked, Durable Objects destroyed, KV cleared, and the R2
+    // cache the request existed to erase still fully intact.
+    //
+    // A customer asking for deletion and being told "refused" would already have lost
+    // their running audits, their OAuth grants and their search history.
+    //
+    // ## Why this is a source-order assertion rather than a behavioural one
+    //
+    // The guard is a module constant, so it cannot be injected through a test double — and
+    // a behavioural test would have to make the sweep unsafe, which means editing the
+    // constant the test is meant to protect. **The invariant is "the check precedes the
+    // irreversible action", so it is asserted as an ordering of the source.** That is the
+    // same gate-about-gates pattern `scripts/cache-ttl-policy.test.ts` uses, and here it
+    // is the only assertion that actually pins the property.
+    //
+    // It is also the only one that *fails* when the defect returns: moving the guard back
+    // below the destructive calls moves its line number down, and the `toBeLessThan`
+    // below catches exactly that.
+    expect(guardPrecedesDestruction(erasureSource())).toBe(true);
+  });
+
+  it("says no when the guard sits below the destructive calls", () => {
+    // **The negative control, and the shape the gates-about-gates survey counts:**
+    // a fixture containing the defect, asserted to be caught. Without it the ordering
+    // rule above is a false-positive test — it fires when the file is right and says
+    // nothing about whether it would notice the file being wrong.
+    expect(guardPrecedesDestruction(GUARD_BELOW_DESTRUCTION)).toBe(false);
   });
 
   it("reports the payload kinds it removed, so the receipt names what was actually covered", async () => {
