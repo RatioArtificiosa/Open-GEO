@@ -133,9 +133,17 @@ async function runModel(
   return reapplyHighlightBrand(shaped, args.highlightBrand);
 }
 
-// Each value must be a member of ACCEPTED_LLM_MODEL_NAMES in dataforseo/ai.ts,
-// which mirrors DataForSEO's llm_responses/models catalog. DataForSEO dropped
-// the Claude Sonnet 4.0 family, so we target the 4.5 alias (latest dated 4.5).
+// Each value must be one the vendor's live `llm_responses/models` catalog offers for
+// that platform. `llm-models.ts` reads that catalog at runtime and caches it, with a
+// dated snapshot as the last-resort fallback, and `scripts/check-model-catalog.mjs`
+// asserts every name below appears in that snapshot. DataForSEO dropped the Claude
+// Sonnet 4.0 family, so we target the 4.5 alias (latest dated 4.5).
+//
+// **The comment that used to sit here cited an allow-list symbol in the SDK client
+// module, which never existed.** A comment naming a constant is a second declaration
+// of it, and when it drifts it is worse than no comment: the next reader searches,
+// finds nothing, and assumes a check exists somewhere. The check now points at a file
+// that does exist and asserts the thing it says it asserts.
 const MODEL_NAMES: Record<PromptExplorerModel, string> = {
   chat_gpt: "gpt-5",
   claude: "claude-sonnet-4-5",

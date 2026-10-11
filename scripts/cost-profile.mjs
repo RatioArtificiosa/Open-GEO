@@ -374,6 +374,134 @@ async function main() {
   console.log(`  BILLABLE (must be 0):   ${billable.length}`);
   for (const row of pinned) console.log(`    pinned    ${row.file}`);
 
+  // --- Per-feature roll-up (CL-710) -------------------------------------------
+  /**
+   * **What this is the input to, and what it is not.**
+   *
+   * CL-710 asks for per-feature cost so a monthly margin review can ask "which
+   * feature earns its vendor cost". The static measure available here is where the
+   * *capability* to spend sits per feature, which is not the same number and should
+   * not be read as one: a feature whose tests all pin a host costs nothing per run,
+   * and the vendor bill for a feature is driven by how often its scheduled jobs run,
+   * which is not in the test tree at all.
+   *
+   * So this is a coverage map rather than a forecast, and it says so in its heading.
+   * What it answers is the question that precedes any forecast — where would a new
+   * spending path have to live to be noticed.
+   *
+   * The grouping is the feature directory under `src/server/features/`, with
+   * everything outside those directories collected under its own top-level path so
+   * a new family of tests shows up as a row rather than being absorbed.
+   */
+  //
+  // **A group has to contain more than one file to be a group.** The first version
+  // returned `scripts/x.test.ts` for a script, which turned every gate into its own
+  // feature row — 30 rows of one file each, and a table whose whole purpose is
+  // comparison could not compare anything.
+  //
+  // **The key is the feature, so a feature's server and client tests share a row.**
+  // Grouping by directory instead put `src/client/features/geo` and
+  // `src/server/features/geo/services` in different rows, which is a table that
+  // cannot answer the question CL-710 asks, because the question is "which feature",
+  // not "which layer of which feature".
+  //
+  // **A file directly inside `features/` is not a feature.** The first version
+  // returned `chart-rules.test.ts` as a key, which is one file that happens to sit
+  // outside a subdirectory. Every key is normalised to a directory-shaped one, and
+  // anything that still names a file falls back to its parent — so a stray test
+  // file lands with its neighbours instead of becoming a one-row feature.
+  const featureOf = (file) => {
+    const parts = file.split("/");
+    if (parts[0] === "scripts") return "scripts"; // the repo's own gates, as one family
+    const features = parts.indexOf("features");
+    if (features !== -1 && parts[features + 1]?.includes("/") === false) {
+      const name = parts[features + 1];
+      if (!name.endsWith(".test.ts") && !name.endsWith(".test.tsx"))
+        return name;
+      return parts.slice(0, features + 1).join("/");
+    }
+    if (file.startsWith("src/server/lib/dataforseo/")) {
+      // **Named, not left as a path.** This is the one row in the table that carries
+      // every spend capability the scan can find, so it is labelled as what it is
+      // rather than as the directory it happens to live in.
+      return "vendor client (src/server/lib/dataforseo)";
+    }
+    return parts.slice(0, parts.length - 1).join("/");
+  };
+
+  const byFeature = {};
+  for (const file of tracked) {
+    // Counted from the full scan rather than from `rows`, so the row's share is
+    // meaningful. A feature with 40 tests and 1 reaching the vendor is a very
+    // different place from one with 4 and 1, and both would look identical in a
+    // list of the reaching ones.
+    const feature = featureOf(file);
+    byFeature[feature] ??= { files: 0, reaching: 0 };
+    byFeature[feature].files += 1;
+  }
+  for (const row of rows) {
+    const feature = featureOf(row.file);
+    byFeature[feature] ??= { files: 0, reaching: 0 };
+    byFeature[feature].reaching += 1;
+  }
+
+  /**
+   * **A group of one file is not a group.** `src/server/auth` and
+   * `src/server/auth/repositories` were separate rows holding one test each, which
+   * is a table whose every cell is 1 and which answers nothing. A leaf directory
+   * with a single file folds into its parent, so the rows are things a reader can
+   * act on: a feature, or a subsystem with more than one test in it.
+   */
+  const folded = {};
+  for (const [feature, counts] of Object.entries(byFeature)) {
+    if (counts.files === 1 && feature.includes("/")) {
+      const parent = feature.split("/").slice(0, -1).join("/");
+      if (Object.keys(byFeature).includes(parent)) {
+        folded[parent] ??= { files: 0, reaching: 0 };
+        folded[parent].files += counts.files;
+        folded[parent].reaching += counts.reaching;
+        continue;
+      }
+    }
+    folded[feature] ??= { files: 0, reaching: 0 };
+    folded[feature].files += counts.files;
+    folded[feature].reaching += counts.reaching;
+  }
+
+  const features = Object.entries(folded)
+    .map(([feature, counts]) => ({ feature, ...counts }))
+    .sort(
+      (a, b) => b.reaching - a.reaching || a.feature.localeCompare(b.feature),
+    );
+
+  /**
+   * **The roll-up has a vacuity guard of its own.** The same refusal shape as the
+   * test-file scan, for the same reason: a grouping that matched nothing prints an
+   * empty table and exits 0, and an empty per-feature table reads exactly like a
+   * clean one. Forty is a floor below today's count with room to grow; falling
+   * under it means the key function stopped matching, which is the failure that
+   * arrives silently whenever the directory layout is reorganised.
+   */
+  if (features.length < 40) {
+    console.error(
+      `Only ${features.length} feature groups were formed. A per-feature roll-up` +
+        " that has grouped almost nothing is indistinguishable from a clean one," +
+        " so this refuses to report.",
+    );
+    process.exit(1);
+  }
+
+  console.log("");
+  console.log(
+    `=== per-feature spend capability (${features.length} features) ===`,
+  );
+  console.log("  files  reaching  feature");
+  for (const f of features) {
+    console.log(
+      `  ${String(f.files).padStart(5)}  ${String(f.reaching).padStart(8)}  ${f.feature}`,
+    );
+  }
+
   console.log("");
   console.log(
     `=== per-migration cost class (${migrations.length} migrations) ===`,
