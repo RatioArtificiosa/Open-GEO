@@ -130,7 +130,9 @@ export async function setCached<T>(
     // Not a guard against a typo so much as against the default: this write is
     // what makes an object erasable, and an erasable object needs an owner.
     throw new Error(
-      "setCached needs an organizationId: R2 objects without a tenant cannot be",
+      "setCached needs an organizationId: an R2 object written without one is not " +
+        "erasable, because the GDPR sweep matches on customMetadata.organizationId " +
+        "and would skip it for the object's whole TTL.",
     );
   }
   await env.R2.put(`${CACHE_PREFIX}${key}`, JSON.stringify(data), {

@@ -445,6 +445,16 @@ export const getCategoryDomainMetricsTool = {
     const measurable = domains.filter(
       (domain) => domain.growing !== null,
     ).length;
+    // **"Lacking a reading" means a month with no ETV, not "no direction".**
+    //
+    // The first version counted `domains.length - measurable`, and since a straddling
+    // window also has `growing: null` (two formulas apart there is no direction to
+    // report), a domain with *both* months on record was described as lacking one. It
+    // has both — it just straddles the boundary. The two counts are different claims
+    // and conflating them made the tool contradict its own next clause.
+    const missingReading = domains.filter(
+      (domain) => domain.etvChange === null,
+    ).length;
 
     return mcpResponse({
       // **A straddling window is named, not folded into the growth count.**
@@ -454,7 +464,7 @@ export const getCategoryDomainMetricsTool = {
       // domains as "grew" would put a vendor model change into the customer's growth numbers,
       // which is the one thing this product's whole ETV-versioning rule exists to prevent —
       // and the tool's text is where a reader would find out.
-      text: `${domains.length} domain${domains.length === 1 ? "" : "s"} in these categories, about $${requestCostUsd.toFixed(2)} + $${perDomainCostUsd.toFixed(4)} each. ${grew} of the ${measurable} with both months on record grew between them${domains.length > measurable ? `; ${domains.length - measurable} lack a reading for one of the months and are reported without a direction` : ""}${straddling > 0 ? `; ${straddling} of these windows straddle 2026-11-01, the day the vendor changed the ETV formula, so their etvChange compares two formulas and carries no direction — do not read it as traffic growth` : ""}.`,
+      text: `${domains.length} domain${domains.length === 1 ? "" : "s"} in these categories, about $${requestCostUsd.toFixed(2)} + $${perDomainCostUsd.toFixed(4)} each. ${grew} of the ${measurable} with both months on record grew between them${missingReading > 0 ? `; ${missingReading} lack a reading for one of the months and are reported without a direction` : ""}${straddling > 0 ? `; ${straddling} of these windows straddle 2026-11-01, the day the vendor changed the ETV formula, so their etvChange compares two formulas and carries no direction — do not read it as traffic growth` : ""}.`,
       meta: buildProjectMeta(
         context,
         args.projectId,

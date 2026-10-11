@@ -71,8 +71,34 @@ const tracked = execFileSync(
   .split("\n")
   .filter(Boolean);
 
+/**
+ * Everything that is not test scaffolding.
+ *
+ * ## The four suffixes, and the hole they close
+ *
+ * The first version excluded `.test.ts` and `.d.ts` only, and CodeRabbit's review found
+ * what that missed: **`.test-support.ts`, `.test.tsx` and `.test-support.tsx` are test
+ * code with a different ending.** A `*.test-support.ts` file exists here — the GDPR
+ * erasure suite's shared harness — and its references were counted as production usage,
+ * so an export reachable *only* from a test harness was reported as wired.
+ *
+ * That is the exact false negative this gate exists to prevent, proven by injection:
+ * an export referenced only from `gdpr/storage-erasure.test-support.ts` ran the gate
+ * green. A gate that cannot see its own blind spot is not a gate.
+ *
+ * **`.d.ts` stays excluded** and for the opposite reason: it is not test code and it is
+ * not implementation, and a declaration file references symbols it does not use.
+ */
+const PRODUCTION_SUFFIXES = [
+  ".test.ts",
+  ".test.tsx",
+  ".test-support.ts",
+  ".test-support.tsx",
+  ".d.ts",
+];
+
 const production = tracked.filter(
-  (file) => !file.endsWith(".test.ts") && !file.endsWith(".d.ts"),
+  (file) => !PRODUCTION_SUFFIXES.some((suffix) => file.endsWith(suffix)),
 );
 
 const corpus = production.map((file) => ({

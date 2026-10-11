@@ -214,10 +214,16 @@ describe("the resolution layer", () => {
     ).toBe(false);
   });
 
-  it("treats NXDOMAIN as a real answer, so a genuinely absent host is refused", async () => {
+  it("treats NXDOMAIN as a real answer, so a genuinely absent host is admitted", async () => {
     // The distinction that makes fail-closed usable: `Status: 3` is the
     // resolver saying "this name does not exist", which is a real answer, not a
-    // failure. The caller refuses because there is nothing to fetch.
+    // failure — so the guard admits the target and lets the fetch fail on its own.
+    //
+    // **The assertion is `true` and the name must say so.** The first version named
+    // this "refused" while asserting `true`, which is a contradiction CodeRabbit's
+    // review caught: a reader trusting the name would have believed NXDOMAIN was a
+    // refusal, and the next person to touch the fail-closed rule would have had a
+    // test that said one thing and asserted another.
     MOCK_FETCH.mockImplementation(() => Promise.resolve(dohnoSuchNameSafe()));
 
     expect(

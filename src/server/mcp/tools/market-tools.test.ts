@@ -197,6 +197,40 @@ function setDomainMetrics(items: unknown[]) {
 }
 
 describe("get_category_domain_metrics", () => {
+  it("does not call a straddling window a missing month", async () => {
+    // **The C6 follow-up, found by CodeRabbit's review.**
+    //
+    // A domain whose two months straddle 2026-11-01 has `growing: null` — two formulas
+    // apart there is no direction to report — while still having a reading for *both*
+    // months. The first version counted "no direction" as "no reading", so the tool
+    // described it as lacking a month and then, one clause later, said it had a window
+    // that straddled a formula change. Two clauses contradicting each other about the
+    // same row.
+    setDomainMetrics([
+      {
+        domain: "acmeexample.com",
+        metrics_history: {
+          "202610": { organic: { etv: 100 } },
+          "202611": { organic: { etv: 260 } },
+        },
+      },
+    ]);
+
+    const result = await getCategoryDomainMetricsTool.handler(
+      {
+        projectId: "project_1",
+        categoryCodes: [11494],
+        firstDate: "2026-10-01",
+        secondDate: "2026-11-15",
+      },
+      toolContext,
+    );
+
+    const text = textOf(result.content);
+    expect(text).toContain("2026-11-01");
+    expect(text).not.toContain("lack a reading");
+  });
+
   it("says so when the window straddles the ETV cutover, instead of calling it growth", async () => {
     // **The C6 gap, at the tool's surface rather than the function's.**
     //
