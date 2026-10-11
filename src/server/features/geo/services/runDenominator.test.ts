@@ -93,7 +93,24 @@ beforeEach(async () => {
   client = createClient({ url: "file::memory:" });
   const testDb = drizzle(client);
   vi.doMock("@/db", () => ({ db: testDb }));
-  vi.doMock("@/db/runBatch", () => ({
+  // **`importOriginal`, spread, and mock only `runBatch`.**
+  //
+  // The first version replaced the whole module with a single export, so any *other*
+  // export of `@/db/runBatch` threw `No "executeInBatches" export is defined on the
+  // mock`. That error surfaced as **`[geo] rollups failed for snapshot …`** from a
+  // floating continuation inside `recordRun` — logged by the `.catch`, not thrown, so
+  // the run itself still passed. Which is why it was intermittent rather than constant:
+  // whether the continuation landed before or after the mock registry was torn down
+  // was event-loop ordering, and roughly one run in six lost the race.
+  //
+  // **A partial mock is the shape here.** `importOriginal` keeps every export this
+  // file does not care about real, so a later code path that reaches one of them — here
+  // `executeInBatches`, called by `insertTargetMetrics` deep inside `writeRunRollups` —
+  // behaves as it does in production instead of failing for a reason unrelated to the
+  // test. This is the fourth appearance of "died for an unrelated reason" in this
+  // codebase; the pattern is always the same, a mock that replaced more than it meant to.
+  vi.doMock("@/db/runBatch", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@/db/runBatch")>()),
     /**
      * `runBatch` takes a **build callback**, not a list of statements, and
      * hands the callback a `tx`. The real D1 `batch` is a driver-only API, so
