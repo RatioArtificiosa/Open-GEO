@@ -40,9 +40,14 @@
     // Alchemy state/bundle artifacts (gitignored)
     "!.alchemy/**",
     "!badseo/**",
-    // Skill-bundled scripts, run by hand from the skill's instructions
+    // Skill-bundled scripts, run by hand from the skill's instructions.
+    //
+    // **`!./.claude/**` used to be here and is not**, because the directory it names
+    // went to the private repository when the boundary became structural. An
+    // exclusion for a path this repo does not contain is dead configuration, and
+    // worse than none: it reads as though that directory is present and being
+    // excluded, which stops the next reader from asking why.
     "!.agents/**",
-    "!.claude/**",
   ],
   "ignore": ["drizzle-prod.config.ts"],
   // Disable Drizzle plugin - it tries to load drizzle.config.ts which imports cloudflare:workers

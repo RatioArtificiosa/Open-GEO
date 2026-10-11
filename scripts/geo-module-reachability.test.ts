@@ -307,7 +307,7 @@ const EXEMPT: Array<{ module: string; reason: string }> = [
     module:
       "src/server/features/domain/services/scheduledOpportunityInputs.fixtures.ts",
     reason:
-      "The vendor doubles and the `captureWrites` spy for scheduledOpportunityInputs.test.ts and .sweep.test.ts. Test-only consumers are its purpose, and it is shared because a double written once per test file drifts the moment one of them is rewritten — the flat-shape double is exactly the drift that shipped the `keyword_difficulty` bug this suite guards. Note the directory split this enforces: `.agents/skills/` is a product directory bundled into SAM, so agent-harness skills live in `.kilo/skills/` instead.",
+      "The vendor doubles and the `captureWrites` spy for scheduledOpportunityInputs.test.ts and .sweep.test.ts. Test-only consumers are its purpose, and it is shared because a double written once per test file drifts the moment one of them is rewritten — the flat-shape double is exactly the drift that shipped the `keyword_difficulty` bug this suite guards. Note the directory split this enforces: `.agents/skills/` is a product directory bundled into SAM, so agent-harness skills live elsewhere — **and that elsewhere is now the private repository**, so this test's directory rule does not depend on `.kilo/` being here. If a future assertion reads `.kilo/skills/` it will be describing a directory that lives in `Open-GEO-Private/` and cannot be seen from this working tree, which is the dead-gate class the repo split's own skill records.",
   },
 ];
 

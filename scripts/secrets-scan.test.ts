@@ -77,8 +77,13 @@ const TEXT_EXTENSIONS = new Set([
 
 const SKIP_FILES = new Set([
   // Carries names and comments only — that is its whole purpose.
+  //
+  // **`.env.preview.example` used to be here and is not**, because the file it names
+  // moved to the private repository with the preview pipeline it belongs to. An entry
+  // for a file this repo does not have is dead configuration, and worse than none: it
+  // reads as though that file is still present and being exempted, which would stop
+  // the next reader from asking why it is exempt.
   ".env.example",
-  ".env.preview.example",
   "pnpm-lock.yaml",
   "package-lock.json",
   // This file. It necessarily contains a literal positive for every pattern, so

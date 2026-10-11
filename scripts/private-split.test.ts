@@ -105,7 +105,7 @@ const FORBIDDEN: Array<{ marker: string; where: string }> = [
   {
     marker: "MAINTAINER_ONLY",
     where:
-      "The maintainer-doc marker. `maintainer-docs/` is by definition not for the public repo; a copy of its content that lands in `docs/` is the leak this catches.",
+      "The maintainer-doc marker. Maintainer docs are by definition not for the public repo; a copy of their content that lands here is the leak this catches. The `maintainer-docs/` directory this used to name now lives in the private repository, along with the rest of the review control plane — though not all of it: `.greptile/` and `.impeccable/config.json` are back in THIS repo, because both scope public `src/**` source and a reviewer config pointing at code the holding repository does not contain would be a boundary that only claims to exist.",
   },
   {
     marker: "COMMERCIAL_FLOOR",

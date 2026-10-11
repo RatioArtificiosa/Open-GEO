@@ -33,9 +33,14 @@ Manifest: `.claude-plugin/marketplace.json` → `plugins/opengeo/`. Ships skills
 
 ### ChatGPT — app + plugin
 
-`chatgpt-app-submission.json` is the **Apps SDK submission manifest** (schema
-`chatgpt-app-submission.v1`). It declares per-tool `annotations` and `justifications`, which the
-directory requires for approval.
+OpenGeo is submitted to OpenAI's Apps SDK directory as a **remote MCP server**. The manifest that
+carries the submission — its per-tool `annotations` (whether a tool is destructive) and the
+`justifications` the directory requires for approval — is maintained privately, because it declares
+the operator's own submission and not anything a self-hoster needs.
+
+**Everything that manifest asserts is verifiable from this repository.** Each tool declares its own
+`annotations` block in its source, and that block is what the MCP server sends on the wire, so the
+submission's claims about the tool surface are derived rather than written.
 
 **How it connects:** ChatGPT reaches the server as a **remote MCP server** via `server_url`, or, for
 our production endpoint, we ship it as a **plugin** (MCP server + skills, optionally with UI).

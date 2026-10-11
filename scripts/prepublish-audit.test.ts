@@ -130,7 +130,9 @@ const SKIP_DIRS = new Set([
   ".wrangler",
   "scratchpad",
   ".agents",
-  ".claude",
+  // **`.claude` is not listed** — it lives in the private repository now, and SKIP_DIRS
+  // is the gate's answer to "which directory trees does it walk". A directory that is
+  // not here cannot be walked, so naming it protects nothing.
   ".commandcode",
   ".alchemy",
   /**
