@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createCrawlThrottle } from "@/server/lib/audit/crawl-throttle";
+import { resetCrawlDnsBudget } from "@/server/lib/audit/url-policy";
 import { crawlPage } from "@/server/workflows/site-audit-workflow-helpers";
 
 const PAGE_URL = "https://example.com/page";
@@ -8,20 +9,80 @@ const PAGE_HTML =
   "<html><head><title>A page</title></head><body><h1>A page</h1></body></html>";
 
 /**
- * Answer each fetch with the next reply, repeating the last one. Every call
+ * A DoH answer good enough for `assertCrawlableTarget` to admit the host.
+ *
+ * **A public address, because that is what every case below means.** Each describes a
+ * page fetch to `example.com`; with the SSRF guard in front of the fetch those cases
+ * now also resolve a hostname, and a guard that refused it would stop the whole file
+ * for a reason unrelated to any case in it. The refusing side has its own describe.
+ */
+const PUBLIC_DNS_ANSWER = {
+  Status: 0,
+  Answer: [
+    { type: 1, data: "93.184.216.34" },
+    { type: 28, data: "2606:2800:220:1:248:1893:25c8:1946" },
+  ],
+};
+
+/**
+ * Is this a DoH lookup rather than a page fetch?
+ *
+ * **Distinguished by destination and parameters, never by call order.** The cases
+ * below count `fetch` calls, and the SSRF guard adds two of them; a router keyed on
+ * position would couple every count to whether the guard happened to run.
+ */
+function isDnsLookup(input: unknown): boolean {
+  const url = new URL(String(input));
+  return (
+    url.hostname === "cloudflare-dns.com" &&
+    url.searchParams.has("name") &&
+    url.searchParams.has("type")
+  );
+}
+
+/** The DNS reply the guard needs, as a fresh `Response` per call. */
+function dnsResponse(): Response {
+  return new Response(JSON.stringify(PUBLIC_DNS_ANSWER), {
+    status: 200,
+    headers: { "content-type": "application/dns-json" },
+  });
+}
+
+/**
+ * The page fetches a spy recorded, with the DoH lookups filtered out.
+ *
+ * The SSRF guard resolves the host before the fetch, which adds two `fetch` calls per
+ * distinct host per invocation. Counting the raw total would make every existing
+ * call-count assertion describe the guard's DNS cost rather than the page fetching it
+ * was written about. The guard's own cost is asserted explicitly in its describe.
+ */
+function pageFetches(spy: { mock: { calls: unknown[][] } }): string[] {
+  return spy.mock.calls
+    .map((call) => String(call[0]))
+    .filter((url) => !isDnsLookup(url));
+}
+
+/**
+ * Answer each page fetch with the next reply, repeating the last one. Every call
  * builds a fresh Response: a body can only be read (or cancelled) once.
+ *
+ * **DoH lookups are answered separately**, so the reply queue still describes only
+ * page fetches.
  */
 function stubFetch(...replies: Array<{ status: number; retryAfter?: string }>) {
   let index = 0;
-  return vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+  return vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+    if (isDnsLookup(input)) return Promise.resolve(dnsResponse());
     const reply = replies[Math.min(index++, replies.length - 1)];
-    return new Response(PAGE_HTML, {
-      status: reply.status,
-      headers: {
-        "content-type": "text/html",
-        ...(reply.retryAfter ? { "retry-after": reply.retryAfter } : {}),
-      },
-    });
+    return Promise.resolve(
+      new Response(PAGE_HTML, {
+        status: reply.status,
+        headers: {
+          "content-type": "text/html",
+          ...(reply.retryAfter ? { "retry-after": reply.retryAfter } : {}),
+        },
+      }),
+    );
   });
 }
 
@@ -33,6 +94,15 @@ function crawl() {
     createCrawlThrottle(Date.now() + 90_000),
   );
 }
+
+beforeEach(() => {
+  // **The resolution cache is per-invocation and keyed by host**, so a case that
+  // resolves `example.com` leaves the verdict cached for the next one. Every case in
+  // this file crawls the same host, which is precisely the pollution the C1 tests
+  // warn about: one hostname shared between two assertions is served by the earlier
+  // resolution. Resetting is the test's way of starting a fresh invocation.
+  resetCrawlDnsBudget();
+});
 
 afterEach(() => {
   vi.useRealTimers();
@@ -49,11 +119,11 @@ describe("crawlPage", () => {
 
     const crawled = crawl();
     await vi.advanceTimersByTimeAsync(4_000);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(pageFetches(fetchMock)).toHaveLength(1);
 
     await vi.advanceTimersByTimeAsync(2_000);
     const page = await crawled;
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(pageFetches(fetchMock)).toHaveLength(2);
     expect(page?.fetchClass).toBe("ok");
     expect(page?.title).toBe("A page");
     // Recovered, but the crawl window should still slow down after it.
@@ -64,6 +134,11 @@ describe("crawlPage", () => {
     vi.useFakeTimers();
     const fetched: string[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      // The DoH lookups are recorded separately: the assertion below is about the
+      // chunk's *page* fetches being held, and the guard's own two lookups per host
+      // would otherwise make the first entry a DNS query.
+      if (isDnsLookup(input)) return Promise.resolve(dnsResponse());
+      // eslint-disable-next-line @typescript-eslint/require-await -- returns a Promise<Response>; the guard branch resolves directly
       fetched.push(new Request(input).url);
       // Only the first request to the first URL is refused.
       const refused = fetched.length === 1;
@@ -97,7 +172,7 @@ describe("crawlPage", () => {
     await vi.advanceTimersByTimeAsync(30_000);
     const page = await crawled;
 
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(pageFetches(fetchMock)).toHaveLength(4);
     expect(page?.fetchClass).toBe("rate_limited");
   });
 
@@ -105,7 +180,11 @@ describe("crawlPage", () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
     const starts: number[] = [];
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      // DoH lookups are not page starts: the guard resolves all five hosts up front,
+      // and counting those would put the assertion about a cooldown-shaped burst of
+      // *page* fetches onto the guard's DNS cost instead.
+      if (isDnsLookup(input)) return Promise.resolve(dnsResponse());
       starts.push(Date.now());
       return new Response(PAGE_HTML, {
         status: Date.now() < 60_000 ? 429 : 200,
@@ -136,7 +215,7 @@ describe("crawlPage", () => {
       await crawlPage(`${PAGE_URL}/unvisited`, 0, false, throttle),
     ).toBeNull();
     expect(throttle.stopped).toBe(false);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(pageFetches(fetchMock)).toHaveLength(1);
   });
 
   it("records a final 429 when the requested wait exceeds the audit's cooldown budget", async () => {
@@ -147,7 +226,7 @@ describe("crawlPage", () => {
       "rate_limited",
     );
     expect(throttle.stopped).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(pageFetches(fetchMock)).toHaveLength(1);
   });
 
   it("does not retry a 403 — bot protection is not a speed limit", async () => {
@@ -155,16 +234,22 @@ describe("crawlPage", () => {
 
     const page = await crawl();
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(pageFetches(fetchMock)).toHaveLength(1);
     expect(page?.fetchClass).toBe("blocked");
   });
 
   it("preserves extracted metadata and nested values when releasing the HTML", async () => {
+    // The metadata is parsed out of a page body, so the fetch is stubbed per-URL
+    // rather than per-call: the SSRF guard's DoH lookups need a **dns-json** reply,
+    // and answering them with HTML makes `.json()` throw — which fails closed as
+    // `blocked`. `mockResolvedValue` on one value cannot tell the two apart.
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(
-          `<html><head>
+      vi.fn((input: unknown) => {
+        if (isDnsLookup(input)) return Promise.resolve(dnsResponse());
+        return Promise.resolve(
+          new Response(
+            `<html><head>
             <title>Example &amp; café 🌱</title>
             <meta name="description" content="Example description &amp; more">
             <meta name="robots" content="noindex">
@@ -180,15 +265,16 @@ describe("crawlPage", () => {
             <a href="/next" rel="nofollow">More &amp; more 🌱</a>
             <a href="https://other.example/">External</a>
           </body></html>`,
-          {
-            headers: {
-              "content-type": "text/html",
-              "x-robots-tag": "nofollow",
-              link: '<https://example.com/header>; rel="canonical"',
+            {
+              headers: {
+                "content-type": "text/html",
+                "x-robots-tag": "nofollow",
+                link: '<https://example.com/header>; rel="canonical"',
+              },
             },
-          },
-        ),
-      ),
+          ),
+        );
+      }),
     );
 
     const page = await crawlPage(
@@ -265,7 +351,20 @@ describe("crawlPage", () => {
           import { crawlPage } from ${JSON.stringify(new URL("./site-audit-workflow-helpers.ts", import.meta.url).href)};
           import { createCrawlThrottle } from ${JSON.stringify(new URL("../lib/audit/crawl-throttle.ts", import.meta.url).href)};
           const throttle = createCrawlThrottle(Date.now() + 90_000);
-          globalThis.fetch = async () => {
+          globalThis.fetch = async (input) => {
+            // The SSRF guard resolves the host first, and an HTML reply to a DoH
+            // query fails json() -- which fails closed, so this case would measure
+            // the memory of a refused page instead of a fetched one.
+            const url = new URL(String(input));
+            if (url.hostname === "cloudflare-dns.com") {
+              return new Response(
+                JSON.stringify({
+                  Status: 0,
+                  Answer: [{ type: 1, data: "93.184.216.34" }, { type: 28, data: "2606:2800:220:1:248:1893:25c8:1946" }],
+                }),
+                { status: 200, headers: { "content-type": "application/dns-json" } },
+              );
+            }
             const html = '<title>Example memory regression 🌱</title>' +
               '<meta name="description" content="A small description">' +
               '<script>' + 'x'.repeat(1024 * 1024) + '</script>';

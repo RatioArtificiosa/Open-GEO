@@ -3,7 +3,10 @@ import { NonRetryableError } from "cloudflare:workflows";
 import type { RobotsResult } from "@/server/lib/audit/discovery";
 import type { CrawledPageResult } from "@/server/lib/audit/types";
 import { isSameOrigin } from "@/server/lib/audit/url-utils";
-import { isCrawlableUrl } from "@/server/lib/audit/url-policy";
+import {
+  isCrawlableUrl,
+  resetCrawlDnsBudget,
+} from "@/server/lib/audit/url-policy";
 import { deterministicAuditRowId } from "@/server/lib/audit/ids";
 import { runPageReporters } from "@/server/lib/audit/issues/page-reporters";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
@@ -104,6 +107,16 @@ export async function runCrawlPhase(
   step: WorkflowStep,
   params: CrawlPhaseParams,
 ): Promise<CrawlPhaseResult> {
+  // **Start the crawl with an empty DNS cache and a full budget.**
+  //
+  // The resolution cache is per-invocation precisely so a long-lived process
+  // cannot amortise one crawl's DNS learning into the next — an address a
+  // previous audit resolved publicly is not evidence about this one's target,
+  // and a host that re-points between audits would otherwise keep a green
+  // entry. Without this call the budget is process-global and the second crawl
+  // in an isolate inherits the first's verdicts, which is the poisoning the
+  // cache was built to prevent.
+  resetCrawlDnsBudget();
   let chunkNo = 0;
   let attemptedTotal = 0;
   let pending = params.seededCount;

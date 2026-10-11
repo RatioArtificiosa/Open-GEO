@@ -115,26 +115,89 @@ function crawl(maxPages = 100) {
   );
 }
 
+/**
+ * A DoH answer for the SSRF guard's pre-fetch resolution.
+ *
+ * **The guard resolves every claimed URL before fetching it**, so a crawl test that
+ * counts fetch calls has to be able to tell the two apart. Without this the DoH lookups
+ * were answered with page HTML, which fails closed — and every page below was recorded
+ * as `blocked` with no request sent, which is why the URL counts came up short.
+ */
+const DNS_ANSWER = {
+  Status: 0,
+  Answer: [
+    { type: 1, data: "93.184.216.34" },
+    { type: 28, data: "2606:2800:220:1:248:1893:25c8:1946" },
+  ],
+};
+
+/** Is this a DoH lookup rather than a page fetch? */
+function isDnsLookup(input: unknown): boolean {
+  const url = new URL(String(input));
+  return (
+    url.hostname === "cloudflare-dns.com" &&
+    url.searchParams.has("name") &&
+    url.searchParams.has("type")
+  );
+}
+
+/** The DNS reply the guard needs, as a fresh `Response` per call. */
+function dnsResponse(): Response {
+  return new Response(JSON.stringify(DNS_ANSWER), {
+    status: 200,
+    headers: { "content-type": "application/dns-json" },
+  });
+}
+
+/**
+ * The page fetches a spy recorded, with the DoH lookups filtered out.
+ *
+ * The guard resolves each host before fetching, which adds `fetch` calls that a
+ * cooldown test is not about. **Cases that DO want the raw total are the ones where
+ * the guard is what is being measured**, and those live in
+ * `site-audit-workflow-helpers.ssrf.test.ts`.
+ */
+function pageFetches(spy: { mock: { calls: unknown[][] } }): string[] {
+  return spy.mock.calls
+    .map((call) => String(call[0]))
+    .filter((url) => !isDnsLookup(url));
+}
+
 function serve(status: (now: number) => number, retryAfter?: string) {
-  return vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+  return vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+    if (isDnsLookup(input)) return Promise.resolve(dnsResponse());
     // Network responses settle after all requests in the window are launched.
-    await new Promise((resolve) => setTimeout(resolve, 1));
-    return new Response(HTML, {
-      status: status(Date.now()),
-      headers: {
-        "content-type": "text/html",
-        ...(retryAfter ? { "retry-after": retryAfter } : {}),
-      },
-    });
+    return new Promise((resolve) =>
+      setTimeout(
+        () =>
+          resolve(
+            new Response(HTML, {
+              status: status(Date.now()),
+              headers: {
+                "content-type": "text/html",
+                ...(retryAfter ? { "retry-after": retryAfter } : {}),
+              },
+            }),
+          ),
+        1,
+      ),
+    );
   });
 }
 
 describe("crawl pacing and cooldowns", () => {
   it("spaces a fast site's requests across chunks without duplicates", async () => {
     const starts: number[] = [];
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      // The guard's DoH lookups are not page starts: each claimed URL resolves
+      // first, and counting those would put the spacing assertion about *page*
+      // requests onto the guard's DNS cost instead.
+      if (isDnsLookup(input)) return dnsResponse();
       starts.push(Date.now());
-      return new Response(HTML, { headers: { "content-type": "text/html" } });
+      return new Response(HTML, {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      });
     });
     const result = crawl(210);
     await vi.runAllTimersAsync();
@@ -150,12 +213,24 @@ describe("crawl pacing and cooldowns", () => {
   it("never has more than two fetches in flight on a slow site", async () => {
     let inFlight = 0;
     let peak = 0;
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      // The guard's DoH lookups are not page fetches: counting them puts the
+      // crawl window's concurrency assertion onto the resolver, which is not what
+      // the window is measuring.
+      if (isDnsLookup(input)) return Promise.resolve(dnsResponse());
       inFlight += 1;
       peak = Math.max(peak, inFlight);
-      await new Promise((resolve) => setTimeout(resolve, 3_000));
-      inFlight -= 1;
-      return new Response(HTML, { headers: { "content-type": "text/html" } });
+      return new Promise((resolve) =>
+        setTimeout(
+          () => (
+            (inFlight -= 1),
+            resolve(
+              new Response(HTML, { headers: { "content-type": "text/html" } }),
+            )
+          ),
+          3_000,
+        ),
+      );
     });
     const result = crawl(10);
     await vi.runAllTimersAsync();
@@ -165,7 +240,8 @@ describe("crawl pacing and cooldowns", () => {
 
   it("retains slower pacing across chunks after recovering from the first 429", async () => {
     const starts: number[] = [];
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (isDnsLookup(input)) return dnsResponse();
       starts.push(Date.now());
       return new Response(HTML, {
         status: starts.length === 1 ? 429 : 200,
@@ -187,13 +263,13 @@ describe("crawl pacing and cooldowns", () => {
     const fetchMock = serve((now) => (now < 600_000 ? 429 : 200), "600");
     const result = crawl(10);
     await vi.advanceTimersByTimeAsync(599_999);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(pageFetches(fetchMock)).toHaveLength(1);
     expect(saved).toHaveLength(0);
     expect(mocks.releaseUrls.mock.calls[0][0]).toHaveLength(10);
     expect(mocks.sleepUntil).toHaveBeenCalledWith("crawl-cooldown-1", 600_001);
     await vi.runAllTimersAsync();
     expect(await result).toEqual({ pagesCrawled: 10, completed: true });
-    expect(fetchMock).toHaveBeenCalledTimes(11);
+    expect(pageFetches(fetchMock)).toHaveLength(11);
     expect(new Set(saved.map((page) => page.url)).size).toBe(10);
     expect(saved.every((page) => page.fetchClass === "ok")).toBe(true);
   });
@@ -211,7 +287,7 @@ describe("crawl pacing and cooldowns", () => {
     const first = expect(crawl(10)).rejects.toThrow("isolate restarted");
     await vi.advanceTimersByTimeAsync(1_000);
     await first;
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(pageFetches(fetchMock)).toHaveLength(1);
     // Resume after the timestamp has passed: the same sleep must still replay.
     vi.setSystemTime(700_000);
     const resumed = crawl(10);
@@ -221,7 +297,7 @@ describe("crawl pacing and cooldowns", () => {
       ["crawl-cooldown-1", 600_001],
       ["crawl-cooldown-1", 600_001],
     ]);
-    expect(fetchMock).toHaveBeenCalledTimes(11);
+    expect(pageFetches(fetchMock)).toHaveLength(11);
     expect(new Set(saved.map((page) => page.url)).size).toBe(10);
   });
 
@@ -242,10 +318,10 @@ describe("crawl pacing and cooldowns", () => {
     const fetchMock = serve((now) => (now < 600_000 ? 429 : 200), "600");
     const result = crawl(10);
     await vi.advanceTimersByTimeAsync(599_999);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(pageFetches(fetchMock)).toHaveLength(1);
     await vi.runAllTimersAsync();
     expect(await result).toEqual({ pagesCrawled: 10, completed: true });
-    expect(fetchMock).toHaveBeenCalledTimes(11);
+    expect(pageFetches(fetchMock)).toHaveLength(11);
     expect(new Set(saved.map((page) => page.url)).size).toBe(10);
   });
 
@@ -259,7 +335,7 @@ describe("crawl pacing and cooldowns", () => {
     );
     await vi.runAllTimersAsync();
     await result;
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(pageFetches(fetchMock)).toHaveLength(1);
   });
 
   it("stops a permanently limited site after four refusals across chunks", async () => {
@@ -267,7 +343,7 @@ describe("crawl pacing and cooldowns", () => {
     const result = crawl();
     await vi.runAllTimersAsync();
     expect(await result).toMatchObject({ completed: false, rateLimited: true });
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(pageFetches(fetchMock)).toHaveLength(4);
     expect(saved).toHaveLength(1);
     expect(saved[0].fetchClass).toBe("rate_limited");
     expect(mocks.sleepUntil.mock.calls.length).toBeGreaterThan(0);
@@ -283,7 +359,7 @@ describe("crawl pacing and cooldowns", () => {
       completed: false,
       rateLimited: true,
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(pageFetches(fetchMock)).toHaveLength(1);
     expect(mocks.sleepUntil).not.toHaveBeenCalled();
     expect(mocks.releaseUrls.mock.calls[0][0]).toHaveLength(99);
   });

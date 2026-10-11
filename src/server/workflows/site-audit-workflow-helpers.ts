@@ -2,6 +2,7 @@ import type { CrawledPageResult } from "@/server/lib/audit/types";
 import type { PageFetchClass } from "@/shared/audit-fetch-class";
 import { sha256Hex } from "@/server/lib/audit/ids";
 import { normalizeUrl } from "@/server/lib/audit/url-utils";
+import { assertCrawlableTarget } from "@/server/lib/audit/url-policy";
 import type { CrawlThrottle } from "@/server/lib/audit/crawl-throttle";
 
 const CRAWL_USER_AGENT = "OpenGeo-Audit/1.0";
@@ -101,7 +102,33 @@ async function fetchPage(url: string, throttle: CrawlThrottle) {
   }
 }
 
-/** Null leaves this URL deferred when the shared cooldown stops its fetch. */
+/**
+ * Null leaves this URL deferred when the shared cooldown stops its fetch.
+ *
+ * ## Why the SSRF check is here and not at discovery
+ *
+ * `shouldQueueCrawlLink` runs `isCrawlableUrl`, which is synchronous and can
+ * therefore only see IP **literals** and hostname suffixes. A hostname that
+ * resolves to `169.254.169.254` passes it cleanly, because no name is compared
+ * against any number — and the fetch then leaves from inside Cloudflare's own
+ * edge, where the instance's credentials live.
+ *
+ * **The resolution has to happen at the fetch, one hop before the request, not
+ * one hop before the queue.** Two reasons, and the second is the one that makes
+ * this the only correct place:
+ *
+ * 1. A URL is enqueued once and fetched once, but the **redirect target** of a
+ *    fetched page is discovered from *that page's* headers and enqueued for the
+ *    next chunk — so the queue is not a closed set the discovery step could
+ *    have checked.
+ * 2. A queued URL may sit in the frontier for many chunks. DNS re-points. A
+ *    check at enqueue time answers a question about the past.
+ *
+ * So the verdict that matters is the one taken immediately before `fetch`, by
+ * `assertCrawlableTarget` — which resolves the hostname and rejects
+ * private, loopback, link-local and metadata addresses, and fails **closed**
+ * when the lookup itself could not run.
+ */
 export async function crawlPage(
   url: string,
   crawlDepth: number | null,
@@ -109,6 +136,33 @@ export async function crawlPage(
   throttle: CrawlThrottle,
 ): Promise<CrawledPageResult | null> {
   const startTime = Date.now();
+
+  // Refused before any byte leaves the worker. The refusal is recorded as a
+  // page row rather than thrown, because one bad link must not cost the audit
+  // the rest of the site — and a refusal with no row is invisible in the
+  // report, which is how a crawl silently covers less than it claims.
+  let targetAllowed = false;
+  try {
+    targetAllowed = await assertCrawlableTarget(new URL(url));
+  } catch {
+    // An unparseable URL never produced a page anyway; normalizeUrl already
+    // rejected it on the way into the frontier.
+    targetAllowed = false;
+  }
+  if (!targetAllowed) {
+    return emptyPageResult({
+      url,
+      statusCode: 0,
+      fetchClass: "blocked",
+      redirectUrl: null,
+      responseTimeMs: 0,
+      xRobotsTag: null,
+      headerCanonicalUrl: null,
+      crawlDepth,
+      inSitemap,
+      rateLimited: false,
+    });
+  }
 
   try {
     const fetched = await fetchPage(url, throttle);
