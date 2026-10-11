@@ -1,12 +1,21 @@
 // The contract shared by the two email-gated Cloudflare Access boundaries —
-// the persistent preview wildcard (alchemy.preview-access.run.ts) and the
-// per-stage self-host gate (alchemy.run.ts). Worker naming, the
-// WORKERS_SUBDOMAIN shape, the allowed-emails parsing, and the
-// policy/application shape define who gets through which hostnames; keep them
-// in one place so the two gates cannot drift. The one copy that can't import
-// this module is the shell in .github/workflows/pr-preview.yml — its
-// `open-geo-<stage>` naming stays comment-synced (and is backstopped by the
-// workflow's Access verify step).
+// the per-stage self-host gate (alchemy.run.ts) and the persistent preview
+// wildcard. Worker naming, the WORKERS_SUBDOMAIN shape, the allowed-emails
+// parsing, and the policy/application shape define who gets through which
+// hostnames; keep them in one place so the two gates cannot drift.
+//
+// **The preview half of this contract moved to the private repo.** The script
+// that deploys the wildcard application (`alchemy.preview-access.run.ts`) lives
+// beside the workflow and credentials it uses, so the public copy of this module
+// no longer names it. The duplicate-file drift this module was written to prevent
+// is therefore why `previewWildcard` went with it and the self-host exports —
+// `workerName`, `readWorkersSubdomain`, `requireAllowedEmails`,
+// `emailAccessGate`, `HOSTED_PROD_STAGE` — stayed: `alchemy.run.ts` is a public
+// entry point a self-hoster runs, and each of those is on its path.
+//
+// The one copy that can't import this module is the shell in
+// .github/workflows/pr-preview.yml — its `open-geo-<stage>` naming stays
+// comment-synced (and is backstopped by the workflow's Access verify step).
 
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Config from "effect/Config";
@@ -22,11 +31,7 @@ export const HOSTED_PROD_STAGE = "hosted-prod";
 export const workerName = (stage: string) =>
   stage === HOSTED_PROD_STAGE ? WORKER_PREFIX : `${WORKER_PREFIX}-${stage}`;
 
-// Matches every preview worker hostname; production's unsuffixed worker does
-// not match (Access allows one wildcard per dot-label).
-export const previewWildcard = (subdomain: string) =>
-  `${WORKER_PREFIX}-*.${subdomain}`;
-
+/** Reads and validates the account's workers.dev subdomain. */
 export const readWorkersSubdomain = ({ required }: { required: boolean }) =>
   Effect.gen(function* () {
     const subdomain = (yield* Config.string("WORKERS_SUBDOMAIN").pipe(

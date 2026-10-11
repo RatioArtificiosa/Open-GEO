@@ -1,13 +1,28 @@
 # Request explicit maintainer review for review-control changes.
-/.github/ @bensenescu
-/.greptile/ @bensenescu
-/AGENTS.md @bensenescu
-/CLAUDE.md @bensenescu
-/.agents/skills/ @bensenescu
+#
+# **The owner is the public organisation, not a personal handle.** This file used to
+# name `@bensenescu` on every line — the account owner's personal identity, published
+# in a file every contributor reads, for no benefit a code-owner rule cannot get from
+# the organisation itself. The control is identical: an entry with no owner requests
+# no review at all, so it has to be owned, and the organisation is the owner that
+# does not publish an individual.
+#
+# Two other things fell out of this file when the private repo became a sibling of
+# this one:
+#
+#   `.greptile/`, `AGENTS.md`, `CLAUDE.md` and `.agents/skills/` are no longer in this
+#   repository — they moved to the private repo, which holds its own harness rules. An
+#   entry for a path that is not here is dead weight, and worse: it reads as though the
+#   file still exists somewhere above this line's directory.
+#
+#   `/.agents/plugins/` was removed as duplicated subject matter. Its own comment
+#   already explained that the plugin root ships to every installed user, which is the
+#   same claim `/plugins/` makes, so one rule covers both.
+/.github/ @RatioArtificiosa
 
-# Plugin distribution — these files define the MCP endpoint and skills
-# every plugin installer connects to; a silent change here ships to all
-# installed users on the next update.
-/plugins/ @bensenescu
-/.claude-plugin/ @bensenescu
-/.agents/plugins/ @bensenescu
+# Plugin distribution — these files define the MCP endpoint and skills every plugin
+# installer connects to; a silent change here ships to all installed users on the next
+# update.
+/plugins/ @RatioArtificiosa
+/.claude-plugin/ @RatioArtificiosa
+/.agents/plugins/ @RatioArtificiosa

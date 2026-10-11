@@ -1,8 +1,11 @@
 {
   "entry": [
-    // Alchemy deploy stack (run by the alchemy CLI, not imported by the app)
+    // Alchemy deploy stack (run by the alchemy CLI, not imported by the app).
+    //
+    // **Only the self-host entry is here.** `alchemy.preview-access.run.ts` moved to
+    // the private repository, where the preview workflow and its credentials live;
+    // leaving the path here would make knip fail on a file this repo does not have.
     "alchemy.run.ts",
-    "alchemy.preview-access.run.ts",
     // Detect Tanstack Start Routes
     "cli-auth.ts",
     // Site-audit aux worker entry (wrangler.audit.jsonc)

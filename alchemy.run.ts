@@ -22,8 +22,14 @@ import {
 // must be kept in sync by hand.
 
 // Alchemy v2 stack for SaaS deployments — previews, prod, and Cloudflare
-// self-hosting. Stage semantics, security model, and credentials are
-// documented once in docs/PREVIEW_DEPLOYMENTS.md.
+// self-hosting. **Stage semantics, the security model, and the credentials each
+// stage needs are documented in the private repo**, at
+// `docs/ops/PREVIEW_DEPLOYMENTS.md` — the preview pipeline runs from there, not
+// from the public mirror, so its documentation lives beside the keys and the
+// workflow that use them.
+//
+// What a self-hoster needs, which is the part this file's public surface should
+// answer, is here directly:
 //
 // - Any stage except "hosted-prod": fresh stage-suffixed resources. Previews
 //   deploy via `pnpm deploy:preview --stage <name>`; self-hosters via

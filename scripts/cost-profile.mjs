@@ -272,7 +272,23 @@ async function main() {
 
   const rows = [];
   for (const file of tracked) {
-    const state = classify(readFileSync(file, "utf8"));
+    // **A file in the index that is no longer on disk is skipped, not read.**
+    //
+    // `git ls-files` lists the *index*, not the working tree. Between "I moved this
+    // file to the other repo" and "I committed that" the two disagree, and the first
+    // version of this loop called `readFileSync` on every path the index returned —
+    // which threw ENOENT on the moved file and crashed the gate with a stack trace
+    // instead of a profile. That is the repo-split's own residue showing up in a
+    // script that had nothing to do with it.
+    //
+    // The semantics are also simply right: a file that does not exist cannot spend.
+    let text;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    const state = classify(text);
     if (state === "clean") continue;
     rows.push({ file, state });
   }
@@ -329,7 +345,14 @@ async function main() {
 
   const migrations = [];
   for (const file of ddlFiles) {
-    const text = readFileSync(file, "utf8");
+    // Same index-vs-working-tree guard as the test ledger above: a migration that
+    // has been removed but not yet committed must not crash the profile.
+    let text;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
     let klass = "other";
     // **Order matters.** A rebuild contains DROP TABLE, so it has to be tested before the
     // destructive pattern or the check reports drizzle's codegen as a data decision.

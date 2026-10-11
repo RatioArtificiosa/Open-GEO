@@ -1,17 +1,27 @@
 name: PR Preview
 
-# Alchemy preview stage per private-repo PR: deploy on open/update, destroy on
-# close (stage pr-<n>). Full model in docs/PREVIEW_DEPLOYMENTS.md.
+# Alchemy preview stage per PR: deploy on open/update, destroy on close
+# (stage pr-<n>).
 #
-# Public-mirror (RatioArtificiosa/Open-GEO) PRs NEVER deploy from CI — fork code must
-# not run with deploy secrets. Preview those locally from a worktree instead
-# (docs/PREVIEW_DEPLOYMENTS.md, "Public-mirror PRs"). The repository gate
-# below keeps the synced copy of this file inert on the mirror.
+# Public-mirror PRs NEVER deploy from CI — fork code must not run with deploy
+# secrets. The gate below is a repository *variable* rather than a repository
+# *slug*, for two reasons:
+#
+#   1. it keeps the mirror inert without writing anyone's account name into a
+#      file every contributor reads, and
+#   2. a variable is the mechanism the operator actually controls — the deploy
+#      source is whichever repository sets it, so this file does not have to be
+#      edited and re-synced if that ever moves.
+#
+# The second condition is the fork guard: it requires the PR's head repository to
+# be the same repository the workflow runs in, so a fork's code never executes with
+# the deploy secrets in scope even where the variable is set.
 #
 # Required repo secrets: CLOUDFLARE_API_TOKEN (Workers Scripts/KV/D1/R2/
 # Workflows write + Secrets Store read + Account Settings read — the last two
 # are how alchemy fetches its state-store token via an edge-preview worker),
 # CLOUDFLARE_ACCOUNT_ID, ENV_PREVIEW (.env.preview contents).
+# Required repo variable: PREVIEW_DEPLOY_ENABLED ("true" on the deploying repo only)
 
 on:
   pull_request:
@@ -45,7 +55,7 @@ env:
 jobs:
   preview:
     if: >-
-      github.repository == 'bensenescu/open-geo' &&
+      vars.PREVIEW_DEPLOY_ENABLED == 'true' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 20
