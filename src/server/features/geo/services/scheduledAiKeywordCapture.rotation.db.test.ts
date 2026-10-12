@@ -53,6 +53,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { SUBPROCESS_TEST_TIMEOUT_MS } from "@/__tests__/test-budgets";
 
 vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
 
@@ -68,6 +69,12 @@ const LONG_PROMPT = `best crm software ${"x".repeat(300)}`;
 let client: Client;
 let runDueAiKeywordCaptures: typeof RunDueAiKeywordCaptures;
 
+/**
+ * **The budget is explicit because the hook builds a real in-memory schema.**
+ * Under a full-suite load with several workers it exceeded the 10s default and
+ * failed with a timeout, which is the same failure `src/serverFunctions/geo.test.ts`
+ * had and the same reason for a stated number. See `src/__tests__/test-budgets.ts`.
+ */
 beforeAll(async () => {
   client = createClient({ url: "file::memory:" });
   const testDb = drizzle(client);
@@ -98,7 +105,7 @@ beforeAll(async () => {
     "INSERT INTO projects (id, name, location_code, language_code, created_at) VALUES (?, ?, ?, ?, ?)",
     [PROJECT, "Acme", 2840, "en", "2026-10-01T00:00:00.000Z"],
   );
-});
+}, SUBPROCESS_TEST_TIMEOUT_MS);
 
 afterAll(() => client.close());
 

@@ -31,6 +31,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { SUBPROCESS_TEST_TIMEOUT_MS } from "@/__tests__/test-budgets";
 import type { runDueAiModeCaptures as RunDueAiModeCaptures } from "./scheduledAiModeCapture";
 
 vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
@@ -38,6 +39,12 @@ vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
 let client: Client;
 let runDueAiModeCaptures: typeof RunDueAiModeCaptures;
 
+/**
+ * **The budget is explicit because the hook builds a real in-memory schema.**
+ * Under a full-suite load with several workers it exceeded the 10s default and
+ * failed with a timeout, which is the same failure `src/serverFunctions/geo.test.ts`
+ * had and the same reason for a stated number. See `src/__tests__/test-budgets.ts`.
+ */
 beforeAll(async () => {
   client = createClient({ url: "file::memory:" });
   const testDb = drizzle(client);
@@ -63,7 +70,7 @@ beforeAll(async () => {
   runDueAiModeCaptures = (
     await import("@/server/features/geo/services/scheduledAiModeCapture")
   ).runDueAiModeCaptures;
-});
+}, SUBPROCESS_TEST_TIMEOUT_MS);
 
 afterAll(() => client.close());
 

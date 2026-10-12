@@ -30,6 +30,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { SUBPROCESS_TEST_TIMEOUT_MS } from "@/__tests__/test-budgets";
 
 const SCRIPT = join(process.cwd(), "scripts", "cost-profile.mjs");
 
@@ -53,16 +54,26 @@ function runWith(extraFiles: Record<string, string>) {
 }
 
 describe("the cost-profile gate", () => {
-  it("passes on the real tree, and reports the shape of the profile it built", () => {
-    const proc = spawnSync("node", [SCRIPT], { encoding: "utf8" });
-    expect(proc.status).toBe(0);
-    // **The refusal is the dangerous half, so its absence is asserted.** A gate that
-    // refused would print "Only N test files" and exit 1, so the count proving the scan
-    // found the tree is what distinguishes a real pass from a scan that matched nothing.
-    expect(proc.stdout).toMatch(/test files scanned:\s+\d{3,}/);
-    expect(proc.stdout).toMatch(/BILLABLE \(must be 0\):\s+0/);
-    expect(proc.stdout).toMatch(/per-migration cost class \(\d+ migrations\)/);
-  });
+  it(
+    "passes on the real tree, and reports the shape of the profile it built",
+    // **The budget is explicit because the test spawns a subprocess.** The script
+    // takes ~600ms idle, but a subprocess spawn from inside a worker is bounded by
+    // the machine, so the 5s default fails under a full-suite load for a reason that
+    // has nothing to do with the gate. See src/__tests__/test-budgets.ts.
+    { timeout: SUBPROCESS_TEST_TIMEOUT_MS },
+    () => {
+      const proc = spawnSync("node", [SCRIPT], { encoding: "utf8" });
+      expect(proc.status).toBe(0);
+      // **The refusal is the dangerous half, so its absence is asserted.** A gate that
+      // refused would print "Only N test files" and exit 1, so the count proving the scan
+      // found the tree is what distinguishes a real pass from a scan that matched nothing.
+      expect(proc.stdout).toMatch(/test files scanned:\s+\d{3,}/);
+      expect(proc.stdout).toMatch(/BILLABLE \(must be 0\):\s+0/);
+      expect(proc.stdout).toMatch(
+        /per-migration cost class \(\d+ migrations\)/,
+      );
+    },
+  );
 
   it("still carries the negative controls the survey counts", () => {
     // The shapes `gates-about-gates` recognises as a control are asserted in the script
