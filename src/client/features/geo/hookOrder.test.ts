@@ -42,6 +42,22 @@ function hookOrder(source: string) {
     .map((line, i) => ({ line, i }))
     .filter(({ line }) => /^\s*return \(/.test(line))
     .map(({ i }) => i);
+
+  // **Refuses a source with no return rather than handing back an empty list.**
+  //
+  // The first version returned `returnLines[0]` to its callers, where a caller
+  // compared `index > undefined` — always false — and every assertion about hook
+  // order passed vacuously. CodeRabbit flagged the comparison; the deeper problem
+  // was that this function handed back a list whose emptiness it had not noticed.
+  //
+  // Refusing here means one place enforces it and the control is a call rather
+  // than a property of one source file: a component with no return is a file
+  // whose hook order cannot be worth checking at all.
+  if (lines.length > 1 && returnLines.length === 0) {
+    throw new Error(
+      `hookOrder found no return in ${lines.length} lines — a scan that cannot see the boundary it is checking reports clean`,
+    );
+  }
   return { hookLines, returnLines };
 }
 
@@ -53,6 +69,7 @@ describe("hook ordering in the GEO panels", () => {
     expect(returnLines.length).toBeGreaterThan(1); // the error return, then the real one
     // The first return is the error branch. Every hook must be before it.
     const firstReturn = returnLines[0];
+    expect(firstReturn).toBeGreaterThanOrEqual(0);
     const afterIt = hookLines.filter((index) => index > firstReturn);
     expect(
       afterIt,
@@ -63,7 +80,18 @@ describe("hook ordering in the GEO panels", () => {
   it("the GEO page's hooks all sit above its first return", () => {
     const source = readFileSync(PAGE, "utf8");
     const { hookLines, returnLines } = hookOrder(source);
+    // **A return must exist before reading it.** CodeRabbit flagged the original:
+    // `returnLines[0]` is `T | undefined`, and `index > undefined` is always
+    // false, so a scan that found no return would have reported every assertion
+    // passing. That is the vacuity hole this very file warns about elsewhere,
+    // reintroduced by trusting an index. With `noUncheckedIndexedAccess` this
+    // would be a compile error; without it, it is a runtime coin toss.
     const firstReturn = returnLines[0];
+    expect(
+      returnLines.length,
+      "the GEO page has a return to compare against",
+    ).toBeGreaterThan(0);
+    expect(firstReturn).toBeGreaterThanOrEqual(0);
     const afterIt = hookLines.filter((index) => index > firstReturn);
     expect(afterIt).toEqual([]);
   });
@@ -79,6 +107,24 @@ describe("hook ordering in the GEO panels", () => {
     expect(panel.hookLines.length).toBeGreaterThanOrEqual(2);
     const page = hookOrder(readFileSync(PAGE, "utf8"));
     expect(page.hookLines.length).toBeGreaterThanOrEqual(1);
+  });
+
+  // **A source with no return is refused, not compared.** This is the control for
+  // the refusal CodeRabbit's finding led to: `index > undefined` is always false,
+  // so a scan that could not see a return would have reported every assertion
+  // passing. Removing the guard makes this fail, which is what makes it a control
+  // rather than a description.
+  it("refuses a source with no return rather than comparing against undefined", () => {
+    const noReturn = [
+      "export function Panel({ errorMessage }: { errorMessage: string | null }) {",
+      '  const [view, setView] = useState("list");',
+      "  useEffect(() => {",
+      "    doTrack(view);",
+      "  }, [view]);",
+      "}",
+    ].join("\n");
+
+    expect(() => hookOrder(noReturn)).toThrow(/found no return/);
   });
 
   // **The negative control.**

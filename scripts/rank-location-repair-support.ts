@@ -41,22 +41,29 @@ export async function fetchRegistry(
     if (!Array.isArray(parsed)) {
       throw new Error(`${cachePath}: expected an array of locations`);
     }
-    // **Still an array of `unknown` after the shape check**, and each entry is
-    // narrowed rather than cast: the entry-level check is the one that can
-    // actually fail on a hand-edited file, so it is worth doing for real rather
-    // than claiming a shape the compiler cannot see.
+    // **Narrowed rather than cast, and against the camelCase keys the cache path
+    // writes below.** The first version checked `location_name` and
+    // `country_iso_code` — the vendor's *wire* spelling — which threw on every
+    // valid cache hit, because this file maps the API response to camelCase
+    // immediately after parsing it and writes the mapped shape. CodeRabbit caught
+    // it; the failing check would have made the cache slower than no cache.
+    //
+    // Checking the keys and not the values is deliberate: a location name may be
+    // any string, and `locationType` is optional in the registry response, so the
+    // only thing an entry must have is the shape of an object with those fields.
     return parsed.map((entry): SerpRegistryLocation => {
       if (
         typeof entry !== "object" ||
         entry === null ||
-        !("location_name" in entry) ||
-        !("country_iso_code" in entry)
+        !("locationCode" in entry) ||
+        !("locationName" in entry)
       ) {
         throw new Error(
           `${cachePath}: an entry is not a location: ${JSON.stringify(entry)}`,
         );
       }
-      return entry as SerpRegistryLocation; // eslint-disable-line typescript/no-unsafe-type-assertion
+      // eslint-disable-next-line typescript/no-unsafe-type-assertion -- the two `in` checks above are the narrowing; the cast carries it to the interface the rest of the file uses.
+      return entry as SerpRegistryLocation;
     });
   }
   const response = await fetch(
