@@ -119,6 +119,21 @@ export async function fetchGoogleTrendsExplore(input: {
       "Google Trends needs either keywords or a categoryCode; the vendor requires one of them.",
     );
   }
+  // **The category unlock's own rule, and it was unguarded until 2026-10-13.**
+  // The reference states `category_code` must be greater than 0, and a caller
+  // passing 0 used to sail through this guard — `0 == null` is false — and reach
+  // the vendor as a billed rejection. The capability this client has carried since
+  // the September unlock (`category_code` with **no keywords**, an industry's trend
+  // with no seed term) was therefore one default-valued zero away from a rejected
+  // task with the task fee attached.
+  if (input.categoryCode != null) {
+    if (!Number.isInteger(input.categoryCode) || input.categoryCode <= 0) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        `Google Trends category_code must be a whole number greater than 0 — the codes come from the Google Trends categories list, where every entry is a positive integer; got ${input.categoryCode}.`,
+      );
+    }
+  }
   if (keywords.length > MAX_TREND_KEYWORDS) {
     throw new AppError(
       "VALIDATION_ERROR",

@@ -114,6 +114,30 @@ describe("fetchGoogleTrendsExplore", () => {
     });
   });
 
+  it("refuses a category_code of zero, which the vendor rejects and bills for", async () => {
+    // **The documented rule, unguarded until 2026-10-13.** `0 == null` is
+    // false, so a zero sailed past the one-of-two guard and reached the vendor
+    // as a rejected task with the task fee attached. A default-valued zero is
+    // the easiest version of this to ship: the capability is "open" and the
+    // first request through it is a billed rejection.
+    await expect(fetchGoogleTrendsExplore({ categoryCode: 0 })).rejects.toThrow(
+      "greater than 0",
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("refuses a negative or fractional category_code, for the same reason", async () => {
+    // The categories list is a join of whole positive numbers, so anything else
+    // is a caller's bug caught here rather than the vendor's rejection caught
+    // on the invoice.
+    for (const categoryCode of [-1, 2.5]) {
+      await expect(fetchGoogleTrendsExplore({ categoryCode })).rejects.toThrow(
+        "greater than 0",
+      );
+    }
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("refuses more than five keywords before making a paid call", async () => {
     await expect(
       fetchGoogleTrendsExplore({ keywords: ["a", "b", "c", "d", "e", "f"] }),

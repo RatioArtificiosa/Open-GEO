@@ -89,6 +89,7 @@ import {
 } from "@/server/mcp/tools/trends-audience-tools";
 import { getSearchTrendsTool } from "@/server/mcp/tools/trends-tools";
 import { getTrendsOverviewTool } from "@/server/mcp/tools/trends-overview-tool";
+import { categoryMomentumTool } from "@/server/mcp/tools/category-momentum-tool";
 import {
   getBusinessProfileTool,
   getBusinessReviewsTool,
@@ -249,6 +250,10 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(aiModeQueryTool);
   register(aiKeywordVolumeTool);
   register(forecastTrafficTool);
+  // The industry-level read that needs no seed keyword: a whole category's
+  // direction, with the medians and the recent slope that keep a spike from
+  // answering it.
+  register(categoryMomentumTool);
   register(serpAskTool);
   register(reportPublishTool);
   register(compareSentimentTool);
