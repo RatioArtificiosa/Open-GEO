@@ -47,8 +47,14 @@ import { TREND_SCALE_CAVEAT } from "@/server/features/trends/trendSeries";
  * the traffic forecast refuses, for the same reason.
  */
 
-/** The verdict, in the words a reader acts on. */
-export type CategoryDirection = "accelerating" | "steady" | "cooling";
+/**
+ * The verdict, in the words a reader acts on.
+ *
+ * Not exported: nothing outside this module needs to name it, and a consumer
+ * reaches it as `CategoryMomentum["direction"]` when it does. An export no
+ * other file uses is a name that drifts from the thing it names.
+ */
+type CategoryDirection = "accelerating" | "steady" | "cooling";
 
 /** A category's momentum over one window. */
 export type CategoryMomentum = {

@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { createDataforseoClient } from "@/server/lib/dataforseo/client";
-import { breakoutSignals } from "@/server/features/trends/breakoutSignals";
+import {
+  breakoutSignals,
+  type BreakoutSignal,
+} from "@/server/features/trends/breakoutSignals";
 import {
   readTrendSeries,
   TREND_SCALE_CAVEAT,
@@ -161,8 +164,10 @@ export const breakoutDetectorTool = {
     const series = readTrendSeries(byType.get("dataforseo_trends_graph") ?? {});
 
     // The reader's points carry `dateFrom`, which is what lets the answer name
-    // the peak's date; the detector works on the same points, unchanged.
-    const signals = series.map((entry) =>
+    // the peak's date; the detector works on the same points, unchanged. Typed
+    // by the module's contract so a change to the signal's shape fails this
+    // compile rather than quietly reshaping the wire's payload.
+    const signals: BreakoutSignal[] = series.map((entry) =>
       breakoutSignals(
         entry.keyword,
         entry.points.map((point) => ({

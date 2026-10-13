@@ -3,6 +3,7 @@ import { createDataforseoClient } from "@/server/lib/dataforseo/client";
 import {
   categoryMomentum,
   readCategoryTrend,
+  type CategoryMomentum,
 } from "@/server/features/trends/categoryMomentum";
 import { buildProjectMeta } from "@/server/mcp/context";
 import {
@@ -165,7 +166,14 @@ export const categoryMomentumTool = {
       languageCode: args.languageCode,
     });
 
-    const momentum = categoryMomentum(readCategoryTrend(graph[0] ?? {}));
+    // **Typed by the module's contract, not by inference.** An annotation here
+    // binds the tool's handling of the verdict to the module that produces it,
+    // so a change to the verdict's shape fails the tool's compile rather than
+    // arriving as a silent difference between what the maths returns and what
+    // the wire sends.
+    const momentum: CategoryMomentum = categoryMomentum(
+      readCategoryTrend(graph[0] ?? {}),
+    );
 
     const lines = [
       `Category momentum (category ${args.categoryCode}):`,
