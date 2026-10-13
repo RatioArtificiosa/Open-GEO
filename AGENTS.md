@@ -15,7 +15,7 @@ what an end user needs to install and run that product on their own PC or server
 
 Yes → it belongs here. No, or if it needs arguing → it belongs in the private
 repository, and it is not a judgement call to make alone. "It is about the product"
-is not the same as "a self-hoster needs it": a *note about* the product is still a
+is not the same as "a self-hoster needs it": a _note about_ the product is still a
 note, and a publication built from our customers' data is our site's asset rather
 than a product feature.
 
