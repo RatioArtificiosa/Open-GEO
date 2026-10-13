@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
+import { SUBPROCESS_TEST_TIMEOUT_MS } from "@/__tests__/test-budgets";
 
 describe("retained string memory", () => {
   it.each([
@@ -77,12 +78,18 @@ describe("retained string memory", () => {
             scenario + " retained " + retained + " bytes of source strings");
         `,
         ],
-        { encoding: "utf8", timeout: 20_000 },
+        // **The child's budget is the shared one, and this test's is larger.**
+        // The child is a real process doing forty scrapes with forced GCs, so it
+        // is bounded by the machine rather than by the code — it failed on a
+        // 20s spawn budget under full-suite load on 2026-10-13. The test's own
+        // timeout sits above the child's so a genuine hang still reports as the
+        // spawn's timeout, which names the cause, rather than as this test's.
+        { encoding: "utf8", timeout: SUBPROCESS_TEST_TIMEOUT_MS },
       );
 
       expect(result.error).toBeUndefined();
       expect(result.status, result.stderr).toBe(0);
     },
-    25_000,
+    SUBPROCESS_TEST_TIMEOUT_MS + 10_000,
   );
 });

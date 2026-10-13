@@ -15,6 +15,7 @@ vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
 
 import type { runQueueDrain } from "@/server/features/geo/services/queueDrainRunner";
 import type * as RunBatchModule from "@/db/runBatch";
+import { SUBPROCESS_TEST_TIMEOUT_MS } from "@/__tests__/test-budgets";
 
 /**
  * The drain **archives** what it collects.
@@ -94,6 +95,12 @@ async function countRows(table: string): Promise<number> {
   return Number(row?.n ?? 0);
 }
 
+// **Timeout stated, not inherited.** This hook builds an in-memory schema by
+// applying nine real migration files, which is the case
+// `@/__tests__/test-budgets` exists for: under a full-suite load with eight
+// workers it exceeded the 10s hook default on 2026-10-13 and failed with a
+// timeout that said nothing about the drain. A schema build is bounded by the
+// machine, not by the code, so it reads the machine-bounded budget.
 beforeAll(async () => {
   client = createClient({ url: "file::memory:" });
   const testDb = drizzle(client);
@@ -168,7 +175,7 @@ beforeAll(async () => {
     PROJECT,
     "P",
   ]);
-});
+}, SUBPROCESS_TEST_TIMEOUT_MS);
 
 afterAll(() => {
   client.close();

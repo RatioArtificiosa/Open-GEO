@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { z } from "zod";
+import { SUBPROCESS_TEST_TIMEOUT_MS } from "@/__tests__/test-budgets";
 
 const workflow = z
   .object({
@@ -91,7 +92,11 @@ first=$(responses)
 second=$(responses)
 printf '%s|%s' "$first" "$second"`,
     ],
-    { encoding: "utf8", timeout: 10_000 },
+    // A spawn is bounded by the machine, not by the script: the probe's own
+    // load-bearing construct is two descriptor reads, but a loaded host can
+    // take seconds longer to start bash than to run it. The shared budget is
+    // the trade this repository already made for machine-bounded work.
+    { encoding: "utf8", timeout: SUBPROCESS_TEST_TIMEOUT_MS },
   );
   // Two reads from one descriptor must both yield `000 ` — proof the descriptor
   // advanced and the substitution kept its own shell state.
@@ -156,7 +161,7 @@ ${script}`,
         ],
         {
           encoding: "utf8",
-          timeout: 5000,
+          timeout: SUBPROCESS_TEST_TIMEOUT_MS,
           env: {
             ...process.env,
             PREVIEW_URL: "https://preview.example.invalid",

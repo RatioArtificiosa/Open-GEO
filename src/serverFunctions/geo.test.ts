@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { ZodType } from "zod";
+import { SUBPROCESS_TEST_TIMEOUT_MS } from "@/__tests__/test-budgets";
 
 /**
  * The GEO server-function surface.
@@ -231,12 +232,13 @@ const EXPECTED = [
 describe("GEO server functions", () => {
   // **Timeout stated, not inherited.** The hook's default has moved between
   // vitest majors, and "the loader got longer" is exactly the failure that
-  // arrives without anyone editing this file. Twenty seconds is generous for a
-  // module graph that takes two on an idle machine and still fails fast enough
-  // to notice a genuine Hang.
+  // arrives without anyone editing this file. This file carried its own
+  // twenty-second budget, and it failed anyway under a full-suite load on
+  // 2026-10-13 — the module graph is bounded by the machine, not by the code,
+  // so it now reads the same budget as every other machine-bounded case.
   beforeAll(async () => {
     await loadServerFns();
-  }, 20_000);
+  }, SUBPROCESS_TEST_TIMEOUT_MS);
 
   it("refuses to treat a non-Zod validator as a schema", async () => {
     // The control for the test below, and the reason it is not a tautology.
