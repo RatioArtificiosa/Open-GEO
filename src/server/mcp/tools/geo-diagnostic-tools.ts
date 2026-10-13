@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { GeoService } from "@/server/features/geo/services/GeoService";
+import { AuditService } from "@/server/features/audit/services/AuditService";
+import { citationWinProbability } from "@/server/features/geo/services/citationWinProbability";
+import type { CitationWinProbability } from "@/server/features/geo/services/citationWinProbability";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
@@ -142,13 +145,49 @@ export const getGeoCitationGapTool = {
     }
 
     const gaps = result.gaps;
+    // **The rate beside the list, and never instead of it.** The gap is the
+    // thing a reader acts on — a URL is a task, a percentage is a mood — so the
+    // list leads and the rate follows with its sample size. Both are computed
+    // from one window by construction, because the service asked both queries
+    // for the same domain.
+    //
+    // The readiness ingredient is the project's newest audit: an unquotable
+    // target is quoted the low end of its own interval, and an audit that never
+    // ran is "unknown" rather than a penalty. The counts are widened into
+    // per-retrieval rows because the module reads observations, not totals —
+    // widening two counters is a restatement, and it keeps the module pure.
+    const readinessState = await AuditService.latestReadinessState(
+      args.projectId,
+    );
+    const winProbability: CitationWinProbability = citationWinProbability({
+      retrievals: [
+        ...Array.from(
+          {
+            length: Math.max(
+              0,
+              result.winWindow.retrievals - result.winWindow.citations,
+            ),
+          },
+          () => ({ cited: false }),
+        ),
+        ...Array.from({ length: result.winWindow.citations }, () => ({
+          cited: true,
+        })),
+      ],
+      retrievalsComplete:
+        readinessState === "unknown" ? null : readinessState === "complete",
+    });
+
     return mcpResponse({
       text: [
         `Citation gap for ${target.domain} on ${result.platform}: ${gaps.length} page(s) retrieved but never cited.`,
         ...gaps.slice(0, 25).map((gap) => `  ${gap.url}`),
         ...(gaps.length > 25 ? [`  ...and ${gaps.length - 25} more`] : []),
         "",
+        winProbability.summary,
+        "",
         "A retrieved-but-uncited page is a DIRECTNESS problem, not a volume problem: the model read it and did not use it. Restructure the answer to lead with a direct response rather than publishing more content.",
+        winProbability.doesNotClaim,
       ].join("\n"),
       meta: buildProjectMeta(
         context,
@@ -163,6 +202,16 @@ export const getGeoCitationGapTool = {
         platform: result.platform,
         retrievalAvailable: true,
         gaps: gaps.map((gap) => ({ url: gap.url, rank: gap.rank })),
+        // The rate travels as numbers too, so an agent can reason about the
+        // denominator without parsing the prose.
+        winProbability: {
+          baseRate: winProbability.baseRate,
+          low: winProbability.low,
+          high: winProbability.high,
+          probability: winProbability.probability,
+          retrievalsObserved: winProbability.retrievalsObserved,
+          citationsObserved: winProbability.citationsObserved,
+        },
       },
     });
   }),

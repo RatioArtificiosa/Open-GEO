@@ -278,6 +278,64 @@ async function listCitationGaps(
     .limit(options.limit ?? 100);
 }
 
+/**
+ * Both halves of the win rate in one pair of counts: every retrieval in the
+ * window, and how many of them were cited.
+ *
+ * ## Why counts rather than a rate
+ *
+ * CL-502's win probability is `cited / retrieved`, and the repository's job is
+ * to return the two numbers the division rests on rather than the division. A
+ * caller can name its denominator, refuse a small sample, and explain the
+ * result — all of which a pre-divided rate forbids, because a 25% carried
+ * without its "of forty" is the number this product refuses to print.
+ *
+ * The join is the same one `listCitationGaps` uses, without the `IS NULL`
+ * filter that keeps only the gaps. The two queries cannot drift into
+ * disagreeing about what a retrieval is, because they are written the same way
+ * on purpose.
+ */
+async function countRetrievalsAndCitations(
+  projectId: string,
+  targetId: string,
+  platform: GeoPlatform,
+  domain: string,
+  options: { since?: string } = {},
+): Promise<{ retrievals: number; citations: number }> {
+  const answerFilters = [
+    eq(geoAnswers.projectId, projectId),
+    eq(geoAnswers.targetId, targetId),
+    eq(geoAnswers.platform, platform),
+  ];
+  if (options.since)
+    answerFilters.push(gte(geoAnswers.answeredAt, options.since));
+
+  const rows = await db
+    .select({
+      retrievalUrl: geoAnswerRetrievals.url,
+      citationUrl: geoAnswerCitations.url,
+    })
+    .from(geoAnswerRetrievals)
+    .innerJoin(geoAnswers, eq(geoAnswerRetrievals.answerId, geoAnswers.id))
+    .leftJoin(
+      geoAnswerCitations,
+      sql`${geoAnswerCitations.url} = ${geoAnswerRetrievals.url}
+          AND ${geoAnswerCitations.answerId} = ${geoAnswerRetrievals.answerId}`,
+    )
+    .where(
+      and(...answerFilters, sql`${geoAnswerRetrievals.domain} = ${domain}`),
+    );
+
+  // Counted in the reader rather than with a SQL `CASE WHEN`, because the same
+  // rows feed the gap list and the two counts must describe one pass over one
+  // result set. A page cited for one answer and uncited for another is a
+  // citation **and** a gap — which is the honest reading of a per-answer join.
+  return {
+    retrievals: rows.length,
+    citations: rows.filter((row) => row.citationUrl !== null).length,
+  };
+}
+
 async function countAnswers(
   projectId: string,
   platform?: GeoPlatform,
@@ -315,6 +373,7 @@ export const GeoAnswerRepository = {
   getAnswerWithSets,
   insertAnswers,
   listCitationGaps,
+  countRetrievalsAndCitations,
   countAnswers,
   listCoveredPrompts,
 } as const;

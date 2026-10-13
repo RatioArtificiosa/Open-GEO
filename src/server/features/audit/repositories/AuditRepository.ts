@@ -12,6 +12,7 @@ import {
   auditIssues,
   auditLighthouseResults,
   auditPages,
+  auditReadiness,
   projects,
 } from "@/db/schema";
 import { executeInBatches } from "@/db/runBatch";
@@ -337,6 +338,49 @@ async function getAuditsByProject(projectId: string) {
   return rows.map(({ audit }) => audit);
 }
 
+/**
+ * The newest audit's readiness for a project, as a three-way state.
+ *
+ * ## Why a state and not a report
+ *
+ * CL-502's citation win probability needs to know whether the target is
+ * technically quotable, and that is one fact: did the newest audit complete its
+ * checks, and did it leave fixes outstanding. Returning the whole report would
+ * make every caller re-derive that fact from JSON, and the derivation is the
+ * kind of thing two callers do differently.
+ *
+ * ## Why the three states collapse nothing
+ *
+ * `"unknown"` is a real answer — no audit, or a readiness row that was never
+ * written — and it is distinct from `"fixes-outstanding"`, because "we could
+ * not check" and "we checked and found problems" are different sentences. A
+ * caller that treats the first as the second invents a penalty for a run that
+ * never happened, which is the false-negative the readiness panel's whole design
+ * refuses.
+ *
+ * `fixCount` is the row's own stored column rather than a count of the parsed
+ * fixes, so a corrupt `fixes_json` cannot change this answer — the column is
+ * written beside the blob by the only writer there is.
+ */
+async function getLatestReadinessState(
+  projectId: string,
+): Promise<"complete" | "fixes-outstanding" | "unknown"> {
+  const rows = await db
+    .select({ fixCount: auditReadiness.fixCount })
+    .from(auditReadiness)
+    .innerJoin(audits, eq(audits.id, auditReadiness.auditId))
+    .where(eq(audits.projectId, projectId))
+    .orderBy(desc(audits.startedAt))
+    .limit(1);
+  const row = rows[0];
+  // **No row at all is "unknown", never "complete".** An inner join that
+  // matched nothing means no audit wrote a readiness report, and reading that
+  // as "checks completed, nothing to fix" is the all-clear the readiness phase
+  // exists to prevent.
+  if (row === undefined) return "unknown";
+  return row.fixCount > 0 ? "fixes-outstanding" : "complete";
+}
+
 // Org-scoped: the free-plan quota belongs to the org (the Autumn customer),
 // so usage must aggregate across every member — counting per starting user
 // would multiply the free ceiling by the member count.
@@ -380,6 +424,7 @@ export const AuditRepository = {
   countPagesByFetchClass,
   hasPagesForAudit,
   getAuditsByProject,
+  getLatestReadinessState,
   getAuditUsageForOrganization,
   deleteAuditForProject,
 } as const;

@@ -25,6 +25,7 @@ const getCitationGap = vi.fn();
 const listAnswerHistory = vi.fn();
 const listRuns = vi.fn();
 const forecastForStoredSeries = vi.fn();
+const latestReadinessState = vi.fn();
 
 /**
  * The forecast reader reaches `@/db`, so it is mocked like `GeoService` above:
@@ -33,6 +34,14 @@ const forecastForStoredSeries = vi.fn();
  */
 vi.mock("@/server/features/geo/services/visibilityForecastReads", () => ({
   forecastForStoredSeries,
+}));
+
+// The audit readiness the citation gap's win probability reads. Mocked for the
+// same reason as the rest: no SQL may run, and the readiness state is an input
+// the tests set explicitly — including the "no audit ever ran" case, which is
+// one of the module's three states.
+vi.mock("@/server/features/audit/services/AuditService", () => ({
+  AuditService: { latestReadinessState },
 }));
 
 vi.mock("@/server/features/geo/repositories/GeoSetupRepository", () => ({
@@ -198,6 +207,9 @@ describe("get_geo_visibility", () => {
 describe("get_geo_citation_gap", () => {
   beforeEach(() => {
     listTargets.mockResolvedValue([TARGET]);
+    // No audit ran, which is the honest default for a young project and the
+    // third of the module's three readiness states.
+    latestReadinessState.mockResolvedValue("unknown");
   });
 
   it("states the platform's retrieval limit instead of returning an empty success", async () => {
@@ -228,6 +240,7 @@ describe("get_geo_citation_gap", () => {
       retrievalAvailable: true,
       domain: "acme.com",
       gaps: [{ url: "https://acme.com/pricing", rank: 2 }],
+      winWindow: { retrievals: 40, citations: 10 },
     });
     const result = await callTool(getGeoCitationGapTool, {
       projectId: "p1",
@@ -246,6 +259,7 @@ describe("get_geo_citation_gap", () => {
       retrievalAvailable: true,
       domain: "acme.com",
       gaps: [],
+      winWindow: { retrievals: 0, citations: 0 },
     });
     const result = await callTool(getGeoCitationGapTool, {
       projectId: "p1",
@@ -253,6 +267,59 @@ describe("get_geo_citation_gap", () => {
       platform: "chat_gpt",
     });
     expect(textOf(result)).toMatch(/0 page\(s\) retrieved but never cited/);
+  });
+
+  it("puts the win rate beside the gap list, with its denominator", async () => {
+    // CL-502's second half reaches the wire here. The list leads and the rate
+    // follows with the sample size — ten gaps out of ten retrievals and ten out
+    // of four hundred are different problems, and a bare list cannot say which.
+    getCitationGap.mockResolvedValue({
+      platform: "chat_gpt",
+      retrievalAvailable: true,
+      domain: "acme.com",
+      gaps: [],
+      winWindow: { retrievals: 40, citations: 10 },
+    });
+    const result = await callTool(getGeoCitationGapTool, {
+      projectId: "p1",
+      domain: "acme.com",
+      platform: "chat_gpt",
+    });
+
+    const text = textOf(result);
+    expect(text).toMatch(/Of 40 retrieved pages, 10 were cited — 25%/);
+    expect(result.structuredContent?.winProbability).toMatchObject({
+      baseRate: 0.25,
+      retrievalsObserved: 40,
+      citationsObserved: 10,
+    });
+    // The refusal travels too: this is a rate over a window, not a market share.
+    expect(text).toMatch(/not the share of prompts/);
+  });
+
+  it("quotes the conservative end while the audit still has fixes outstanding", async () => {
+    // The readiness ingredient, composed: an unquotable target is quoted the low
+    // end of its own interval and the reason is named, rather than the point
+    // estimate that flatters it.
+    latestReadinessState.mockResolvedValue("fixes-outstanding");
+    getCitationGap.mockResolvedValue({
+      platform: "chat_gpt",
+      retrievalAvailable: true,
+      domain: "acme.com",
+      gaps: [],
+      winWindow: { retrievals: 40, citations: 10 },
+    });
+    const result = await callTool(getGeoCitationGapTool, {
+      projectId: "p1",
+      domain: "acme.com",
+      platform: "chat_gpt",
+    });
+
+    expect(textOf(result)).toMatch(/low end of the interval is quoted/);
+    const probability = result.structuredContent?.winProbability as
+      | { probability: number | null }
+      | undefined;
+    expect(probability?.probability ?? 1).toBeLessThan(0.25);
   });
 });
 

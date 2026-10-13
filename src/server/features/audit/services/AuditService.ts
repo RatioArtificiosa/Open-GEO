@@ -204,6 +204,19 @@ async function getResults(auditId: string, projectId: string) {
   };
 }
 
+/**
+ * Is this project's newest audit quotable, and does it still have fixes?
+ *
+ * The GEO feature asks this: CL-502's citation win probability quotes the
+ * conservative end of its interval while fixes are outstanding, and an audit
+ * that never ran must not be read as one that found nothing. The three states
+ * are the repository's, passed through rather than re-derived, so the readiness
+ * report and this answer cannot disagree.
+ */
+async function latestReadinessState(projectId: string) {
+  return AuditRepository.getLatestReadinessState(projectId);
+}
+
 async function getHistory(projectId: string) {
   const auditList = await AuditRepository.getAuditsByProject(projectId);
 
@@ -291,5 +304,6 @@ export const AuditService = {
   getCrawlProgress,
   getResults,
   getHistory,
+  latestReadinessState,
   remove,
 } as const;

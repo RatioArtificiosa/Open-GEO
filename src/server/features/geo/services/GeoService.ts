@@ -213,6 +213,20 @@ async function getCitationGap(input: {
       input.domain ?? target.domain,
       { since: input.since, limit: input.limit ?? 100 },
     ),
+    // **The gap is half the measurement, and the other half is the denominator.**
+    // A list of uncited pages says nothing without how many were retrieved in
+    // the same window: ten gaps out of ten retrievals and ten out of four
+    // hundred are different problems, and the second is nearly invisible next
+    // to the first in a bare list. CL-502's win probability is computed from
+    // these two counts, so the query and the gap list share a window by
+    // construction — they are asked in one place, of one domain.
+    winWindow: await GeoAnswerRepository.countRetrievalsAndCitations(
+      input.projectId,
+      input.targetId,
+      platform,
+      input.domain ?? target.domain,
+      { since: input.since },
+    ),
   };
 }
 
