@@ -336,6 +336,8 @@ function measurableForecast(overrides?: {
   note?: string | null;
   /** Null means the look-back window covered every run. */
   totalRunsInProject?: number | null;
+  /** The measured slope the projection extends, when the history supports one. */
+  direction?: { perWeek: number | null; basedOnWeeks: number };
 }): unknown {
   const rate = overrides?.rate === undefined ? 0.25 : overrides.rate;
   const basedOn = overrides?.basedOn ?? 8;
@@ -369,7 +371,11 @@ function measurableForecast(overrides?: {
           confidence: basedOn === 0 ? "none" : "low",
         },
       ],
-      direction: { perWeek: null, confidence: "none", basedOnWeeks: 0 },
+      direction: {
+        perWeek: overrides?.direction?.perWeek ?? null,
+        confidence: "none",
+        basedOnWeeks: overrides?.direction?.basedOnWeeks ?? 0,
+      },
       doesNotClaim: "This is not a market share.",
     },
   };
@@ -461,6 +467,61 @@ describe("get_geo_visibility_forecast", () => {
     });
 
     expect(textOf(result)).not.toMatch(/look-back window/i);
+  });
+
+  it("adds the arrival date when a pace has been measured", async () => {
+    // CL-501-web: the "at this pace, X% in N days" sentence. It is the number a
+    // reader will remember and the weakest one in the payload — a linear
+    // extension of a slope, conditional on nothing changing — so the assertion
+    // checks the condition travels with it ("At that pace"), and that it arrives
+    // *after* the sample size, which is the ordering the product promises.
+    forecastForStoredSeries.mockResolvedValue(
+      measurableForecast({
+        direction: { perWeek: 0.01, basedOnWeeks: 16 },
+      }),
+    );
+    const result = await callTool(getGeoVisibilityForecastTool, {
+      projectId: "p1",
+      domain: "acme.com",
+      platform: "chat_gpt",
+    });
+
+    const text = textOf(result);
+    expect(text).toMatch(
+      /At that pace it reaches 30% of prompts in about 5 weeks/,
+    );
+    expect(text.indexOf("Based on 8 prompts")).toBeLessThan(
+      text.indexOf("At that pace"),
+    );
+    // Two refusals travel, because the projection is conditional and a reader
+    // who takes it as a forecast is the failure this ordering prevents.
+    expect(text).toMatch(/not a prediction/);
+    // And the numbers, so an agent can reason from the pace without parsing prose.
+    expect(result.structuredContent?.pace).toMatchObject({
+      perWeek: 0.01,
+      targetShare: 0.3,
+      horizonDays: 90,
+    });
+  });
+
+  it("refuses the arrival date when no pace has been measured", async () => {
+    // The common case: a young project has a rate and no slope. The sentence must
+    // be the refusal, never an arrival date computed from a slope that does not
+    // exist — the confident arithmetic this product refuses everywhere else.
+    forecastForStoredSeries.mockResolvedValue(measurableForecast());
+    const result = await callTool(getGeoVisibilityForecastTool, {
+      projectId: "p1",
+      domain: "acme.com",
+      platform: "chat_gpt",
+    });
+
+    const text = textOf(result);
+    expect(text).toMatch(/nothing has been measured yet, so there is no pace/i);
+    expect(text).not.toMatch(/At that pace/);
+    expect(result.structuredContent?.pace).toMatchObject({
+      perWeek: null,
+      weeksToTarget: null,
+    });
   });
 
   it("reads through the authorized project rather than a target id", async () => {

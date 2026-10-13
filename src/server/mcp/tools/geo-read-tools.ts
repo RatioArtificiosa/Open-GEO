@@ -2,6 +2,7 @@ import { z } from "zod";
 import { GeoService } from "@/server/features/geo/services/GeoService";
 import { GeoSetupRepository } from "@/server/features/geo/repositories/GeoSetupRepository";
 import { forecastForStoredSeries } from "@/server/features/geo/services/visibilityForecastReads";
+import { projectVisibilityPace } from "@/server/features/geo/services/visibilityPace";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
@@ -239,7 +240,7 @@ export const getGeoVisibilityForecastTool = {
   config: {
     title: "Get AI visibility forecast",
     description:
-      "What share of prompts asked about this brand mention it, and how confident is that? Every answer leads with the sample size, because a rate without it is not interpretable: 4 of 8 prompts and 4 of 400 are the same sentence and different facts. May decline to give a rate, with a reason, when no stored run recorded how many prompts it asked — which is the normal state of runs collected through the live vendor path. One figure per platform, never combined. Follow with get_geo_citation_gap for WHY a brand is absent.",
+      "What share of prompts asked about this brand mention it, and how confident is that? Every answer leads with the sample size, because a rate without it is not interpretable: 4 of 8 prompts and 4 of 400 are the same sentence and different facts. When at least eight weeks of history exist, it adds the arrival date: at the measured pace, when this brand reaches a target share of prompts — a linear extension of the slope, conditional on nothing changing, and refused rather than guessed when no pace has been measured. One figure per platform, never combined. Follow with get_geo_citation_gap for WHY a brand is absent.",
     inputSchema: visibilityForecastInputSchema,
     outputSchema: z
       .object({
@@ -318,7 +319,22 @@ export const getGeoVisibilityForecastTool = {
       );
     }
 
+    // The arrival-date sentence, and why it sits *after* the rate and not before
+    // it. "30% of prompts in ten weeks" is the number a reader will remember, and
+    // it is the weakest one in the payload: it is a linear extension of a slope,
+    // conditional on nothing changing. The sample size and the confidence come
+    // first so the projection is read with the measurement that qualifies it —
+    // the order is the product decision, not a layout choice.
+    const pace = projectVisibilityPace({
+      platform: series.platform,
+      rateNow: current?.rate ?? null,
+      perWeek: forecast.direction.perWeek,
+      basedOnWeeks: forecast.direction.basedOnWeeks,
+    });
+    text.push("", pace.summary);
+
     text.push(forecast.doesNotClaim);
+    text.push(pace.doesNotClaim);
 
     return mcpResponse({
       text: text.join("\n"),
@@ -334,6 +350,16 @@ export const getGeoVisibilityForecastTool = {
         basedOn: current?.basedOn ?? 0,
         rate: current?.rate ?? null,
         confidence: current?.confidence ?? "none",
+        // The projection travels as numbers as well as a sentence, so an agent
+        // can reason from the pace without parsing the prose — and the two
+        // cannot disagree, because they are computed from one object.
+        pace: {
+          perWeek: pace.perWeek,
+          weeksToTarget: pace.weeksToTarget,
+          shareAfterHorizon: pace.shareAfterHorizon,
+          targetShare: pace.targetShare,
+          horizonDays: pace.horizonDays,
+        },
         note: series.note,
         skipped: series.skipped,
         caveat:
