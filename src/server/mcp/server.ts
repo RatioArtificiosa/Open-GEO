@@ -90,6 +90,7 @@ import {
 import { getSearchTrendsTool } from "@/server/mcp/tools/trends-tools";
 import { getTrendsOverviewTool } from "@/server/mcp/tools/trends-overview-tool";
 import { categoryMomentumTool } from "@/server/mcp/tools/category-momentum-tool";
+import { breakoutDetectorTool } from "@/server/mcp/tools/breakout-detector-tool";
 import {
   getBusinessProfileTool,
   getBusinessReviewsTool,
@@ -254,6 +255,9 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   // direction, with the medians and the recent slope that keep a spike from
   // answering it.
   register(categoryMomentumTool);
+  // The breakouts: a steep approach and a sustained elevation, or the spike is
+  // reported as the event it is with its persistence number.
+  register(breakoutDetectorTool);
   register(serpAskTool);
   register(reportPublishTool);
   register(compareSentimentTool);
