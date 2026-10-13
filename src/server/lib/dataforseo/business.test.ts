@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { first } from "@/shared/index-reads";
 
 vi.mock("@/server/lib/runtime-env", () => ({
   getRequiredEnvValue: vi.fn(async () => "test-api-key"),
@@ -25,7 +26,10 @@ function stubDataforseo(payload: unknown) {
 }
 
 function requestOf(fetchMock: ReturnType<typeof stubDataforseo>) {
-  const [url, init] = fetchMock.mock.calls[0];
+  const [url, init] = first(
+    fetchMock.mock.calls,
+    "the row under test (fetchMock.mock.calls)",
+  );
   const rawUrl = typeof url === "string" || url instanceof URL ? url : url.url;
   const body = init?.body;
   return {

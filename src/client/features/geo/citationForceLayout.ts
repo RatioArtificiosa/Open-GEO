@@ -24,6 +24,7 @@
  * given rather than needing a tuned constant per graph size.
  */
 import { sortBy } from "remeda";
+import { at } from "@/shared/index-reads";
 
 export type ForceNode = { id: string; weight: number };
 export type ForceLink = { a: string; b: string; weight: number };
@@ -63,7 +64,13 @@ export function forceLayout(
   const centreY = height / 2;
 
   if (ids.length === 1) {
-    positions.set(ids[0], { x: centreX, y: centreY });
+    // The single-id branch: `at()` rather than `ids[0]`, which the compiler
+    // types as possibly-undefined and the guard above proves present. A layout
+    // keyed on `undefined` is a node that never resolves.
+    positions.set(at(ids, 0, "the single citation node"), {
+      x: centreX,
+      y: centreY,
+    });
     return positions;
   }
 
@@ -88,8 +95,8 @@ export function forceLayout(
 
     for (let i = 0; i < ids.length; i += 1) {
       for (let j = i + 1; j < ids.length; j += 1) {
-        const p = positions.get(ids[i]);
-        const q = positions.get(ids[j]);
+        const p = positions.get(at(ids, i, "the citation pair"));
+        const q = positions.get(at(ids, j, "the citation pair"));
         if (!p || !q) continue;
         let dx = p.x - q.x;
         let dy = p.y - q.y;
@@ -103,8 +110,18 @@ export function forceLayout(
           distance = Math.hypot(dx, dy);
         }
         const force = (k * k) / distance;
-        shift(disp, ids[i], (dx / distance) * force, (dy / distance) * force);
-        shift(disp, ids[j], (-dx / distance) * force, (-dy / distance) * force);
+        shift(
+          disp,
+          at(ids, i, "the citation pair"),
+          (dx / distance) * force,
+          (dy / distance) * force,
+        );
+        shift(
+          disp,
+          at(ids, j, "the citation pair"),
+          (-dx / distance) * force,
+          (-dy / distance) * force,
+        );
       }
     }
 

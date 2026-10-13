@@ -25,6 +25,7 @@ import {
   LIGHTHOUSE_FETCH_STEP,
   LIGHTHOUSE_PERSIST_STEP,
 } from "@/server/workflows/auditStepConfigs";
+import { at } from "@/shared/index-reads";
 
 /**
  * URLs fetched concurrently per wave. Each URL runs mobile + desktop, so one
@@ -225,7 +226,11 @@ export async function runLighthousePhase(
       if (outcome.status === "fulfilled") return outcome.value;
       // Step timeout or engine failure — provider errors never reject here
       // (the audit-layer fetch converts them into errorMessage results).
-      const { url, pageId } = chunk[chunkOffset];
+      // `chunkOffset` is advanced in lockstep with the loop index below, so it
+      // is always inside the chunk. `at()` rather than a bare index: an undefined
+      // destructure would have produced a timeout message naming no url and no
+      // page, which is the one field the message exists to carry.
+      const { url, pageId } = at(chunk, chunkOffset, "the audit batch");
       const message =
         outcome.reason instanceof Error
           ? outcome.reason.message

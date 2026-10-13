@@ -14,6 +14,7 @@ import { dataforseoPost } from "@/server/lib/dataforseo/core";
 // on `String(call)` would pass for entirely the wrong reason. `endpoint-path-gate.test.ts`
 // re-exports this for exactly that reason.
 import { requestUrl } from "./test-support";
+import { first } from "@/shared/index-reads";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -32,7 +33,10 @@ describe("DataForSEO transport", () => {
     ).resolves.toEqual({ status_code: 20000, tasks: [] });
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url, init] = first(
+      fetchMock.mock.calls,
+      "the row under test (fetchMock.mock.calls)",
+    );
     expect(url).toBe("https://api.dataforseo.com/v3/backlinks/summary/live");
     expect(new Headers(init?.headers).get("Authorization")).toBe(
       "Basic encoded-credentials",

@@ -6,6 +6,7 @@ import {
 } from "@/server/lib/dataforseo";
 import type { BillingCustomerContext } from "@/server/billing/subscription";
 import type { RefreshSavedKeywordMetricsInput } from "@/types/schemas/keywords";
+import { at } from "@/shared/index-reads";
 
 // Cap concurrent D1 upserts per group. A project can accumulate thousands of
 // saved keywords in one location/language, and fanning out one promise each
@@ -35,7 +36,15 @@ export async function refreshSavedKeywordMetrics(
   }
 
   for (const groupRows of groups.values()) {
-    const { locationCode, languageCode } = groupRows[0].row;
+    // Every group carries at least one row — a group with none is not a group —
+    // and the market is read from the head because it is the same for the whole
+    // group. `at()` rather than `[0]`: a silent undefined destructures to two
+    // undefined fields, and the request that follows posts a task with no market.
+    const { locationCode, languageCode } = at(
+      groupRows,
+      0,
+      "a metrics group",
+    ).row;
     const metrics = await fetchKeywordMetricsForList(client, {
       keywords: groupRows.map((r) => r.row.keyword),
       locationCode,

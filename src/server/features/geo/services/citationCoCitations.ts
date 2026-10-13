@@ -1,5 +1,6 @@
 import { sortBy } from "remeda";
 import { hostOf } from "./urlIdentity";
+import { at } from "@/shared/index-reads";
 
 /**
  * Co-citation: which sources the AI engines reach for *together*.
@@ -107,7 +108,8 @@ export function buildCoCitations(
     for (let i = 0; i < present.length; i += 1) {
       for (let j = i + 1; j < present.length; j += 1) {
         const [a, b] =
-          present[i] < present[j]
+          at(present, i, "the co-citation members") <
+          at(present, j, "the comparison member")
             ? [present[i], present[j]]
             : [present[j], present[i]];
         const key = `${a}${SEP}${b}`;

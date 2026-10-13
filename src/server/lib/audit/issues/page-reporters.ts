@@ -10,6 +10,7 @@
  */
 import type { AuditIssueType } from "@/shared/audit-issues";
 import type { CrawledPageResult } from "@/server/lib/audit/types";
+import { at } from "@/shared/index-reads";
 
 export interface DetectedIssue {
   issueType: AuditIssueType;
@@ -34,7 +35,16 @@ const DEEP_PAGE_DEPTH = 5;
 
 function hasHeadingLevelSkip(headingOrder: number[]): boolean {
   for (let i = 1; i < headingOrder.length; i++) {
-    if (headingOrder[i] > headingOrder[i - 1] + 1) return true;
+    // Both reads are provably in range: the loop starts at 1 and stops at
+    // `length`. `at()` keeps the previous-level read from being `undefined`,
+    // because `undefined > n + 1` is false — a heading skip would have been
+    // reported as no skip, which is the audit finding this function exists to
+    // produce.
+    if (
+      at(headingOrder, i, "the heading levels") >
+      at(headingOrder, i - 1, "the previous heading level") + 1
+    )
+      return true;
   }
   return false;
 }

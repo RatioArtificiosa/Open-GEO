@@ -37,6 +37,19 @@ vi.mock("@/server/billing/autumn", () => ({
   AUTUMN_TRACK_RETRY_OPTIONS: {},
 }));
 
+// The spend ledger is mocked away here, because this file is about the *charge*
+// and *gate* — and the ledger is CL-052's own surface, which has its own file
+// (`client.spend.test.ts`) carrying the real repository. Mocking it here is what
+// keeps this suite free of a database; `client.spend.test.ts` asserts the row
+// itself.
+vi.mock("@/server/features/vendor/repositories/VendorSpendRepository", () => ({
+  VendorSpendRepository: {
+    getControls: async () => null,
+    monthlySpendUsd: async () => 0,
+    record: async () => ({}),
+  },
+}));
+
 // Keep the real subscription module (its assertUsageCreditsAvailable calls the
 // mocked autumn.check) and only stub the customer lookup, so the balance-assert
 // logic stays exercised through these tests after it moved out of client.ts.

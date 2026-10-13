@@ -1,6 +1,7 @@
 import { identity, sortBy } from "remeda";
 import { describe, expect, it } from "vitest";
 import { deriveCitedSources } from "./citedSources";
+import { first } from "@/shared/index-reads";
 import type {
   LlmMentionItem,
   LlmTopPagesItem,
@@ -59,7 +60,9 @@ describe("deriveCitedSources", () => {
     });
     expect(
       sortBy(
-        sources[0].keywords.map((k) => k.question),
+        first(sources, "the row under test (sources)").keywords.map(
+          (k) => k.question,
+        ),
         identity(),
       ),
     ).toEqual(["best seo tools", "cheap seo"]);
@@ -93,7 +96,7 @@ describe("deriveCitedSources", () => {
       url: "https://evil.example/path",
       domain: "evil.example",
     });
-    expect(sources[0].keywords).toEqual([
+    expect(first(sources, "the row under test (sources)").keywords).toEqual([
       { question: "q", aiSearchVolume: 200 },
     ]);
   });

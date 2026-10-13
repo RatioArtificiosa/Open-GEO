@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { at, first } from "@/shared/index-reads";
 
 const mocks = vi.hoisted(() => ({
   getAccessToken: vi.fn(),
@@ -34,7 +35,10 @@ describe("gscClient", () => {
     const sites = await createGscClient({ userId: "u1" }).listSites();
 
     expect(sites).toHaveLength(1);
-    const [url, init] = mocks.fetch.mock.calls[0];
+    const [url, init] = first(
+      mocks.fetch.mock.calls,
+      "the row under test (mocks.fetch.mock.calls)",
+    );
     expect(url).toBe("https://www.googleapis.com/webmasters/v3/sites");
     expect(init?.headers).toMatchObject({ Authorization: "Bearer tok_123" });
   });
@@ -80,7 +84,10 @@ describe("gscClient", () => {
     }).getUserInfoEmail();
 
     expect(email).toBe("client@example.com");
-    const [url, init] = mocks.fetch.mock.calls[0];
+    const [url, init] = first(
+      mocks.fetch.mock.calls,
+      "the row under test (mocks.fetch.mock.calls)",
+    );
     expect(url).toBe("https://openidconnect.googleapis.com/v1/userinfo");
     expect(init?.headers).toMatchObject({ Authorization: "Bearer tok_123" });
   });
@@ -94,7 +101,12 @@ describe("gscClient", () => {
       startDate: "2026-01-01",
       endDate: "2026-01-28",
     });
-    expect(mocks.fetch.mock.calls[0][0]).toBe(
+    expect(
+      first(
+        mocks.fetch.mock.calls,
+        "the row under test (mocks.fetch.mock.calls)",
+      )[0],
+    ).toBe(
       "https://www.googleapis.com/webmasters/v3/sites/sc-domain%3Aexample.com/searchAnalytics/query",
     );
 
@@ -102,7 +114,13 @@ describe("gscClient", () => {
       startDate: "2026-01-01",
       endDate: "2026-01-28",
     });
-    expect(mocks.fetch.mock.calls[1][0]).toBe(
+    expect(
+      at(
+        mocks.fetch.mock.calls,
+        1,
+        "the row under test (mocks.fetch.mock.calls)",
+      )[0],
+    ).toBe(
       "https://www.googleapis.com/webmasters/v3/sites/https%3A%2F%2Fexample.com%2F/searchAnalytics/query",
     );
   });
@@ -122,7 +140,10 @@ describe("gscClient", () => {
       "en-US",
     );
 
-    const [url, init] = mocks.fetch.mock.calls[0];
+    const [url, init] = first(
+      mocks.fetch.mock.calls,
+      "the row under test (mocks.fetch.mock.calls)",
+    );
     expect(url).toBe(
       "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect",
     );

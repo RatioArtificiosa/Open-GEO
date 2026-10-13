@@ -54,7 +54,12 @@ async function runRankedKeywords(args: MarketArgs) {
     domain: { rankedKeywords },
   });
   await getRankedKeywordsTool.handler(
-    { projectId: "project_1", target: "acmeexample.com", ...args },
+    {
+      dry_run: false,
+      projectId: "project_1",
+      target: "acmeexample.com",
+      ...args,
+    },
     toolContext,
   );
   return rankedKeywords;
@@ -66,7 +71,7 @@ async function runSerpCompetitors(args: MarketArgs) {
     labs: { serpCompetitors },
   });
   await findSerpCompetitorsTool.handler(
-    { projectId: "project_1", keywords: ["seo"], ...args },
+    { dry_run: false, projectId: "project_1", keywords: ["seo"], ...args },
     toolContext,
   );
   return serpCompetitors;

@@ -1,4 +1,5 @@
 import { isDemoMode } from "@/server/lib/demo-mode";
+import { at } from "@/shared/index-reads";
 
 /**
  * Demo fixtures — realistic-but-fabricated DataForSEO payloads.
@@ -64,12 +65,16 @@ function mentionItem(index: number) {
       {
         year: 2026,
         month: 4,
-        search_volume: Math.round(volumes[index % volumes.length] * 0.92),
+        search_volume: Math.round(
+          at(volumes, index % volumes.length, "the demo volume sample") * 0.92,
+        ),
       },
       {
         year: 2026,
         month: 3,
-        search_volume: Math.round(volumes[index % volumes.length] * 0.88),
+        search_volume: Math.round(
+          at(volumes, index % volumes.length, "the demo volume sample") * 0.88,
+        ),
       },
     ],
     first_response_at: "2026-03-11 23:14:14 +00:00",

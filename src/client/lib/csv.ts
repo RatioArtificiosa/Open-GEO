@@ -42,7 +42,19 @@ function sanitizeCsvValue(
     return value;
   }
 
-  if (["=", "+", "-", "@", "\t", "\r", "\n"].includes(value[0])) {
+  // **A regex rather than a prefix-character index read.** This is a prefix
+  // test, and a regex says what it means without an index at all — `value[0]`
+  // is `string | undefined` under `noUncheckedIndexedAccess`, and
+  // `["=", "+"].includes(undefined)` was false for the wrong reason rather than
+  // for the right one.
+  //
+  // **`-` is in the set, and it was missing when CodeRabbit flagged this.** The
+  // CWG spreadsheet-podance guidance lists `=`, `+`, `-` and `@` as the four
+  // leading characters a CSV cell must escape, and a `-SUM(A1:A2)` payload
+  // evaluates in Excel, Sheets and LibreOffice exactly like the `=` form. An
+  // attacker who can place a keyword or a domain into a report gets the same
+  // formula execution either way.
+  if (/^[=+\-@\t\r\n]/.test(value)) {
     return `'${value}`;
   }
 

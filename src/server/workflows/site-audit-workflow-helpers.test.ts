@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createCrawlThrottle } from "@/server/lib/audit/crawl-throttle";
 import { resetCrawlDnsBudget } from "@/server/lib/audit/url-policy";
 import { crawlPage } from "@/server/workflows/site-audit-workflow-helpers";
+import { at } from "@/shared/index-reads";
 
 const PAGE_URL = "https://example.com/page";
 const PAGE_HTML =
@@ -73,7 +74,16 @@ function stubFetch(...replies: Array<{ status: number; retryAfter?: string }>) {
   let index = 0;
   return vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
     if (isDnsLookup(input)) return Promise.resolve(dnsResponse());
-    const reply = replies[Math.min(index++, replies.length - 1)];
+    // `Math.min(index++, length - 1)` is bounded by the stub's own reply list, so
+    // the index is always present. `at()` rather than a bare index: an undefined
+    // reply makes `reply.status` throw, which the mock would surface as a
+    // TypeError inside the crawl rather than as the assertion about the
+    // retry-after behaviour.
+    const reply = at(
+      replies,
+      Math.min(index++, replies.length - 1),
+      "the stubbed fetch replies",
+    );
     return Promise.resolve(
       new Response(PAGE_HTML, {
         status: reply.status,

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { first } from "@/shared/index-reads";
 import {
   rankContentOpportunities,
   type OpportunityMeasurement,
@@ -43,11 +44,24 @@ const measure = (difficulty: number): OpportunityMeasurement => ({
   rankElasticityBp: 5000,
 });
 
+/**
+ * The one band a single-keyword ranking produces.
+ *
+ * **`first()` rather than `.items[0]`.** A ranking over a non-empty measurement
+ * list always yields exactly this keyword, so the item is provably present — and
+ * the compiler types the index as possibly-undefined, which then made every
+ * `bandFor(...).band` read below report `possibly undefined` on a field the type
+ * already declares as required. The alternative was `items[0]!`, which asserts
+ * nothing the length guard has not already established.
+ */
 const bandFor = (measurements: OpportunityMeasurement[], keyword = "kw") =>
-  rankContentOpportunities({
-    measurementsByKeyword: new Map([[keyword, measurements]]),
-    resamples: 50,
-  }).items[0];
+  first(
+    rankContentOpportunities({
+      measurementsByKeyword: new Map([[keyword, measurements]]),
+      resamples: 50,
+    }).items,
+    `bandFor(${keyword})`,
+  );
 
 describe("rankContentOpportunities", () => {
   it("refuses to rank a keyword with no measurements", () => {
@@ -177,10 +191,10 @@ describe("rankContentOpportunities", () => {
       measure(60),
       measure(45),
     ];
-    const first = bandFor(measurements);
-    const second = bandFor(measurements);
+    const firstBand = bandFor(measurements);
+    const secondBand = bandFor(measurements);
 
-    expect(first.band).toEqual(second.band);
+    expect(firstBand.band).toEqual(secondBand.band);
   });
 
   it("scores the newest measurement, not the average", () => {

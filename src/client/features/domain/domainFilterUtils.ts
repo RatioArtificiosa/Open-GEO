@@ -99,11 +99,22 @@ function countFilterConditions<TValues extends Record<string, string>>(
   fields: ReadonlyArray<FilterKey<TValues>>,
 ): number {
   let n = 0;
-  for (const term of values.include.split(/[,+]/)) if (term.trim()) n += 1;
-  for (const term of values.exclude.split(/[,+]/)) if (term.trim()) n += 1;
+  // The include/exclude filters are optional on every values shape that reaches
+  // here (a keyword filter has them, a rank filter does not). An absent list is
+  // an empty list, so `[].split()` is exactly the right reading — and a `!`
+  // would have made a filter that omits them throw on the first render.
+  for (const term of (values.include ?? "").split(/[,+]/))
+    if (term.trim()) n += 1;
+  for (const term of (values.exclude ?? "").split(/[,+]/))
+    if (term.trim()) n += 1;
   for (const key of fields) {
     if (key === "include" || key === "exclude") continue;
-    if (values[key].trim() !== "") n += 1;
+    // **`?? ""` rather than a non-null assertion.** `FilterValues` is a
+    // `Record<string, string>`, so an index read is `string | undefined` under
+    // `noUncheckedIndexedAccess`. An absent filter key means the condition is not
+    // set, which is exactly what an empty string already represents in this
+    // counter — so the default is the semantics, not a workaround.
+    if ((values[key] ?? "").trim() !== "") n += 1;
   }
   return n;
 }
@@ -116,7 +127,7 @@ function buildFilterSearchUpdate<TValues extends FilterValues>(
   const update: SearchUpdate = { page: undefined };
   for (const key of fields) {
     const param = getParam(key);
-    const raw = values[key].trim();
+    const raw = (values[key] ?? "").trim();
     if (raw === "") {
       Object.assign(update, { [param]: undefined });
       continue;

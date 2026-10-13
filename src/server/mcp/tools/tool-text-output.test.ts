@@ -378,7 +378,7 @@ describe("MCP tool text output (service-backed tools)", () => {
     const { getRankedKeywordsTool } = researchTools;
 
     const result = await getRankedKeywordsTool.handler(
-      { projectId: "project_1", target: "example.com" },
+      { projectId: "project_1", target: "example.com", dry_run: false },
       toolContext,
     );
 
@@ -409,7 +409,7 @@ describe("MCP tool text output (service-backed tools)", () => {
     });
 
     const result = await getBusinessUpdatesTool.handler(
-      { projectId: "project_1", cid: "123" },
+      { projectId: "project_1", cid: "123", dry_run: false },
       toolContext,
     );
 

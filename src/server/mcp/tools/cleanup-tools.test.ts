@@ -3,6 +3,7 @@ import { z } from "zod";
 import { removeSavedKeywordsTool } from "./remove-saved-keywords";
 import { deleteReportTool } from "./report-tools";
 import { deleteReportTemplateTool } from "./report-template-tools";
+import { first } from "@/shared/index-reads";
 import {
   deleteSiteAuditTool,
   listSiteAuditsTool,
@@ -175,7 +176,10 @@ describe("site audit cleanup", () => {
     );
     expect(mocks.terminate).toHaveBeenCalledOnce();
     expect(mocks.terminate.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.deleteAuditForProject.mock.invocationCallOrder[0],
+      first(
+        mocks.deleteAuditForProject.mock.invocationCallOrder,
+        "the row under test (mocks.deleteAuditForProject.mock.invocationCallOrder)",
+      ),
     );
     expect(mocks.destroyScratchpad).toHaveBeenCalledWith("audit_1");
   });

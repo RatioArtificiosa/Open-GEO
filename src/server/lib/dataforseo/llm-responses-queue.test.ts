@@ -79,23 +79,25 @@ describe("llm_responses task_post", () => {
     expect(url).not.toContain("/v3/ai_optimization/llm_responses/");
   });
 
-  it("uses a different path per platform", async () => {
-    // A single hardcoded `chat_gpt` would silently send every platform's work to
-    // ChatGPT, producing plausible answers about the wrong model — the kind of
-    // defect that never surfaces as an error.
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(taskPostResponse());
+  it("refuses a platform the vendor has no queued endpoint for, before any call", async () => {
+    // Found by `check-source-markers.mjs` (CL-713): the vendor documents LLM
+    // Responses Task POST for Chat GPT, Claude and Gemini, and **Live only**
+    // for Perplexity. Writing the path for every slug meant a queued Perplexity
+    // run posted to an endpoint no documentation page covers — a 404 after the
+    // caller had already decided to spend. The refusal is the fix; a note in the
+    // registry would only have made the defect legible.
+    const fetchMock = vi.fn<typeof fetch>();
     vi.stubGlobal("fetch", fetchMock);
 
-    await postLlmResponseTasks({
-      se: "perplexity",
-      tasks: [{ userPrompt: "q", modelName: "sonar", tag: "t1:perplexity" }],
-    });
+    await expect(
+      postLlmResponseTasks({
+        se: "perplexity",
+        tasks: [{ userPrompt: "q", modelName: "sonar", tag: "t1:perplexity" }],
+      }),
+    ).rejects.toThrow(/no Standard queue/i);
 
-    expect(requestUrl(fetchMock)).toContain(
-      "/v3/ai_optimization/perplexity/llm_responses/task_post",
-    );
+    // And nothing was posted, because a call that cannot succeed still costs.
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("returns the task id and the tag that maps a result back to a prompt", async () => {

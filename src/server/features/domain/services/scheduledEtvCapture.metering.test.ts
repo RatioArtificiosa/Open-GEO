@@ -68,6 +68,19 @@ vi.mock("@/server/lib/runtime-env", () => ({
 
 vi.mock("@/server/lib/posthog", () => ({ captureServerEvent: vi.fn() }));
 
+// The spend ledger is mocked away: it is a database write, and this file is
+// about the *gate* — the same reason the balance assertions below mock Autumn
+// rather than reaching it. The ledger's own surface is asserted in
+// `client.spend.test.ts`, and `client.test.ts` mocks it here for the same
+// reason.
+vi.mock("@/server/features/vendor/repositories/VendorSpendRepository", () => ({
+  VendorSpendRepository: {
+    getControls: async () => null,
+    monthlySpendUsd: async () => 0,
+    record: async () => ({}),
+  },
+}));
+
 vi.mock("@/server/lib/dataforseo/envelope", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, tryBuildTaskBilling: vi.fn(() => undefined) };

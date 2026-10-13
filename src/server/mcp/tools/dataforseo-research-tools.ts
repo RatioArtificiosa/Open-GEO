@@ -1,6 +1,7 @@
 /* eslint-disable max-lines */
 import { sort } from "remeda";
 import { z } from "zod";
+import { DFS_LABS, DFS_LOCAL, DFS_SERP } from "@/shared/dataforseo-pricing";
 import {
   createDataforseoClient,
   fetchKeywordMetricsForList,
@@ -8,6 +9,12 @@ import {
 } from "@/server/lib/dataforseo";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { mcpResponse } from "@/server/mcp/formatters";
+import {
+  creditsFor,
+  dryRunInputSchema,
+  dryRunResponse,
+  wantsToSpend,
+} from "@/server/mcp/dry-run";
 import {
   looseObjectOutputSchema,
   optionalMetaOutputSchema,
@@ -211,6 +218,7 @@ const getRankedKeywordsInputSchema = {
     .max(1000)
     .optional()
     .describe("Rows to skip for pagination."),
+  ...dryRunInputSchema,
 } as const;
 
 const searchLocalBusinessesInputSchema = {
@@ -264,6 +272,7 @@ const searchLocalBusinessesInputSchema = {
     .max(1000)
     .optional()
     .describe("Rows to skip for pagination."),
+  ...dryRunInputSchema,
 } as const;
 
 const localSearchTypeSchema = z.enum(["maps", "local_finder"]);
@@ -293,6 +302,7 @@ const getLocalSerpResultsInputSchema = {
     .optional()
     .describe("Number of results to fetch (1-100). Defaults to 20."),
   languageCode: languageCodeSchema.optional(),
+  ...dryRunInputSchema,
 } as const;
 
 const getGoogleBusinessQuestionsInputSchema = {
@@ -307,6 +317,7 @@ const getGoogleBusinessQuestionsInputSchema = {
     .optional()
     .describe("Maximum Q&A rows to fetch (1-100). Defaults to 20."),
   languageCode: languageCodeSchema.optional(),
+  ...dryRunInputSchema,
 } as const;
 
 const findSerpCompetitorsInputSchema = {
@@ -363,6 +374,7 @@ const findSerpCompetitorsInputSchema = {
     .max(1000)
     .optional()
     .describe("Rows to skip for pagination."),
+  ...dryRunInputSchema,
 } as const;
 
 const keywordMetricsSortSchema = z.enum([
@@ -394,6 +406,7 @@ const getKeywordMetricsInputSchema = {
   sortBy: keywordMetricsSortSchema
     .optional()
     .describe("Sort order for returned rows. Defaults to search_volume."),
+  ...dryRunInputSchema,
 } as const;
 
 type Market = z.infer<typeof marketSchema>;
@@ -799,7 +812,6 @@ export const getRankedKeywordsTool = {
     },
   },
   handler: withMcpProjectAuth(async (args: GetRankedKeywordsArgs, context) => {
-    const client = createDataforseoClient(context.billing);
     // Legacy includeSubdomains only ever selected between whole-host scopes
     // for bare domains; for page URLs it meant exact-page results. Mapping it
     // to domain/subdomains for a URL target would silently drop the path.
@@ -818,11 +830,48 @@ export const getRankedKeywordsTool = {
       : parsedDefault;
     const scopeFilter = buildRankedKeywordsScopeFilter(target);
     const market = resolveMarketSelector(args, context.project);
+    const limit = args.limit ?? 50;
+
+    // **The quote before the spend, and after the arguments resolve.** A preview
+    // of a call whose arguments cannot be parsed is a price for a call that will
+    // be refused — worse than the refusal, because it looks like information.
+    // Labs is priced per request *and* per item, and the item count is the
+    // caller's choice, so the estimate uses the limit actually asked for: an
+    // agent that omits `limit` is quoted for 50 because 50 is what it is about
+    // to be charged for, and asserting the default for a caller who asked for
+    // 100 under-reports by a factor of two.
+    if (!wantsToSpend(args.dry_run)) {
+      const usd =
+        DFS_LABS.standard.perRequest + DFS_LABS.standard.perUnit * limit;
+      return dryRunResponse({
+        subject: `${limit} ranked keyword row(s) for ${target.display}`,
+        estimatedCredits: creditsFor(usd),
+        unitSentence:
+          "USD " +
+          DFS_LABS.standard.perRequest +
+          " per request plus USD " +
+          DFS_LABS.standard.perUnit +
+          " per item, DataForSEO Labs",
+        meta: buildProjectMeta(
+          context,
+          args.projectId,
+          `/p/${args.projectId}/domain`,
+          { domain: target.display, scope: target.scope },
+        ),
+        structured: {
+          totalCount: null,
+          target: target.display,
+          scope: target.scope,
+        },
+      });
+    }
+
+    const client = createDataforseoClient(context.billing);
     const keywords = await client.domain.rankedKeywords({
       target: target.hostname,
       locationCode: market.locationCode,
       languageCode: market.languageCode,
-      limit: args.limit ?? 50,
+      limit,
       offset: args.offset,
       orderBy: sortOrderByRankedMode(args.sortBy),
       filters: buildRankedKeywordFilters(
@@ -879,6 +928,22 @@ export const searchLocalBusinessesTool = {
   },
   handler: withMcpProjectAuth(
     async (args: SearchLocalBusinessesArgs, context) => {
+      if (!wantsToSpend(args.dry_run)) {
+        return dryRunResponse({
+          subject: "this call",
+          estimatedCredits: creditsFor(DFS_LOCAL.businessListings.perRequest),
+          unitSentence:
+            "USD " +
+            DFS_LOCAL.businessListings.perRequest +
+            " per request, DataForSEO Business Listings",
+          meta: buildProjectMeta(
+            context,
+            args.projectId,
+            `/p/${args.projectId}`,
+          ),
+          structured: {},
+        });
+      }
       const client = createDataforseoClient(context.billing);
       const rows = await client.business.businessListings({
         categories: args.categories,
@@ -926,6 +991,22 @@ export const getLocalSerpResultsTool = {
   },
   handler: withMcpProjectAuth(
     async (args: GetLocalSerpResultsArgs, context) => {
+      if (!wantsToSpend(args.dry_run)) {
+        return dryRunResponse({
+          subject: "this call",
+          estimatedCredits: creditsFor(DFS_SERP.livePage.perRequest),
+          unitSentence:
+            "USD " +
+            DFS_LABS.standard.perRequest +
+            " per request, DataForSEO Labs",
+          meta: buildProjectMeta(
+            context,
+            args.projectId,
+            `/p/${args.projectId}`,
+          ),
+          structured: {},
+        });
+      }
       const client = createDataforseoClient(context.billing);
       const rows = await client.serp.local({
         keyword: args.keyword,
@@ -972,6 +1053,22 @@ export const getGoogleBusinessQuestionsTool = {
   },
   handler: withMcpProjectAuth(
     async (args: GetGoogleBusinessQuestionsArgs, context) => {
+      if (!wantsToSpend(args.dry_run)) {
+        return dryRunResponse({
+          subject: "this call",
+          estimatedCredits: creditsFor(DFS_LOCAL.businessListings.perRequest),
+          unitSentence:
+            "USD " +
+            DFS_LOCAL.businessListings.perRequest +
+            " per request, DataForSEO Business Listings",
+          meta: buildProjectMeta(
+            context,
+            args.projectId,
+            `/p/${args.projectId}`,
+          ),
+          structured: {},
+        });
+      }
       const identifier = resolveBusinessIdentifier(args);
       const client = createDataforseoClient(context.billing);
       const rows = await client.business.questionsAnswers({
@@ -1015,6 +1112,22 @@ export const findSerpCompetitorsTool = {
   },
   handler: withMcpProjectAuth(
     async (args: FindSerpCompetitorsArgs, context) => {
+      if (!wantsToSpend(args.dry_run)) {
+        return dryRunResponse({
+          subject: "this call",
+          estimatedCredits: creditsFor(DFS_LABS.standard.perRequest),
+          unitSentence:
+            "USD " +
+            DFS_LABS.standard.perRequest +
+            " per request, DataForSEO Labs",
+          meta: buildProjectMeta(
+            context,
+            args.projectId,
+            `/p/${args.projectId}`,
+          ),
+          structured: {},
+        });
+      }
       const client = createDataforseoClient(context.billing);
       const market = resolveMarketSelector(args, context.project);
       const competitors = await client.labs.serpCompetitors({
@@ -1073,6 +1186,18 @@ export const getKeywordMetricsTool = {
     },
   },
   handler: withMcpProjectAuth(async (args: GetKeywordMetricsArgs, context) => {
+    if (!wantsToSpend(args.dry_run)) {
+      return dryRunResponse({
+        subject: "this call",
+        estimatedCredits: creditsFor(DFS_LABS.standard.perRequest),
+        unitSentence:
+          "USD " +
+          DFS_LABS.standard.perRequest +
+          " per request, DataForSEO Labs",
+        meta: buildProjectMeta(context, args.projectId, `/p/${args.projectId}`),
+        structured: {},
+      });
+    }
     const { locationCode, languageCode } = resolveMarket(args, context.project);
     // Assert against the RESOLVED pair: an explicit language with an omitted
     // location must validate against the project's default location.

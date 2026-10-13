@@ -1,0 +1,48 @@
+chore: hold the public repository to the self-hosted product only
+
+The boundary between the two repositories was treated as a branch name, and
+seventeen commits of internal work were merged into public `main` wholesale.
+This branch returns the public repository to what it held before that merge,
+then re-applies only the part a self-hoster needs.
+
+Kept, because an end user needs them to install and run the product and to
+trust its numbers:
+
+- the metered vendor client: the queued patrol post, the two GEO live reads,
+  and `searchIntent` all reach the vendor through the one seam, with the
+  vendor's own figure carried on the receipt
+- the price book's per-task floor for a queued batch
+- `searchIntent` on the Labs client, and the ETV formula pinned per call with
+  its bearer lists in `src/shared/`
+- the seam gate that refuses a vendor call outside the metered client, in
+  `ci:check` alongside the gates it was already beside
+- product quality: the strictness migration, platform-card pairing, the
+  timeout budgets, `noUncheckedIndexedAccess`'s two vacuity holes, the
+  methodology date stamps, the dry-run price quotes, the credit refusal
+- every `src/client/**` correction and every test they needed
+
+Removed, because they exist only against our account, our site or our
+research:
+
+- the spend ledger, the monthly cap, the kill switch and the band alert, with
+  their tables, journals, repository and platform-admin surface. The metered
+  client still charges credits and records what the customer lost; what it no
+  longer does is record what the vendor charged *us*, or enforce a control
+  before the fetch
+- `/data/ai-rankings`, an SEO publication built from every customer's
+  aggregate prompts, and the aggregate-only repository behind it
+- the `[S]`-vs-`[V]` identifier registry and its source-marker gate
+- the regression dashboard and its rendered page
+- the platform's daily-spend constants, which existed only for the alert
+
+Two shared files were severed rather than dropped, and the severance is the
+point of the commit: `client.ts` kept its metering and lost its ledger, and
+`server.ts` lost only the nightly alert it had never needed before.
+
+`ci:check` is green on this tree: 389 test files, 3679 tests, both TypeScript
+projects, type-aware lint, knip, and every gate that protects the code an end
+user runs — including the seam gate, which still reports 194 seam imports and
+no vendor call outside the metered client.
+
+`AGENTS.md` is new, and states the test this commit applied: does an end user
+need this file, as it is, to install and run the free product themselves?

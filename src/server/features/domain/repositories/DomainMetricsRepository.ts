@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { domainMetrics } from "@/db/schema";
 import type { EtvProvenance } from "@/shared/etv-versioning";
 import { AppError } from "@/server/lib/errors";
+import { first } from "@/shared/index-reads";
 
 /**
  * Writes the only ETV values we persist.
@@ -38,13 +39,17 @@ type DomainMetricEndpoint = NonNullable<
  * people paste URLs where a host is expected.
  */
 function normaliseDomain(input: string): string {
-  return input
+  // `split"/"` on a non-empty separator always yields at least one element, so
+  // the host part is provably present. `first()` rather than `[0]`: an empty
+  // result would have keyed a cache row on "", so every project shared one row
+  // and a domain lookup returned the first project's numbers.
+  const segments = input
     .trim()
     .toLowerCase()
     .replace(/^https?:\/\//, "")
     .replace(/^www\./, "")
-    .split("/")[0]
-    .trim();
+    .split("/");
+  return first(segments, "a url host segment").trim();
 }
 
 type InsertPoint = {

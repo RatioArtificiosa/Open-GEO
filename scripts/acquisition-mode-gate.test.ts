@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { at } from "@/shared/index-reads";
 
 /** Every `.ts` under `dir`, recursively. */
 function listFiles(dir: string): string[] {
@@ -255,7 +256,7 @@ describe("MCP tool text names only tools that exist", () => {
     for (const file of listFiles("src/server/mcp")) {
       const text = readFileSync(file, "utf8");
       for (const m of text.matchAll(/name:\s*"(get_geo[a-z_]*)"/g)) {
-        registered.add(m[1]);
+        registered.add(at(m, 1, "the row under test (m)"));
       }
     }
     // A control: the set is not empty, or every rule below is vacuous.
@@ -265,8 +266,8 @@ describe("MCP tool text names only tools that exist", () => {
     for (const file of listFiles("src/server/mcp")) {
       const text = readFileSync(file, "utf8");
       for (const m of text.matchAll(/`(get_geo[a-z_]*)`/g)) {
-        if (!registered.has(m[1])) {
-          offenders.push({ file, name: m[1] });
+        if (!registered.has(at(m, 1, "the row under test (m)"))) {
+          offenders.push({ file, name: at(m, 1, "the row under test (m)") });
         }
       }
     }
@@ -280,7 +281,12 @@ describe("MCP tool text names only tools that exist", () => {
     const registered = new Set(["get_geo_visibility"]);
     const unknownIn = (source: string) =>
       [...source.matchAll(/`(get_geo[a-z_]*)`/g)]
-        .map((m) => m[1])
+        // `matchAll` with one capture group: the group participates for every
+        // match, so `m[1]` is provably present. `at()` rather than a bare index,
+        // because `registered.has(undefined)` is false — an unmatched group would
+        // have been reported as an unknown function name, which is the failure
+        // this audit exists to find and never does.
+        .map((m) => at(m, 1, "a tool-name capture"))
         .filter((n) => !registered.has(n));
 
     expect(

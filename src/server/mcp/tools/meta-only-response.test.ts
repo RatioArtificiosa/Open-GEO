@@ -59,6 +59,7 @@ import * as saveKeywords from "./save-keywords";
 import * as searchConsoleTools from "./search-console-tools";
 import * as siteAuditTools from "./site-audit-tools";
 import * as whoami from "./whoami";
+import { firstChar } from "@/shared/index-reads";
 
 const toolExports: Record<string, unknown> = {
   ...addRankTrackingKeywords,
@@ -118,6 +119,20 @@ function isToolDefinition(value: unknown): value is ToolDefinition {
 
 const TOOLS_DIR = join(import.meta.dirname, ".");
 
+/**
+ * The exported name a `build<Name>Tool` factory produces.
+ *
+ * The factory's capture is `UpdateProjectContextTool` and the exported
+ * constant is `updateProjectContextTool`, so the leading character is
+ * lowercased and the `build` prefix has already been excluded by the regex.
+ * `undefined` (a match from the other alternative) returns `undefined`
+ * rather than throwing, matching the `??` at the call site.
+ */
+function buildExportedName(builtName: string | undefined): string | undefined {
+  if (builtName === undefined) return undefined;
+  return `${firstChar(builtName, "a built tool name").toLowerCase()}${builtName.slice(1)}`;
+}
+
 /** Every tool's source start in a tools file: `export const <name>Tool =`, and
  *  the `export function build<Name>Tool(` factories, whose handler body sits
  *  before the `export const` that calls them (update_project_context). */
@@ -127,11 +142,21 @@ function toolSpans(source: string): { exportName: string; start: number }[] {
     /export (?:const (\w+Tool)\s*=|function build(\w+Tool)\s*\()/g;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(source)) !== null) {
-    const built = match[2];
-    spans.push({
-      exportName: match[1] ?? `${built[0].toLowerCase()}${built.slice(1)}`,
-      start: match.index,
-    });
+    // **The groups are alternations, so exactly one participates per match.**
+    // A `const` match fills group 1 and leaves group 2 `undefined`; a
+    // `function build` match does the reverse. `at()` throws on the missing
+    // one, which is why this reads them as optional and lets the `??` below
+    // choose — an *optional* capture is precisely what `??` is for, and the
+    // strictness migration's `at()` here turned a correct `??` into a crash.
+    //
+    // A `build` factory is lowercased because the exported constant that calls
+    // it is `updateProjectContextTool` while the factory is
+    // `buildUpdateProjectContextTool`, and the span has to match the constant.
+    const constName = match[1];
+    const builtName = match[2];
+    const exportName = constName ?? buildExportedName(builtName);
+    if (exportName === undefined) continue;
+    spans.push({ exportName, start: match.index });
   }
   return spans;
 }

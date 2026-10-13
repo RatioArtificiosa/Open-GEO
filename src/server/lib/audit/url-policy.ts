@@ -1,3 +1,4 @@
+import { at } from "@/shared/index-reads";
 import { AppError } from "@/server/lib/errors";
 
 const BLOCKED_HOSTS = new Set([
@@ -24,7 +25,9 @@ function normalizeHost(hostname: string): string {
     host = host.slice(1, -1);
   }
   if (host.includes("%")) {
-    host = host.split("%", 1)[0];
+    // `split(sep, 1)` can return an empty array for an empty separator position;
+    // `at()` names the failure rather than letting `host` become undefined.
+    host = at(host.split("%", 1), 0, "a hostname with a percent-escape");
   }
   if (host.endsWith(".")) {
     host = host.slice(0, -1);
@@ -43,7 +46,13 @@ function isPrivateIpv4(host: string): boolean {
     return false;
   }
 
-  const [a, b] = parts;
+  // **`at()` rather than destructuring.** The `parts.length !== 4` guard above
+  // proves the array holds four octets, which the compiler cannot see; `const
+  // [a, b] = parts` would give both `number | undefined` and force either a `!`
+  // or a truthiness check that silently changes the octet-0 comparison. This is
+  // the private-range test, so a `!` here is the wrong kind of quiet.
+  const a = at(parts, 0, "an IPv4 address");
+  const b = at(parts, 1, "an IPv4 address");
   if (a === 10) return true;
   if (a === 127) return true;
   if (a === 0) return true;
@@ -68,8 +77,19 @@ function parseMappedIpv4FromIpv6(host: string): string | null {
   const segments = mapped.split(":").filter(Boolean);
   if (segments.length !== 2) return null;
 
-  const high = Number.parseInt(segments[0], 16);
-  const low = Number.parseInt(segments[1], 16);
+  // `segments.length !== 2` returns first, so the two reads are provably
+  // present. `at()` says so without a `!`, which matters more here than
+  // elsewhere: `Number.parseInt(undefined)` is `NaN`, the `Number.isFinite`
+  // guard below would catch it, and a mapped-address parse that silently returns
+  // null is a host this policy stops checking.
+  const high = Number.parseInt(
+    at(segments, 0, "an IPv4-mapped IPv6 address"),
+    16,
+  );
+  const low = Number.parseInt(
+    at(segments, 1, "an IPv4-mapped IPv6 address"),
+    16,
+  );
   if (
     !Number.isFinite(high) ||
     !Number.isFinite(low) ||

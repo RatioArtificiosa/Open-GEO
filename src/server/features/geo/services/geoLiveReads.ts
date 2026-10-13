@@ -3,15 +3,26 @@ import { GeoSetupRepository } from "@/server/features/geo/repositories/GeoSetupR
 import { normaliseDomain } from "@/server/features/geo/domain";
 import {
   LLM_MENTIONS_HISTORY_FLOOR,
-  fetchLlmNewLost,
-  fetchLlmTopMentioned,
   type TopMentionedKind,
 } from "@/server/lib/dataforseo/ai-mentions";
 import {
   buildLlmTarget,
   type LlmPlatform,
 } from "@/server/lib/dataforseo/shared";
+import type { createDataforseoClient } from "@/server/lib/dataforseo/client";
 import type { GeoPlatform } from "@/server/features/geo/repositories/GeoSetupRepository";
+
+/**
+ * The metered client: the one door to the vendor.
+ *
+ * Both reads here are billed per request, so both go through
+ * `createDataforseoClient`'s `aiSearch` entries. The version before this
+ * called the section fetchers directly behind a `customerHasPaidPlan` check —
+ * the third instance of the CL-202 bug class, where the platform's vendor
+ * account paid for a read no org balance was consulted about.
+ * `scripts/check-vendor-imports.mjs` refuses the direct import that caused it.
+ */
+type MeteredClient = ReturnType<typeof createDataforseoClient>;
 
 /**
  * The two panels that **cannot** be answered from the archive.
@@ -95,6 +106,7 @@ function isoDay(date: Date): string {
 }
 
 export async function getNewLostSeries(input: {
+  client: MeteredClient;
   projectId: string;
   domain: string;
   platform: string;
@@ -126,7 +138,7 @@ export async function getNewLostSeries(input: {
     input.from ?? isoDay(new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000));
   const from = requestedFrom < floor ? floor : requestedFrom;
 
-  const response = await fetchLlmNewLost({
+  const vendorRows = await input.client.aiSearch.newLost({
     target: buildLlmTarget({ type: "domain", value: target.domain }),
     platform: VENDOR_PLATFORM[input.platform],
     // ChatGPT data exists for the US only, and so does this panel for it. The
@@ -139,7 +151,8 @@ export async function getNewLostSeries(input: {
     groupRange: input.groupRange ?? "week",
   });
 
-  const rows: NewLostRow[] = response.data.map((row) => ({
+  // The client unwraps `.data`, so `vendorRows` is the series itself.
+  const newLostRows: NewLostRow[] = vendorRows.map((row) => ({
     date: row.date,
     newMentions: row.new_mentions ?? null,
     lostMentions: row.lost_mentions ?? null,
@@ -147,11 +160,11 @@ export async function getNewLostSeries(input: {
     lostAiSearchVolume: row.lost_ai_search_volume ?? null,
   }));
 
-  const newMentions = rows.reduce(
+  const newMentions = newLostRows.reduce(
     (sum, row) => sum + (row.newMentions ?? 0),
     0,
   );
-  const lostMentions = rows.reduce(
+  const lostMentions = newLostRows.reduce(
     (sum, row) => sum + (row.lostMentions ?? 0),
     0,
   );
@@ -162,11 +175,11 @@ export async function getNewLostSeries(input: {
       locationCode: target.locationCode,
       languageCode: target.languageCode,
     },
-    rows,
+    rows: newLostRows,
     // Null rather than zeros when the window returned nothing: "no data" and
     // "nothing appeared and nothing disappeared" are different claims, and only
     // the second is a finding.
-    totals: rows.length === 0 ? null : { newMentions, lostMentions },
+    totals: newLostRows.length === 0 ? null : { newMentions, lostMentions },
   };
 }
 
@@ -185,6 +198,7 @@ export type TopCitedPage = {
  * fetched and then ignored is not something to tell a customer to optimise.
  */
 export async function getTopCitedPages(input: {
+  client: MeteredClient;
   projectId: string;
   domain: string;
   platform: string;
@@ -198,13 +212,10 @@ export async function getTopCitedPages(input: {
     normaliseDomain(input.domain),
   );
   if (!target) {
-    throw new AppError(
-      "NOT_FOUND",
-      `${input.domain} is not a monitored target in this project, so it has no citation data.`,
-    );
+    throw new AppError("NOT_FOUND", `${input.domain} has no citation data.`);
   }
 
-  const response = await fetchLlmTopMentioned({
+  const vendorRows = await input.client.aiSearch.topMentioned({
     kind: input.kind ?? "pages",
     target: buildLlmTarget({ type: "domain", value: target.domain }),
     platform: VENDOR_PLATFORM[input.platform],
@@ -220,7 +231,7 @@ export async function getTopCitedPages(input: {
   const key = input.kind === "domains" ? "domain" : "page";
   return {
     platform: input.platform,
-    pages: response.data.flatMap((row) => {
+    pages: vendorRows.flatMap((row) => {
       const value = key === "domain" ? row.domain : row.page;
       if (!value) return [];
       return [

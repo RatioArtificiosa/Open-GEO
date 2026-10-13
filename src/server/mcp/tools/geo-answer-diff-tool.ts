@@ -34,6 +34,7 @@ import {
   geoPlatformSchema,
   metaOnlyOutputFields,
 } from "@/server/mcp/tools/geo-shared";
+import { at } from "@/shared/index-reads";
 
 /**
  * Which two answers to compare.
@@ -175,11 +176,14 @@ export const getGeoAnswerDiffTool = {
       answers.map((a) => [a.answeredAt, a]),
     );
     // **Length is already checked above** — the `answers.length < 2` guard returns early — so
-    // these two are safe to index without a non-null assertion. The first version wrote `!`
-    // out of habit and `no-unnecessary-type-assertion` was right: the assertion asserted
-    // nothing the compiler was not already certain of.
-    const newest = answers[0];
-    const previous = answers[1];
+    // these two reads are provably present. **`at()` rather than an index, and rather than the
+    // `!` the first version wrote out of habit** — `no-unnecessary-type-assertion` was right
+    // that the assertion added nothing, and the problem was not the assertion but the read:
+    // with `noUncheckedIndexedAccess` the index is `T | undefined`, and `undefined` flowing
+    // into the `byDate` Map below manufactures a key nobody asked for. `at()` names the
+    // guarantee instead of asserting it.
+    const newest = at(answers, 0, "the archived answers to diff");
+    const previous = at(answers, 1, "the archived answers to diff");
 
     const after = (args.after ? byDate.get(args.after) : undefined) ?? newest;
     // **A supplied `before` that is not in the archive falls back to `previous`**, rather than

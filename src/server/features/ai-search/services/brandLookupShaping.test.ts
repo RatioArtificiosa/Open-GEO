@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { shapeResult, type ShapeArgs } from "./brandLookupShaping";
+import { first } from "@/shared/index-reads";
 import type {
   LlmCrossAggregatedItem,
   LlmMentionItem,
@@ -127,13 +128,22 @@ describe("shapeResult", () => {
       }),
     );
 
-    expect(result.topQueries[0].question).toHaveLength(500);
-    expect(result.topQueries[0].citedSources[0]).toMatchObject({
+    expect(
+      first(result.topQueries, "the row under test (result.topQueries)")
+        .question,
+    ).toHaveLength(500);
+    expect(
+      first(result.topQueries, "the row under test (result.topQueries)")
+        .citedSources[0],
+    ).toMatchObject({
       url: "https://evil.example/path",
       domain: "evil.example",
       title: "x".repeat(300),
     });
-    expect(result.topQueries[0].brandsMentioned[0]).toHaveLength(200);
+    expect(
+      first(result.topQueries, "the row under test (result.topQueries)")
+        .brandsMentioned[0],
+    ).toHaveLength(200);
   });
 
   it("round-trips through the cache schema", () => {

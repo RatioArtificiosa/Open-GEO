@@ -298,7 +298,11 @@ function overviewText(result: Ga4OverviewResult) {
   }
   const rows = OVERVIEW_METRICS.map((metric) => ({
     metric,
-    current: result.current[metric] ?? null,
+    // **`?? null` rather than a non-null assertion.** The GA4 summary is a
+    // sparse record: a property the account does not report is absent, and the
+    // table renders it as "—". A `!` here would have rendered "undefined" in a
+    // column the customer reads as a number.
+    current: result.current?.[metric] ?? null,
     previous: result.previous?.[metric] ?? null,
   }));
   return `${summary}\n${formatMcpTable(rows, [

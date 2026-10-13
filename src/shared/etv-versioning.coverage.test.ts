@@ -25,6 +25,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { first, at } from "@/shared/index-reads";
 import {
   ETV_BEARING_LABS_ENDPOINTS,
   ETV_CUTOVER_DATE,
@@ -105,7 +106,13 @@ function callSites(rel: string): CallSite[] {
   for (let i = 0; i < lines.length; i++) {
     const match = fnRegex.exec(lines[i] ?? "");
     if (!match?.[1]) continue;
-    if (ranges.length > 0) ranges[ranges.length - 1].end = i;
+    // The guard above proves the array is non-empty, so the last element is
+    // present and the compiler cannot see it. `at()` rather than a bare index:
+    // writing `.end` on `undefined` throws, and this is the range collector the
+    // classification below depends on.
+    if (ranges.length > 0) {
+      at(ranges, ranges.length - 1, "the ranges collected so far").end = i;
+    }
     ranges.push({ name: match[1], start: i, end: lines.length });
   }
 
@@ -200,7 +207,11 @@ describe("every Labs call site answers for its ETV formula", () => {
         // These must return unverifiedEtvProvenance. A module that mentions
         // neither helper is unpinned by accident, which is the failure the
         // whole file exists to catch.
-        const file = label.split("::")[0];
+        // `split` on a non-empty separator always yields at least one element,
+        // so the head is provably present. `first()` rather than `[0]`:
+        // `readModule` on `undefined` throws, and this is the helper that
+        // classifies every endpoint in the gate.
+        const file = first(label.split("::"), "a labelled endpoint");
         const source = readModule(file);
         return (
           source.includes("use_new_etv") &&

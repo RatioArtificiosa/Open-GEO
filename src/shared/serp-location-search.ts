@@ -1,3 +1,4 @@
+import { first } from "@/shared/index-reads";
 /**
  * Rank a country's SERP location registry against a free-form place query
  * ("Catonsville MD", "Portland OR"). DataForSEO matches `location_name`
@@ -152,8 +153,13 @@ export function rankSerpLocations<T extends RankableSerpLocation>(
 ): T[] {
   const tokens = tokenize(query, countryCode);
   if (tokens.length === 0) return [];
+  // **`first()` rather than `tokens[0]`.** The `tokens.length === 0` guard above
+  // returns first, so at least one token exists — and the compiler cannot see it.
+  // `head` flows into `place === head` and `place.startsWith(head)` below, both of
+  // which silently return false for `undefined`: a one-token query would have
+  // produced a search that never ranked anything.
   const phrase = tokens.join(" ");
-  const head = tokens[0];
+  const head = first(tokens, "the search tokens");
 
   const scored: { location: T; score: number; folded: string }[] = [];
   for (const location of locations) {

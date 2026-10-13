@@ -41,6 +41,7 @@ import { loadLocalEnv, parseArgs } from "./cli-utils";
 // The Node-safe raw barrel (not ../src/db/schema, the provider-aware one,
 // which imports cloudflare:workers).
 import * as schema from "../src/db/pg/schema";
+import { first } from "@/shared/index-reads";
 
 loadLocalEnv();
 
@@ -94,7 +95,11 @@ async function findUser(db: Db): Promise<UserRow> {
     .limit(2);
   if (rows.length === 0) throw new Error("No matching user found.");
   if (rows.length !== 1) throw new Error("Selector matched multiple users.");
-  return rows[0];
+  // The erasure query selects one user by id, which is unique — so the row is
+  // provably present. `first()` rather than `[0]`: an undefined row would have
+  // produced a receipt naming `undefined` for a user that was found, which is the
+  // one field a GDPR erasure record cannot be wrong about.
+  return first(rows, "the erased user row");
 }
 
 async function buildInventory(db: Db, user: UserRow) {

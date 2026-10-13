@@ -2,6 +2,7 @@ import { and, count, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { projects } from "@/db/schema";
 import { AppError } from "@/server/lib/errors";
+import { first } from "@/shared/index-reads";
 
 async function listProjects(organizationId: string) {
   return db.query.projects.findMany({
@@ -86,11 +87,16 @@ async function createProject(
   market?: { locationCode: number; languageCode: string },
 ) {
   const id = crypto.randomUUID();
-  const [row] = await db
+  const inserted = await db
     .insert(projects)
     .values({ id, organizationId, name, domain, ...market })
     .returning();
-  return row;
+  // **`first()` rather than `[row]`.** A single-row INSERT ... RETURNING always
+  // yields exactly one row, so the destructure was provably correct; the
+  // alternative was returning `T | undefined` and pushing the `!` onto every
+  // caller — which is where `createProject` then passes it to a mapper that
+  // requires a row. Naming it here keeps the invariant at the source.
+  return first(inserted, "the inserted project row");
 }
 
 async function updateProject(

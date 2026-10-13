@@ -177,7 +177,10 @@ export function DomainFilterPanel<TValues extends FilterValues>({
             key={String(field.key)}
             label={field.label}
             placeholder={field.placeholder}
-            value={draftFilters[field.key]}
+            // An absent draft key means the field has not been touched, which is the
+            // empty string the input already shows. `?? ""` rather than a `!`,
+            // because the default here is the component's own semantic.
+            value={draftFilters[field.key] ?? ""}
             onChange={(value) => handleValueChange(field.key, value)}
           />
         ))}
@@ -187,13 +190,13 @@ export function DomainFilterPanel<TValues extends FilterValues>({
         {rangeFields.map((field) => (
           <FilterRangeGroup key={String(field.minKey)} title={field.title}>
             <FilterNumberInput
-              value={draftFilters[field.minKey]}
+              value={draftFilters[field.minKey] ?? ""}
               onChange={(value) => handleValueChange(field.minKey, value)}
               placeholder="Min"
               step={field.step}
             />
             <FilterNumberInput
-              value={draftFilters[field.maxKey]}
+              value={draftFilters[field.maxKey] ?? ""}
               onChange={(value) => handleValueChange(field.maxKey, value)}
               placeholder="Max"
               step={field.step}
@@ -266,7 +269,12 @@ function getFilterMeta<TValues extends FilterValues>({
   const conditionCount = countConditions(values);
   const dirtyCount = fields.reduce(
     (acc, key) =>
-      acc + (values[key].trim() !== appliedFilters[key].trim() ? 1 : 0),
+      // Two absent keys compare equal as empty strings, so an untouched field
+      // never counts as dirty — which is the comparison this line exists to make.
+      acc +
+      ((values[key] ?? "").trim() !== (appliedFilters[key] ?? "").trim()
+        ? 1
+        : 0),
     0,
   );
   return {

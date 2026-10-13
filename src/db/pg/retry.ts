@@ -1,5 +1,6 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion -- The lazy query stand-in mirrors postgres.js's PendingQuery surface, which has no constructible type. */
 import type postgres from "postgres";
+import { at } from "@/shared/index-reads";
 
 type Sql = ReturnType<typeof postgres>;
 type PendingUnsafe = ReturnType<Sql["unsafe"]>;
@@ -100,7 +101,14 @@ export function withQueryRetries(sql: Sql): Sql {
           if (i >= RETRY_DELAYS_MS.length || !isRetryable(error, query)) {
             throw error;
           }
-          await sleep(RETRY_DELAYS_MS[i] + Math.random() * 250);
+          // **`at()` rather than `RETRY_DELAYS_MS[i]`.** The
+          // `i >= RETRY_DELAYS_MS.length` check above throws first, so the index is
+          // present — and without the narrowing `undefined + random` is `NaN`, so a
+          // schedule table and a loop that ever disagreed would have slept `NaN` ms
+          // instead of failing. Named instead of asserted.
+          await sleep(
+            at(RETRY_DELAYS_MS, i, "the retry schedule") + Math.random() * 250,
+          );
         }
       }
     };

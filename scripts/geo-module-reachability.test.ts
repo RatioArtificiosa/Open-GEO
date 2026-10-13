@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { at } from "@/shared/index-reads";
 
 /**
  * A GEO module with tests but no production caller is dead code that reads as
@@ -37,6 +38,34 @@ import { describe, expect, it } from "vitest";
  * A wrong exemption is worse than no exemption, so the list is short and every
  * entry names its caller.
  */
+
+/**
+ * A **call**, not a mention: the export name appears on a non-comment line of a
+ * file that imports the module it was declared in.
+ *
+ * The comment exclusion is what keeps this honest: the name appears in this
+ * repository's own prose in three files, and counting those would report every
+ * writer as wired.
+ *
+ * **At module scope, not inside the caller's loop.** It captures nothing from the
+ * enclosing scope, so the closure was recreated once per file for a function with
+ * no free variables — and the caller's own `name` parameter shadowed a variable
+ * of the same name. Taking the export name as a parameter fixes both at once.
+ *
+ * `exportName` comes from a capture group that participated, so it is a string:
+ * `at()` on the caller's tuple is what makes that true. `line.includes(undefined)`
+ * returns false, so an unmatched group would have made every export look unused —
+ * the gate would have reported a false negative and been trusted.
+ */
+function isCalled(source: string, exportName: string): boolean {
+  return source.split(/\r?\n/).some((line) => {
+    const t = line.trim();
+    if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*")) {
+      return false;
+    }
+    return line.includes(exportName);
+  });
+}
 
 /** Modules reached by the platform rather than by an import. */
 const ENTRY_POINTS = [
@@ -604,8 +633,13 @@ describe("a GEO module must be reachable from production", () => {
         if (/\.test\.tsx?$/.test(rel)) continue;
         const src = readFileSync(file, "utf8");
 
+        // A capture group read through `at()`: the shapes all carry exactly one
+        // group, so it participates for every match. A bare index would hand
+        // `undefined` to every assertion below, and `line.includes(undefined)` is
+        // false — so every export would read as unused, which is the gate
+        // reporting a false negative and being trusted.
         const declared = shapes.flatMap((re) =>
-          [...src.matchAll(re)].map((m) => m[1]),
+          [...src.matchAll(re)].map((m) => at(m, 1, "an export-name capture")),
         );
 
         for (const name of declared) {
@@ -631,18 +665,12 @@ describe("a GEO module must be reachable from production", () => {
           // The comment exclusion is what keeps this honest: the name appears in this
           // repository's own prose in three files, and counting those would report
           // every writer as wired.
-          const isCalled = (source: string): boolean =>
-            source.split(/\r?\n/).some((line) => {
-              const t = line.trim();
-              if (
-                t.startsWith("//") ||
-                t.startsWith("*") ||
-                t.startsWith("/*")
-              ) {
-                return false;
-              }
-              return line.includes(name);
-            });
+          // The name is passed in rather than read from a match here, so it is a
+          // string by the caller's construction. `at()` on the caller's tuple is
+          // what makes that true — see the caller below.
+          // Hoisted: it does not capture from the enclosing scope, and the
+          // `name` parameter shadowed the loop variable of the same name.
+          // (The hoisted `isCalled` is at module scope above; see its own comment.)
 
           // Only counts as a caller if it also **imports this module** — otherwise a
           // same-named function in an unrelated file would vouch for this one.
@@ -654,7 +682,7 @@ describe("a GEO module must be reachable from production", () => {
               if (f === file) return false;
               const grel = relative(ROOT, f).replace(/\\/g, "/");
               if (/\.test\.tsx?$/.test(grel)) return false;
-              return isCalled(source);
+              return isCalled(source, name);
             },
           );
 

@@ -3,6 +3,16 @@
   "exclude": ["web/**/*", "badseo/**/*"],
   "compilerOptions": {
     "strict": true,
+    // **Every index read is optional until proven otherwise.**
+    //
+    // The flag this repository was missing, and the cost of missing it was paid
+    // twice this month: `returnLines[0]` in `hookOrder.test.ts` is
+    // `T | undefined`, and `index > undefined` is always false, so the
+    // hook-order gate would have reported every assertion passing. The second
+    // vacuity hole in the same file was the same line of reasoning one layer up.
+    //
+    // With this on, both are compile errors rather than runtime coin tosses.
+    "noUncheckedIndexedAccess": true,
     "esModuleInterop": true,
     "jsx": "react-jsx",
     "module": "ESNext",

@@ -7,6 +7,12 @@ import type {
 } from "@/server/lib/dataforseo/on-page-waterfall";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { mcpResponse } from "@/server/mcp/formatters";
+import {
+  creditsFor,
+  dryRunInputSchema,
+  dryRunResponse,
+  wantsToSpend,
+} from "@/server/mcp/dry-run";
 import { optionalMetaOutputSchema } from "@/server/mcp/output-schemas";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
 import { projectIdSchema } from "@/server/mcp/schemas";
@@ -54,6 +60,7 @@ const startInputSchema = {
     .describe(
       "Pages to allow the crawl. The vendor refunds whatever it does not crawl, so a generous number costs nothing while a small one truncates; one page is enough for a single URL.",
     ),
+  ...dryRunInputSchema,
 } as const;
 
 type StartArgs = z.infer<z.ZodObject<typeof startInputSchema>>;
@@ -82,6 +89,26 @@ export const startPageSpeedAuditTool = {
   },
   handler: withMcpProjectAuth(async (args: StartArgs, context) => {
     const maxCrawlPages = args.maxCrawlPages ?? 1;
+
+    // **On-Page's Basic tier, not a Labs figure.** The first version of this
+    // gate quoted `DFS_LABS.standard.perRequest` for an On-Page crawl — a price
+    // 80× too high — because the preview was inserted before the price family
+    // was chosen. The read is genuinely free, so what is quoted here is only
+    // the crawl.
+    if (!wantsToSpend(args.dry_run)) {
+      return dryRunResponse({
+        subject: `a crawl of up to ${maxCrawlPages} page(s)`,
+        estimatedCredits: creditsFor(DFS_ONPAGE.basePage * maxCrawlPages),
+        unitSentence:
+          "USD " +
+          DFS_ONPAGE.basePage +
+          " per page at the Basic tier, DataForSEO On-Page",
+        meta: buildProjectMeta(context, args.projectId, `/p/${args.projectId}`),
+        structured: {
+          estimatedCrawlCostUsd: DFS_ONPAGE.basePage * maxCrawlPages,
+        },
+      });
+    }
     const client = createDataforseoClient(context.billing);
     const task = await client.onPage.waterfallTask({
       url: args.url,
@@ -159,6 +186,14 @@ export const getPageWaterfallTool = {
     },
   },
   handler: withMcpProjectAuth(async (args: WaterfallArgs, context) => {
+    // **No preview at all, and not a zero-preview.** The read is unmetered: the
+    // vendor charges nothing for it, and the client binds it unmetered too, so
+    // a tool that previews its price is quoting a number that does not exist.
+    //
+    // The natural instinct — a preview saying "0 credits" — is worse, because
+    // the field defaults to preview and an agent following its own instructions
+    // would call the preview instead of the read it actually wants. The tool's
+    // own description says the read is free; the behaviour should match.
     const client = createDataforseoClient(context.billing);
     // The read is bound to the client **unmetered** (the vendor charges nothing for it), so what
     // comes back is the raw envelope rather than the unwrapped payload a metered call returns.

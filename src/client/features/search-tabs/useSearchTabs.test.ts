@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { appendTabWithEviction, parseStoredState } from "./useSearchTabs";
 import type { SearchTab } from "./types";
+import { at, first } from "@/shared/index-reads";
 
 function persistedTab(input: unknown) {
   return {
@@ -33,8 +34,8 @@ describe("appendTabWithEviction", () => {
     const next = appendTabWithEviction(tabs, searchTab(19));
 
     expect(next).toHaveLength(20);
-    expect(next[0].id).toBe("tab-0");
-    expect(next[19].id).toBe("tab-19");
+    expect(first(next, "the row under test (next)").id).toBe("tab-0");
+    expect(at(next, 19, "the row under test (next)").id).toBe("tab-19");
   });
 
   it("evicts the oldest tab at capacity", () => {
@@ -43,8 +44,8 @@ describe("appendTabWithEviction", () => {
     const next = appendTabWithEviction(tabs, searchTab(20));
 
     expect(next).toHaveLength(20);
-    expect(next[0].id).toBe("tab-1");
-    expect(next[19].id).toBe("tab-20");
+    expect(first(next, "the row under test (next)").id).toBe("tab-1");
+    expect(at(next, 19, "the row under test (next)").id).toBe("tab-20");
   });
 
   it("appends to an empty list", () => {
@@ -67,7 +68,7 @@ describe("parseStoredState", () => {
 
     expect(state.tabs).toHaveLength(1);
     expect(state.activeTabId).toBe("tab-1");
-    expect(state.tabs[0].input).toEqual({
+    expect(first(state.tabs, "the row under test (state.tabs)").input).toEqual({
       type: "domain",
       domain: "example.com",
       scope: "subfolder",
@@ -139,7 +140,7 @@ describe("parseStoredState", () => {
 
     expect(state.tabs).toHaveLength(1);
     expect(state.activeTabId).toBe("tab-1");
-    expect(state.tabs[0].input).toEqual({
+    expect(first(state.tabs, "the row under test (state.tabs)").input).toEqual({
       type: "keyword",
       keyword: "seo tools",
       locationCode: undefined,
@@ -163,7 +164,9 @@ describe("parseStoredState", () => {
     });
 
     expect(state.tabs).toHaveLength(1);
-    expect(state.tabs[0].input).toMatchObject({ locationCode: 2840 });
+    expect(
+      first(state.tabs, "the row under test (state.tabs)").input,
+    ).toMatchObject({ locationCode: 2840 });
   });
 
   it("keeps the newest tabs when stored state exceeds the limit", () => {
@@ -180,8 +183,12 @@ describe("parseStoredState", () => {
     });
 
     expect(state.tabs).toHaveLength(20);
-    expect(state.tabs[0].id).toBe("tab-5");
-    expect(state.tabs[19].id).toBe("tab-24");
+    expect(first(state.tabs, "the row under test (state.tabs)").id).toBe(
+      "tab-5",
+    );
+    expect(at(state.tabs, 19, "the row under test (state.tabs)").id).toBe(
+      "tab-24",
+    );
   });
 
   it("still rejects malformed tab inputs", () => {

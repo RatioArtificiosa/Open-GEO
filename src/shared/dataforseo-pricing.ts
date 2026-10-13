@@ -116,6 +116,23 @@ export const DFS_AI_OPTIMIZATION = {
     },
     standard: {
       perRequest: money(0.0002),
+      /**
+       * The $0.01 automatic prepayment covering the provider cost, charged
+       * **per task at POST time** and refunded when the model costs less.
+       *
+       * **Named rather than left inside the caveat**, because the credit gate's
+       * floor for a queued post is this figure *plus* the per-request fee, and a
+       * number that lives only in prose is a number no caller can compute. The
+       * queued path used to bypass the gate entirely (CL-202): the platform's
+       * vendor account paid, no org balance was read, and no credit was
+       * deducted. The floor is what makes "can this org afford this post?"
+       * answerable *before* the POST happens.
+       *
+       * Provisional by design: it is settled by `task_get`, which is why the
+       * meter keeps the vendor's own figure rather than this estimate — see
+       * `meterEnvelope` in `src/server/lib/dataforseo/client.ts`.
+       */
+      advancePerTask: money(0.01),
       caveat:
         "Plus a $0.01 automatic prepayment covering the provider cost; unused " +
         "prepayment is refunded.",
@@ -155,6 +172,27 @@ export function geoAnswerUnitCostUsd(
   queue: Exclude<DfsQueue, "live"> = "standard",
 ): number {
   return DFS_AI_OPTIMIZATION.llmScraper[queue].perRequest ?? 0;
+}
+
+/**
+ * The post-time cost of one queued LLM Responses post, over the whole batch.
+ *
+ * **Both charges apply at POST time**, so both belong in the floor: the vendor's
+ * per-task request fee and the $0.01 prepayment that covers the provider cost.
+ * A floor built from only one of them understates the post by exactly the amount
+ * the platform eats — and an under-counted cap is not a cap (CL-201).
+ *
+ * This is the figure CL-202's fix hands to `assertUsageCreditsAvailable` through
+ * the metered client, so a queued post against a wallet that cannot cover it is
+ * refused *before* the fetch rather than after the vendor's figure is known.
+ * It is provisional by design: the advance is refunded when the model costs less,
+ * and `task_get` settles what was actually spent. The charge recorded afterwards
+ * is the vendor's own number, never this estimate.
+ */
+export function estimateQueuedLlmResponsesPost(taskCount: number): number {
+  const { perRequest, advancePerTask } =
+    DFS_AI_OPTIMIZATION.llmResponses.standard;
+  return taskCount * (perRequest + advancePerTask);
 }
 
 // ---------------------------------------------------------------------------

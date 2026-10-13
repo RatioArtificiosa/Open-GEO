@@ -13,6 +13,7 @@ import {
 import { AuthConfigErrorCard } from "@/client/components/AuthConfigErrorCard";
 import { UnauthenticatedErrorCard } from "@/client/components/UnauthenticatedErrorCard";
 import { SUBSCRIBE_ROUTE } from "@/shared/billing";
+import { first } from "@/shared/index-reads";
 
 export const Route = createFileRoute("/_app/")({
   component: IndexRedirect,
@@ -41,7 +42,13 @@ function IndexRedirect() {
 
     void navigate({
       to: "/p/$projectId",
-      params: { projectId: (target ?? data[0]).id },
+      // `data` is the project list this route just loaded, and the `target ??`
+      // branch is the remembered one. `first()` rather than `data[0]`: navigating to
+      // `undefined` would produce a route with an empty param, which the router
+      // reports as a navigation error rather than as "there is no project".
+      params: {
+        projectId: (target ?? first(data, "the projects on the dashboard")).id,
+      },
     });
   }, [data, navigate]);
 

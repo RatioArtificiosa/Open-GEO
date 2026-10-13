@@ -21,6 +21,14 @@ const ERROR_CODES = [
   // classifies billing failures.
   "LABS_BILLING_ISSUE",
   "DATAFORSEO_AUTH_FAILED",
+  // CL-052's two controls, checked on the request path before the vendor is
+  // called. Both are a *platform* decision rather than a funds state: the
+  // balance says what an org has, the cap says what the platform allows, and the
+  // kill switch says the platform has stopped everything. Each has its own code
+  // so the dashboard can tell "this org refused itself" from "we closed this
+  // org" — the second one is an incident.
+  "BILLING_MONTHLY_CAP_EXCEEDED",
+  "BILLING_CALLS_CLOSED",
   "RATE_LIMITED",
   "UPSTREAM_UNAVAILABLE",
   "CONFLICT",
@@ -43,6 +51,11 @@ const NON_REPORTABLE_ERROR_CODES = new Set<ErrorCode>([
   "AUDIT_CAPACITY_REACHED",
   "AUDIT_PAGE_LIMIT_EXCEEDED",
   "AUDIT_ALREADY_RUNNING",
+  // CL-052's controls: the org refused itself (a cap it can see and ask about),
+  // or the platform closed it (an incident the operator already knows about).
+  // Neither is a defect to report, so neither is captured.
+  "BILLING_MONTHLY_CAP_EXCEEDED",
+  "BILLING_CALLS_CLOSED",
   // An external provider (DataForSEO) failing on its own side. Nothing in the
   // app to fix, and it drowned real exceptions. Note the error handlers only
   // log what they capture, so every throw site warns on its own line to keep

@@ -84,7 +84,10 @@ export function CitationTabsCard({
     () =>
       buildTopPagesColumns({
         showPlatform: showPagePlatform,
-        targetDomain,
+        // `?? null` rather than a `!`: the caller passes `undefined` for "no filter"
+        // and the column builder expects `null` for the same. Both mean every row
+        // matches, and only one of them is what the prop declares.
+        targetDomain: targetDomain ?? null,
         projectId,
         brand,
       }),

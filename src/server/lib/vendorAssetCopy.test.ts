@@ -17,6 +17,7 @@
  * would be copied from by default.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { callArgs, keyed } from "@/shared/index-reads";
 
 /**
  * The options this module passes to `env.R2.put`, as the spy below declares them.
@@ -31,10 +32,16 @@ interface R2PutOptions {
   customMetadata: Record<string, string>;
 }
 
+/** One recorded R2.put call, as the mock declares it. */
+type R2PutCall = [key: string, body: unknown, options: R2PutOptions];
+
 const put = vi.hoisted(() =>
-  vi.fn((_key: string, _body: unknown, _options: R2PutOptions) =>
-    Promise.resolve(undefined),
-  ),
+  // **`vi.fn<T extends Procedure>` rather than an inline arrow.** An inline
+  // arrow's parameter types are erased the moment `vi.fn` wraps it, so
+  // `mock.calls` degrades to `unknown[][]` and every read of `[2]` is a tuple
+  // index into `unknown`. The generic keeps the parameter list, which is what
+  // makes `at(call, 2, …)` return `R2PutOptions` rather than `unknown`.
+  vi.fn((_key: string, _body: unknown, _options: R2PutOptions) => undefined),
 );
 vi.mock("cloudflare:workers", () => ({ env: { R2: { put } } }));
 
@@ -181,11 +188,18 @@ describe("copyVendorAsset", () => {
     // `vi.fn()` records calls with no parameters at all, so every read of `calls[0][2]` was a
     // tuple-index error, and the first version answered it with a `[string, unknown, …]`
     // assertion that claimed a shape the mock never had.
-    const metadata = put.mock.calls[0][2].customMetadata;
+    // `at()` on the call tuple's third element, not `[2]`: the mock's own
+    // parameter list types the tuple, so the read is provably present and the
+    // compiler cannot see it. `customMetadata` on `undefined` would have thrown
+    // a TypeError rather than failing the assertion about the tenant stamp.
+    const metadata = callArgs<R2PutCall>(put, 0, "the vendor asset copy")[2]
+      .customMetadata;
 
     // **30 days, not the vendor's 1.** The vendor's URL is a delivery mechanism; ours is a
     // retention decision, and tying the two would tie our data lifecycle to a CDN header.
-    const expiresAt = Date.parse(metadata.expiresAt);
+    const expiresAt = Date.parse(
+      keyed(metadata, "expiresAt", "the copier metadata"),
+    );
     const days = (expiresAt - Date.now()) / 86_400_000;
     expect(days).toBeGreaterThan(COPY_TTL_DAYS - 1);
     expect(days).toBeLessThanOrEqual(COPY_TTL_DAYS);
@@ -207,7 +221,12 @@ describe("copyVendorAsset", () => {
 
     await copyVendorAsset(VENDOR_IMAGE, { organizationId: "org_acme" });
 
-    const metadata = put.mock.calls[0][2].customMetadata;
+    // `at()` on the call tuple's third element, not `[2]`: the mock's own
+    // parameter list types the tuple, so the read is provably present and the
+    // compiler cannot see it. `customMetadata` on `undefined` would have thrown
+    // a TypeError rather than failing the assertion about the tenant stamp.
+    const metadata = callArgs<R2PutCall>(put, 0, "the vendor asset copy")[2]
+      .customMetadata;
     expect(metadata.organizationId).toBe("org_acme");
     // And it is *the tenant*, not a copy of the source host — the two being different fields
     // is the point, since one identifies our customer and the other identifies the vendor.

@@ -7,10 +7,31 @@ const CTR_BY_POSITION = [
   0, 0.28, 0.15, 0.1, 0.07, 0.05, 0.04, 0.033, 0.028, 0.024, 0.021, 0.018,
   0.016, 0.014, 0.012, 0.011, 0.01, 0.009, 0.008, 0.007, 0.006,
 ];
-const TOP_CTR = CTR_BY_POSITION[1];
+
+/**
+ * The CTR at position 1 — the denominator of the visibility metric.
+ *
+ * **Read through `ctr()` rather than as a second index into the table.**
+ * `CTR_BY_POSITION[1]` was a literal copy of `ctr(1)`, and the two could drift:
+ * if the table ever shrank, this read became `undefined` while `ctr()` kept its
+ * `?? 0.005` fallback, so `visNum / (visVolume * undefined)` produced `NaN` —
+ * which renders as "NaN%" and which **the `visVolume > 0` guard does not catch**,
+ * because that guard is about volume, not about the denominator.
+ *
+ * Going through the helper removes the second index, so the value in the comment
+ * below ("CTR@1") and the value in the code are the same number by construction.
+ */
+const TOP_CTR = ctr(1);
 
 function ctr(position: number | null): number {
   if (position === null || position < 1) return 0;
+  // **An optional read, not `at()`.** A tracked position can exceed the CTR
+  // table — depth 100 with a page ranking past 20 — and `at()` throws on an
+  // index the table does not have. A throw here would turn "we have no click
+  // curve for that rank" into a rendered crash on the whole scorecard row,
+  // which is a worse answer than the conservative fallback: a page ranking past
+  // the last modelled position contributes its volume but almost no click
+  // potential.
   return CTR_BY_POSITION[position] ?? 0.005;
 }
 

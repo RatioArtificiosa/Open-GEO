@@ -100,8 +100,12 @@ describe("computeSovMatrix", () => {
     );
     const ghost = matrix.rows.find((r) => r.label === "ghost.com");
     expect(ghost).toBeDefined();
-    expect(ghost?.cells.chat_gpt.mentions).toBeNull();
-    expect(ghost?.cells.chat_gpt.sharePct).toBeNull();
+    // A `Record` keyed by platform, so a slot the patch did not cover is a legal
+    // absence and the assertion is that the read returns nothing rather than
+    // throwing. `keyed()` would be wrong here: the whole point of this case is
+    // that `ghost.com` was excluded, so its slots are unset by design.
+    expect(ghost?.cells.chat_gpt?.mentions).toBeNull();
+    expect(ghost?.cells.chat_gpt?.sharePct).toBeNull();
     expect(ghost?.totalMentions).toBeNull();
   });
 

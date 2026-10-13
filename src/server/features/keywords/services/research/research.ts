@@ -26,6 +26,7 @@ import {
   type KeywordSource,
   type ResearchSource,
 } from "./selection";
+import { first } from "@/shared/index-reads";
 
 type SourceAttempt = {
   source: ResearchSource;
@@ -298,7 +299,11 @@ export async function research(
     throw new AppError("VALIDATION_ERROR");
   }
 
-  const seedKeyword = uniqueKeywords[0];
+  // **`first()` rather than `[0]`.** The `uniqueKeywords.length === 0` guard
+  // above throws, so at least one keyword exists; the compiler cannot see it,
+  // and `seedKeyword` then flows into three row-fetching calls as their
+  // provider seed. A `!` here would have asserted nothing.
+  const seedKeyword = first(uniqueKeywords, "the keywords to research");
   const provider = getKeywordDataProvider(input.locationCode);
   // Labs source modes and clickstream refinement don't exist for
   // Google-Ads-served countries; collapse both so equivalent requests share

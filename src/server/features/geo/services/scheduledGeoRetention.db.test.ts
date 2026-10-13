@@ -22,6 +22,7 @@
 import { readFileSync } from "node:fs";
 import { createClient, type Client } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
+import { first } from "@/shared/index-reads";
 import {
   afterAll,
   beforeAll,
@@ -135,7 +136,9 @@ describe("the retention sweep", () => {
       "SELECT count(*) as n FROM ai_mode_snapshots WHERE project_id = ?",
       ["project_expired"],
     );
-    expect(Number(before.rows[0].n)).toBe(1);
+    expect(
+      Number(first(before.rows, "the row under test (before.rows)").n),
+    ).toBe(1);
 
     const result = await runScheduledGeoRetention({});
 
@@ -149,7 +152,9 @@ describe("the retention sweep", () => {
       "SELECT count(*) as n FROM ai_mode_snapshots WHERE project_id = ?",
       ["project_expired"],
     );
-    expect(Number(after.rows[0].n)).toBe(0);
+    expect(Number(first(after.rows, "the row under test (after.rows)").n)).toBe(
+      0,
+    );
   });
 
   it("leaves a project's citations behind nothing — they are purged with the snapshot", async () => {
@@ -165,7 +170,9 @@ describe("the retention sweep", () => {
       "SELECT count(*) as n FROM ai_mode_snapshot_citations WHERE snapshot_id = ?",
       ["s2"],
     );
-    expect(Number(rows.rows[0].n)).toBe(0);
+    expect(Number(first(rows.rows, "the row under test (rows.rows)").n)).toBe(
+      0,
+    );
   });
 
   it("purges citations for exactly one expired snapshot", async () => {
@@ -188,7 +195,9 @@ describe("the retention sweep", () => {
       "SELECT count(*) as n FROM ai_mode_snapshot_citations WHERE snapshot_id = ?",
       ["solo"],
     );
-    expect(Number(rows.rows[0].n)).toBe(0);
+    expect(Number(first(rows.rows, "the row under test (rows.rows)").n)).toBe(
+      0,
+    );
   });
 
   it("purges citations beyond D1's bound-parameter limit", async () => {
@@ -236,12 +245,16 @@ describe("the retention sweep", () => {
       "SELECT count(*) as n FROM ai_mode_snapshots WHERE project_id = ?",
       ["project_expired"],
     );
-    expect(Number(snapshots.rows[0].n)).toBe(0);
+    expect(
+      Number(first(snapshots.rows, "the row under test (snapshots.rows)").n),
+    ).toBe(0);
 
     const citations = await client.execute(
       "SELECT count(*) as n FROM ai_mode_snapshot_citations",
     );
-    expect(Number(citations.rows[0].n)).toBe(0);
+    expect(
+      Number(first(citations.rows, "the row under test (citations.rows)").n),
+    ).toBe(0);
   });
 
   it("skips a project with nothing past the cutoff", async () => {

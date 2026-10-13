@@ -38,6 +38,7 @@ import {
   TableBulkActionButton,
   TableBulkExportMenu,
 } from "@/client/components/table/TableBulkActionBar";
+import { at, first } from "@/shared/index-reads";
 
 const MONTH_SHORT_LABELS = [
   "Jan",
@@ -59,14 +60,24 @@ function formatTrendRangeLabel(trend: KeywordResearchRow["trend"]): string {
 
   const sorted = sortBy(trend, (item) => item.year * 100 + item.month);
   const last12 = sorted.slice(-12);
-  const start = last12[0];
-  const end = last12[last12.length - 1];
+  // **`first()` and `at()` on the slice itself.** The `trend.length === 0` guard
+  // above means `sorted` has at least one element, so `last12` does too. The
+  // first version read `last12[0]` and `last12[last12.length - 1]` and then
+  // passed the result to `toLabel`, which would have rendered
+  // "Mundefined year" for an empty series — a label that still looks like a date,
+  // which is the kind of wrong that survives review.
+  const start = first(last12, "the keyword volume series");
+  const end = at(last12, last12.length - 1, "the keyword volume series");
 
   const toLabel = (month: number, year: number) => {
     const monthLabel = MONTH_SHORT_LABELS[month - 1] ?? `M${month}`;
     return `${monthLabel} ${year}`;
   };
 
+  // `start` and `end` are the first and last elements of a series the schema
+  // requires to be non-empty. `at()` rather than a bare index: a month of
+  // `undefined` would render as "Mundefined 2026" and the range label would be
+  // wrong in a way nobody notices, because it still looks like a date.
   const startLabel = toLabel(start.month, start.year);
   const endLabel = toLabel(end.month, end.year);
   return startLabel === endLabel ? startLabel : `${startLabel} - ${endLabel}`;

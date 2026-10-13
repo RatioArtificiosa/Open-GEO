@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { runPageReporters } from "@/server/lib/audit/issues/page-reporters";
+import { first } from "@/shared/index-reads";
 import {
   findDuplicates,
   findRedirectChainsAndLoops,
@@ -283,9 +284,10 @@ describe("findDuplicates", () => {
       (issue) => issue.issueType === "duplicate-title",
     );
     expect(duplicateTitles).toHaveLength(2);
-    expect(duplicateTitles[0].details?.otherUrls).toEqual([
-      "https://example.com/b",
-    ]);
+    expect(
+      first(duplicateTitles, "the row under test (duplicateTitles)").details
+        ?.otherUrls,
+    ).toEqual(["https://example.com/b"]);
   });
 
   it("excludes noindexed and canonicalized pages from duplicate groups", () => {
@@ -359,9 +361,13 @@ describe("findRedirectChainsAndLoops", () => {
       makeSlimPage({ url: "https://example.com/c" }),
     ]);
     expect(issues).toHaveLength(1);
-    expect(issues[0].issueType).toBe("redirect-chain");
-    expect(issues[0].pageUrl).toBe("https://example.com/a");
-    expect(issues[0].details?.hops).toEqual([
+    expect(first(issues, "the row under test (issues)").issueType).toBe(
+      "redirect-chain",
+    );
+    expect(first(issues, "the row under test (issues)").pageUrl).toBe(
+      "https://example.com/a",
+    );
+    expect(first(issues, "the row under test (issues)").details?.hops).toEqual([
       "https://example.com/a",
       "https://example.com/b",
       "https://example.com/c",
@@ -383,6 +389,8 @@ describe("findRedirectChainsAndLoops", () => {
       redirect("https://example.com/a", "https://example.com/a"),
     ]);
     expect(issues).toHaveLength(1);
-    expect(issues[0].issueType).toBe("redirect-loop");
+    expect(first(issues, "the row under test (issues)").issueType).toBe(
+      "redirect-loop",
+    );
   });
 });

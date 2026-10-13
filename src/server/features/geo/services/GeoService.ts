@@ -37,17 +37,21 @@ import {
 } from "@/server/features/geo/services/geoSeriesReads";
 import { GeoRetentionRepository } from "@/server/features/geo/repositories/GeoRetentionRepository";
 import { getCitationGraph as buildCitationGraphFor } from "@/server/features/geo/services/geoCitationGraph";
+import { at } from "@/shared/index-reads";
 
 /** Normalise a brand to a bare lowercase host, so "HTTPS://WWW.Acme.com/x" and
  * "acme.com" resolve to the same monitored target. */
 function normaliseDomain(input: string): string {
-  return input
+  // `split"/"` on a non-empty separator always yields at least one element, so
+  // the host part is provably present. `at()` rather than `[0]`: an empty result
+  // would have keyed a target on "", so two projects would collide on one row.
+  const segments = input
     .trim()
     .toLowerCase()
     .replace(/^https?:\/\//, "")
     .replace(/^www\./, "")
-    .split("/")[0]
-    .trim();
+    .split("/");
+  return at(segments, 0, "a url host segment").trim();
 }
 
 function requireDomain(input: string | undefined): string {

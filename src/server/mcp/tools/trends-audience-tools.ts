@@ -14,10 +14,16 @@ import {
 } from "@/server/features/trends/subregion";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { mcpResponse } from "@/server/mcp/formatters";
+import {
+  creditsFor,
+  dryRunInputSchema,
+  dryRunResponse,
+  wantsToSpend,
+} from "@/server/mcp/dry-run";
 import { optionalMetaOutputSchema } from "@/server/mcp/output-schemas";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
 import { projectIdSchema } from "@/server/mcp/schemas";
-import { DFS_KEYWORDS } from "@/shared/dataforseo-pricing";
+import { DFS_KEYWORDS, DFS_LABS } from "@/shared/dataforseo-pricing";
 
 /**
  * The audience and geography tools: who searches, and where.
@@ -86,6 +92,7 @@ const demographyInputSchema = {
     .describe(
       "Country-level location code. Defaults to the project's own market; this product does not request global results.",
     ),
+  ...dryRunInputSchema,
 } as const;
 
 type DemographyArgs = z.infer<z.ZodObject<typeof demographyInputSchema>>;
@@ -135,6 +142,20 @@ export const getSearchDemographyTool = {
     },
   },
   handler: withMcpProjectAuth(async (args: DemographyArgs, context) => {
+    if (!wantsToSpend(args.dry_run)) {
+      return dryRunResponse({
+        subject: "this call",
+        estimatedCredits: creditsFor(
+          DFS_KEYWORDS.dfsTrends.subregionOrDemography.perRequest,
+        ),
+        unitSentence:
+          "USD " +
+          DFS_KEYWORDS.dfsTrends.subregionOrDemography.perRequest +
+          " per request, DataForSEO Trends — up to 5 keywords per request",
+        meta: buildProjectMeta(context, args.projectId, `/p/${args.projectId}`),
+        structured: {},
+      });
+    }
     const client = createDataforseoClient(context.billing);
     const items = await client.keywords.trendsDemography({
       keywords: args.keywords,
@@ -221,6 +242,7 @@ const regionsInputSchema = {
     .describe(
       "Country-level location code. Defaults to the project's own market; this product does not request global results.",
     ),
+  ...dryRunInputSchema,
 } as const;
 
 type RegionsArgs = z.infer<z.ZodObject<typeof regionsInputSchema>>;
@@ -271,6 +293,16 @@ export const getSearchRegionsTool = {
     },
   },
   handler: withMcpProjectAuth(async (args: RegionsArgs, context) => {
+    if (!wantsToSpend(args.dry_run)) {
+      return dryRunResponse({
+        subject: "this call",
+        estimatedCredits: creditsFor(DFS_LABS.standard.perRequest),
+        unitSentence:
+          "USD " + DFS_LABS.standard.perRequest + " per request, DataForSEO",
+        meta: buildProjectMeta(context, args.projectId, `/p/${args.projectId}`),
+        structured: {},
+      });
+    }
     const client = createDataforseoClient(context.billing);
     const items = await client.keywords.trendsSubregion({
       keywords: args.keywords,

@@ -46,6 +46,21 @@ export function CheckConfirmModal({
   const totalChecks = keywordCount * dc;
   const liveTime =
     Math.ceil(totalChecks / KEYWORDS_PER_BATCH) * SECONDS_PER_BATCH;
+  // **The refusal is a pre-flight, not a consequence.**
+  //
+  // The dialog priced a check in full and then let the run proceed at any
+  // balance, so a customer with no credits learned it from a failed charge.
+  // The transport already refuses an unaffordable turn — but that refusal
+  // arrives *after* the call was made, which is the wrong side of it. The
+  // balance travels with the estimate from the same read the gate uses, so the
+  // number here and the number judged there cannot disagree.
+  // A missing balance is not a refusal: the query is still loading, and
+  // treating "unknown" as "cannot afford" would block the run for a customer
+  // who can pay while it decides.
+  const unaffordable = spend !== undefined && !spend.affordable;
+  const shortfall = spend
+    ? Math.max(0, spend.costCredits - spend.balanceCredits)
+    : 0;
 
   return (
     <Modal
@@ -65,9 +80,9 @@ export function CheckConfirmModal({
       </div>
 
       <button
-        className="flex w-full items-center gap-4 rounded-xl border-2 border-base-300 p-4 text-left transition-colors hover:border-primary hover:bg-primary/5"
+        className="flex w-full items-center gap-4 rounded-xl border-2 border-base-300 p-4 text-left transition-colors hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-base-300 disabled:hover:bg-transparent"
         onClick={onRunNow}
-        disabled={isPending}
+        disabled={isPending || unaffordable}
       >
         <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
           <Zap className="size-5 text-primary" />
@@ -75,8 +90,9 @@ export function CheckConfirmModal({
         <div className="flex-1">
           <p className="font-medium">Run Now</p>
           <p className="text-xs text-base-content/60">
-            Results in ~
-            {liveTime < 60 ? `${liveTime}s` : `${Math.ceil(liveTime / 60)} min`}
+            {unaffordable
+              ? `This check needs ${spend?.costCredits ?? 0} credits and you have ${spend?.balanceCredits ?? 0}. Add ${shortfall} credits to run it.`
+              : `Results in ~${liveTime < 60 ? `${liveTime}s` : `${Math.ceil(liveTime / 60)} min`}`}
           </p>
         </div>
         <div className="text-right">

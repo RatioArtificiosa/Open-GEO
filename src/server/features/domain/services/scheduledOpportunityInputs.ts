@@ -1,8 +1,6 @@
-import {
-  fetchKeywordOverview,
-  fetchSerpCompetitors,
-} from "@/server/lib/dataforseo/labs";
-import { fetchSearchIntent } from "@/server/lib/dataforseo/search-intent";
+import type { createDataforseoClient } from "@/server/lib/dataforseo/client";
+import { createDataforseoClient as buildClient } from "@/server/lib/dataforseo/client";
+import { listProjectOrgs } from "@/server/features/domain/services/scheduledEtvCapture";
 import { KeywordOpportunityInputsRepository } from "@/server/features/domain/repositories/KeywordOpportunityInputsRepository";
 import { TrackedKeywordsRepository } from "@/server/features/keywords/repositories/TrackedKeywordsRepository";
 import type { TrackedKeywordRow } from "@/server/features/keywords/repositories/TrackedKeywordsRepository";
@@ -13,6 +11,35 @@ import {
   PER_PROJECT_NIGHTLY_CAP,
   NIGHTLY_PROJECT_SWEEP_LIMIT,
 } from "@/shared/nightly-budgets";
+
+/**
+ * The three metered reads this capture makes, as the client provides them.
+ *
+ * **Why the client and not the section fetchers.** The capture used to import
+ * `fetchKeywordOverview`, `fetchSerpCompetitors` and `fetchSearchIntent`
+ * directly and call them: three charged Labs calls a night, per project, with
+ * no credit gate, no deduction and no vendor figure recorded — the same bug
+ * class as CL-202, on the scheduled path. The vendor account paid, the budget
+ * below bounded a tick rather than a charge, and nothing anywhere said so.
+ *
+ * Typed from the client rather than from the fetchers, so the doubles in the
+ * companion tests match the metered seam — including its unwrapped `.data` —
+ * and a double that stops matching the client is a compile error.
+ */
+type MeteredReads = Pick<
+  ReturnType<typeof createDataforseoClient>["labs"],
+  "keywordOverview" | "serpCompetitors" | "searchIntent"
+>;
+
+/**
+ * A cron has no user, and inventing a plausible one would put a fake
+ * userId/userEmail into the billing ledger. `scheduledAiKeywordCapture` already
+ * uses this constant for the same reason.
+ */
+const SYSTEM_ACTOR = {
+  userId: "system",
+  userEmail: "system@opengeo.so",
+} as const;
 
 /**
  * The nightly capture of the Opportunity Score's inputs — the writer those three inputs never had.
@@ -61,6 +88,10 @@ type OpportunityCaptureReport = {
   intentStored: number;
   callsMade: number;
   costUsd: number;
+  /** Projects with tracked keywords and no organization: no billing context,
+   *  so no capture. Named rather than dropped, because a sweep that silently
+   *  stops measuring a project reads as a project that measured nothing. */
+  skippedNoOrganization: number;
   errors: string[];
 };
 
@@ -73,33 +104,40 @@ type OpportunityCaptureReport = {
  */
 export async function runOpportunityInputCapture(input: {
   projectId: string;
+  /**
+   * The org behind the project, resolved by the sweep the way
+   * `scheduledAiKeywordCapture` resolves it. The client is built from it when
+   * `reads` is not injected; a sweep never reaches this function without one,
+   * because a group with no organization is skipped before the capture starts.
+   */
+  organizationId?: string;
   keywords: string[];
   locationCode: number;
   languageCode?: string;
   now?: Date;
   budgetUsd?: number | null;
   /**
-   * The two vendor calls, injectable.
+   * The metered reads, injectable.
    *
-   * **Not decoration.** `fetchKeywordOverview` throws `Missing required
-   * environment variable: DATAFORSEO_API_KEY` the moment the real module loads
-   * without a credential, so a test that did not inject them would test the
-   * absence of a key rather than the capture. This is also the pattern every
-   * neighbouring nightly capture uses (`scheduledEtvCapture` takes
-   * `fetchDomains` and `fetchOverview` for exactly this reason), so the
-   * injections keep the four nightly captures testable the same way.
+   * The runtime default is the per-project client the sweep builds, never a
+   * raw section fetcher: the gate in `scripts/check-vendor-imports.mjs`
+   * refuses a file that reaches the vendor around the client, which is the
+   * rule this capture broke for a whole release. The injection exists so the
+   * doubles can be the client's own methods — see `MeteredReads`.
    */
-  fetchOverview?: typeof fetchKeywordOverview;
-  fetchCompetitors?: typeof fetchSerpCompetitors;
-  fetchIntent?: typeof fetchSearchIntent;
+  reads?: MeteredReads;
 }): Promise<OpportunityCaptureReport> {
   const now = input.now ?? new Date();
   const requestedAt = now.toISOString();
   const languageCode = input.languageCode ?? "en";
   const budget = input.budgetUsd ?? NIGHTLY_BUDGET_USD.opportunityInputs;
-  const fetchOverview = input.fetchOverview ?? fetchKeywordOverview;
-  const fetchCompetitors = input.fetchCompetitors ?? fetchSerpCompetitors;
-  const fetchIntent = input.fetchIntent ?? fetchSearchIntent;
+  const reads =
+    input.reads ??
+    buildClient({
+      ...SYSTEM_ACTOR,
+      organizationId: input.organizationId ?? "",
+      projectId: input.projectId,
+    }).labs;
 
   const keywords = input.keywords
     .map((keyword) => keyword.trim().toLowerCase())
@@ -121,6 +159,7 @@ export async function runOpportunityInputCapture(input: {
     intentStored: 0,
     callsMade: 0,
     costUsd: 0,
+    skippedNoOrganization: 0,
     errors: [],
   };
 
@@ -143,7 +182,7 @@ export async function runOpportunityInputCapture(input: {
   // exists to prevent, and `competitorEase(0)` reads a null as the *lowest*
   // opportunity, so the forecast job would have scored every keyword as trivially
   // easy from data never collected.
-  const overview = await fetchOverview({
+  const overview = await reads.keywordOverview({
     keywords,
     locationCode: input.locationCode,
     languageCode,
@@ -151,7 +190,7 @@ export async function runOpportunityInputCapture(input: {
   report.callsMade += 1;
   report.costUsd += LABS_UNIT_COST_USD;
 
-  const competitors = await fetchCompetitors({
+  const competitors = await reads.serpCompetitors({
     keywords,
     locationCode: input.locationCode,
     languageCode,
@@ -181,7 +220,7 @@ export async function runOpportunityInputCapture(input: {
    * storing a fabricated per-keyword one.
    */
   const distinctCompetitorDomains = new Set<string>();
-  for (const row of competitors.data) {
+  for (const row of competitors) {
     if (typeof row.domain === "string")
       distinctCompetitorDomains.add(row.domain);
   }
@@ -197,14 +236,14 @@ export async function runOpportunityInputCapture(input: {
   // so it is the right one to drop.
   const intentByKeyword = new Map<string, string>();
   if (report.errors.length === 0) {
-    const intent = await fetchIntent({
+    const intent = await reads.searchIntent({
       keywords,
       tag: `opportunity-inputs:${input.projectId}`,
     });
     report.callsMade += 1;
     report.costUsd += LABS_UNIT_COST_USD;
 
-    for (const row of intent.data.items ?? []) {
+    for (const row of intent.items ?? []) {
       const keyword =
         typeof row.keyword === "string"
           ? row.keyword.trim().toLowerCase()
@@ -214,7 +253,7 @@ export async function runOpportunityInputCapture(input: {
     }
   }
 
-  for (const row of overview.data) {
+  for (const row of overview) {
     const keyword =
       typeof row.keyword === "string" ? row.keyword.trim().toLowerCase() : null;
     // **A row for a keyword this project never asked about is dropped.**
@@ -299,14 +338,19 @@ export async function runOpportunityInputCapture(input: {
 export async function runDueOpportunityInputCaptures(input?: {
   trackedKeywords?: TrackedKeywordRow[];
   now?: Date;
-  fetchOverview?: typeof fetchKeywordOverview;
-  fetchCompetitors?: typeof fetchSerpCompetitors;
-  fetchIntent?: typeof fetchSearchIntent;
+  /**
+   * The metered reads, injectable — the same seam `runOpportunityInputCapture`
+   * takes, so the sweep's doubles and the per-project unit's are one thing.
+   */
+  reads?: MeteredReads;
+  /** The project → org lookup, injectable for the same reason. */
+  fetchOrgs?: typeof listProjectOrgs;
 }): Promise<OpportunityCaptureReport> {
   const now = input?.now ?? new Date();
   const tracked =
     input?.trackedKeywords ??
     (await TrackedKeywordsRepository.listAllByProject());
+  const fetchOrgs = input?.fetchOrgs ?? listProjectOrgs;
 
   const total: OpportunityCaptureReport = {
     projectsVisited: 0,
@@ -316,6 +360,7 @@ export async function runDueOpportunityInputCaptures(input?: {
     intentStored: 0,
     callsMade: 0,
     costUsd: 0,
+    skippedNoOrganization: 0,
     errors: [],
   };
 
@@ -351,20 +396,41 @@ export async function runDueOpportunityInputCaptures(input?: {
     });
   }
 
+  /**
+   * The org behind each project, so a capture can bill it.
+   *
+   * The same lookup `scheduledAiKeywordCapture` performs, for the same reason:
+   * the credit gate needs a customer, and a project with no organization has
+   * none. A group with no org is **skipped and counted**, never billed to an
+   * empty org id — a capture with no billing context is the spend CL-202 was.
+   *
+   * One query for the whole sweep, not one per group: the lookup reaches `@/db`,
+   * and a nightly sweep of forty projects asking forty times is forty round
+   * trips to answer a question the first one already answered.
+   */
+  const projectIds = [
+    ...new Set([...groups.values()].map((group) => group.projectId)),
+  ];
+  const orgs = await fetchOrgs(projectIds);
+
   for (const group of [...groups.values()].slice(
     0,
     NIGHTLY_PROJECT_SWEEP_LIMIT,
   )) {
+    const organizationId = orgs.get(group.projectId);
+    if (organizationId === undefined) {
+      total.skippedNoOrganization += 1;
+      continue;
+    }
     try {
       const report = await runOpportunityInputCapture({
         projectId: group.projectId,
+        organizationId,
         keywords: group.keywords,
         locationCode: group.locationCode,
         languageCode: group.languageCode,
         now,
-        fetchOverview: input?.fetchOverview,
-        fetchCompetitors: input?.fetchCompetitors,
-        fetchIntent: input?.fetchIntent,
+        reads: input?.reads,
       });
       total.projectsVisited += report.projectsVisited;
       total.keywordsAsked += report.keywordsAsked;
@@ -373,6 +439,7 @@ export async function runDueOpportunityInputCaptures(input?: {
       total.intentStored += report.intentStored;
       total.callsMade += report.callsMade;
       total.costUsd += report.costUsd;
+      total.skippedNoOrganization += report.skippedNoOrganization;
       total.errors.push(...report.errors);
     } catch (error) {
       total.errors.push(

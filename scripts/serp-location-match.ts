@@ -15,6 +15,7 @@ import {
   LOCATION_TYPE_RANK,
   REGION_ABBREVIATIONS,
 } from "../src/shared/serp-location-search";
+import { at } from "@/shared/index-reads";
 
 export { foldSegment };
 
@@ -101,7 +102,11 @@ function isOrderedSubsequence(needle: string[], haystack: string[]): boolean {
   let position = 0;
   for (const [index, item] of needle.entries()) {
     const found = haystack.findIndex(
-      (candidate, at) => at >= position && segmentsEqual(item, candidate),
+      // **`candidateIndex`, not `at`.** `at` is now the name of the shared index
+      // helper in this file, and a parameter shadowing an import is how the two
+      // get confused. The index name also says what the parameter is.
+      (candidate, candidateIndex) =>
+        candidateIndex >= position && segmentsEqual(item, candidate),
     );
     if (found < 0) {
       if (index > 0 && item === needle[0]) continue;
@@ -150,7 +155,11 @@ function rankCandidates(
 /** Candidates that tie on segment count and type are different places. */
 function isUniqueBest(ranked: SerpRegistryLocation[]): boolean {
   if (ranked.length < 2) return true;
-  const [best, next] = ranked;
+  // **`at()` rather than a destructure.** `ranked.length < 2` returns first, so
+  // both are present; a `!` would assert nothing, and the destructure gives
+  // `T | undefined` on both and then compares a locationName that may be absent.
+  const best = at(ranked, 0, "the best location match");
+  const next = at(ranked, 1, "the second location match");
   return (
     splitSegments(best.locationName).length !==
       splitSegments(next.locationName).length ||
@@ -188,5 +197,10 @@ export function matchSerpLocation(
   if (!isUniqueBest(ranked)) {
     return { kind: "ambiguous", candidates: ranked.slice(0, 5) };
   }
-  return { kind: "resolved", location: ranked[0], via: "expanded" };
+  // `isUniqueBest` above guarantees a single winner, so the head is the one.
+  return {
+    kind: "resolved",
+    location: at(ranked, 0, "the resolved location"),
+    via: "expanded",
+  };
 }

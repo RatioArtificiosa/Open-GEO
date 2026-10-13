@@ -3,6 +3,7 @@ import { dispatchAlert, dispatchDigest, type Transport } from "./alertDispatch";
 import { createDiscordTransport } from "./discordTransport";
 import { describeRunGap, getLatestRunPair } from "./runObservations";
 import type { Observation } from "./alertDecision";
+import { at } from "@/shared/index-reads";
 
 /**
  * Connecting a finished run to an alert decision, and the decision to a channel.
@@ -96,8 +97,12 @@ export async function alertOnRunChange(input: {
       outcome: "dispatched",
       // The first is the primary; `perBrand` is there for a caller that wants to
       // name every brand in the run log.
-      result: dispatched[0].result,
-      gap: dispatched[0].gap,
+      // `dispatched.length > 0` is the guard on the block above. `at()` keeps the
+      // first-brand-is-primary invariant checkable rather than asserted: a `!`
+      // here would have let `undefined` flow into the alert payload as the
+      // "primary" result.
+      result: at(dispatched, 0, "the dispatched alerts").result,
+      gap: at(dispatched, 0, "the dispatched alerts").gap,
       perBrand: dispatched,
     };
   }

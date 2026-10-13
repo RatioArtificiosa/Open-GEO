@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { sortBy } from "remeda";
 import { describe, expect, it } from "vitest";
+import { at } from "@/shared/index-reads";
 
 /**
  * The gate `check:journals` cannot be: **does each migration's DDL actually
@@ -343,7 +344,10 @@ describe("the Postgres migrations build the schema the snapshot claims", () => {
     /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["`]?([\w.]+)["`]?\s*\(/gi;
   let match: RegExpExecArray | null;
   while ((match = createTable.exec(sql)) !== null) {
-    const table = match[1].replace(/^public\./, "");
+    const table = at(match, 1, "the row under test (match)").replace(
+      /^public\./,
+      "",
+    );
     const body = readBalanced(sql, match.index + match[0].length);
     for (const line of body.split("\n")) {
       const column = readColumnName(line);
@@ -354,16 +358,30 @@ describe("the Postgres migrations build the schema the snapshot claims", () => {
   const alterTable =
     /ALTER\s+TABLE\s+(?:ONLY\s+)?["`]?([\w.]+)["`]?\s+ADD\s+(?:COLUMN\s+)?/gi;
   while ((match = alterTable.exec(sql)) !== null) {
-    const table = match[1].replace(/^public\./, "");
-    const statement = sql
-      .slice(match.index + match[0].length)
-      .split(";")[0]
-      .split("\n")
-      .filter((line) => !line.trim().startsWith("--"))
-      .join(" ");
+    const table = at(match, 1, "the row under test (match)").replace(
+      /^public\./,
+      "",
+    );
+    // **One statement, bounded by its own terminating semicolon.**
+    //
+    // The previous shape sliced to the end of the file and split on `;`, taking
+    // the first part. That is correct when a later statement follows, and wrong
+    // in the one case that matters: when this ALTER is the last statement in
+    // the file *without* a trailing semicolon, `split(";")` yields a single
+    // part — the entire remainder of the file — and every `ALTER TABLE … ADD
+    // …` after it contributes its columns to this table. CodeRabbit caught it.
+    //
+    // The bound is the statement's own `;`, found by searching forward for it
+    // rather than by taking what a split leaves behind.
+    const statementStart = match.index + match[0].length;
+    const terminator = sql.indexOf(";", statementStart);
+    const statement = sql.slice(
+      statementStart,
+      terminator === -1 ? sql.length : terminator,
+    );
     for (const part of statement.split(",")) {
       const added = part.match(/^\s*(?:ADD\s+(?:COLUMN\s+)?)?["`]?(\w+)["`]?/);
-      if (added) note(table, added[1]);
+      if (added) note(table, at(added, 1, "the row under test (added)"));
     }
   }
 

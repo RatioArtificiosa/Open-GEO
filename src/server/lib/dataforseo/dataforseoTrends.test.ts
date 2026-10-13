@@ -9,6 +9,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchDataforseoTrendsExplore } from "@/server/lib/dataforseo/dataforseoTrends";
 import { requestBody, requestUrl } from "./test-support";
+import { first } from "@/shared/index-reads";
 
 vi.mock("@/server/lib/runtime-env", () => ({
   getRequiredEnvValue: vi.fn(async () => "test-api-key"),
@@ -120,7 +121,10 @@ describe("fetchDataforseoTrendsExplore", () => {
 
     await fetchDataforseoTrendsExplore({ keywords: ["a"] });
 
-    const body = requestBody(vi.mocked(fetch))[0];
+    const body = first(
+      requestBody(vi.mocked(fetch)),
+      "the request body of the trends explore call",
+    );
     expect(body.location_code).toBeUndefined();
   });
 });

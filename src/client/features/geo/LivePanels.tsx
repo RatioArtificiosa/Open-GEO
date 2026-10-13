@@ -4,6 +4,7 @@ import type {
   TopCitedPage,
 } from "@/server/features/geo/services/geoLiveReads";
 import { footnoteFor, type MetricId } from "./metric-copy";
+import { at } from "@/shared/index-reads";
 
 /**
  * A footnote for one metric.
@@ -251,10 +252,20 @@ export function stripTracking(url: string): string {
   const trimmed = url.trim();
   // A relative or malformed value is left exactly as it came.
   if (!trimmed.includes("://")) return trimmed;
-  const [before, after] = trimmed.split("?", 2);
+  // **The query-string split, with its absence handled before the narrowing.**
+  // `split("?", 2)` yields one element when there is no query string, so the
+  // `after === undefined` check *is* the guard: a url without a query string is
+  // returned as it came, which is what this function promises in its first line.
+  // `at()` then names the half that is provably present — `before` — without
+  // inventing a `path ?? before` for a branch that could never run.
+  const parts = trimmed.split("?", 2);
+  const after = parts[1];
   if (after === undefined) return trimmed;
-  const [path] = before.split("#", 2);
-  return path ?? before;
+  const before = at(parts, 0, "a url before its query string");
+  // `split` with a non-empty separator always yields at least one element, so
+  // the host part is provably present too.
+  const path = at(before.split("#", 2), 0, "a url path");
+  return path;
 }
 
 function PanelShell({

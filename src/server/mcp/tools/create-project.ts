@@ -9,6 +9,7 @@ import { buildDashboardUrl } from "@/server/mcp/urls";
 import { languageCodeSchema, locationCodeSchema } from "@/server/mcp/schemas";
 import { createProjectSchema } from "@/types/schemas/projects";
 import { z } from "zod";
+import { at } from "@/shared/index-reads";
 
 const inputSchema = {
   name: z
@@ -80,7 +81,11 @@ async function resolveTargetOrganization(
     return { organizationId, role: membership.role };
   }
   if (memberships.length === 1) {
-    const only = memberships[0];
+    // `memberships.length === 1` is the guard; `at()` rather than `[0]`.
+    // The value is the name and role of the only organisation a user belongs to, and
+    // it is returned here as the resolved context — an `undefined` would have
+    // created a project in no organisation at all.
+    const only = at(memberships, 0, "the sole organisation membership");
     return { organizationId: only.organizationId, role: only.role };
   }
   if (memberships.length === 0) {

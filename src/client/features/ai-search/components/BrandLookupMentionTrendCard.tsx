@@ -100,7 +100,15 @@ function MentionTooltip({
   label?: string;
 }) {
   if (!active || !payload?.length) return null;
-  const value = payload[0].value;
+  // **A real guard, not `at()`.** `payload` is recharts-supplied and can be
+  // an empty array even when `active` is true — a tooltip rendered during a
+  // transition, or a series with no point under the cursor. `at()` would throw
+  // inside a render, which turns a blank tooltip into a crashed dashboard. The
+  // guard already existed; `noUncheckedIndexedAccess` is what made it load-
+  // bearing rather than defensive.
+  const entry = payload.find((item) => item.value !== null);
+  if (!entry) return null;
+  const value = entry.value;
   return (
     <div className="rounded-md border border-base-300 bg-base-100 px-3 py-2 shadow-sm">
       <p className="text-xs text-base-content/60">{label}</p>

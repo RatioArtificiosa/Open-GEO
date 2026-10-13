@@ -31,6 +31,7 @@ const r2Put = vi.hoisted(() =>
 vi.mock("cloudflare:workers", () => ({ env: { R2: { put: r2Put } } }));
 
 import { DataforseoChargedTaskError } from "@/server/lib/dataforseo/envelope";
+import { first } from "@/shared/index-reads";
 import {
   fetchLighthouseResult,
   type LighthouseResultWithScreenshots,
@@ -147,9 +148,9 @@ describe("fetchLighthouseResult", () => {
     // **Read off the typed spy**, which declares its parameters — an untyped `vi.fn()` records
     // calls with no arguments at all, which is why the first version asserted its way to an
     // array and was rejected for claiming a shape the mock never had.
-    expect(r2Put.mock.calls[0][0]).toMatch(
-      /^vendor-assets\/[0-9a-f]{64}\.bin$/,
-    );
+    expect(
+      first(r2Put.mock.calls, "the row under test (r2Put.mock.calls)")[0],
+    ).toMatch(/^vendor-assets\/[0-9a-f]{64}\.bin$/);
   });
 
   it("carries billing metadata when parsing fails after a billed success", async () => {

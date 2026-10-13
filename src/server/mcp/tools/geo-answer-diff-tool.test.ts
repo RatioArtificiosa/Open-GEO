@@ -70,6 +70,7 @@ import { getGeoAnswerDiffTool } from "@/server/mcp/tools/geo-answer-diff-tool";
 // memory returns `undefined` for every assertion and a tool that says nothing reads as a tool
 // that says the wrong thing.
 import { textContent } from "@/server/mcp/tools/tool-test-support";
+import { first } from "@/shared/index-reads";
 
 const TARGET = { id: "t1", domain: "example.com", name: "Example" };
 
@@ -144,7 +145,17 @@ async function run(args: Record<string, unknown> = {}) {
  * disagree**, and the disagreement would be a diff that reports noise on every run.
  */
 function citationKey(url: string): string {
-  return url.split("?")[0].replace(/\/$/, "");
+  // `split` on a non-empty separator always yields at least one element, so the
+  // head is provably present. `first()` rather than `[0]`: `.replace` on
+  // `undefined` throws in the helper rather than at the assertion.
+  //
+  // **The trailing-slash strip is where one page arrives as two URLs** —
+  // `…/pricing` and `…/pricing/` — and both must collapse to one key or the
+  // diff reports a change that is not a change. Built from `String#slice`
+  // rather than a regex literal, because that literal's backslash did not
+  // survive being written into this file.
+  const base = first(url.split("?"), "a url before its query string");
+  return base.endsWith("/") ? base.slice(0, -1) : base;
 }
 
 /** Whether two citation sets describe the same pages in the same positions. */

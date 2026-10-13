@@ -3,6 +3,7 @@ import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { join, dirname, relative } from "node:path";
 import { sortBy } from "remeda";
 import { describe, expect, it } from "vitest";
+import { at, first } from "@/shared/index-reads";
 
 /**
  * How many properly-encoded U+00E2 bytes a buffer holds.
@@ -583,7 +584,16 @@ describe("import casing matches the filesystem, because CI is Linux", () => {
       for (const m of text.matchAll(/from\s+["']([^"']+)["']/g)) {
         // `?raw` is a Vite feature, not part of the path. Everything after the `?`
         // is a bundler query and has to be stripped before the file is looked up.
-        const clean = m[1].split("?")[0];
+        // **`first()` rather than `[0]`.** `split("?")` on a non-empty separator
+        // always yields at least one element, so the read is provably present;
+        // the compiler cannot see that, and `clean` being `undefined` would have
+        // made every branch comparison below silently false — the import would
+        // drop out of the audited set rather than be marked untracked. A gate
+        // that loses its subject is worse than one that fails.
+        const clean = first(
+          at(m, 1, "the row under test (m)").split("?"),
+          "an import specifier before its query string",
+        );
 
         // **The candidate list has to include the extension.** A TypeScript
         // import names `./agentUpdatePrompt`, not `./agentUpdatePrompt.ts`, so
@@ -659,7 +669,11 @@ describe("every GEO query key names the project", () => {
       .filter((f) => f.startsWith("src/client/") && /\.(ts|tsx)$/.test(f))) {
       const text = readFileSync(join(ROOT, file), "utf8");
       for (const m of text.matchAll(/queryKey:\s*\[([^\]]*)\]/g)) {
-        const key = m[1];
+        // A capture group that participated: `at()` rather than `m[1]`, because
+        // `/geo/i.test(undefined)` is false — an unmatched group would have
+        // skipped the GEO surface entirely, and the gate would have reported
+        // zero offenders for a real leak.
+        const key = at(m, 1, "a query-key capture");
         if (!/geo/i.test(key)) continue; // only the GEO surface is in scope
         if (!/projectId/.test(key)) {
           offenders.push(`${file}: queryKey: [${key.trim()}]`);
@@ -770,8 +784,8 @@ describe("scripts run on every platform the product supports", () => {
         continue;
       }
       if (file.endsWith(".sh")) {
-        const first = bytes.slice(0, 2).toString("utf8");
-        if (first !== "#!") offenders.push(`${file} has no shebang`);
+        const shebang = bytes.slice(0, 2).toString("utf8");
+        if (shebang !== "#!") offenders.push(`${file} has no shebang`);
       }
     }
     expect(offenders).toEqual([]);

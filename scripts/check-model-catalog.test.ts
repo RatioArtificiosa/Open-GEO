@@ -36,7 +36,10 @@ describe("the model catalog scan", () => {
     const snap = snapshot();
     for (const slug of platforms()) {
       expect(snap[slug], slug).toBeTruthy();
-      expect(snap[slug].length, slug).toBeGreaterThan(0);
+      // A `Record<string, string[]>` lookup keyed by a platform slug, so a slug
+      // the snapshot does not carry is a legal absence — the assertion above it
+      // already fails for a missing slug, and this one is about it being empty.
+      expect(snap[slug]?.length, slug).toBeGreaterThan(0);
     }
   });
 

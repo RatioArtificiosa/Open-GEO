@@ -134,8 +134,15 @@ function UsageTooltip({
           day: "numeric",
         })}
       </p>
+      {/* **A real guard, not `at()`.** `payload` is recharts-supplied and can be
+          empty even when `active` is true — a tooltip mid-transition, or a series
+          with no point under the cursor. Throwing inside a render would turn a
+          blank tooltip into a crashed billing page, so the value is read from
+          whatever the payload carries and rendered as an em-dash when it does.
+          The guard existed before; `noUncheckedIndexedAccess` is what made it
+          load-bearing rather than defensive. */}
       <p className="text-sm font-medium tabular-nums">
-        ${payload[0].value.toFixed(2)}
+        {payload?.[0] ? `$${payload[0].value.toFixed(2)}` : "—"}
       </p>
     </div>
   );

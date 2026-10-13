@@ -12,7 +12,20 @@ import process from "node:process";
 import { parseArgs } from "./cli-utils";
 
 const args = parseArgs(process.argv.slice(2));
-const databaseName = args.database;
+// **A required argument, validated rather than typed.** `parseArgs` returns a
+// `Record<string, string>`, so every read is `string | undefined` under
+// `noUncheckedIndexedAccess` — and this one was flowing straight into
+// `execFileSync`'s argv array, where `undefined` becomes a literal "undefined"
+// argument. wrangler would have failed on a confusing message about a database
+// named "undefined" instead of telling the caller they omitted `--database`. The
+// check also covers the flag the apply path needs before it runs a destructive
+// command against a live database.
+if (typeof args.database !== "string" || args.database.trim() === "") {
+  throw new Error(
+    "Missing --database. Pass the D1 database name to clean, e.g. `--database=opengeo`.",
+  );
+}
+const databaseName: string = args.database;
 const shouldApply = args.apply === "true";
 const confirmedRemoteApply = args["confirm-remote-apply"] === "true";
 const validateOnly = args["validate-only"] === "true";

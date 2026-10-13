@@ -53,6 +53,7 @@ import {
   DFS_LABS,
   type DfsPrice,
 } from "@/shared/dataforseo-pricing";
+import { first } from "@/shared/index-reads";
 
 type VolumeSourceId =
   | "google_ads"
@@ -167,8 +168,16 @@ export function sharedKeywordsPerTask(sources: VolumeSourceId[]): {
   const keywordsPerTask = Math.min(
     ...chosen.map((source) => keywordsPerTaskFor(source)),
   );
+  // **The fallback is the same constant the branch above defaults to, not
+  // `chosen[0]`.** `chosen` is provably non-empty (the guard, or the one-element
+  // literal), so `chosen[0]` is a real value — but naming it means the default is
+  // declared in two places that must agree, and an index read typed as
+  // possibly-undefined underneath. `at()` on a provably-non-empty `chosen` says
+  // which of the two it is; the constant says which source it means.
   const limitingSource =
     chosen.find((source) => keywordsPerTaskFor(source) === keywordsPerTask) ??
-    chosen[0];
+    (volumeSources.length > 0
+      ? first(chosen, "the volume sources in use")
+      : "google_ads");
   return { keywordsPerTask, limitingSource };
 }

@@ -30,6 +30,7 @@ import {
 import { crawlPage } from "@/server/workflows/site-audit-workflow-helpers";
 import { pgStep } from "@/server/workflows/pgStep";
 import { CRAWL_CHUNK_STEP } from "@/server/workflows/auditStepConfigs";
+import { at } from "@/shared/index-reads";
 
 /**
  * The crawl runs in chunks: each chunk is one durable step that leases up to
@@ -321,7 +322,11 @@ async function runCrawlChunk(
       // mutation and flags the otherwise valid backpressure check.
       if (throttle.stopped || queuedPersists > MAX_QUEUED_PERSIST_BATCHES)
         break;
-      launch(claimed[nextIndex]);
+      // `nextIndex` is advanced only inside the `launch` branch below and
+      // bounded by the claim loop above, so it is always in range. `at()` rather
+      // than a bare index: an undefined claim would have been handed to a work
+      // row that reads `claimed.url` in the persistence path.
+      launch(at(claimed, nextIndex, "the claimed audit urls"));
       nextIndex += 1;
     }
     if (inFlight.size > 0) {

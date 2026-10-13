@@ -7,8 +7,9 @@
  * rather than about the happy path, which the service tests already cover.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { getDomainCategoriesTool } from "./market-tools";
-import { getCategoryDomainMetricsTool } from "./market-tools";
+import { getCategoryDomainMetricsTool } from "./category-domain-metrics";
 import { getCategoryKeywordsTool } from "./market-tools";
 import { makeToolContext } from "./tool-test-support";
 
@@ -78,21 +79,16 @@ describe("get_domain_categories", () => {
     );
 
     const result = await getDomainCategoriesTool.handler(
-      { projectId: "project_1", target: "acmeexample.com" },
+      { dry_run: false, projectId: "project_1", target: "acmeexample.com" },
       toolContext,
     );
 
-    const structured = result.structuredContent as {
-      categories: Array<{ names: Array<string | null> }>;
-      unresolvedCount: number;
-    };
     // Two names, one of them null. A `filter(Boolean)` would leave one, and the profile would
     // look complete while missing a category the vendor actually returned.
-    expect(structured.categories[0]?.names).toEqual([
-      "/Computers/Software",
-      null,
-    ]);
-    expect(structured.unresolvedCount).toBe(1);
+    expect(result.structuredContent).toMatchObject({
+      categories: [{ names: ["/Computers/Software", null] }],
+      unresolvedCount: 1,
+    });
     expect(textOf(result.content)).toContain("unnamed");
   });
 
@@ -100,7 +96,7 @@ describe("get_domain_categories", () => {
     const categoriesForDomain = setCategories([{ categories: [10007] }]);
 
     await getDomainCategoriesTool.handler(
-      { projectId: "project_1", target: "acmeexample.com" },
+      { dry_run: false, projectId: "project_1", target: "acmeexample.com" },
       toolContext,
     );
 
@@ -114,6 +110,7 @@ describe("get_domain_categories", () => {
 
     await getDomainCategoriesTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         target: "acmeexample.com",
         includeClickstreamData: true,
@@ -130,7 +127,7 @@ describe("get_domain_categories", () => {
     const categoriesForDomain = setCategories([{ categories: [10007] }]);
 
     await getDomainCategoriesTool.handler(
-      { projectId: "project_1", target: "acmeexample.com" },
+      { dry_run: false, projectId: "project_1", target: "acmeexample.com" },
       toolContext,
     );
 
@@ -159,7 +156,7 @@ describe("get_category_keywords", () => {
     ]);
 
     await getCategoryKeywordsTool.handler(
-      { projectId: "project_1", categoryCodes: [12191, 12193] },
+      { dry_run: false, projectId: "project_1", categoryCodes: [12191, 12193] },
       toolContext,
     );
 
@@ -173,6 +170,7 @@ describe("get_category_keywords", () => {
 
     const result = await getCategoryKeywordsTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         categoryCodes: [12191, 12193],
         categoryIntersection: true,
@@ -218,6 +216,7 @@ describe("get_category_domain_metrics", () => {
 
     const result = await getCategoryDomainMetricsTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         categoryCodes: [11494],
         firstDate: "2026-10-01",
@@ -251,6 +250,7 @@ describe("get_category_domain_metrics", () => {
 
     const result = await getCategoryDomainMetricsTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         categoryCodes: [11494],
         firstDate: "2026-10-01",
@@ -271,6 +271,7 @@ describe("get_category_domain_metrics", () => {
 
     const result = await getCategoryDomainMetricsTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         categoryCodes: [11494, 13418],
         firstDate: "2021-06-01",
@@ -279,11 +280,13 @@ describe("get_category_domain_metrics", () => {
       toolContext,
     );
 
-    const structured = result.structuredContent as {
-      requestCostUsd: number;
-      perDomainCostUsd: number;
-    };
-    expect(structured.requestCostUsd).toBeGreaterThan(0.1);
+    // A price quoted from the price book, not from a hardcoded string: the text
+    // must contain the figure the constants produce, and the structured copy
+    // must carry the request cost as a number that is actually above a cent.
+    const parsed = z
+      .object({ requestCostUsd: z.number() })
+      .parse(result.structuredContent);
+    expect(parsed.requestCostUsd).toBeGreaterThan(0.1);
     expect(textOf(result.content)).toContain("$0.12");
   });
 
@@ -304,6 +307,7 @@ describe("get_category_domain_metrics", () => {
 
     const result = await getCategoryDomainMetricsTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         categoryCodes: [11494],
         firstDate: "2021-06-01",
@@ -312,11 +316,9 @@ describe("get_category_domain_metrics", () => {
       toolContext,
     );
 
-    const structured = result.structuredContent as {
-      domains: Array<{ etvChange: number | null; growing: boolean | null }>;
-    };
-    expect(structured.domains[0]?.etvChange).toBeCloseTo(161.65, 2);
-    expect(structured.domains[0]?.growing).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      domains: [{ etvChange: 161.65, growing: true }],
+    });
   });
 
   it("reports no direction when one of the months has no reading", async () => {
@@ -332,6 +334,7 @@ describe("get_category_domain_metrics", () => {
 
     const result = await getCategoryDomainMetricsTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         categoryCodes: [11494],
         firstDate: "2021-06-01",
@@ -340,10 +343,9 @@ describe("get_category_domain_metrics", () => {
       toolContext,
     );
 
-    const structured = result.structuredContent as {
-      domains: Array<{ growing: boolean | null }>;
-    };
-    expect(structured.domains[0]?.growing).toBeNull();
+    expect(result.structuredContent).toMatchObject({
+      domains: [{ growing: null }],
+    });
     expect(textOf(result.content)).toContain("without a direction");
   });
 });

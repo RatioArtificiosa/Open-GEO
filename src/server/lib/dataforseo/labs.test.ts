@@ -18,6 +18,7 @@
  * `formulaVersion: new`, and every number in the table is wrong while every test passes.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { first } from "@/shared/index-reads";
 import {
   fetchDomainRankOverview,
   fetchKeywordIdeas,
@@ -151,9 +152,13 @@ describe("the intersection endpoints", () => {
     });
 
     const body = requestBody(vi.mocked(fetch));
-    expect(typeof body[0].use_new_etv).toBe("boolean");
+    expect(typeof first(body, "the row under test (body)").use_new_etv).toBe(
+      "boolean",
+    );
     // The recorded flag IS the sent flag. Not "both are booleans" — the same boolean.
-    expect(body[0].use_new_etv).toBe(result.etv.useNewEtv);
+    expect(first(body, "the row under test (body)").use_new_etv).toBe(
+      result.etv.useNewEtv,
+    );
     expect(result.etv.requestedAt).toBe("2026-10-01T00:00:00.000Z");
     expect(["legacy", "new"]).toContain(result.etv.formulaVersion);
   });
@@ -171,7 +176,7 @@ describe("the intersection endpoints", () => {
     });
 
     const body = requestBody(vi.mocked(fetch));
-    expect(body[0].use_new_etv).toBe(true);
+    expect(first(body, "the row under test (body)").use_new_etv).toBe(true);
     expect(result.etv.useNewEtv).toBe(true);
     expect(result.etv.formulaVersion).toBe("new");
   });
@@ -207,15 +212,16 @@ describe("the intersection endpoints", () => {
     // rejects an unknown field rather than ignoring it, so this is worth pinning.
     vi.mocked(fetch).mockImplementation(async () => okResponse([]));
     await fetchPageIntersection({ ...BASE, pages: ["/pricing", "/docs"] });
-    expect(requestBody(vi.mocked(fetch))[0].pages).toEqual([
-      "/pricing",
-      "/docs",
-    ]);
+    expect(
+      first(requestBody(vi.mocked(fetch)), "the labs request body").pages,
+    ).toEqual(["/pricing", "/docs"]);
 
     vi.mocked(fetch).mockClear();
     vi.mocked(fetch).mockImplementation(async () => okResponse([]));
     await fetchDomainIntersection(BASE);
-    expect(requestBody(vi.mocked(fetch))[0].pages).toBeUndefined();
+    expect(
+      first(requestBody(vi.mocked(fetch)), "the labs request body").pages,
+    ).toBeUndefined();
   });
 
   it("passes the comparison parameters through unchanged", async () => {
@@ -261,7 +267,20 @@ describe("the intersection endpoints", () => {
     expect(result.data).toHaveLength(1);
     // **Typed as the row shape, so a rename of a field the caller reads fails here**
     // rather than silently typing `unknown` at every use downstream.
-    const [row]: IntersectionItem[] = result.data;
+    // **`first()` rather than a destructure.** The length assertion above proves
+    // the array is non-empty, and the compiler cannot see it. A destructured
+    // `undefined` would have made the field assertions below report confusing
+    // `undefined` messages rather than the shape they are about.
+    // **Typed as the row shape, so a rename of a field the caller reads fails
+    // here** rather than silently typing `unknown` at every use downstream.
+    // Written as `IntersectionItem | undefined` rather than a destructure or a
+    // `!`: `first()` throws with the message, which is what makes an empty
+    // result a readable failure rather than a `undefined.domain` TypeError.
+    const row: IntersectionItem | undefined = first(
+      result.data,
+      "the intersection result row",
+    );
+    expect(row).toBeDefined();
     expect(row).toMatchObject({ domain: "rival.com", etv: 1234.5 });
     expect(row.intersection_info).toMatchObject({
       intersecting_domains: 1,

@@ -6,6 +6,7 @@
 // same interface later.
 
 import { normalizeAndValidateStartUrl } from "@/server/lib/audit/url-policy";
+import { at } from "@/shared/index-reads";
 
 const MAX_PAGES = 5;
 const PER_PAGE_CHAR_LIMIT = 4000;
@@ -99,7 +100,14 @@ function parseSitemapUrls(xml: string, origin: string): string[] {
   while ((match = regex.exec(xml)) !== null) {
     let resolved: string;
     try {
-      resolved = new URL(match[1], origin).toString();
+      // The `<loc>` regex has exactly one capture group, so a match always
+      // carries the url. `at()` rather than `match[1]`: `new URL(undefined)`
+      // throws, and the catch below `continue`s — so a sitemap whose entries
+      // were all skipped would look like an empty sitemap.
+      resolved = new URL(
+        at(match, 1, "a sitemap loc capture"),
+        origin,
+      ).toString();
     } catch {
       continue;
     }
@@ -112,7 +120,9 @@ function parseSitemapUrls(xml: string, origin: string): string[] {
 
 function extractTitle(html: string): string | null {
   const match = /<title[^>]*>([^<]*)<\/title>/i.exec(html);
-  return match ? decodeEntities(match[1].trim()) : null;
+  return match
+    ? decodeEntities(at(match, 1, "the row under test (match)").trim())
+    : null;
 }
 
 /** Strips scripts/styles/tags and collapses whitespace into readable text. */

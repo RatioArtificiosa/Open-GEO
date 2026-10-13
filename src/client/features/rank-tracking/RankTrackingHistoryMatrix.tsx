@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Loader2 } from "lucide-react";
 import { sort } from "remeda";
 import type { RankPositionMatrixCell } from "@/serverFunctions/rank-tracking";
+import { at } from "@/shared/index-reads";
 
 /**
  * "By date" view: keyword rows × recent check columns, each cell the position
@@ -63,8 +64,15 @@ export function RankTrackingHistoryMatrix({
                 </td>
                 {runs.map((r, i) => {
                   const position = byRun?.get(r.runId) ?? null;
+                  // `i > 0` is the guard, so `runs[i - 1]` is provably present.
+                  // `at()` rather than a bare index: an undefined previous run would
+                  // have made the first column compare against nothing, showing a
+                  // movement arrow for a plate.
                   const previous =
-                    i > 0 ? (byRun?.get(runs[i - 1].runId) ?? null) : undefined;
+                    i > 0
+                      ? (byRun?.get(at(runs, i - 1, "the check runs").runId) ??
+                        null)
+                      : undefined;
                   return (
                     <td key={r.runId} className="text-right">
                       <MatrixCell position={position} previous={previous} />

@@ -460,7 +460,10 @@ async function runForTarget(
     let offset = 0;
     for (const [platform, group] of byPlatform) {
       for (const batch of planPosts(group)) {
-        const outcome = await postBatch(platform, batch, offset);
+        // The metered client travels with the batch: the POST is where the
+        // vendor charges, and CL-202 was a queued path that reached the vendor
+        // without the client — no gate, no deduction, no recorded figure.
+        const outcome = await postBatch(client, platform, batch, offset);
         offset += batch.length;
         posted += batch.length;
         if (!outcome.posted) {

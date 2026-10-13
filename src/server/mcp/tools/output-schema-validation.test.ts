@@ -14,6 +14,7 @@ import {
 import { getSearchConsolePerformanceTool } from "./search-console-tools";
 import { runSiteAuditTool } from "./site-audit-tools";
 import { makeToolContext } from "./tool-test-support";
+import { first } from "@/shared/index-reads";
 
 const mocks = vi.hoisted(() => ({
   getProjectForOrganization: vi.fn(),
@@ -301,8 +302,15 @@ describe("get_backlinks_profile MCP tool", () => {
         ? (structured as Record<string, unknown>).backlinks
         : undefined,
     ).toEqual(backlinkPage);
-    const first = result.content[0];
-    expect(first.type === "text" && first.text).toContain("- has more: yes");
+    // Same reasoning as the search-console cases: a tool result answers with at
+    // least one content block, and `first()` says so without a TypeError.
+    const firstBlock = first(
+      result.content,
+      "the tool result's content blocks",
+    );
+    expect(firstBlock.type === "text" && firstBlock.text).toContain(
+      "- has more: yes",
+    );
   });
 
   it("passes through final-page pagination state", async () => {

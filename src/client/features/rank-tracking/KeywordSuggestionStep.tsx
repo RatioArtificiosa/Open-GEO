@@ -21,6 +21,7 @@ import {
   applyShiftRangeSelection,
   type SelectionAnchor,
 } from "@/client/components/table/tableSelection";
+import { at } from "@/shared/index-reads";
 
 type SuggestedKeyword = {
   keyword: string;
@@ -185,7 +186,11 @@ export function KeywordSuggestionStep({
       indexed.sort((a, b) => b.traffic - a.traffic);
       const initial: RowSelectionState = {};
       for (let i = 0; i < Math.min(PRE_SELECT_COUNT, indexed.length); i++) {
-        initial[indexed[i].index] = true;
+        // `at()` rather than `indexed[i]`: the loop bound is the array's own
+        // length clamped to the pre-select count, so every index is present. The
+        // earlier write handed `undefined` into a `RowSelectionState` key, which
+        // is how a pre-selection silently selected nothing.
+        initial[at(indexed, i, "the pre-selected suggestions").index] = true;
       }
       setRowSelection(initial);
       setHasInitialized(true);

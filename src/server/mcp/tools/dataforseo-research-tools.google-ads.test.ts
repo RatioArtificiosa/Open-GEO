@@ -67,6 +67,7 @@ describe("get_keyword_metrics for Google-Ads-only locations", () => {
         // Iceland is not supported by DataForSEO Labs.
         locationCode: 2352,
         languageCode: "is",
+        dry_run: false,
       },
       toolContext,
     );
@@ -119,6 +120,7 @@ describe("get_keyword_metrics for Google-Ads-only locations", () => {
         projectId: "project_1",
         keywords: ["seo tools"],
         includeClickstreamData: true,
+        dry_run: false,
       },
       toolContext,
     );

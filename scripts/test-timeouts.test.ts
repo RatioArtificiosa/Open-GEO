@@ -31,6 +31,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { at } from "@/shared/index-reads";
 
 const ROOT = process.cwd();
 
@@ -50,7 +51,11 @@ function constantsOf(src: string): Map<string, number> {
     const m = line.match(
       /^\s*(?:export\s+)?(?:const|let)\s+([A-Z_][A-Z0-9_]*)\s*(?::[^=]*?)?=\s*([\d_]+)\s*[;,)]/,
     );
-    if (m) map.set(m[1], Number(m[2].replace(/_/g, "")));
+    if (m)
+      map.set(
+        at(m, 1, "the row under test (m)"),
+        Number(at(m, 2, "the row under test (m)").replace(/_/g, "")),
+      );
   }
   return map;
 }
@@ -96,9 +101,14 @@ function lastArgument(
 ): { kind: "literal" | "name"; value: string } | null {
   const trimmed = args.replace(/\s*,\s*$/, "").trimEnd();
   const literal = trimmed.match(/([\d_]+)$/);
-  if (literal) return { kind: "literal", value: literal[1] };
+  if (literal)
+    return {
+      kind: "literal",
+      value: at(literal, 1, "the row under test (literal)"),
+    };
   const name = trimmed.match(/([A-Z_][A-Z0-9_]*)$/);
-  if (name) return { kind: "name", value: name[1] };
+  if (name)
+    return { kind: "name", value: at(name, 1, "the row under test (name)") };
   return null;
 }
 
@@ -110,7 +120,10 @@ function declaredTimeouts(src: string): Array<{ ms: number; shape: string }> {
   const found: Array<{ ms: number; shape: string }> = [];
 
   for (const m of src.matchAll(/timeout:\s*([\d_]+)/g)) {
-    found.push({ ms: Number(m[1].replace(/_/g, "")), shape: "options object" });
+    found.push({
+      ms: Number(at(m, 1, "the row under test (m)").replace(/_/g, "")),
+      shape: "options object",
+    });
   }
 
   for (const m of src.matchAll(CALLERS)) {

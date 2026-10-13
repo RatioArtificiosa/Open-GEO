@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { REPORT_MAX_PER_PROJECT } from "@/types/schemas/reports";
 import { getReportTool, listReportsTool, saveReportTool } from "./report-tools";
 import { makeToolContext, textContent } from "./tool-test-support";
+import { first } from "@/shared/index-reads";
 
 // Mocked at the repository seam, not the service: the tools' contract is that a
 // save reaches storage with the right attribution and reads back through the
@@ -185,7 +186,9 @@ describe("list_reports", () => {
       offset: 0,
     });
     const rows = result.structuredContent.reports;
-    expect(rows[0].summary).toBe(`${"x".repeat(300)}…`);
+    expect(first(rows, "the row under test (rows)").summary).toBe(
+      `${"x".repeat(300)}…`,
+    );
     expect(result.structuredContent).toMatchObject({
       totalCount: 1,
       rowCount: 1,

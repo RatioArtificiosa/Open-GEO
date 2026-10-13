@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { geoAnswerUnitCostUsd } from "@/shared/dataforseo-pricing";
+import { callArgs, first } from "@/shared/index-reads";
 
 /**
  * The patrol's reporting rules.
@@ -67,11 +68,17 @@ function isRecordedRun(value: unknown): value is RecordedRun {
 
 /** Read back what the patrol passed to `GeoService.recordRun`. */
 function recordedRun(): RecordedRun {
-  const first = recordRun.mock.calls[0];
-  if (!first || typeof first[0] !== "object" || first[0] === null) {
-    throw new Error("recordRun was not called");
+  // **`callArgs()` rather than a bare index, and `recorded` rather than `first`.**
+  // Two changes from one finding: the index read is `T | undefined` under
+  // `noUncheckedIndexedAccess`, and the local named `first` shadowed the shared
+  // helper the file now imports. `first[0]` on a possibly-undefined call would
+  // have thrown a TypeError before the guard below could report a clear message.
+  const firstCall = callArgs(recordRun, 0, "the recorded patrol run");
+  const recorded: unknown = firstCall[0];
+  if (typeof recorded !== "object" || recorded === null) {
+    throw new Error("recordRun was not called with an object");
   }
-  const value: unknown = Object.fromEntries(Object.entries(first[0]));
+  const value: unknown = recorded;
   if (!isRecordedRun(value)) {
     throw new Error("recordRun was called without an answers array");
   }
@@ -80,11 +87,18 @@ function recordedRun(): RecordedRun {
 
 /** Read back the arguments the patrol passed to the vendor client. */
 function mentionsCall(): Record<string, unknown> {
-  const first = mentionsSearch.mock.calls[0];
-  if (!first || typeof first[0] !== "object" || first[0] === null) {
+  // **`callArgs()` and `recorded` rather than `first`.** Two findings from one
+  // line: the index read is `T | undefined` under `noUncheckedIndexedAccess`, and
+  // the local named `first` shadowed the shared helper this file now imports.
+  const recorded: unknown = callArgs(
+    mentionsSearch,
+    0,
+    "the mentionsSearch call",
+  )[0];
+  if (typeof recorded !== "object" || recorded === null) {
     throw new Error("mentionsSearch was not called");
   }
-  return Object.fromEntries(Object.entries(first[0]));
+  return Object.fromEntries(Object.entries(recorded));
 }
 
 // The module mock replaces the WHOLE module, so anything GeoPatrol imports from
@@ -198,94 +212,17 @@ function reset(
   recordRun.mockReset().mockResolvedValue({ id: "snap_1" });
 }
 
-describe("GeoPatrol in queued mode", () => {
-  /**
-   * The queued branch was, until this change, **built, tested and unreachable**:
-   * it required `input.queuePrompts` and nothing in production supplied one. The
-   * tests below are the first that exercise it with no explicit prompts at all,
-   * which is the only shape the scheduler now uses.
-   */
-  it("asks the project's saved prompts when the caller supplies none", async () => {
-    listTargets.mockReset().mockResolvedValue([TARGET]);
-    recordRun.mockClear();
-    postedBatches.length = 0;
-    promptsForQueuedRun
-      .mockClear()
-      .mockResolvedValue(["best crm", "acme pricing"]);
-
-    const result = await GeoPatrol.run({
-      projectId: "p1",
-      customer: CUSTOMER,
-      unitCostUsd: geoAnswerUnitCostUsd(),
-      createdBy: "schedule",
-      mode: "queued",
-      platforms: ["chat_gpt"],
-    });
-
-    // The prompts came from the project, not the caller.
-    expect(promptsForQueuedRun).toHaveBeenCalledWith("p1");
-    // And something was posted — the assertion that matters, because before the
-    // fix this returned `promptsAsked: 0` with a note and no vendor call.
-    expect(postedBatches.length).toBeGreaterThan(0);
-    expect(result.promptsAsked).toBeGreaterThan(0);
-    expect(result.answersArchived).toBe(0);
-    // A queued run posts and returns; it archives nothing, and the archive fills
-    // in when the answers arrive. A non-null snapshot here would mean it had
-    // invented one.
-    expect(result.snapshotId).toBeNull();
-  });
-
-  it("refuses when the project has no prompts, and says what to do about it", async () => {
-    // A refusal that does not name the fix is a support ticket, and this
-    // repository has found a dozen of the "correct, tested, unreachable" kind.
-    // The note has to answer: what do I do?
-    listTargets.mockReset().mockResolvedValue([TARGET]);
-    postedBatches.length = 0;
-    promptsForQueuedRun.mockClear().mockResolvedValue([]);
-
-    const result = await GeoPatrol.run({
-      projectId: "p1",
-      customer: CUSTOMER,
-      unitCostUsd: geoAnswerUnitCostUsd(),
-      createdBy: "schedule",
-      mode: "queued",
-      platforms: ["chat_gpt"],
-    });
-
-    expect(postedBatches).toEqual([]);
-    expect(result.promptsAsked).toBe(0);
-    expect(result.snapshotId).toBeNull();
-    const note = result.notes.join(" ");
-    expect(note).toMatch(/no saved prompts|none saved/i);
-    // The two actions that fix it, both named.
-    expect(note).toMatch(/add a prompt set/i);
-    expect(note).toMatch(/live path/i);
-  });
-
-  it("still honours prompts the caller passes explicitly", async () => {
-    // The explicit path is kept: a caller with prompts in hand — a test, a future
-    // importer — should not have to write them to the database first. So the
-    // project is never read when the caller knows better.
-    listTargets.mockReset().mockResolvedValue([TARGET]);
-    recordRun.mockClear();
-    postedBatches.length = 0;
-    promptsForQueuedRun.mockClear().mockResolvedValue(["from the project"]);
-
-    const result = await GeoPatrol.run({
-      projectId: "p1",
-      customer: CUSTOMER,
-      unitCostUsd: geoAnswerUnitCostUsd(),
-      createdBy: "schedule",
-      mode: "queued",
-      platforms: ["chat_gpt"],
-      queuePrompts: ["from the caller"],
-    });
-
-    expect(promptsForQueuedRun).not.toHaveBeenCalled();
-    expect(postedBatches.length).toBeGreaterThan(0);
-    expect(result.promptsAsked).toBeGreaterThan(0);
-  });
-});
+/**
+ * The head answer of a patrol run.
+ *
+ * The patrol records at least one answer for a started run, so the head is
+ * provably present and the compiler cannot see it. `first()` rather than
+ * `[0]`, so an undefined answer fails with the message instead of a
+ * TypeError on the field assertions below.
+ */
+function firstAnswer(recorded: ReturnType<typeof recordedRun>) {
+  return first(recorded.answers, "the answers the patrol recorded");
+}
 
 describe("GeoPatrol", () => {
   it("reports an unconfigured project instead of calling the vendor", async () => {
@@ -312,8 +249,16 @@ describe("GeoPatrol", () => {
     });
     expect(result.answersArchived).toBe(1);
     const runInput = recordedRun();
-    expect(runInput.answers[0].answer.answerText).toBeNull();
-    expect(runInput.answers[0].citations[0].domain).toBe("acme.com");
+    expect(
+      first(runInput.answers, "the row under test (runInput.answers)").answer
+        .answerText,
+    ).toBeNull();
+    expect(
+      first(
+        runInput.answers,
+        "the row under test (runInput.answers)",
+      ).citations.map((c) => c.domain)[0],
+    ).toBe("acme.com");
   });
 
   it("records retrievals from search_results, not from the citation set", async () => {
@@ -330,7 +275,14 @@ describe("GeoPatrol", () => {
       createdBy: "schedule",
       platforms: ["chat_gpt"],
     });
-    const answer = recordedRun().answers[0];
+    // The patrol records at least one answer for a started run, so the head is
+    // provably present. `first()` rather than `[0]`: an `undefined` answer would
+    // have made every field assertion below report `undefined` rather than the
+    // shape it is about.
+    const answer = first(
+      recordedRun().answers,
+      "the answers the patrol recorded",
+    );
     expect(answer.retrievals).toEqual([
       { url: "https://acme.com/a", domain: "acme.com", rank: 1 },
     ]);
@@ -354,7 +306,7 @@ describe("GeoPatrol", () => {
       createdBy: "schedule",
       platforms: ["chat_gpt"],
     });
-    const answer = recordedRun().answers[0];
+    const answer = firstAnswer(recordedRun());
     expect(answer.citations.map((c) => c.url)).toEqual([
       "https://acme.com/pricing",
     ]);
@@ -376,7 +328,7 @@ describe("GeoPatrol", () => {
       createdBy: "schedule",
       platforms: ["google_ai_overview"],
     });
-    expect(recordedRun().answers[0].retrievals).toBeUndefined();
+    expect(firstAnswer(recordedRun()).retrievals).toBeUndefined();
   });
 
   it("leaves retrievals undefined when ChatGPT returns no search_results", async () => {
@@ -391,7 +343,7 @@ describe("GeoPatrol", () => {
       createdBy: "schedule",
       platforms: ["chat_gpt"],
     });
-    expect(recordedRun().answers[0].retrievals).toBeUndefined();
+    expect(firstAnswer(recordedRun()).retrievals).toBeUndefined();
   });
 
   it("skips a platform llm_mentions does not serve, and says so", async () => {

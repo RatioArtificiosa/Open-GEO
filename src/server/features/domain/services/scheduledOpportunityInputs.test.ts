@@ -71,11 +71,13 @@ describe("runOpportunityInputCapture", () => {
       keywords: ["hiking boots"],
       locationCode: 2840,
       now: NOW,
-      fetchOverview: overviewRows([
-        { keyword: "hiking boots", keyword_difficulty: 42 },
-      ]),
-      fetchCompetitors: competitorRows(someCompetitors),
-      fetchIntent: emptyIntent,
+      reads: {
+        keywordOverview: overviewRows([
+          { keyword: "hiking boots", keyword_difficulty: 42 },
+        ]),
+        serpCompetitors: competitorRows(someCompetitors),
+        searchIntent: emptyIntent,
+      },
     });
 
     expect(captured).toHaveLength(1);
@@ -95,9 +97,11 @@ describe("runOpportunityInputCapture", () => {
       keywords: ["Hiking Boots"],
       locationCode: 2840,
       now: NOW,
-      fetchOverview: overviewRows([{ keyword: "hiking boots" }]),
-      fetchCompetitors: emptyCompetitors,
-      fetchIntent: emptyIntent,
+      reads: {
+        keywordOverview: overviewRows([{ keyword: "hiking boots" }]),
+        serpCompetitors: emptyCompetitors,
+        searchIntent: emptyIntent,
+      },
     });
 
     expect(captured).toHaveLength(1);
@@ -118,11 +122,13 @@ describe("runOpportunityInputCapture", () => {
       keywords: ["  Hiking Boots  "],
       locationCode: 2840,
       now: NOW,
-      fetchOverview: overviewRows([
-        { keyword: "Hiking Boots", keyword_difficulty: 31 },
-      ]),
-      fetchCompetitors: emptyCompetitors,
-      fetchIntent: emptyIntent,
+      reads: {
+        keywordOverview: overviewRows([
+          { keyword: "Hiking Boots", keyword_difficulty: 31 },
+        ]),
+        serpCompetitors: emptyCompetitors,
+        searchIntent: emptyIntent,
+      },
     });
 
     expect(captured).toHaveLength(1);
@@ -141,13 +147,15 @@ describe("runOpportunityInputCapture", () => {
       keywords: ["a", "b", "c"],
       locationCode: 2840,
       now: NOW,
-      fetchOverview: overviewRows([
-        { keyword: "a", keyword_difficulty: 10 },
-        { keyword: "b", keyword_difficulty: 20 },
-        { keyword: "c", keyword_difficulty: 30 },
-      ]),
-      fetchCompetitors: competitorRows(someCompetitors),
-      fetchIntent: emptyIntent,
+      reads: {
+        keywordOverview: overviewRows([
+          { keyword: "a", keyword_difficulty: 10 },
+          { keyword: "b", keyword_difficulty: 20 },
+          { keyword: "c", keyword_difficulty: 30 },
+        ]),
+        serpCompetitors: competitorRows(someCompetitors),
+        searchIntent: emptyIntent,
+      },
     });
 
     expect(captured).toHaveLength(3);
@@ -164,13 +172,15 @@ describe("runOpportunityInputCapture", () => {
       keywords: ["a", "b", "c"],
       locationCode: 2840,
       now: NOW,
-      fetchOverview: overviewRows([
-        { keyword: "a", keyword_difficulty: 10 },
-        { keyword: "b", keyword_difficulty: 20 },
-        { keyword: "c" },
-      ]),
-      fetchCompetitors: competitorRows(someCompetitors),
-      fetchIntent: intentRows([{ keyword: "a", intent: "commercial" }]),
+      reads: {
+        keywordOverview: overviewRows([
+          { keyword: "a", keyword_difficulty: 10 },
+          { keyword: "b", keyword_difficulty: 20 },
+          { keyword: "c" },
+        ]),
+        serpCompetitors: competitorRows(someCompetitors),
+        searchIntent: intentRows([{ keyword: "a", intent: "commercial" }]),
+      },
     });
 
     expect(report.difficultyStored).toBe(2);
@@ -199,9 +209,11 @@ describe("runOpportunityInputCapture", () => {
       locationCode: 2840,
       now: NOW,
       budgetUsd: null,
-      fetchOverview: overview.wrapped,
-      fetchCompetitors: competitors.wrapped,
-      fetchIntent: intent.wrapped,
+      reads: {
+        keywordOverview: overview.wrapped,
+        serpCompetitors: competitors.wrapped,
+        searchIntent: intent.wrapped,
+      },
     });
 
     expect(overview.calls()).toBe(1);
@@ -230,9 +242,13 @@ describe("runOpportunityInputCapture", () => {
       // Room for the first two calls but not the third: after them the spend
       // is 2×UNIT and 1.5×UNIT is already exceeded, so the intent read stops.
       budgetUsd: UNIT * 1.5,
-      fetchOverview: overviewRows([{ keyword: "a", keyword_difficulty: 1 }]),
-      fetchCompetitors: competitorRows(someCompetitors),
-      fetchIntent: intent.wrapped,
+      reads: {
+        keywordOverview: overviewRows([
+          { keyword: "a", keyword_difficulty: 1 },
+        ]),
+        serpCompetitors: competitorRows(someCompetitors),
+        searchIntent: intent.wrapped,
+      },
     });
 
     expect(intent.calls()).toBe(0);
@@ -260,11 +276,13 @@ describe("runOpportunityInputCapture", () => {
       locationCode: 2840,
       now: NOW,
       budgetUsd: null,
-      fetchOverview: overviewRows(
-        many.map((keyword) => ({ keyword, keyword_difficulty: 20 })),
-      ),
-      fetchCompetitors: emptyCompetitors,
-      fetchIntent: emptyIntent,
+      reads: {
+        keywordOverview: overviewRows(
+          many.map((keyword) => ({ keyword, keyword_difficulty: 20 })),
+        ),
+        serpCompetitors: emptyCompetitors,
+        searchIntent: emptyIntent,
+      },
     });
 
     expect(captured).toHaveLength(PER_PROJECT_NIGHTLY_CAP.opportunityKeywords);
@@ -283,9 +301,11 @@ describe("runOpportunityInputCapture", () => {
       keywords: ["   ", ""],
       locationCode: 2840,
       now: NOW,
-      fetchOverview: overview.wrapped,
-      fetchCompetitors: competitors.wrapped,
-      fetchIntent: intent.wrapped,
+      reads: {
+        keywordOverview: overview.wrapped,
+        serpCompetitors: competitors.wrapped,
+        searchIntent: intent.wrapped,
+      },
     });
 
     expect(report.keywordsAsked).toBe(0);
@@ -319,12 +339,14 @@ describe("runOpportunityInputCapture", () => {
       locationCode: 2840,
       now: NOW,
       budgetUsd: null,
-      fetchOverview: overviewRows([
-        { keyword: "a", keyword_difficulty: 1 },
-        { keyword: "b", keyword_difficulty: 2 },
-      ]),
-      fetchCompetitors: emptyCompetitors,
-      fetchIntent: emptyIntent,
+      reads: {
+        keywordOverview: overviewRows([
+          { keyword: "a", keyword_difficulty: 1 },
+          { keyword: "b", keyword_difficulty: 2 },
+        ]),
+        serpCompetitors: emptyCompetitors,
+        searchIntent: emptyIntent,
+      },
     });
 
     expect(report.errors.join(" ")).toMatch(/locked/);
@@ -339,8 +361,8 @@ describe("runOpportunityInputCapture", () => {
     // *"A task carrying an unknown field is a billed rejection."* Intent is a
     // marketless endpoint, and this is the codebase's most-repeated mistake —
     // so the assertion is on the *arguments*, not merely on the result.
-    // Typed from the fetcher's own parameter, so the argument is captured
-    // without an assertion and the response matches the real envelope.
+    // Typed from the client method's own parameter, so the argument is captured
+    // without an assertion and the response matches the real payload.
     let seen: { keywords: string[]; tag?: string } | undefined;
     await runOpportunityInputCapture({
       projectId: "p1",
@@ -349,21 +371,20 @@ describe("runOpportunityInputCapture", () => {
       languageCode: "en",
       now: NOW,
       budgetUsd: null,
-      fetchOverview: overviewRows([{ keyword: "a" }]),
-      fetchCompetitors: emptyCompetitors,
-      fetchIntent: async (input: { keywords: string[]; tag?: string }) => {
-        seen = input;
-        return {
-          data: {
+      reads: {
+        keywordOverview: overviewRows([{ keyword: "a" }]),
+        serpCompetitors: emptyCompetitors,
+        searchIntent: async (input: { keywords: string[]; tag?: string }) => {
+          seen = input;
+          return {
             items: rows.map((row) => ({
               keyword: row.keyword,
               intent: row.intent,
               probability: 1,
               secondaryIntents: [],
             })),
-          },
-          billing: { path: ["search_intent"], costUsd: UNIT },
-        };
+          };
+        },
       },
     });
 
@@ -388,13 +409,15 @@ describe("runOpportunityInputCapture", () => {
       keywords: ["a", "b"],
       locationCode: 2840,
       now: NOW,
-      fetchOverview: overviewRows([
-        { keyword: "a", keyword_difficulty: 10 },
-        { keyword: "b", keyword_difficulty: 20 },
-        { keyword: "someone-elses-keyword", keyword_difficulty: 99 },
-      ]),
-      fetchCompetitors: emptyCompetitors,
-      fetchIntent: emptyIntent,
+      reads: {
+        keywordOverview: overviewRows([
+          { keyword: "a", keyword_difficulty: 10 },
+          { keyword: "b", keyword_difficulty: 20 },
+          { keyword: "someone-elses-keyword", keyword_difficulty: 99 },
+        ]),
+        serpCompetitors: emptyCompetitors,
+        searchIntent: emptyIntent,
+      },
     });
 
     const keywords = captured.map((row) => row.keyword);
@@ -414,9 +437,11 @@ describe("runOpportunityInputCapture", () => {
       locationCode: 2840,
       now: NOW,
       budgetUsd: null,
-      fetchOverview: emptyOverview,
-      fetchCompetitors: emptyCompetitors,
-      fetchIntent: emptyIntent,
+      reads: {
+        keywordOverview: emptyOverview,
+        serpCompetitors: emptyCompetitors,
+        searchIntent: emptyIntent,
+      },
     });
 
     expect(captured).toEqual([]);

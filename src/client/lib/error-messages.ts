@@ -26,6 +26,10 @@ const STANDARD_MESSAGES: Record<ErrorCode, string> = {
     "The connected DataForSEO account has a billing or balance issue.",
   DATAFORSEO_AUTH_FAILED:
     "DataForSEO rejected the API key. Check that DATAFORSEO_API_KEY is the base64 of your DataForSEO login:password.",
+  BILLING_MONTHLY_CAP_EXCEEDED:
+    "This account has reached its monthly spend cap. Raise it in billing settings or wait for next month.",
+  BILLING_CALLS_CLOSED:
+    "Billing for this account has been closed by the OpenGeo team. Contact support.",
   RATE_LIMITED: "Too many requests. Please wait and try again.",
   UPSTREAM_UNAVAILABLE:
     "The data provider is temporarily unavailable. Please retry in a moment.",

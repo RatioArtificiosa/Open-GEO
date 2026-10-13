@@ -26,6 +26,7 @@
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { at, first } from "@/shared/index-reads";
 
 const PANEL = "src/client/features/geo/EarnTheCitationPanel.tsx";
 const PAGE = "src/client/features/geo/GeoPage.tsx";
@@ -68,7 +69,11 @@ describe("hook ordering in the GEO panels", () => {
     expect(hookLines.length).toBeGreaterThan(0);
     expect(returnLines.length).toBeGreaterThan(1); // the error return, then the real one
     // The first return is the error branch. Every hook must be before it.
-    const firstReturn = returnLines[0];
+    const firstReturn = at(returnLines, 0, "the component returns");
+    // `at()` because the detector above refuses a source with no return, so the
+    // index is provably present — and `index > undefined` is always false, so a
+    // bare index would have passed every hook-order assertion vacuously. That is
+    // the exact bug this file exists to catch.
     expect(firstReturn).toBeGreaterThanOrEqual(0);
     const afterIt = hookLines.filter((index) => index > firstReturn);
     expect(
@@ -86,7 +91,7 @@ describe("hook ordering in the GEO panels", () => {
     // passing. That is the vacuity hole this very file warns about elsewhere,
     // reintroduced by trusting an index. With `noUncheckedIndexedAccess` this
     // would be a compile error; without it, it is a runtime coin toss.
-    const firstReturn = returnLines[0];
+    const firstReturn = at(returnLines, 0, "the component returns");
     expect(
       returnLines.length,
       "the GEO page has a return to compare against",
@@ -155,7 +160,7 @@ describe("hook ordering in the GEO panels", () => {
     ].join("\n");
 
     const { hookLines, returnLines } = hookOrder(defect);
-    const firstReturn = returnLines[0];
+    const firstReturn = at(returnLines, 0, "the component returns");
     const conditional = hookLines.filter((index) => index > firstReturn);
 
     // One hook sits after the early return — the one that makes the hook count
@@ -185,7 +190,12 @@ describe("hook ordering in the GEO panels", () => {
     ].join("\n");
     const cleanOrder = hookOrder(clean);
     const cleanConditional = cleanOrder.hookLines.filter(
-      (index) => index > cleanOrder.returnLines[0],
+      (index) =>
+        index >
+        first(
+          cleanOrder.returnLines,
+          "the row under test (cleanOrder.returnLines)",
+        ),
     );
     expect(cleanConditional).toEqual([]);
   });

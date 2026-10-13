@@ -4,6 +4,7 @@ import { z } from "zod";
 import { instrumentMcpToolHandler } from "./instrumentation";
 import { type ToolAuthContext, type ToolContext } from "@/server/mcp/context";
 import { AppError } from "@/server/lib/errors";
+import { first } from "@/shared/index-reads";
 
 const mocks = vi.hoisted(() => ({
   captureServerError: vi.fn(),
@@ -82,7 +83,12 @@ describe("instrumentMcpToolHandler", () => {
     await wrapped({}, toolContext);
 
     expect(mocks.captureServerError).toHaveBeenCalledTimes(1);
-    expect(mocks.captureServerError.mock.calls[0][1]).toMatchObject({
+    expect(
+      first(
+        mocks.captureServerError.mock.calls,
+        "the row under test (mocks.captureServerError.mock.calls)",
+      )[1],
+    ).toMatchObject({
       errorCode: "MCP_OUTPUT_VALIDATION",
       tool: "demo",
     });
@@ -96,8 +102,18 @@ describe("instrumentMcpToolHandler", () => {
 
     await expect(wrapped({}, toolContext)).rejects.toThrow("upstream exploded");
     expect(mocks.captureServerError).toHaveBeenCalledTimes(1);
-    expect(mocks.captureServerError.mock.calls[0][0]).toBe(boom);
-    expect(mocks.captureServerError.mock.calls[0][2]).toBe("user-1");
+    expect(
+      first(
+        mocks.captureServerError.mock.calls,
+        "the row under test (mocks.captureServerError.mock.calls)",
+      )[0],
+    ).toBe(boom);
+    expect(
+      first(
+        mocks.captureServerError.mock.calls,
+        "the row under test (mocks.captureServerError.mock.calls)",
+      )[2],
+    ).toBe("user-1");
   });
 
   it("rethrows expected errors without reporting them", async () => {
@@ -118,7 +134,12 @@ describe("instrumentMcpToolHandler", () => {
 
     expect(mocks.captureServerEvent).toHaveBeenCalledTimes(1);
     expect(mocks.incrementSelfHostMcpToolCallCount).toHaveBeenCalledTimes(1);
-    expect(mocks.captureServerEvent.mock.calls[0][0]).toMatchObject({
+    expect(
+      first(
+        mocks.captureServerEvent.mock.calls,
+        "the row under test (mocks.captureServerEvent.mock.calls)",
+      )[0],
+    ).toMatchObject({
       distinctId: "user-1",
       event: "mcp:tool_call",
       organizationId: "org-1",
@@ -138,7 +159,12 @@ describe("instrumentMcpToolHandler", () => {
 
     await wrapped({}, toolContext);
 
-    expect(mocks.captureServerEvent.mock.calls[0][0]).toMatchObject({
+    expect(
+      first(
+        mocks.captureServerEvent.mock.calls,
+        "the row under test (mocks.captureServerEvent.mock.calls)",
+      )[0],
+    ).toMatchObject({
       event: "mcp:tool_call",
       properties: { success: false, error_code: "MCP_OUTPUT_VALIDATION" },
     });
@@ -155,7 +181,12 @@ describe("instrumentMcpToolHandler", () => {
 
     await wrapped({}, toolContext);
 
-    expect(mocks.captureServerEvent.mock.calls[0][0]).toMatchObject({
+    expect(
+      first(
+        mocks.captureServerEvent.mock.calls,
+        "the row under test (mocks.captureServerEvent.mock.calls)",
+      )[0],
+    ).toMatchObject({
       event: "mcp:tool_call",
       properties: { success: false, error_code: "ga4_not_connected" },
     });
@@ -173,7 +204,12 @@ describe("instrumentMcpToolHandler", () => {
 
     await wrapped({}, toolContext);
 
-    expect(mocks.captureServerEvent.mock.calls[0][0]).toMatchObject({
+    expect(
+      first(
+        mocks.captureServerEvent.mock.calls,
+        "the row under test (mocks.captureServerEvent.mock.calls)",
+      )[0],
+    ).toMatchObject({
       event: "mcp:tool_call",
       properties: { success: false, error_code: "audit_not_ready" },
     });
@@ -187,7 +223,12 @@ describe("instrumentMcpToolHandler", () => {
 
     await expect(wrapped({}, toolContext)).rejects.toThrow("NOT_FOUND");
 
-    expect(mocks.captureServerEvent.mock.calls[0][0]).toMatchObject({
+    expect(
+      first(
+        mocks.captureServerEvent.mock.calls,
+        "the row under test (mocks.captureServerEvent.mock.calls)",
+      )[0],
+    ).toMatchObject({
       event: "mcp:tool_call",
       properties: { success: false, error_code: "NOT_FOUND" },
     });

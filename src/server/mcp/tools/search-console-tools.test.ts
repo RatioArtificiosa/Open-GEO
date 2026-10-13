@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GscApiError, GscNotConnectedError } from "@/server/lib/gscErrors";
 import * as searchConsoleTools from "./search-console-tools";
 import { makeToolContext } from "./tool-test-support";
+import { first } from "@/shared/index-reads";
 
 const mocks = vi.hoisted(() => ({
   getProjectForOrganization: vi.fn(),
@@ -178,9 +179,15 @@ describe("search console MCP tools", () => {
       ok: false,
       reason: "not_connected",
     });
-    const first = result.content[0];
-    expect(first.type).toBe("text");
-    expect(first.type === "text" && first.text).toContain(
+    // A tool result always answers with at least one content block; `first()` rather
+    // than `[0]`, so an empty result fails with the message instead of a TypeError
+    // on `.type`.
+    const firstBlock = first(
+      result.content,
+      "the tool result's content blocks",
+    );
+    expect(firstBlock.type).toBe("text");
+    expect(firstBlock.type === "text" && firstBlock.text).toContain(
       "/p/project_1/search-performance",
     );
   });
@@ -200,8 +207,14 @@ describe("search console MCP tools", () => {
       ok: false,
       reason: "api_error",
     });
-    const first = result.content[0];
-    expect(first.type === "text" && first.text).toContain(
+    // A tool result always answers with at least one content block; `first()` rather
+    // than `[0]`, so an empty result fails with the message instead of a TypeError
+    // on `.type`.
+    const firstBlock = first(
+      result.content,
+      "the tool result's content blocks",
+    );
+    expect(firstBlock.type === "text" && firstBlock.text).toContain(
       "/p/project_1/search-performance",
     );
   });
@@ -315,9 +328,15 @@ describe("search console MCP tools", () => {
       ok: true,
       siteUrl: "sc-domain:example.com",
     });
-    const first = result.content[0];
-    expect(first.type === "text" && first.text).toContain("PASS");
-    expect(first.type === "text" && first.text).toContain("error:");
+    // A tool result always answers with at least one content block; `first()` rather
+    // than `[0]`, so an empty result fails with the message instead of a TypeError
+    // on `.type`.
+    const firstBlock = first(
+      result.content,
+      "the tool result's content blocks",
+    );
+    expect(firstBlock.type === "text" && firstBlock.text).toContain("PASS");
+    expect(firstBlock.type === "text" && firstBlock.text).toContain("error:");
   });
 
   it("surfaces a not-connected message from inspect_urls", async () => {

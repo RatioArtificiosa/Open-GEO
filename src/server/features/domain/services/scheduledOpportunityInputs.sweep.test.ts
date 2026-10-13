@@ -19,7 +19,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { runDueOpportunityInputCaptures } from "./scheduledOpportunityInputs";
 import { DFS_LABS } from "@/shared/dataforseo-pricing";
-import { etvFields, unverifiedEtvProvenance } from "@/shared/etv-versioning";
 import {
   NIGHTLY_BUDGET_USD,
   NIGHTLY_PROJECT_SWEEP_LIMIT,
@@ -51,14 +50,29 @@ describe("runDueOpportunityInputCaptures", () => {
    * not the claim being made.
    */
   const doubles = {
-    fetchOverview: overviewRows(
-      Array.from(
-        { length: PER_PROJECT_NIGHTLY_CAP.opportunityKeywords },
-        (_, i) => ({ keyword: `kw-${i}`, keyword_difficulty: 31 }),
+    reads: {
+      keywordOverview: overviewRows(
+        Array.from(
+          { length: PER_PROJECT_NIGHTLY_CAP.opportunityKeywords },
+          (_, i) => ({ keyword: `kw-${i}`, keyword_difficulty: 31 }),
+        ),
       ),
-    ),
-    fetchCompetitors: competitorRows(someCompetitors),
-    fetchIntent: intentRows([{ keyword: "kw-0", intent: "commercial" }]),
+      serpCompetitors: competitorRows(someCompetitors),
+      searchIntent: intentRows([{ keyword: "kw-0", intent: "commercial" }]),
+    },
+    /**
+     * Every tracked keyword belongs to one org, including the p0..p26 the sweep
+     * limit test generates.
+     *
+     * The sweep resolves the org per project, because the metered client's
+     * credit gate needs a customer and a capture with no billing context is the
+     * spend CL-202 was. Injected for the same reason the reads are: it reaches
+     * `@/db`. The test that names the failure case injects its own empty map.
+     */
+    fetchOrgs: async (projectIds: string[]) =>
+      new Map(
+        projectIds.map((projectId, index) => [projectId, `org_${index + 1}`]),
+      ),
   };
 
   it("groups by (project, market) rather than collapsing to one market", async () => {
@@ -119,38 +133,27 @@ describe("runDueOpportunityInputCaptures", () => {
     const report = await runDueOpportunityInputCaptures({
       trackedKeywords: rows,
       now: NOW,
-      fetchOverview: async ({ keywords }: { keywords: string[] }) => {
-        // The first project's vendor read fails outright; the second must still
-        // be captured. A double that merely returned `[]` would have made this
-        // test pass for the wrong reason — no failure, and no error to report.
-        if (keywords[0] === "kw-0") {
-          throw new Error("upstream timeout");
-        }
-        return {
-          data: [
+      ...doubles,
+      reads: {
+        keywordOverview: async ({ keywords }: { keywords: string[] }) => {
+          // The first project's vendor read fails outright; the second must
+          // still be captured. A double that merely returned `[]` would have
+          // made this test pass for the wrong reason — no failure, and no
+          // error to report.
+          if (keywords[0] === "kw-0") {
+            throw new Error("upstream timeout");
+          }
+          // The client unwraps `.data`, so a double returns the rows themselves.
+          return [
             {
               keyword: "kw-1",
               keyword_properties: { keyword_difficulty: 5 },
             },
-          ],
-          billing: {
-            path: ["/v3/dataforseo_labs/google/keyword_overview/live"],
-            costUsd: UNIT,
-          },
-          // keyword_overview is not on the vendor's confirmed list for the flag,
-          // so the stub returns unverifiable provenance, exactly like the real one.
-          etv: unverifiedEtvProvenance("keyword_overview"),
-        };
+          ];
+        },
+        serpCompetitors: async () => [],
+        searchIntent: async () => ({ items: [] }),
       },
-      fetchCompetitors: async () => ({
-        data: [],
-        billing: { path: ["serp_competitors"], costUsd: UNIT },
-        etv: etvFields("serp_competitors"),
-      }),
-      fetchIntent: async () => ({
-        data: { items: [] },
-        billing: { path: ["search_intent"], costUsd: UNIT },
-      }),
     });
 
     expect(report.errors.length).toBeGreaterThan(0);
@@ -190,6 +193,34 @@ describe("runDueOpportunityInputCaptures", () => {
     expect(report.callsMade).toBe(0);
     expect(report.costUsd).toBe(0);
     expect(captured).toEqual([]);
+  });
+
+  it("skips a project with no organization, and counts the skip", async () => {
+    // The sweep used to have no org lookup at all, so a project could be
+    // captured against a customer that does not exist. A capture with no
+    // billing context is the spend CL-202 was, so the group is skipped and the
+    // skip is named — a night that silently stops measuring one project reads
+    // as a project that measured nothing.
+    const captured = captureWrites();
+    const rows = [
+      keywordRow("kw-0", { projectId: "p1" }),
+      keywordRow("kw-1", { projectId: "p9" }),
+    ];
+
+    const report = await runDueOpportunityInputCaptures({
+      trackedKeywords: rows,
+      now: NOW,
+      ...doubles,
+      fetchOrgs: async (projectIds: string[]) =>
+        new Map(
+          projectIds
+            .filter((projectId) => projectId !== "p9")
+            .map((projectId) => [projectId, "org_1"] as const),
+        ),
+    });
+
+    expect(report.skippedNoOrganization).toBe(1);
+    expect(captured.map((row) => row.projectId)).toEqual(["p1"]);
   });
 });
 

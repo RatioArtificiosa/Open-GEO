@@ -32,6 +32,7 @@ import { and, eq } from "drizzle-orm";
 import * as appSchema from "../src/db/app.schema";
 import { organization, user } from "../src/db/better-auth-schema";
 import { parseArgs } from "./cli-utils";
+import { at } from "@/shared/index-reads";
 
 const schema = { ...appSchema, organization, user };
 
@@ -76,7 +77,16 @@ async function main() {
     const keywords = KEYWORDS.slice(0, keywordCount);
     const runDates = buildRunDates(runs);
     const configId = crypto.randomUUID();
-    const newest = runDates[runDates.length - 1];
+    // **`at()` rather than `[length - 1]`.** `buildRunDates` returns one entry per
+    // requested run and `runs` is validated above, so the last index is present;
+    // the compiler types the read as possibly-undefined and `dbTimestamp` then
+    // produced `undefined` for a timestamp column on a single-run seed. Named
+    // instead of asserted.
+    const newest = at(
+      runDates,
+      runDates.length - 1,
+      "the run dates a seed built",
+    );
 
     await db.insert(schema.rankTrackingConfigs).values({
       id: configId,
@@ -89,7 +99,10 @@ async function main() {
       scheduleInterval: "weekly",
       isActive: true,
       lastCheckedAt: dbTimestamp(newest),
-      createdAt: dbTimestamp(runDates[0]),
+      // `at()` rather than `runDates[0]`: a `buildRunDates(runs)` run always has at
+      // least one date, and an undefined creation timestamp would make the seeded
+      // config look older than every check it holds.
+      createdAt: dbTimestamp(at(runDates, 0, "the seeded run dates")),
     });
 
     const keywordRows = keywords.map((k) => ({
@@ -128,7 +141,12 @@ async function main() {
     const snapshotValues: (typeof schema.rankSnapshots.$inferInsert)[] = [];
     runRows.forEach((run, runIndex) => {
       keywordRows.forEach((kw, kwIndex) => {
-        const profile = KEYWORDS[kwIndex].profile;
+        // `keywordRows` is built by mapping over `keywords`, which is a
+        // `KEYWORDS.slice(0, keywordCount)` — so the two arrays are the same length
+        // and the index is provably present. `at()` rather than a bare index: an
+        // undefined profile makes every rank below it a random walk, and the seeded
+        // data would look plausible while being unanchored.
+        const profile = at(KEYWORDS, kwIndex, "the seeded keywords").profile;
         const rng = makeRng(kwIndex * 1000 + runIndex);
         const desktopRank = rankFor(profile, runIndex, runs, rng);
         const mobileRank =
@@ -164,7 +182,9 @@ async function main() {
       `Inserted ${runRows.length} runs and ${snapshotValues.length} snapshots.`,
     );
 
-    const start = runDates[0].toISOString().slice(0, 10);
+    const start = at(runDates, 0, "the seeded run dates")
+      .toISOString()
+      .slice(0, 10);
     const end = newest.toISOString().slice(0, 10);
     console.log(
       `\nDone. Seeded "${domain}" — ${keywordRows.length} keywords, ${runs} weekly checks (${start} → ${end}), desktop + mobile.`,

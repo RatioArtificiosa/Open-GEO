@@ -1,3 +1,4 @@
+import { at } from "@/shared/index-reads";
 /**
  * Domain normalisation for the GEO feature.
  *
@@ -10,11 +11,15 @@
  * own target, distinct from `"acme.com"`.
  */
 export function normaliseDomain(input: string): string {
-  return input
+  // `split"/"` on a non-empty separator always yields at least one element, so
+  // the host part is provably present. `at()` rather than `[0]`: an empty result
+  // would have keyed a target on "", so two projects would collide on one row
+  // and a domain lookup would return the wrong numbers.
+  const segments = input
     .trim()
     .toLowerCase()
     .replace(/^https?:\/\//, "")
     .replace(/^www\./, "")
-    .split("/")[0]
-    .trim();
+    .split("/");
+  return at(segments, 0, "a url host segment").trim();
 }

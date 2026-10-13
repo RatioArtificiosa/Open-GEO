@@ -14,6 +14,7 @@ import { AppError } from "@/server/lib/errors";
 import type { RankTrackingConfig } from "@/types/schemas/rank-tracking";
 import { KEYWORDS_PER_BATCH } from "@/shared/rank-tracking";
 import { pgStep } from "@/server/workflows/pgStep";
+import { at } from "@/shared/index-reads";
 
 const SINGLE_ATTEMPT_STEP_CONFIG = {
   retries: { limit: 0, delay: "1 second" as const },
@@ -116,11 +117,16 @@ async function checkBatchLive(
     const code = reason instanceof AppError ? reason.code : "UNKNOWN";
     const message = reason instanceof Error ? reason.message : String(reason);
     firstError ??= message;
+    // **`at()` rather than `tasks[index]`.** `settled` is `Promise.allSettled`
+    // over exactly `tasks`, so the pairing holds by construction. Without it the
+    // task read as possibly-undefined, and this log line indexes `task.keyword`
+    // and `task.device` on the rejection path — the one path where the useful
+    // information is *which* keyword and device failed.
+    const task = at(tasks, index, "the live rank-check batch");
     // DataForSEO erring on its own side is a provider flake, not our bug: the
     // keyword just misses this run and finalize reports it to the user. Every
     // other rejection (no credits, bad API key) is ours and stays at error.
     const log = code === "UPSTREAM_UNAVAILABLE" ? console.warn : console.error;
-    const task = tasks[index];
     log(
       `[rank-check] ${ctx.runId} live call failed (${code}) keyword="${task.keyword}" device=${task.device}: ${message}`,
     );
@@ -232,7 +238,15 @@ async function collectQueuedRound(
       ),
     );
     settled.forEach((result, index) => {
-      const task = chunk[index];
+      // **`at()` rather than `chunk[index]`.** `settled` is
+      // `Promise.allSettled` over exactly `chunk`, so the two arrays have the same
+      // length and every index pairs a result with its own task. The compiler
+      // cannot see the pairing, and without the narrowing the task reads as
+      // possibly-undefined — which is how the earlier version pushed
+      // `undefined` into `stillPending` on the pending branch and then indexed
+      // `task.taskId` on the failed branch. A task whose row cannot be read is
+      // not a task to re-queue.
+      const task = at(chunk, index, "the rank-check batch being collected");
       if (result.status === "rejected") {
         // Transient fetch failure — try again next round.
         console.warn(
@@ -359,7 +373,16 @@ export async function runQueuedCheck(
     round < QUEUED_POLL_INTERVALS.length && pending.length > 0;
     round++
   ) {
-    await step.sleep(`wait-${round}`, QUEUED_POLL_INTERVALS[round]);
+    // **`at()` rather than `QUEUED_POLL_INTERVALS[round]`.** The loop bound is
+    // the array's own length, so every round has an interval; without the
+    // narrowing the value read as possibly-undefined and `step.sleep` rejected
+    // the whole workflow step — a poll that cannot schedule itself because the
+    // compiler could not prove its own loop bound. The `as const` makes the
+    // element type a literal union, which is what `WorkflowSleepDuration` wants.
+    await step.sleep(
+      `wait-${round}`,
+      at(QUEUED_POLL_INTERVALS, round, "the queued poll schedule"),
+    );
 
     // Cap task_gets per round so one collect step stays well inside the
     // per-invocation subrequest limit at the 1000-keyword config ceiling.

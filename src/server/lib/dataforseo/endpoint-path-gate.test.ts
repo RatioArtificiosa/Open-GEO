@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { sortBy } from "remeda";
 import { describe, expect, it } from "vitest";
+import { at } from "@/shared/index-reads";
 
 /**
  * Every DataForSEO client's endpoint path is asserted by its own test.
@@ -82,7 +83,11 @@ function detectPaths(source: string): string[] {
   const found = [
     ...code.matchAll(/["'`](\/v3\/[a-z0-9_\-/]+)["'`]/g),
     ...code.matchAll(/["'`](\/ai_optimization\/[a-z0-9_\-/]+)["'`]/g),
-  ].map((m) => m[1]);
+    // The endpoint regexes each carry one capture group, so the group participates
+    // for every match. `at()` rather than `[1]`: an undefined path would make every
+    // `includes` check below false, so an unpinned endpoint would be reported as
+    // absent rather than as leaking.
+  ].map((m) => at(m, 1, "an endpoint-path capture"));
 
   // **Deduplicated**, because `assertOk(response, assertOptions(PATH))` repeats the path that
   // `dataforseoPost(PATH, …)` already declared — and a gate reporting the same path twice

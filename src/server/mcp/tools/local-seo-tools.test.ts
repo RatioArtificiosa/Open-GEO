@@ -1,6 +1,7 @@
 /* eslint-disable max-lines -- every local-SEO tool is covered in this one spec, matching local-seo-tools.ts */
 import { sort } from "remeda";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { AppError } from "@/server/lib/errors";
 import {
   getBusinessProfileTool,
@@ -62,11 +63,42 @@ beforeEach(() => {
   mocks.getReferenceCached.mockResolvedValue(null);
 });
 
+/** The one field the grid tests read from a point row. */
+const gridSchema = z.object({
+  grid: z.array(
+    z.object({
+      rank: z.number().nullable(),
+      resultsCount: z.number(),
+      topResult: z.object({ title: z.string(), cid: z.string() }).nullable(),
+    }),
+  ),
+});
+
+/**
+ * A result that ran rather than previewed.
+ *
+ * Narrowed with `z.parse`, the repo's idiom at a trust boundary, rather than a
+ * type assertion: an `as` would compile a wrong read and pass it, while a parse
+ * fails on a shape that is not there. The `dryRun` branch is what makes the
+ * handler's return a union at all — a preview genuinely has no `profile` — so
+ * this reads the discriminated member rather than trusting it.
+ */
+function ranResult(result: {
+  structuredContent: Record<string, unknown>;
+}): Record<string, unknown> {
+  return z.record(z.string(), z.unknown()).parse(result.structuredContent);
+}
+
 describe("get_business_profile", () => {
   it("rejects anything other than exactly one business identifier", async () => {
     await expect(
       getBusinessProfileTool.handler(
-        { projectId: "project_1", businessName: "Acme Cafe", cid: "123" },
+        {
+          dry_run: false,
+          projectId: "project_1",
+          businessName: "Acme Cafe",
+          cid: "123",
+        },
         toolContext,
       ),
     ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
@@ -89,6 +121,7 @@ describe("get_business_profile", () => {
 
     const result = await getBusinessProfileTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         cid: "123",
         near: { latitude: 33.123456789, longitude: -84.987654321, radiusKm: 5 },
@@ -115,7 +148,7 @@ describe("get_business_profile", () => {
     });
 
     const result = await getBusinessProfileTool.handler(
-      { projectId: "project_1", businessName: "Acme Cafe" },
+      { dry_run: false, projectId: "project_1", businessName: "Acme Cafe" },
       toolContext,
     );
 
@@ -125,7 +158,7 @@ describe("get_business_profile", () => {
       locationCode: 2840,
       languageCode: "en",
     });
-    expect(result.structuredContent.profile).toBeNull();
+    expect(ranResult(result).profile).toBeNull();
   });
 });
 
@@ -146,7 +179,7 @@ describe("get_business_reviews", () => {
     });
 
     const pending = getBusinessReviewsTool.handler(
-      { projectId: "project_1", cid: "123" },
+      { dry_run: false, projectId: "project_1", cid: "123" },
       toolContext,
     );
     await vi.runAllTimersAsync();
@@ -177,7 +210,7 @@ describe("get_business_reviews", () => {
     );
 
     const failing = getBusinessReviewsTool.handler(
-      { projectId: "project_1", cid: "123" },
+      { dry_run: false, projectId: "project_1", cid: "123" },
       toolContext,
     );
     await expect(failing).rejects.toMatchObject({
@@ -209,7 +242,7 @@ describe("get_business_reviews", () => {
     });
 
     const result = await getBusinessReviewsTool.handler(
-      { projectId: "project_1", taskId: "extended:task-9" },
+      { dry_run: false, projectId: "project_1", taskId: "extended:task-9" },
       toolContext,
     );
 
@@ -232,7 +265,7 @@ describe("get_business_reviews", () => {
   it("rejects a taskId that did not come from this tool", async () => {
     await expect(
       getBusinessReviewsTool.handler(
-        { projectId: "project_1", taskId: "task-9" },
+        { dry_run: false, projectId: "project_1", taskId: "task-9" },
         toolContext,
       ),
     ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
@@ -250,6 +283,7 @@ describe("get_local_rank_grid", () => {
 
     await getLocalRankGridTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         keyword: "coffee",
         target: { cid: "123" },
@@ -296,6 +330,7 @@ describe("get_local_rank_grid", () => {
 
     const result = await getLocalRankGridTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         keyword: "coffee",
         target: { cid: "123" },
@@ -324,6 +359,7 @@ describe("get_local_rank_grid", () => {
 
     const result = await getLocalRankGridTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         keyword: "coffee",
         target: { cid: "123" },
@@ -333,7 +369,7 @@ describe("get_local_rank_grid", () => {
     );
 
     // The target is absent, but the point still says how contested it was.
-    expect(result.structuredContent.grid[0]).toMatchObject({
+    expect(gridSchema.parse(ranResult(result)).grid[0]).toMatchObject({
       rank: null,
       resultsCount: 1,
       topResult: { title: "Other Cafe", cid: "999" },
@@ -349,6 +385,7 @@ describe("get_local_rank_grid", () => {
     await expect(
       getLocalRankGridTool.handler(
         {
+          dry_run: false,
           projectId: "project_1",
           keyword: "coffee",
           target: { cid: "123" },
@@ -369,6 +406,7 @@ describe("get_local_rank_grid", () => {
 
     const result = await getLocalRankGridTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         keyword: "coffee",
         target: { name: "acme cafe" },
@@ -377,7 +415,7 @@ describe("get_local_rank_grid", () => {
       toolContext,
     );
 
-    expect(result.structuredContent.summary).toMatchObject({
+    expect(ranResult(result).summary).toMatchObject({
       pointsFound: 9,
       averageRank: 4,
     });
@@ -395,6 +433,7 @@ describe("get_local_rank_grid", () => {
 
     const result = await getLocalRankGridTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         keyword: "coffee",
         target: { cid: "123" },
@@ -403,7 +442,7 @@ describe("get_local_rank_grid", () => {
       toolContext,
     );
 
-    expect(result.structuredContent.summary).toMatchObject({
+    expect(ranResult(result).summary).toMatchObject({
       pointsSearched: 9,
       pointsFound: 8,
     });
@@ -417,6 +456,7 @@ describe("get_local_rank_grid", () => {
     await expect(
       getLocalRankGridTool.handler(
         {
+          dry_run: false,
           projectId: "project_1",
           keyword: "coffee",
           target: { cid: "123" },

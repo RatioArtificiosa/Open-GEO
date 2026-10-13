@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeToolContext } from "@/server/mcp/tools/tool-test-support";
+import { first } from "@/shared/index-reads";
 
 const mocks = vi.hoisted(() => ({
   getProjectForOrganization: vi.fn(),
@@ -157,7 +158,10 @@ describe("withMcpProjectAuth with a user-scoped credential", () => {
 
     expect(mocks.getMembership).toHaveBeenCalledWith("user_123", "org_other");
     expect(mocks.getProjectForOrganization).not.toHaveBeenCalled();
-    const [, context] = handler.mock.calls[0];
+    const [, context] = first(
+      handler.mock.calls,
+      "the row under test (handler.mock.calls)",
+    );
     expect(context.auth.organizationId).toBe("org_other");
     expect(context.auth.role).toBe("admin");
     expect(context.billing.organizationId).toBe("org_other");

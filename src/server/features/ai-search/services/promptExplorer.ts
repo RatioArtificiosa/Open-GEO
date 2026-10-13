@@ -18,6 +18,7 @@ import {
   type PromptExplorerModelResult,
   type PromptExplorerResult,
 } from "@/types/schemas/ai-search";
+import { at, firstChar, lastChar } from "@/shared/index-reads";
 
 /**
  * Prompt Explorer asks one prompt across one-to-four LLM models and renders
@@ -68,7 +69,13 @@ export async function explorePrompt(
 
   const results: PromptExplorerModelResult[] = settled.map(
     (settledResult, index) => {
-      const model = uniqueModels[index];
+      // **`at()` rather than `uniqueModels[index]`.** `settled` is
+      // `Promise.allSettled` over exactly `uniqueModels`, so the index pairs each
+      // result with its own model. Without it the model read as possibly-undefined
+      // and `mapErrorToResult` would have reported an error result for a model that
+      // was never asked — a failure attributed to the wrong platform, which is the
+      // one thing this tool's output must never do.
+      const model = at(uniqueModels, index, "the models that were asked");
       if (settledResult.status === "fulfilled") return settledResult.value;
       return mapErrorToResult(model, settledResult.reason);
     },
@@ -283,8 +290,19 @@ function mentionRegex(brand: string): RegExp {
   // is non-word we guard with a negative lookaround against that same char so
   // "C++" doesn't match "C+++".
   const escaped = brand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const firstEscaped = brand[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const lastEscaped = brand[brand.length - 1].replace(
+  // Both ends of the brand are escaped for the boundary regexes below, and
+  // `brand` is validated non-empty by the caller's schema. `firstChar` /
+  // `lastChar` rather than `brand[0]` / `brand[brand.length - 1]`, which are
+  // `string | undefined` under `noUncheckedIndexedAccess` — and escaping
+  // `undefined` builds a regex that matches every mention, a false positive
+  // for the product's headline number. (The `at([brand], …)` form this
+  // replaced was worse: `at([brand], brand.length - 1, …)` read past the end
+  // of a one-element array for every brand of two or more characters.)
+  const firstEscaped = firstChar(brand, "the brand being matched").replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&",
+  );
+  const lastEscaped = lastChar(brand, "the brand being matched").replace(
     /[.*+?^${}()|[\]\\]/g,
     "\\$&",
   );

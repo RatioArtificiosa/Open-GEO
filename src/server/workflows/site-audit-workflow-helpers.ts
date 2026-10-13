@@ -4,6 +4,7 @@ import { sha256Hex } from "@/server/lib/audit/ids";
 import { normalizeUrl } from "@/server/lib/audit/url-utils";
 import { assertCrawlableTarget } from "@/server/lib/audit/url-policy";
 import type { CrawlThrottle } from "@/server/lib/audit/crawl-throttle";
+import { at } from "@/shared/index-reads";
 
 const CRAWL_USER_AGENT = "OpenGeo-Audit/1.0";
 const MAX_HTML_BYTES = 1024 * 1024;
@@ -50,8 +51,16 @@ function parseLinkHeaderCanonical(
   for (const part of linkHeader.split(",")) {
     const match = part.match(/<([^>]+)>\s*;([^]*)/);
     if (!match) continue;
-    if (/rel\s*=\s*"?canonical"?/i.test(match[2])) {
-      return normalizeUrl(match[1].trim(), pageUrl);
+    if (
+      /rel\s*=\s*"?canonical"?/i.test(
+        at(match, 2, "the row under test (match)"),
+      )
+    ) {
+      // The `<...>` regex has exactly one capture group, so a match always
+      // carries it. `at()` rather than `match[1]`: `trim()` on undefined throws a
+      // TypeError, which would have surfaced as a failed worker rather than as a
+      // page with no canonical link.
+      return normalizeUrl(at(match, 1, "a Link header value").trim(), pageUrl);
     }
   }
   return null;

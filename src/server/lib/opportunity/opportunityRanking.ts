@@ -1,3 +1,4 @@
+import { at, first } from "@/shared/index-reads";
 import { opportunityScore, type OpportunityInputs } from "./opportunityScore";
 
 /**
@@ -189,7 +190,13 @@ export function rankContentOpportunities(input: {
     // The most recent measurement carries the reported score. Older ones set
     // the band, so an archive is used and the newest reading is not reweighted
     // by the noise behind it.
-    const newest = measurements[0];
+    //
+    // **`first()` rather than `[0]`**, because the guard above proves the array
+    // is non-empty and the compiler cannot. The alternative was a `!` that
+    // asserted nothing, or `measurements[0]` typed as possibly-undefined and then
+    // passed to a function that requires a measurement — which is what
+    // `noUncheckedIndexedAccess` surfaced here.
+    const newest = first(measurements, `opportunity band for "${keyword}"`);
     const score = opportunityScore(toInputs(newest)).score;
 
     let band: { low: number; high: number };
@@ -210,8 +217,17 @@ export function rankContentOpportunities(input: {
         // The map's value is deliberately unused: only the length matters, so the
         // parameter is prefixed with the underscore the linter asks for rather
         // than being taken as dead code.
-        const sample = measurements.map(
-          () => measurements[Math.floor(random() * measurements.length)],
+        //
+        // **`at()` and not `[i]`**, because `Math.floor(random() * length)` is in
+        // range but the compiler types the read as possibly-undefined and the
+        // resample then flows into `toInputs`, which requires a measurement. The
+        // index is provably present; this is the form that says so without a `!`.
+        const sample = measurements.map(() =>
+          at(
+            measurements,
+            Math.floor(random() * measurements.length),
+            `opportunity resample for "${keyword}"`,
+          ),
         );
         // Resample, then rescore: each resample is a plausible "what the
         // measurements could have been" and the score is recomputed from it,

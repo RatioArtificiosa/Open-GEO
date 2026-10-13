@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { sortBy } from "remeda";
+import { at } from "@/shared/index-reads";
 
 /**
  * Repository tests build a database by naming migration files.
@@ -27,7 +28,12 @@ import { sortBy } from "remeda";
 export function migrationsNamedIn(source: string): string[] {
   return [
     ...source.matchAll(/readFileSync\(\s*"drizzle\/(\d{4}_[^"]+)\.sql"/g),
-  ].map((match) => match[1]);
+    // `matchAll` groups participate when the regex carries one group, so the read
+    // is provably present. `at()` rather than `[1]`: an undefined entry in a
+    // declared `string[]` is a type error now and a silent wrong answer later —
+    // every `includes` against it would be false, so the coverage ledger would
+    // report a migration as unnamed rather than as missing.
+  ].map((match) => at(match, 1, "a migration-filename capture"));
 }
 
 /**
@@ -44,14 +50,25 @@ export function migrationsNamedIn(source: string): string[] {
 export function tablesAlteredBy(migrationSql: string): string[] {
   return [
     ...new Set(
-      [...migrationSql.matchAll(/ALTER TABLE\s+`?(\w+)`?/g)].map((m) => m[1]),
+      // Same reasoning as `migrationsNamedIn`: the capture group participates, so
+      // `at()` names the read. An undefined table name would make every harness
+      // that writes to it look unaltered.
+      [...migrationSql.matchAll(/ALTER TABLE\s+`?(\w+)`?/g)].map((m) =>
+        at(m, 1, "an ALTER TABLE name capture"),
+      ),
     ),
   ];
 }
 
 /** Tables a harness writes to, which is where it needs columns from. */
 export function tablesWrittenBy(source: string): string[] {
-  return [...new Set([...source.matchAll(/INTO\s+(\w+)/g)].map((m) => m[1]))];
+  return [
+    ...new Set(
+      [...source.matchAll(/INTO\s+(\w+)/g)].map((m) =>
+        at(m, 1, "the row under test (m)"),
+      ),
+    ),
+  ];
 }
 
 /** Every migration the repository has, oldest first. */

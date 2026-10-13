@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import * as pricing from "@/shared/dataforseo-pricing";
+import { at } from "@/shared/index-reads";
 
 /**
  * Price-drift watch: a stale price book must fail CI, not cost money quietly.
@@ -88,7 +89,11 @@ function parseHeaderDates(): Map<string, string> {
     );
     // The capture groups are always defined when match succeeds, so no cast
     // is needed here — and the type-aware linter rejects one as unnecessary.
-    if (match) found.set(match[1].trim(), match[2]);
+    if (match)
+      found.set(
+        at(match, 1, "the row under test (match)").trim(),
+        at(match, 2, "the row under test (match)"),
+      );
   }
   return found;
 }

@@ -2,13 +2,22 @@ import {
   type CreditFeature,
   mapDataforseoPathToCreditFeature,
 } from "@/shared/billing-credit-features";
-import { DFS_DOMAIN, DFS_LABS } from "@/shared/dataforseo-pricing";
+import {
+  DFS_DOMAIN,
+  DFS_LABS,
+  estimateQueuedLlmResponsesPost,
+} from "@/shared/dataforseo-pricing";
 import {
   assertUsageCreditsAvailable,
   getOrCreateOrganizationCustomer,
   trackUsageCreditSpend,
 } from "@/server/billing/subscription";
 import type { BillingCustomerContext } from "@/server/billing/subscription";
+import {
+  applyCostMarkup,
+  resolveCostMarkup,
+} from "@/server/billing/costMarkup";
+import { AUTUMN_SEO_DATA_CREDITS_PER_USD } from "@/shared/billing";
 import {
   DataforseoChargedTaskError,
   type DataforseoApiCallCost,
@@ -39,6 +48,7 @@ import {
   fetchSerpCompetitors,
 } from "@/server/lib/dataforseo/labs";
 import { fetchCategoriesForDomain } from "@/server/lib/dataforseo/labsCategories";
+import { fetchSearchIntent } from "@/server/lib/dataforseo/search-intent";
 import { fetchKeywordsForCategories } from "@/server/lib/dataforseo/labsCategories";
 import { fetchDomainMetricsByCategories } from "@/server/lib/dataforseo/labsDomainMetrics";
 import { fetchWhoisOverview } from "@/server/lib/dataforseo/whois";
@@ -78,6 +88,7 @@ import {
 } from "@/server/lib/dataforseo/content-analysis";
 import { fetchSentimentAnalysis } from "@/server/lib/dataforseo/content-analysis-sentiment";
 import { fetchContentSearch } from "@/server/lib/dataforseo/content-analysis-search";
+import { postLlmResponseTasks } from "@/server/lib/dataforseo/llm-responses-queue";
 import { fetchAiModeAnswer } from "@/server/lib/dataforseo/ai-mode";
 import {
   fetchLlmAggregatedMetrics,
@@ -86,7 +97,11 @@ import {
   fetchLlmResponse,
   fetchLlmTopPages,
 } from "@/server/lib/dataforseo/ai";
-import { fetchLlmTargetMetrics } from "@/server/lib/dataforseo/ai-mentions";
+import {
+  fetchLlmNewLost,
+  fetchLlmTargetMetrics,
+  fetchLlmTopMentioned,
+} from "@/server/lib/dataforseo/ai-mentions";
 import { fetchAiKeywordVolume } from "@/server/lib/dataforseo/ai-keywords";
 import type { AiKeywordVolumeInput } from "@/server/lib/dataforseo/ai-keywords";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
@@ -336,6 +351,10 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       // rank_tracking when omitted.
       keywordOverview: meter(customer, fetchKeywordOverview, "rank_tracking"),
       serpCompetitors: meter(customer, fetchSerpCompetitors),
+      // Intent is a property of the keyword rather than of the market, so the
+      // endpoint takes neither location nor language; the caller that omits
+      // both is doing it right, not being careless.
+      searchIntent: meter(customer, fetchSearchIntent),
     },
     lighthouse: {
       live: meter(customer, fetchLighthouseResult),
@@ -370,7 +389,49 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       targetMetrics: meter(customer, fetchLlmTargetMetrics),
       topPages: meter(customer, fetchLlmTopPages),
       crossAggregatedMetrics: meter(customer, fetchLlmCrossAggregatedMetrics),
+      /**
+       * The two GEO live reads, and the third instance of the CL-202 class.
+       *
+       * `geoLiveReads` called `fetchLlmNewLost` and `fetchLlmTopMentioned`
+       * directly, gated only by `customerHasPaidPlan`. A plan-tier gate is not
+       * a meter: the vendor charged the platform's own account for every read,
+       * no org balance was read, and no credit was deducted — while the panels
+       * themselves were being served as a paid feature. `POST /v3/geo` is
+       * where those two reads are reached from.
+       *
+       * Metered here, not merely passed through, because both endpoints bill
+       * per request and the customer is told the panels cost credits.
+       */
+      newLost: meter(customer, fetchLlmNewLost),
+      topMentioned: meter(customer, fetchLlmTopMentioned),
       llmResponse: meter(customer, fetchLlmResponse),
+      /**
+       * The Standard-queue sibling of `llmResponse` — the queued patrol path's POST.
+       *
+       * **Why it exists is CL-202, and the failure it closed was silent.**
+       * `postBatch` imported `postLlmResponseTasks` from the section module
+       * directly, so the queued path never went through this client: no
+       * `assertUsageCreditsAvailable`, no `trackUsageCreditSpend`, no vendor
+       * figure recorded. The platform's vendor account paid for queued captures
+       * of orgs whose balance was never read — including zero-credit orgs —
+       * while `postBatch` read `response.billing.costUsd` into its budget
+       * figure, which is why the run log looked metered.
+       *
+       * `meterEnvelope`, not `meter`, because `postBatch` reads the receipt:
+       * `advanceUsd` is the vendor's own post-time figure and the run log
+       * carries it verbatim. Same gate, same credit feature, same estimate as
+       * every other entry — only the return type differs.
+       *
+       * The estimate is per **task**, not per request: the vendor charges the
+       * $0.01 prepayment per task at POST time, on top of the per-request fee.
+       * A whole batch is therefore floored at the batch's own size.
+       */
+      llmResponsesTaskPost: meterEnvelope(
+        customer,
+        postLlmResponseTasks,
+        undefined,
+        (input) => estimateQueuedLlmResponsesPost(input.tasks.length),
+      ),
       // AI demand for a topic: the "high AI demand, low Google demand" signal.
       keywordVolume: meter(customer, (input: AiKeywordVolumeInput) =>
         fetchAiKeywordVolume(input),
@@ -450,16 +511,30 @@ async function meterDataforseoCall<T>(
       if (error.isInvalidField && error.billing.costUsd <= 0) {
         throw new AppError("VALIDATION_ERROR", error.message);
       }
+      const chargedCredits = Math.round(
+        applyCostMarkup(error.billing.costUsd, await resolveCostMarkup()) *
+          AUTUMN_SEO_DATA_CREDITS_PER_USD,
+      );
       await trackDataforseoCost({
         customer,
         customerId: billingCustomer.id,
         billing: error.billing,
         monthlyRemaining,
         creditFeature,
+        totalCostCredits: chargedCredits,
       });
     }
     throw error;
   }
+
+  // One computation of the charge, shared by the two side effects: what the
+  // customer is charged cannot be computed twice and expected to agree, and the
+  // ledger's `credits` is the number the charge used — a ledger row holding a
+  // different figure is a reconciliation that never closes.
+  const totalCostCredits = Math.round(
+    applyCostMarkup(result.billing?.costUsd ?? 0, await resolveCostMarkup()) *
+      AUTUMN_SEO_DATA_CREDITS_PER_USD,
+  );
 
   await trackDataforseoCost({
     customer,
@@ -467,6 +542,7 @@ async function meterDataforseoCall<T>(
     billing: result.billing,
     monthlyRemaining,
     creditFeature,
+    totalCostCredits,
   });
 
   // The whole envelope, so a caller that needs the receipt — a nightly capture
@@ -482,6 +558,8 @@ async function trackDataforseoCost(args: {
   billing: DataforseoApiCallCost;
   monthlyRemaining: number;
   creditFeature?: CreditFeature;
+  /** The credits the charge used, computed once and shared with the ledger. */
+  totalCostCredits: number;
 }) {
   await trackUsageCreditSpend({
     customer: args.customer,

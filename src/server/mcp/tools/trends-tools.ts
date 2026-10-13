@@ -6,6 +6,12 @@ import {
 } from "@/server/features/trends/trendSeries";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { mcpResponse } from "@/server/mcp/formatters";
+import {
+  creditsFor,
+  dryRunInputSchema,
+  dryRunResponse,
+  wantsToSpend,
+} from "@/server/mcp/dry-run";
 import { optionalMetaOutputSchema } from "@/server/mcp/output-schemas";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
 import { projectIdSchema } from "@/server/mcp/schemas";
@@ -78,6 +84,7 @@ const trendsInputSchema = {
     .describe(
       "Country-level location code. Omit for global results — which is a different measurement, not an error.",
     ),
+  ...dryRunInputSchema,
 } as const;
 
 type TrendsArgs = z.infer<z.ZodObject<typeof trendsInputSchema>>;
@@ -116,6 +123,18 @@ export const getSearchTrendsTool = {
     },
   },
   handler: withMcpProjectAuth(async (args: TrendsArgs, context) => {
+    if (!wantsToSpend(args.dry_run)) {
+      return dryRunResponse({
+        subject: "this call",
+        estimatedCredits: creditsFor(DFS_KEYWORDS.dfsTrends.explore.perRequest),
+        unitSentence:
+          "USD " +
+          DFS_KEYWORDS.dfsTrends.explore.perRequest +
+          " per request, DataForSEO Trends — up to 5 keywords per request",
+        meta: buildProjectMeta(context, args.projectId, `/p/${args.projectId}`),
+        structured: {},
+      });
+    }
     const client = createDataforseoClient(context.billing);
     const items = await client.keywords.trendsExplore({
       keywords: args.keywords,

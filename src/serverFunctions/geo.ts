@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { GeoService } from "@/server/features/geo/services/GeoService";
 import { forecastForStoredSeries } from "@/server/features/geo/services/visibilityForecastReads";
+import { createDataforseoClient } from "@/server/lib/dataforseo/client";
 import {
   getNewLostSeries,
   getTopCitedPages,
@@ -407,7 +408,21 @@ export const getGeoNewLost = createServerFn({ method: "POST" })
   .validator(newLostInputSchema)
   .handler(async ({ data, context }) => {
     await assertPaidPlanForLiveRead(context.organizationId);
-    return getNewLostSeries({ ...data, projectId: context.projectId });
+
+    // The metered client, built from the caller's own billing context. This
+    // read bills the vendor per request, and it used to be reached outside the
+    // client behind a plan-tier check alone: the platform's vendor account
+    // paid for every read and no credit was deducted (the CL-202 bug class).
+    return getNewLostSeries({
+      ...data,
+      projectId: context.projectId,
+      client: createDataforseoClient({
+        organizationId: context.organizationId,
+        userId: context.userId,
+        userEmail: context.userEmail,
+        projectId: context.projectId,
+      }),
+    });
   });
 
 const topCitedInputSchema = z.object({
@@ -422,7 +437,19 @@ export const getGeoTopCited = createServerFn({ method: "POST" })
   .validator(topCitedInputSchema)
   .handler(async ({ data, context }) => {
     await assertPaidPlanForLiveRead(context.organizationId);
-    return getTopCitedPages({ ...data, projectId: context.projectId });
+
+    // Metered for the same reason as `getGeoNewLost`: the top-cited ranking is
+    // a live vendor read, and the plan-tier gate above is not a meter.
+    return getTopCitedPages({
+      ...data,
+      projectId: context.projectId,
+      client: createDataforseoClient({
+        organizationId: context.organizationId,
+        userId: context.userId,
+        userEmail: context.userEmail,
+        projectId: context.projectId,
+      }),
+    });
   });
 
 /**

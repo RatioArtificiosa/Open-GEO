@@ -78,6 +78,7 @@ import { loadLocalEnv, parseArgs } from "./cli-utils";
 // automatically if a schema file is later added.
 import * as sqliteSchema from "../src/db/d1/schema";
 import * as pgSchema from "../src/db/pg/schema";
+import { at } from "@/shared/index-reads";
 
 loadLocalEnv();
 
@@ -112,7 +113,11 @@ function resolveDatabaseId(): string {
       "Could not find database_id in wrangler.jsonc; set CLOUDFLARE_D1_DATABASE_ID.",
     );
   }
-  return match[1];
+  // The `CREATE TABLE` regex has one capture group, so a truthy match carries
+  // the table name. `at()` rather than `match[1]`: an undefined table name would
+  // have made every `ALTER TABLE` statement below fail on `undefined` rather than
+  // on a table that does not exist.
+  return at(match, 1, "a CREATE TABLE statement");
 }
 
 async function d1Query<T = Record<string, unknown>>(
@@ -439,9 +444,15 @@ async function main() {
   // full migration this run only tops up.
   if (!allowNonEmpty && !updateMode) {
     for (const name of order) {
-      const [{ count }] = await dest
+      // `count(*)` always returns exactly one row, so the destructure is
+      // provably present. `at()` rather than `[0]`: a destructured `undefined`
+      // would have made this preflight compare `Number(undefined)` — `NaN` —
+      // against 0, and `NaN > 0` is false, so the guard would have let an
+      // unemptied target through and silently overwritten rows.
+      const rows = await dest
         .select({ count: sql<number>`count(*)::int` })
         .from(pgTables.get(name)!);
+      const count = at(rows, 0, "the row count for " + name).count;
       if (Number(count) > 0) {
         await pgClient.end();
         throw new Error(
@@ -498,9 +509,14 @@ async function main() {
   let mismatches = 0;
   for (const name of order) {
     const sourceCount = await countD1(databaseId, name);
-    const [{ count }] = await dest
+    // `at()` on the awaited rows, not `[0]`: `count(*)` always returns exactly one
+    // row, and a destructured `undefined` would have made this comparison
+    // `Number(undefined) !== sourceCount` — `NaN !== n` is always true, so every
+    // table would have been reported as a mismatch.
+    const rows = await dest
       .select({ count: sql<number>`count(*)::int` })
       .from(pgTables.get(name)!);
+    const count = at(rows, 0, "the row count for " + name).count;
     if (Number(count) !== sourceCount) {
       mismatches += 1;
       console.log(`  MISMATCH ${name}: D1 ${sourceCount} vs postgres ${count}`);

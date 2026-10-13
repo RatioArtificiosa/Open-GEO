@@ -21,11 +21,22 @@ import {
 } from "@/client/features/search-performance/SearchPerformanceColumns";
 import { getGa4DashboardReport } from "@/serverFunctions/ga4";
 import { useChartMotion } from "@/client/lib/useChartMotion";
+import { at } from "@/shared/index-reads";
 
 function formatTrendDay(date: string): string {
   // Construct in local time: Date.parse("2026-08-01") is UTC midnight, which
   // toLocaleDateString would render as the previous day west of Greenwich.
-  const [year, month, day] = date.split("-").map(Number);
+  //
+  // **`at()` on each part, read as a number.** `split` on a non-empty separator
+  // always yields at least one element, so a well-formed date gives three parts
+  // and the reads are provably present. Reading each as `Number()` at the same
+  // time means a non-numeric part becomes `NaN` and `new Date(NaN)` is Invalid
+  // Date — a visible failure — rather than `new Date("08")` doing something
+  // engine-specific with a string.
+  const parts = date.split("-");
+  const year = Number(at(parts, 0, "a trend day"));
+  const month = Number(at(parts, 1, "a trend day"));
+  const day = Number(at(parts, 2, "a trend day"));
   return new Date(year, month - 1, day).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
@@ -60,8 +71,11 @@ function SessionsTooltip({
       <p className="text-xs text-base-content/60">
         {label ? formatTrendDay(label) : ""}
       </p>
+      {/* **A real guard, not `at()`.** `payload` is recharts-supplied and can be
+          empty even when `active` is true. Rendering an em-dash rather than
+          throwing keeps a transition frame from crashing the dashboard. */}
       <p className="text-sm font-medium tabular-nums">
-        {formatCount(payload[0].value)} sessions
+        {payload?.[0] ? `${formatCount(payload[0].value)} sessions` : "—"}
       </p>
     </div>
   );

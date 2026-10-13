@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { first } from "@/shared/index-reads";
 import {
   buildStrikingDistanceRows,
   previousPeriod,
@@ -86,7 +87,7 @@ describe("buildStrikingDistanceRows", () => {
       1,
     );
     expect(rows).toHaveLength(1);
-    expect(rows[0].query).toBe("high-edge");
+    expect(first(rows, "the row under test (rows)").query).toBe("high-edge");
   });
 
   it("drops rows without both query and page keys", () => {
@@ -118,8 +119,10 @@ describe("buildStrikingDistanceRows", () => {
       pageRow("kw", "https://x.com/b", 8, 500),
     ]);
     expect(rows).toHaveLength(1);
-    expect(rows[0].page).toBe("https://x.com/b");
-    expect(rows[0].position).toBe(8);
+    expect(first(rows, "the row under test (rows)").page).toBe(
+      "https://x.com/b",
+    );
+    expect(first(rows, "the row under test (rows)").position).toBe(8);
   });
 });
 

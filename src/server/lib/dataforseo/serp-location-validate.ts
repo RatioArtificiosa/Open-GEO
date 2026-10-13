@@ -2,6 +2,7 @@ import { z } from "zod";
 import { dataforseoPost } from "@/server/lib/dataforseo/core";
 import { invalidFieldName } from "@/server/lib/dataforseo/envelope";
 import { AppError } from "@/server/lib/errors";
+import { first } from "@/shared/index-reads";
 
 const DATAFORSEO_SANDBOX_URL = "https://sandbox.dataforseo.com";
 const SANDBOX_TIMEOUT_MS = 10_000;
@@ -78,8 +79,17 @@ export async function assertSerpLocationNameAccepted(input: {
       `DataForSEO rejected this tracker: ${task.status_message}`,
     );
   }
+  // `split` on a comma always yields at least one element, so the head of the
+  // split is provably present — and the compiler cannot see it. `first()` rather
+  // than `[0]`: `.trim()` on `undefined` throws, so a validator whose message
+  // fails to build would have raised a TypeError instead of the AppError this
+  // function exists to raise.
+  const nameHead = first(
+    input.locationName.split(","),
+    "the location name before its comma",
+  ).trim();
   throw new AppError(
     "VALIDATION_ERROR",
-    `"${input.locationName}" is not a Google location name. Call search_serp_locations({ query: "${input.locationName.split(",")[0].trim()}"${input.countryCode ? `, countryCode: "${input.countryCode}"` : ""} }) and pass the returned locationName exactly.`,
+    `"${input.locationName ?? ""}" is not a Google location name. Call search_serp_locations({ query: "${nameHead}"${input.countryCode ? `, countryCode: "${input.countryCode}"` : ""} }) and pass the returned locationName exactly.`,
   );
 }

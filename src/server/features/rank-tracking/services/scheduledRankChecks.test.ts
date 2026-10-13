@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_KEYWORDS_PER_CONFIG } from "@/shared/rank-tracking";
+import { at, first } from "@/shared/index-reads";
 
 type DueConfigRow = {
   id: string;
@@ -121,7 +122,10 @@ describe("runScheduledRankChecks", () => {
         lastSkipReason: "plan_required",
       }),
     );
-    const [claim] = mocks.claimDueConfig.mock.calls[0];
+    const [claim] = first(
+      mocks.claimDueConfig.mock.calls,
+      "the row under test (mocks.claimDueConfig.mock.calls)",
+    );
     expect(new Date(claim.nextCheckAt).getTime()).toBeGreaterThan(Date.now());
     expect(mocks.beginRankCheckRun).not.toHaveBeenCalled();
   });
@@ -224,7 +228,12 @@ describe("runScheduledRankChecks", () => {
     await runTick();
 
     expect(mocks.beginRankCheckRun).toHaveBeenCalledTimes(1);
-    expect(mocks.beginRankCheckRun.mock.calls[0][0].config.id).toBe("config_2");
+    expect(
+      first(
+        mocks.beginRankCheckRun.mock.calls,
+        "the row under test (mocks.beginRankCheckRun.mock.calls)",
+      )[0].config.id,
+    ).toBe("config_2");
     expect(logSpy).toHaveBeenCalledWith(
       expect.objectContaining({ concurrentChangeSkips: 1, started: 1 }),
     );
@@ -248,9 +257,12 @@ describe("runScheduledRankChecks", () => {
     await runTick();
 
     expect(mocks.beginRankCheckRun).toHaveBeenCalledTimes(1);
-    expect(mocks.beginRankCheckRun.mock.calls[0][0].config.id).toBe(
-      "config_ok",
-    );
+    expect(
+      first(
+        mocks.beginRankCheckRun.mock.calls,
+        "the row under test (mocks.beginRankCheckRun.mock.calls)",
+      )[0].config.id,
+    ).toBe("config_ok");
     expect(errorSpy).toHaveBeenCalledWith(
       expect.objectContaining({ configErrors: 1, started: 1 }),
     );
@@ -275,9 +287,12 @@ describe("runScheduledRankChecks", () => {
     await runTick();
 
     expect(mocks.beginRankCheckRun).toHaveBeenCalledTimes(1);
-    expect(mocks.beginRankCheckRun.mock.calls[0][0].config.id).toBe(
-      "config_small",
-    );
+    expect(
+      first(
+        mocks.beginRankCheckRun.mock.calls,
+        "the row under test (mocks.beginRankCheckRun.mock.calls)",
+      )[0].config.id,
+    ).toBe("config_small");
     expect(logSpy).toHaveBeenCalledWith(
       expect.objectContaining({ stoppedByBudget: true, unitsStarted: 10 }),
     );
@@ -314,8 +329,15 @@ describe("runScheduledRankChecks", () => {
     await runTick();
 
     expect(mocks.claimDueConfig).toHaveBeenCalledTimes(2);
-    const [advance] = mocks.claimDueConfig.mock.calls[0];
-    const [restore] = mocks.claimDueConfig.mock.calls[1];
+    const [advance] = first(
+      mocks.claimDueConfig.mock.calls,
+      "the row under test (mocks.claimDueConfig.mock.calls)",
+    );
+    const [restore] = at(
+      mocks.claimDueConfig.mock.calls,
+      1,
+      "the row under test (mocks.claimDueConfig.mock.calls)",
+    );
     expect(restore).toEqual({
       configId: "config_1",
       projectId: "project_1",

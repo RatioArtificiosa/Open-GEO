@@ -25,14 +25,31 @@ const fetchTopMentioned = vi.fn<(input: unknown) => Promise<unknown>>();
 vi.mock("@/server/features/geo/repositories/GeoSetupRepository", () => ({
   GeoSetupRepository: { getTargetByDomain },
 }));
-vi.mock("@/server/lib/dataforseo/ai-mentions", () => ({
-  LLM_MENTIONS_HISTORY_FLOOR: "2025-08-01",
-  fetchLlmNewLost: (input: unknown) => fetchNewLost(input),
-  fetchLlmTopMentioned: (input: unknown) => fetchTopMentioned(input),
+
+/**
+ * The metered client, stubbed at its two `aiSearch` entries.
+ *
+ * **The doubles return the unwrapped rows**, because that is what
+ * `createDataforseoClient` hands back — `meter` strips the envelope. This is
+ * also the CL-202 lesson in miniature: these reads used to call the section
+ * fetchers directly behind a `customerHasPaidPlan` check, which is a
+ * plan-tier gate and not a meter, so the vendor charged the platform's account
+ * for every read. They now travel through the client, and the test stubs the
+ * client's entry points rather than the section modules behind them.
+ */
+vi.mock("@/server/lib/dataforseo/client", () => ({
+  createDataforseoClient: () => ({
+    aiSearch: {
+      newLost: (input: unknown) => fetchNewLost(input),
+      topMentioned: (input: unknown) => fetchTopMentioned(input),
+    },
+  }),
 }));
 
 const { getNewLostSeries, getTopCitedPages } =
   await import("@/server/features/geo/services/geoLiveReads");
+const { createDataforseoClient } =
+  await import("@/server/lib/dataforseo/client");
 
 const TARGET = {
   id: "t1",
@@ -42,10 +59,21 @@ const TARGET = {
   languageCode: "en",
 };
 
+/**
+ * The billing context the server function passes, so the client is built the
+ * same way in a test as it is in production.
+ */
+const client = createDataforseoClient({
+  organizationId: "org_1",
+  userId: "user_1",
+  userEmail: "ops@example.com",
+  projectId: "p1",
+});
+
 beforeEach(() => {
   getTargetByDomain.mockReset().mockResolvedValue(TARGET);
-  fetchNewLost.mockReset().mockResolvedValue({ data: [], billing: {} });
-  fetchTopMentioned.mockReset().mockResolvedValue({ data: [], billing: {} });
+  fetchNewLost.mockReset().mockResolvedValue([]);
+  fetchTopMentioned.mockReset().mockResolvedValue([]);
 });
 
 describe("getNewLostSeries", () => {
@@ -53,6 +81,7 @@ describe("getNewLostSeries", () => {
     // `google_ai_overview` is what a customer sees; `google` is what the API
     // accepts. Sending ours is a billable rejection, not a free typo.
     await getNewLostSeries({
+      client,
       projectId: "p1",
       domain: "acme.com",
       platform: "google_ai_overview",
@@ -67,6 +96,7 @@ describe("getNewLostSeries", () => {
     // An empty chart would say "nothing changed", which is a different claim.
     await expect(
       getNewLostSeries({
+        client,
         projectId: "p1",
         domain: "acme.com",
         platform: "gemini",
@@ -80,6 +110,7 @@ describe("getNewLostSeries", () => {
     // wearing the same label.
     getTargetByDomain.mockResolvedValue({ ...TARGET, locationCode: 2352 });
     await getNewLostSeries({
+      client,
       projectId: "p1",
       domain: "acme.com",
       platform: "chat_gpt",
@@ -93,6 +124,7 @@ describe("getNewLostSeries", () => {
     // Asking for 2024 is not an error, it is a request for data that does not
     // exist — and the answer would look like "nothing appeared".
     await getNewLostSeries({
+      client,
       projectId: "p1",
       domain: "acme.com",
       platform: "chat_gpt",
@@ -113,6 +145,7 @@ describe("getNewLostSeries", () => {
     // "No data" and "nothing appeared and nothing disappeared" are different
     // claims, and only the second is a finding.
     const series = await getNewLostSeries({
+      client,
       projectId: "p1",
       domain: "acme.com",
       platform: "chat_gpt",
@@ -122,19 +155,17 @@ describe("getNewLostSeries", () => {
 
   it("totals new and lost separately, never as a net figure", async () => {
     // A net number hides a brand that lost 10 and gained 10 as "no change".
-    fetchNewLost.mockResolvedValue({
-      data: [
-        {
-          date: "2026-09-01",
-          new_mentions: 3,
-          lost_mentions: 10,
-          new_ai_search_volume: 100,
-          lost_ai_search_volume: 400,
-        },
-      ],
-      billing: {},
-    });
+    fetchNewLost.mockResolvedValue([
+      {
+        date: "2026-09-01",
+        new_mentions: 3,
+        lost_mentions: 10,
+        new_ai_search_volume: 100,
+        lost_ai_search_volume: 400,
+      },
+    ]);
     const series = await getNewLostSeries({
+      client,
       projectId: "p1",
       domain: "acme.com",
       platform: "chat_gpt",
@@ -143,19 +174,17 @@ describe("getNewLostSeries", () => {
   });
 
   it("keeps a null counter null instead of counting it as zero", async () => {
-    fetchNewLost.mockResolvedValue({
-      data: [
-        {
-          date: "2026-09-01",
-          new_mentions: null,
-          lost_mentions: null,
-          new_ai_search_volume: null,
-          lost_ai_search_volume: null,
-        },
-      ],
-      billing: {},
-    });
+    fetchNewLost.mockResolvedValue([
+      {
+        date: "2026-09-01",
+        new_mentions: null,
+        lost_mentions: null,
+        new_ai_search_volume: null,
+        lost_ai_search_volume: null,
+      },
+    ]);
     const series = await getNewLostSeries({
+      client,
       projectId: "p1",
       domain: "acme.com",
       platform: "chat_gpt",
@@ -170,6 +199,7 @@ describe("getNewLostSeries", () => {
     getTargetByDomain.mockResolvedValue(null);
     await expect(
       getNewLostSeries({
+        client,
         projectId: "p1",
         domain: "other.com",
         platform: "chat_gpt",
@@ -184,6 +214,7 @@ describe("getTopCitedPages", () => {
     // fetched, including pages it ignored. Telling a customer to optimise a page
     // the model discarded would be the worst kind of advice this product gives.
     await getTopCitedPages({
+      client,
       projectId: "p1",
       domain: "acme.com",
       platform: "chat_gpt",
@@ -197,17 +228,15 @@ describe("getTopCitedPages", () => {
   it("keeps the vendor's URL verbatim, tracking parameters and all", async () => {
     // The archive should hold what was actually cited. Stripping the query
     // string is a display decision, and a rewritten URL loses the evidence.
-    fetchTopMentioned.mockResolvedValue({
-      data: [
-        {
-          page: "https://acme.com/pricing?utm_source=chatgpt.com",
-          domain: null,
-          total: { mentions: 4, ai_search_volume: 20 },
-        },
-      ],
-      billing: {},
-    });
+    fetchTopMentioned.mockResolvedValue([
+      {
+        page: "https://acme.com/pricing?utm_source=chatgpt.com",
+        domain: null,
+        total: { mentions: 4, ai_search_volume: 20 },
+      },
+    ]);
     const { pages } = await getTopCitedPages({
+      client,
       projectId: "p1",
       domain: "acme.com",
       platform: "chat_gpt",
@@ -217,11 +246,11 @@ describe("getTopCitedPages", () => {
   });
 
   it("reads the domain key when the ranking is over domains", async () => {
-    fetchTopMentioned.mockResolvedValue({
-      data: [{ domain: "acme.com", total: { mentions: 7 } }],
-      billing: {},
-    });
+    fetchTopMentioned.mockResolvedValue([
+      { domain: "acme.com", total: { mentions: 7 } },
+    ]);
     const { pages } = await getTopCitedPages({
+      client,
       projectId: "p1",
       domain: "acme.com",
       platform: "chat_gpt",
@@ -231,11 +260,11 @@ describe("getTopCitedPages", () => {
   });
 
   it("skips a row with no key rather than rendering an empty link", async () => {
-    fetchTopMentioned.mockResolvedValue({
-      data: [{ page: null, total: { mentions: 1 } }],
-      billing: {},
-    });
+    fetchTopMentioned.mockResolvedValue([
+      { page: null, total: { mentions: 1 } },
+    ]);
     const { pages } = await getTopCitedPages({
+      client,
       projectId: "p1",
       domain: "acme.com",
       platform: "chat_gpt",
@@ -247,6 +276,7 @@ describe("getTopCitedPages", () => {
     // The UI keys on `google_ai_overview`; returning `google` would leave a card
     // labelled "google" on a page that speaks the other name everywhere else.
     const { platform } = await getTopCitedPages({
+      client,
       projectId: "p1",
       domain: "acme.com",
       platform: "google_ai_overview",

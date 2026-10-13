@@ -33,6 +33,7 @@ import {
 } from "vitest";
 import { SUBPROCESS_TEST_TIMEOUT_MS } from "@/__tests__/test-budgets";
 import type { runDueAiModeCaptures as RunDueAiModeCaptures } from "./scheduledAiModeCapture";
+import { at } from "@/shared/index-reads";
 
 vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
 
@@ -199,9 +200,9 @@ describe("which prompts get an AI Mode capture, and in what order", () => {
       [2, "middle prompt"],
       [0, "zebra prompt"],
       [1, "alpha prompt"],
-    ]) {
-      const position = entry[0];
-      const prompt = entry[1];
+    ] as const) {
+      const position = at(entry, 0, "a prompt position pair");
+      const prompt = at(entry, 1, "a prompt position pair");
       await client.execute(
         "INSERT INTO geo_prompts (id, prompt_set_id, prompt, position, created_at) VALUES (?, ?, ?, ?, ?)",
         [

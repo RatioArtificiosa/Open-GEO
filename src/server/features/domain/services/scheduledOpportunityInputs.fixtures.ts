@@ -6,34 +6,32 @@
  * own convention (`ga4-test-fixtures.ts`, `tool-test-support.ts`) is to extract a
  * shape that two test files both assert on, and this is that shape.
  *
- * Every double is typed from the real collaborator (`typeof fetchKeywordOverview`),
- * never `as never`: a double that stops matching the vendor client is a compile
- * error rather than a test that quietly passes against a stale shape.
+ * Every double is typed from the **metered client's** method, never from the raw
+ * section fetcher and never `as never`: a double that stops matching the client is
+ * a compile error rather than a test that quietly passes against a stale shape.
+ * That is also the CL-202 lesson — the capture used to inject the raw fetchers,
+ * which is how three charged Labs calls a night ran with no credit gate at all.
  */
 
 import { vi } from "vitest";
-import type { fetchKeywordOverview } from "@/server/lib/dataforseo/labs";
-import type { fetchSerpCompetitors } from "@/server/lib/dataforseo/labs";
-import type { fetchSearchIntent } from "@/server/lib/dataforseo/search-intent";
+import type { createDataforseoClient } from "@/server/lib/dataforseo/client";
 import { KeywordOpportunityInputsRepository } from "@/server/features/domain/repositories/KeywordOpportunityInputsRepository";
-import type { DataforseoApiCallCost } from "@/server/lib/dataforseo/envelope";
-import { DFS_LABS } from "@/shared/dataforseo-pricing";
-import { etvFields, unverifiedEtvProvenance } from "@/shared/etv-versioning";
 
 /**
- * The billing envelope every `DataforseoApiResponse` carries.
+ * The metered reads the capture makes, as the client provides them.
  *
- * The production fetchers build theirs from the vendor's own task metadata
- * (`buildTaskBilling`), which needs a real HTTP response. The doubles supply the
- * same **shape** rather than casting it away: an `as unknown as FetchOverview`
- * around a `{ data }`-only object compiles silently, and then the metered seam is
- * never exercised by any test in this suite. The path and the price are the ones
- * this capture actually calls.
+ * Type alias rather than the client's own type, so the doubles and the
+ * production code name the same three methods from one place.
  */
-const billing: DataforseoApiCallCost = {
-  path: ["/v3/dataforseo_labs/google/keyword_overview/live"],
-  costUsd: DFS_LABS.standard.perRequest,
-};
+type MeteredReads = Pick<
+  ReturnType<typeof createDataforseoClient>["labs"],
+  "keywordOverview" | "serpCompetitors" | "searchIntent"
+>;
+
+/** What the client's `keywordOverview` returns: the unwrapped vendor rows. */
+type OverviewFn = MeteredReads["keywordOverview"];
+type CompetitorsFn = MeteredReads["serpCompetitors"];
+type SearchIntentFn = MeteredReads["searchIntent"];
 
 /**
  * Wraps a double and counts its calls, so a test can assert one did not run.
@@ -72,7 +70,8 @@ export function captureWrites() {
 
 /**
  * A vendor `keyword_overview` response — **in the shape the vendor actually
- * sends**, with `keyword_difficulty` nested under `keyword_properties`.
+ * sends**, with `keyword_difficulty` nested under `keyword_properties`, and as
+ * the client hands it over: the rows themselves, since `meter` unwraps `.data`.
  *
  * This is the detail that matters. The first draft of the service read
  * `row.keyword_difficulty` and `row.competitors` off the same row, which the real
@@ -85,11 +84,9 @@ export function captureWrites() {
  * double cannot smuggle in rows the service never requested.
  */
 export const overviewRows =
-  (
-    rows: Array<{ keyword: string; keyword_difficulty?: number }>,
-  ): typeof fetchKeywordOverview =>
-  async ({ keywords, now }) => ({
-    data: keywords.flatMap((keyword) => {
+  (rows: Array<{ keyword: string; keyword_difficulty?: number }>): OverviewFn =>
+  async ({ keywords }) =>
+    keywords.flatMap((keyword) => {
       // Matched case-insensitively, because the service lowercases what it sends
       // while a real keyword is stored however it was typed. A case-sensitive
       // match made the double return `[]` for "Hiking Boots" → "hiking boots",
@@ -107,13 +104,7 @@ export const overviewRows =
               : { keyword_difficulty: match.keyword_difficulty },
         },
       ];
-    }),
-    billing,
-    // The real endpoint returns `etv` but is not on the vendor's confirmed list
-    // for the flag, so the double must return unverifiable provenance too — a
-    // fixture that pinned a version would be a fixture that lied.
-    etv: unverifiedEtvProvenance("keyword_overview", now),
-  });
+    });
 
 /**
  * A vendor `serp_competitors` response: one row per competing **domain**, for the
@@ -121,12 +112,9 @@ export const overviewRows =
  * capture counts distinct domains rather than inventing a per-keyword split.
  */
 export const competitorRows =
-  (domains: string[]): typeof fetchSerpCompetitors =>
-  async () => ({
-    data: domains.map((domain) => ({ domain, etv: 100 })),
-    billing,
-    etv: etvFields("serp_competitors"),
-  });
+  (domains: string[]): CompetitorsFn =>
+  async () =>
+    domains.map((domain) => ({ domain }));
 
 /**
  * The vendor's closed set of intent labels, mirrored.
@@ -153,23 +141,18 @@ type IntentLabel =
  *
  * `probability` and `secondaryIntents` are required by the real item type. The
  * capture reads only `keyword` and `intent`, but a double that omitted the others
- * would fail to compile against the real fetcher — which is the whole point of
+ * would fail to compile against the client's method — which is the whole point of
  * typing every factory from it.
  */
 export const intentRows =
-  (
-    rows: Array<{ keyword: string; intent: IntentLabel }>,
-  ): typeof fetchSearchIntent =>
+  (rows: Array<{ keyword: string; intent: IntentLabel }>): SearchIntentFn =>
   async () => ({
-    data: {
-      items: rows.map((row) => ({
-        keyword: row.keyword,
-        intent: row.intent,
-        probability: 1,
-        secondaryIntents: [],
-      })),
-    },
-    billing,
+    items: rows.map((row) => ({
+      keyword: row.keyword,
+      intent: row.intent,
+      probability: 1,
+      secondaryIntents: [],
+    })),
   });
 
 /** Nothing at all returned — the shape a rate-limited or empty call gives. */

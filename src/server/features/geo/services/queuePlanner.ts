@@ -1,5 +1,23 @@
-import { postLlmResponseTasks } from "@/server/lib/dataforseo/llm-responses-queue";
+import type { createDataforseoClient } from "@/server/lib/dataforseo/client";
 import type { LlmModelSlug } from "@/server/lib/dataforseo/llm-models";
+
+/**
+ * The metered client, as the one door to the vendor.
+ *
+ * **Why the planner takes it rather than importing the section module** is
+ * CL-202, the second instance of a bug class this repo has now fixed twice at
+ * the seam: `postBatch` used to call `postLlmResponseTasks` directly, so the
+ * queued path ran no credit gate, deducted no credits, and recorded no vendor
+ * figure. The platform's vendor account paid for a zero-credit org's captures
+ * while the run log read as metered, because the vendor's own `costUsd` was
+ * still being folded into the budget.
+ *
+ * The client is the seam that meters — `createDataforseoClient(...)`'s
+ * `aiSearch.llmResponsesTaskPost` gates, deducts and preserves the billing
+ * envelope. `scripts/check-vendor-imports.mjs` refuses any file that reaches
+ * the vendor around it, which is what stops this being fixed a third time.
+ */
+type MeteredClient = ReturnType<typeof createDataforseoClient>;
 
 /**
  * Deciding *whether* to use the queue, and what to do when we do.
@@ -124,8 +142,14 @@ export function tagFor(candidate: QueueCandidate, index: number): string {
  * vendor, so an exception escaping here would be a failure *after* spending the
  * customer's money, and the run log would never record that it happened. So the
  * outcome carries the reason instead.
+ *
+ * The same rule covers a **refusal**: an org the credit gate will not admit is
+ * reported as a failed post with the gate's own reason, and the fetch never
+ * happens. A refusal that threw would stop the whole patrol mid-run, and one
+ * that was swallowed would read as a vendor outage — neither is true.
  */
 export async function postBatch(
+  client: MeteredClient,
   se: LlmModelSlug,
   batch: QueueCandidate[],
   indexOffset: number,
@@ -135,7 +159,7 @@ export async function postBatch(
   }
 
   try {
-    const response = await postLlmResponseTasks({
+    const response = await client.aiSearch.llmResponsesTaskPost({
       se,
       tasks: batch.map((candidate, i) => ({
         userPrompt: candidate.prompt,

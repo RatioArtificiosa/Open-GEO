@@ -1,5 +1,6 @@
 /* eslint-disable max-lines */
 import { z } from "zod";
+import { DFS_LOCAL, DFS_SERP } from "@/shared/dataforseo-pricing";
 import {
   createDataforseoClient,
   fetchBusinessDataTaskResult,
@@ -15,6 +16,12 @@ import {
 } from "@/server/lib/r2-cache";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { mcpResponse } from "@/server/mcp/formatters";
+import {
+  creditsFor,
+  dryRunInputSchema,
+  dryRunResponse,
+  wantsToSpend,
+} from "@/server/mcp/dry-run";
 import {
   looseObjectOutputSchema,
   optionalMetaOutputSchema,
@@ -76,6 +83,7 @@ const businessLocationInputSchema = {
       "DataForSEO location code. Ignored when `near` is set; otherwise defaults to the project's market.",
     ),
   languageCode: languageCodeSchema.optional(),
+  ...dryRunInputSchema,
 } as const;
 
 // DataForSEO queues these tasks; high priority normally settles them inside the
@@ -129,6 +137,7 @@ const getBusinessProfileInputSchema = {
   projectId: projectIdSchema,
   ...businessIdentifierInputSchema,
   ...businessLocationInputSchema,
+  ...dryRunInputSchema,
 } as const;
 
 type GetBusinessProfileArgs = z.infer<
@@ -236,6 +245,19 @@ export const getBusinessProfileTool = {
   },
   handler: withMcpProjectAuth(async (args: GetBusinessProfileArgs, context) => {
     const identifier = resolveBusinessIdentifier(args);
+
+    if (!wantsToSpend(args.dry_run)) {
+      return dryRunResponse({
+        subject: "this call",
+        estimatedCredits: creditsFor(DFS_LOCAL.gmbInfo.standard),
+        unitSentence:
+          "USD " +
+          DFS_LOCAL.gmbInfo.standard +
+          " per request, DataForSEO Local",
+        meta: buildProjectMeta(context, args.projectId, `/p/${args.projectId}`),
+        structured: {},
+      });
+    }
     const client = createDataforseoClient(context.billing);
     const profile = await client.business.myBusinessInfo({
       keyword: businessIdentifierKeyword(identifier),
@@ -289,6 +311,7 @@ const getBusinessReviewsInputSchema = {
     .describe(
       'Resume a previous call that returned status "processing". Pass back the taskId exactly as returned (format "google:<id>" or "extended:<id>"); it selects the right endpoint on its own. Resuming charges no extra credits.',
     ),
+  ...dryRunInputSchema,
 } as const;
 
 type GetBusinessReviewsArgs = z.infer<
@@ -384,7 +407,36 @@ export const getBusinessReviewsTool = {
     },
   },
   handler: withMcpProjectAuth(async (args: GetBusinessReviewsArgs, context) => {
+    // The task is resolved first, and the preview sits on the branch that can
+    // spend. A resume charges nothing — the post was billed when it was posted,
+    // and the polling below is unmetered — so quoting a price for a resume would
+    // make a free call look expensive, and an agent that learned to avoid
+    // resuming would wait forever instead.
     const includeOtherSources = args.includeOtherSources ?? false;
+
+    if (args.taskId && !wantsToSpend(args.dry_run)) {
+      return dryRunResponse({
+        subject: "resuming a collection that was already paid for",
+        estimatedCredits: 0,
+        unitSentence: "no charge — the post was billed when it was posted",
+        meta: buildProjectMeta(context, args.projectId, `/p/${args.projectId}`),
+        structured: { resumingIsFree: true },
+      });
+    }
+
+    if (!args.taskId && !wantsToSpend(args.dry_run)) {
+      return dryRunResponse({
+        subject: `a reviews collection${includeOtherSources ? " across other sources" : ""}`,
+        estimatedCredits: creditsFor(DFS_LOCAL.googleReviews.standard),
+        unitSentence:
+          "USD " +
+          DFS_LOCAL.googleReviews.standard +
+          " per request (extended sources are priced higher), DataForSEO Local",
+        meta: buildProjectMeta(context, args.projectId, `/p/${args.projectId}`),
+        structured: { resumingIsFree: true },
+      });
+    }
+
     let task: { endpoint: BusinessTaskEndpoint; taskId: string };
     let publicTaskId: string;
 
@@ -472,6 +524,7 @@ const getBusinessUpdatesInputSchema = {
     .describe(
       'Resume a previous call that returned status "processing". Pass back the taskId exactly as returned. Resuming charges no extra credits.',
     ),
+  ...dryRunInputSchema,
 } as const;
 
 type GetBusinessUpdatesArgs = z.infer<
@@ -524,6 +577,34 @@ export const getBusinessUpdatesTool = {
     },
   },
   handler: withMcpProjectAuth(async (args: GetBusinessUpdatesArgs, context) => {
+    // Same shape as reviews: a resume is free, so the preview is only on the
+    // branch that posts. Quoting a price for a resume teaches an agent to avoid
+    // the one operation that costs nothing.
+    if (!wantsToSpend(args.dry_run)) {
+      if (args.taskId) {
+        return dryRunResponse({
+          subject: "resuming a collection that was already paid for",
+          estimatedCredits: 0,
+          unitSentence: "no charge — the post was billed when it was posted",
+          meta: buildProjectMeta(
+            context,
+            args.projectId,
+            `/p/${args.projectId}`,
+          ),
+          structured: { resumingIsFree: true },
+        });
+      }
+      return dryRunResponse({
+        subject: "a business updates collection",
+        estimatedCredits: creditsFor(DFS_LOCAL.gmbInfo.standard),
+        unitSentence:
+          "USD " +
+          DFS_LOCAL.gmbInfo.standard +
+          " per request, DataForSEO Local",
+        meta: buildProjectMeta(context, args.projectId, `/p/${args.projectId}`),
+        structured: { resumingIsFree: true },
+      });
+    }
     let taskId: string;
     if (args.taskId) {
       if (args.taskId.includes(":")) {
@@ -784,6 +865,7 @@ const getLocalRankGridInputSchema = {
       "Map zoom every point is searched at. Defaults to a zoom derived from spacingKm and latitude so each point's viewport spans the grid spacing; override only when you need a specific viewport.",
     ),
   languageCode: languageCodeSchema.optional(),
+  ...dryRunInputSchema,
 } as const;
 
 type GetLocalRankGridArgs = z.infer<
@@ -927,6 +1009,24 @@ export const getLocalRankGridTool = {
     },
   },
   handler: withMcpProjectAuth(async (args: GetLocalRankGridArgs, context) => {
+    // The grid is `gridSize²` SERP Local Finder searches, not one Local call — a
+    // 5×5 grid is 25 searches, and quoting one request under-reports by 25×.
+    const gridSize = args.gridSize ?? 3;
+    const searches = gridSize * gridSize;
+    if (!wantsToSpend(args.dry_run)) {
+      return dryRunResponse({
+        subject: `${searches} local-pack searches on a ${gridSize}×${gridSize} grid`,
+        estimatedCredits: creditsFor(
+          DFS_SERP.standardPage.perRequest * searches,
+        ),
+        unitSentence:
+          "USD " +
+          DFS_SERP.standardPage.perRequest +
+          ` per search, DataForSEO SERP — ${searches} of them`,
+        meta: buildProjectMeta(context, args.projectId, `/p/${args.projectId}`),
+        structured: { searches, gridSize },
+      });
+    }
     if (
       args.target.cid == null &&
       args.target.placeId == null &&
@@ -938,7 +1038,6 @@ export const getLocalRankGridTool = {
       );
     }
 
-    const gridSize = args.gridSize ?? 3;
     const spacingKm = args.spacingKm ?? 2;
     const zoom = args.zoom ?? rankGridZoom(spacingKm, args.center.latitude);
     const points = buildRankGridPoints(args.center, gridSize, spacingKm);

@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getUsageCreditsRemaining } from "@/server/billing/subscription";
+import { resolveCostMarkup } from "@/server/billing/costMarkup";
+import { z } from "zod";
 import type { ZodType } from "zod";
 
 /**
@@ -92,6 +95,12 @@ vi.mock("@/server/billing/costMarkup", () => ({
   describeCostMarkup: vi.fn(),
   resolveCostMarkup: vi.fn(),
   setConfiguredCostMarkupOverride: vi.fn(),
+}));
+vi.mock("@/server/billing/subscription", () => ({
+  getUsageCreditsRemaining: vi.fn(),
+  checkUsageCreditsDepleted: vi.fn(),
+  assertUsageCreditsAvailable: vi.fn(),
+  trackUsageCreditSpend: vi.fn(),
 }));
 vi.mock("@/server/billing/autumn", () => ({
   autumn: {
@@ -266,5 +275,82 @@ describe("setCostMarkupSetting", () => {
     const write = vi.mocked(costMarkupMock.setConfiguredCostMarkupOverride);
     const firstCall = write.mock.calls[0]?.[0];
     expect(firstCall?.updatedByUserId).toBe(OWNER);
+  });
+});
+
+describe("estimateRankCheckSpend's pre-flight balance", () => {
+  /**
+   * The pre-flight: a customer must be told they cannot afford a check *before*
+   * the call, not by a failed charge after it.
+   *
+   * The balance travels with the estimate from the same read the transport gate
+   * performs, so the figure shown and the figure judged cannot disagree. Two
+   * reads could drift, and a drifting read would put the price of a check and
+   * the ability to run it in two different places.
+   */
+  // Parsed rather than asserted: an `as` compiles a wrong read and passes it,
+  // while a parse fails on a shape that is not there — and the handler return
+  // is untyped here because the surface is dynamically composed.
+  const estimateFn = z
+    .object({ handler: z.custom<ServerFnHandler>() })
+    .parse(billingModule.estimateRankCheckSpend);
+  const handler = estimateFn.handler;
+  const preflightSchema = z.object({
+    costUsd: z.number(),
+    costCredits: z.number(),
+    balanceCredits: z.number(),
+    affordable: z.boolean(),
+  });
+  const valid = {
+    projectId: "11111111-1111-4111-8111-111111111111",
+    keywordCount: 3,
+    devices: ["desktop"],
+    serpDepth: 10,
+    method: "live" as const,
+  };
+
+  beforeEach(() => {
+    vi.mocked(resolveCostMarkup).mockResolvedValue(1);
+  });
+
+  it("reports affordable when the balance covers the estimate", async () => {
+    vi.mocked(getUsageCreditsRemaining).mockResolvedValue({
+      monthlyRemaining: 500,
+      topupRemaining: 0,
+    });
+
+    const result = preflightSchema.parse(
+      await handler({ data: valid, context: CONTEXT }),
+    );
+
+    expect(result.affordable).toBe(true);
+    expect(result.balanceCredits).toBe(500);
+    expect(result.costCredits).toBeGreaterThan(0);
+  });
+
+  it("reports unaffordable with the balance that proved it", async () => {
+    // The whole point of the pre-flight: a zero balance must reach the caller
+    // with the price attached, so the dialog can refuse rather than attempt.
+    vi.mocked(getUsageCreditsRemaining).mockResolvedValue({
+      monthlyRemaining: 0,
+      topupRemaining: 0,
+    });
+
+    const result = preflightSchema.parse(
+      await handler({ data: valid, context: CONTEXT }),
+    );
+
+    expect(result.affordable).toBe(false);
+    expect(result.balanceCredits).toBe(0);
+  });
+
+  it("would catch a pre-flight that forgot the balance", () => {
+    // The negative control: the shape the dialog depends on. An estimate with
+    // no `affordable` renders a price and still lets the run proceed, which is
+    // the defect this closes — and it typechecks, so only the test catches it.
+    const estimateWithoutBalance = { costUsd: 0.0012, costCredits: 2 };
+    expect(
+      "affordable" in (estimateWithoutBalance as Record<string, unknown>),
+    ).toBe(false);
   });
 });

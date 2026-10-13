@@ -5,6 +5,7 @@ import {
   AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
 } from "@/shared/billing";
 import { estimateRankCheckCredits } from "@/shared/rank-tracking";
+import { getUsageCreditsRemaining } from "@/server/billing/subscription";
 import {
   BRAND_LOOKUP_COMPETITOR_RAW_COST_USD,
   BRAND_LOOKUP_RAW_COST_USD,
@@ -84,15 +85,38 @@ export type BillingUsageEvent = {
 export const estimateRankCheckSpend = createServerFn({ method: "POST" })
   .middleware(requireAuthenticatedContext)
   .validator(estimateRankCheckSpendSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const markup = await resolveCostMarkup();
-    return estimateRankCheckCredits(
+    const estimate = estimateRankCheckCredits(
       data.keywordCount,
       data.devices,
       data.serpDepth,
       data.method,
       markup,
     );
+    // **The balance travels with the estimate, and that is what makes the
+    // refusal a pre-flight.**
+    //
+    // The confirm dialog priced a check in full and then let the run proceed at
+    // any balance, so a customer with no credits learned it from a failed
+    // charge rather than from the button they were about to press. The gate
+    // already exists at the transport — `checkUsageCreditsDepleted` refuses the
+    // turn — but a refusal the operator sees *after* the first call is not the
+    // refusal D1 asks for: an agent, or a customer, must be told before the
+    // call that they cannot afford it.
+    //
+    // The balance is read here rather than derived, and it is the same read the
+    // transport performs, so the number the dialog shows is the number the gate
+    // will judge. A second read could disagree, and a disagreeing read would
+    // put the price of a check and the ability to run it in two places.
+    const balance = await getUsageCreditsRemaining(context.organizationId);
+    return {
+      ...estimate,
+      balanceCredits: balance.monthlyRemaining + balance.topupRemaining,
+      affordable:
+        balance.monthlyRemaining + balance.topupRemaining >=
+        estimate.costCredits,
+    };
   });
 
 /**

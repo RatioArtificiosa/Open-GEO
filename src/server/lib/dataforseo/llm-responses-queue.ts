@@ -64,6 +64,43 @@ import {
 /** Documented cap for one `llm_responses` POST. Exceeding it returns 40006. */
 export const MAX_TASKS_PER_LLM_POST = 100;
 
+/**
+ * The platforms with a documented Standard-queue endpoint.
+ *
+ * **Read from the vendor's own navigation on 2026-10-12, because the queue is
+ * not offered everywhere and a post to the wrong platform is not a validation
+ * error.** Chat GPT, Claude and Gemini each list Task POST / Tasks Ready /
+ * Task GET under LLM Responses; Perplexity lists **Live only**. The queue client
+ * built the path for every slug in `LLM_MODEL_SLUGS` alike, so a queued run for
+ * Perplexity posted to an endpoint the vendor does not document — and the
+ * failure would have arrived as a 404 after the caller had already decided to
+ * spend, with the run log recording a refused post rather than a refused
+ * platform.
+ *
+ * `check-source-markers.mjs` found this: it complained that the Perplexity
+ * `task_post` path has no vendor doc page, which is exactly the signal that a
+ * path is being written that no page documents. The fix belongs here rather
+ * than in an exemption in the registry.
+ */
+const QUEUE_CAPABLE_PLATFORMS = new Set<LlmModelSlug>([
+  "chat_gpt",
+  "claude",
+  "gemini",
+]);
+
+/**
+ * True when the vendor documents a Standard queue for this platform.
+ *
+ * A per-model read (`task_post_supported` in the live catalog) is the finer
+ * signal, and it is per *model* rather than per *endpoint*: the fallback catalog
+ * marks every Perplexity model `task_post_supported: true`, so the field cannot
+ * be the guard. This is the endpoint-level guard, and it is documented rather
+ * than inferred, for that reason.
+ */
+function isQueueCapable(se: LlmModelSlug): boolean {
+  return QUEUE_CAPABLE_PLATFORMS.has(se);
+}
+
 interface LlmResponseTaskInput {
   /** Up to 500 characters, per the endpoint's own limit. */
   userPrompt: string;
@@ -119,6 +156,17 @@ export async function postLlmResponseTasks(input: {
   tasks: LlmResponseTaskInput[];
 }): Promise<DataforseoApiResponse<PostedLlmResponseTask[]>> {
   const { se, tasks } = input;
+  if (!isQueueCapable(se)) {
+    // Refused before any call, and not retryable: the vendor has no queued
+    // endpoint for this platform, so the only outcomes are a 404 or a
+    // *successful* post to a path that never returns answers. Either way the
+    // caller must be told, because it would otherwise archive a patrol as
+    // complete when no platform was ever asked.
+    throw new AppError(
+      "VALIDATION_ERROR",
+      `DataForSEO offers no Standard queue for ${se}; the vendor documents LLM Responses Live only for it. Use the Live client.`,
+    );
+  }
   if (tasks.length === 0 || tasks.length > MAX_TASKS_PER_LLM_POST) {
     // Refusing rather than truncating: a silently shortened batch would produce
     // answers for a subset of the prompts, and the caller would report a

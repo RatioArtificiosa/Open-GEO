@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { at } from "@/shared/index-reads";
 
 /**
  * The theme, asserted against the decision that produced it.
@@ -42,13 +43,27 @@ function parseThemes(source: string): Record<string, Record<string, Token>> {
   for (const block of source.matchAll(
     /@plugin "daisyui\/theme" \{([\s\S]*?)\n\}/g,
   )) {
-    const name = /name:\s*"([^"]+)"/.exec(block[1])?.[1];
+    const name = /name:\s*"([^"]+)"/.exec(
+      at(block, 1, "the row under test (block)"),
+    )?.[1];
     if (name === undefined) continue;
     const tokens: Record<string, Token> = {};
-    for (const decl of block[1].matchAll(
+    for (const decl of at(block, 1, "the row under test (block)").matchAll(
       /--(color-[\w-]+):\s*oklch\(([^)]+)\)/g,
     )) {
-      const [l, c, h] = decl[2].trim().split(/[\s/]+/);
+      // `oklch(` carries three mandatory groups in this stylesheet, so the
+      // destructure is provably a triple. `at()` on the index is not the right
+      // tool here — the split yields an array of unknown length, and `first()`
+      // plus `at()` on each position would assert against whitespace rather than
+      // the declaration. A `Record` read of a `.match()` element is what the
+      // compiler is complaining about, and the honest narrowing is that the split
+      // is on `[\s/]+` between three tokens.
+      const ok = at(decl, 2, "the row under test (decl)")
+        .trim()
+        .split(/[\s/]+/);
+      const l = at(ok, 0, "an OKLCH lightness token");
+      const c = at(ok, 1, "an OKLCH chroma token");
+      const h = at(ok, 2, "an OKLCH hue token");
       // **Lightness is divided by 100, and it has to be.** The OKLab conversion
       // cubes `L`, so it requires 0–1; the stylesheet writes `oklch(15.82% …)` and
       // the naive parse produced `15.82`. That is cubic in the scale, so every
@@ -61,11 +76,12 @@ function parseThemes(source: string): Record<string, Record<string, Token>> {
       // wrong. When two paths compute the same thing and differ, one of them is
       // lying about the number everything else is compared against.
       const lightness = Number.parseFloat(l);
-      tokens[decl[1].replace(/^color-/, "")] = {
-        l: l.endsWith("%") ? lightness / 100 : lightness,
-        c: Number.parseFloat(c),
-        h: Number.parseFloat(h),
-      };
+      tokens[at(decl, 1, "the row under test (decl)").replace(/^color-/, "")] =
+        {
+          l: l.endsWith("%") ? lightness / 100 : lightness,
+          c: Number.parseFloat(c),
+          h: Number.parseFloat(h),
+        };
     }
     themes[name] = tokens;
   }
@@ -129,10 +145,10 @@ function luminance(value: Token): number {
  * general answer to a specific question is what produced the conflict.
  */
 function contrast(a: Token, b: Token): number {
-  const first = luminance(a);
-  const second = luminance(b);
-  const hi = first > second ? first : second;
-  const lo = first > second ? second : first;
+  const firstLum = luminance(a);
+  const secondLum = luminance(b);
+  const hi = firstLum > secondLum ? firstLum : secondLum;
+  const lo = firstLum > secondLum ? secondLum : firstLum;
   return (hi + 0.05) / (lo + 0.05);
 }
 
@@ -208,10 +224,10 @@ function hexLuminance(hex: string): number {
 function hexContrast(a: string, b: string): number {
   // **No sort.** The larger and smaller of two numbers, which is what a sort of
   // a two-element literal was doing the long way round.
-  const first = hexLuminance(a);
-  const second = hexLuminance(b);
-  const hi = first > second ? first : second;
-  const lo = first > second ? second : first;
+  const firstLum = hexLuminance(a);
+  const secondLum = hexLuminance(b);
+  const hi = firstLum > secondLum ? firstLum : secondLum;
+  const lo = firstLum > secondLum ? secondLum : firstLum;
   return (hi + 0.05) / (lo + 0.05);
 }
 

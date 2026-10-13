@@ -2,6 +2,7 @@ import { sort } from "remeda";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import type { SkillSource } from "agents/skills";
+import { at } from "@/shared/index-reads";
 
 // Bundle the repo's public-facing skills (.agents/skills) into SAM at build
 // time. Skills marked `metadata.internal: true` are repo-dev tooling and stay
@@ -47,7 +48,9 @@ function parseSkill(path: string, raw: string): SamSkill | null {
   const match =
     /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)([\s\S]*)$/.exec(raw);
   if (!match) throw new Error(`Skill has no frontmatter: ${path}`);
-  const parsed = frontmatterSchema.safeParse(parseYaml(match[1]));
+  const parsed = frontmatterSchema.safeParse(
+    parseYaml(at(match, 1, "the row under test (match)")),
+  );
   if (!parsed.success) {
     throw new Error(`Skill frontmatter needs name + description: ${path}`);
   }
@@ -61,7 +64,7 @@ function parseSkill(path: string, raw: string): SamSkill | null {
   return {
     name: frontmatter.name,
     description: frontmatter.description,
-    body: `${SAM_SURFACE_NOTE}\n\n${match[2].trim()}`,
+    body: `${SAM_SURFACE_NOTE}\n\n${at(match, 2, "a skill body capture").trim()}`,
   };
 }
 

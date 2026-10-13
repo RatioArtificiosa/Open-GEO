@@ -1,3 +1,4 @@
+import { at } from "@/shared/index-reads";
 /**
  * Reading the vendor's category taxonomy CSV.
  *
@@ -34,7 +35,15 @@ export function parseCategoryCsv(csv: string): ParsedCategoryCsv {
     if (line.length === 0) continue;
     if (index === 0 && /^"?Criterion ID"?/i.test(line)) continue;
     const match = /^"?(\d+)"?,\s*"?(.*?)"?$/.exec(line);
-    const id = match ? Number.parseInt(match[1], 10) : Number.NaN;
+    // **`at()` rather than `match[1]`.** The regex has exactly one capture group,
+    // so a truthy match always carries it. The compiler types the group as
+    // possibly-undefined, and `Number.parseInt(undefined)` is `NaN` — the same
+    // value the else branch already produces, so a missing capture would have been
+    // silently indistinguishable from a non-numeric category rather than a named
+    // failure.
+    const id = match
+      ? Number.parseInt(at(match, 1, "a category id capture"), 10)
+      : Number.NaN;
     const path = match?.[2]?.trim() ?? "";
     if (Number.isNaN(id) || path.length === 0) {
       malformed.push({ line: index + 1, text: line.slice(0, 120) });

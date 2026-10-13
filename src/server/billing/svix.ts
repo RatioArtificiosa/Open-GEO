@@ -87,8 +87,18 @@ function constantTimeEqual(left: Uint8Array, right: Uint8Array) {
   if (left.length !== right.length) return false;
 
   let difference = 0;
+  // **The one place in this branch that keeps a `!` instead of narrowing.**
+  //
+  // `noUncheckedIndexedAccess` types both reads as `number | undefined`, and the
+  // length guard three lines up proves they are not — so every other site in the
+  // monorepo moved to `at()` from `@/shared/index-reads`. **This one cannot.** The
+  // whole point of the function is that the loop body has no data-dependent
+  // branch: an `if (value === undefined)` per byte is a comparison whose timing
+  // depends on where the values sit, which is exactly what a timing oracle reads.
+  // The `!` here asserts nothing beyond what the guard already established, and
+  // the alternative is measurably worse rather than merely different.
   for (let i = 0; i < left.length; i += 1) {
-    difference |= left[i] ^ right[i];
+    difference |= left[i]! ^ right[i]!;
   }
 
   return difference === 0;

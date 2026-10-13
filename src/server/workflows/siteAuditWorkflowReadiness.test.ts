@@ -38,6 +38,7 @@ import { runReadinessPhase } from "@/server/workflows/siteAuditWorkflowReadiness
 import type { WorkflowStepConfig } from "cloudflare:workers";
 import type { runReadiness } from "@/server/features/audit/services/runReadiness";
 import type { saveReadinessReport } from "@/server/features/audit/repositories/auditReadinessReports";
+import { first } from "@/shared/index-reads";
 
 /**
  * The seam's input shape, derived from its signature.
@@ -274,8 +275,12 @@ describe("runReadinessPhase", () => {
     await runReadinessPhase({} as never, PARAMS);
 
     const call = received();
-    expect(call.pages[0].headings).toBeNull();
-    expect(call.pages[0].schemaTypes).toBeNull();
+    expect(
+      first(call.pages, "the row under test (call.pages)").headings,
+    ).toBeNull();
+    expect(
+      first(call.pages, "the row under test (call.pages)").schemaTypes,
+    ).toBeNull();
   });
 
   it("uses its own step name and config", async () => {

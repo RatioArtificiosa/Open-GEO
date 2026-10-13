@@ -19,6 +19,7 @@ import { drizzle } from "drizzle-orm/libsql";
 import { readFileSync } from "node:fs";
 
 import type { listCollectableTasks as ListCollectableTasks } from "./queueDrain";
+import { at } from "@/shared/index-reads";
 
 vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
 
@@ -167,7 +168,13 @@ describe("the drain's collection order", () => {
     // than restating the input, so a comparator bug in the *source* cannot make
     // both sides agree.
     for (let i = 1; i < days.length; i += 1) {
-      expect(days[i - 1]).toBeGreaterThanOrEqual(days[i]);
+      // Both indices are provably in range: the loop starts at 1 and stops at
+      // `length`. `at()` rather than a bare index, because `expect(undefined)`
+      // reports a confusing message about `undefined` rather than about the
+      // ordering property this loop exists to check.
+      expect(at(days, i - 1, "the labelled days")).toBeGreaterThanOrEqual(
+        at(days, i, "the labelled days"),
+      );
     }
   });
 

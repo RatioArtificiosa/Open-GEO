@@ -79,10 +79,10 @@ import {
   startPageSpeedAuditTool,
 } from "@/server/mcp/tools/page-speed-tools";
 import {
-  getCategoryDomainMetricsTool,
   getCategoryKeywordsTool,
   getDomainCategoriesTool,
 } from "@/server/mcp/tools/market-tools";
+import { getCategoryDomainMetricsTool } from "@/server/mcp/tools/category-domain-metrics";
 import {
   getSearchDemographyTool,
   getSearchRegionsTool,

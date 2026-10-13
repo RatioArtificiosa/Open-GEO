@@ -1,3 +1,5 @@
+import { at } from "./index-reads";
+
 export const TAG_COLOR_KEYS = [
   "slate",
   "rose",
@@ -31,7 +33,15 @@ export function resolveTagColor(tag: {
   color?: string | null;
 }): TagColorKey {
   if (isTagColorKey(tag.color)) return tag.color;
-  return TAG_COLOR_KEYS[hashString(tag.id) % TAG_COLOR_KEYS.length];
+  // **`at()` rather than an index.** `hashString` is non-negative and the modulo is
+  // taken against `TAG_COLOR_KEYS.length`, so the index is always in range; the
+  // compiler types it as possibly-undefined and a `TagColorKey | undefined` return
+  // would have made every caller narrow a colour that is always present.
+  return at(
+    TAG_COLOR_KEYS,
+    hashString(tag.id) % TAG_COLOR_KEYS.length,
+    "the tag colour palette",
+  );
 }
 
 const COLOR_CLASS: Record<TagColorKey, string> = {

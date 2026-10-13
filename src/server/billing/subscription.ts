@@ -100,7 +100,12 @@ export async function customerHasManagedAccess(customerId: string) {
 // Remaining shared usage credits — the monthly `usage_credits` balance plus the
 // rolled-over `topup_credits` balance. Both DataForSEO and LLM spend draw from
 // these (the `seo_data_usage` and `llm_usage` features both map into them).
-async function getUsageCreditsRemaining(customerId: string): Promise<{
+//
+// Exported because the pre-flight estimator reads the same balance the gate
+// does: a confirm dialog that prices a check and a transport that refuses it
+// must not read two different balances, or the price shown and the ability to
+// pay come apart.
+export async function getUsageCreditsRemaining(customerId: string): Promise<{
   monthlyRemaining: number;
   topupRemaining: number;
 }> {

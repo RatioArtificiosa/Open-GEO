@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppError } from "@/server/lib/errors";
+import { first } from "@/shared/index-reads";
 
 vi.mock("@/server/lib/runtime-env", () => ({
   getRequiredEnvValue: vi.fn(async () => "test-api-key"),
@@ -282,7 +283,7 @@ describe("fetchAnchors", () => {
 
     const body = requestBody(vi.mocked(fetch));
 
-    expect(body[0].order_by).toEqual([
+    expect(first(body, "the row under test (body)").order_by).toEqual([
       "backlinks,desc",
       "referring_domains,desc",
     ]);
@@ -303,7 +304,9 @@ describe("fetchAnchors", () => {
 
     const body = requestBody(vi.mocked(fetch));
 
-    expect(body[0].filters).toEqual([["backlinks_spam_score", "<=", 5]]);
+    expect(first(body, "the row under test (body)").filters).toEqual([
+      ["backlinks_spam_score", "<=", 5],
+    ]);
   });
 
   it("parses an anchor row and keeps unknown fields, so a vendor addition is not a crash", async () => {

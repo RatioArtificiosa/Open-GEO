@@ -31,6 +31,7 @@ import {
   parseResearchTarget,
   type ResearchTarget,
 } from "@/shared/researchScope";
+import { at } from "@/shared/index-reads";
 
 /**
  * Brand Lookup is the AI-search analog of Domain Overview. The user types a
@@ -143,7 +144,11 @@ export async function getBrandLookup(
   const crossOutcomes = crossSettled.value;
 
   const platformBundles: PlatformOutcome[] = settled.map((settledResult, i) => {
-    const platform = PLATFORMS[i];
+    // `settled` is `Promise.allSettled` over exactly `PLATFORMS`, so the index
+    // pairs each result with its own platform. `at()` keeps it visible: a platform
+    // of `undefined` would have been reported as a failure for a platform that was
+    // never queried.
+    const platform = at(PLATFORMS, i, "the platforms queried for this brand");
     if (settledResult.status === "fulfilled") {
       return { platform, status: "success", bundle: settledResult.value };
     }
@@ -355,7 +360,15 @@ async function fetchCrossAggregated(
   rethrowIfBlockingAiSearchError(settled);
 
   return settled.map((result, i) => {
-    const platform = PLATFORMS[i];
+    // The same pairing as the per-platform bundles above: `settled` is
+    // `Promise.allSettled` over `PLATFORMS`, so the index names the platform this
+    // result came from. An `undefined` platform in the error branch would have been
+    // logged as `ai-search.brand-lookup.undefined.cross-aggregated.error`.
+    const platform = at(
+      PLATFORMS,
+      i,
+      "the platforms queried for the cross totals",
+    );
     if (result.status === "fulfilled") {
       return { platform, status: "success" as const, items: result.value };
     }

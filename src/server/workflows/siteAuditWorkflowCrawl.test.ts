@@ -38,6 +38,7 @@ vi.mock("@/server/lib/audit/ids", () => ({
 
 import { runCrawlPhase } from "@/server/workflows/siteAuditWorkflowCrawl";
 import { parseRobotsTxt } from "@/server/lib/audit/discovery";
+import { at, first } from "@/shared/index-reads";
 
 const ORIGIN = "https://example.com";
 const HTML = "<html><title>A page</title><body><h1>A page</h1></body></html>";
@@ -60,9 +61,9 @@ beforeEach(async () => {
   mocks.pgStep.mockImplementation((_step, _name, _config, fn: () => unknown) =>
     fn(),
   );
-  mocks.sleepUntil.mockImplementation(async (_name, at: number) => {
+  mocks.sleepUntil.mockImplementation(async (_name, until: number) => {
     await new Promise((resolve) =>
-      setTimeout(resolve, Math.max(0, at - Date.now())),
+      setTimeout(resolve, Math.max(0, until - Date.now())),
     );
   });
   mocks.claimChunk.mockImplementation(
@@ -204,9 +205,15 @@ describe("crawl pacing and cooldowns", () => {
     expect(await result).toEqual({ pagesCrawled: 210, completed: true });
     expect(new Set(saved.map((page) => page.url)).size).toBe(210);
     expect(starts).toHaveLength(210);
-    expect(starts.slice(1).every((at, i) => at - starts[i] >= 1_000)).toBe(
-      true,
-    );
+    // **`at()` and `gap`, not a parameter named `at`.** The original shadowed
+    // the shared helper the file now imports, and read `starts[i]` as possibly
+    // undefined. Both indices are provably in range — the loop starts at 1 and
+    // stops at the slice's length — and the compiler cannot see that.
+    expect(
+      starts
+        .slice(1)
+        .every((gap, i) => gap - at(starts, i, "the crawl starts") >= 1_000),
+    ).toBe(true);
     expect(mocks.claimChunk.mock.calls.length).toBeGreaterThan(1);
   });
 
@@ -252,9 +259,15 @@ describe("crawl pacing and cooldowns", () => {
     await vi.runAllTimersAsync();
     expect(await result).toEqual({ pagesCrawled: 100, completed: true });
     expect(starts[1]).toBe(30_000);
-    expect(starts.slice(2).every((at, i) => at - starts[i + 1] >= 2_000)).toBe(
-      true,
-    );
+    // Same as the pre-resume assertion: `at()` and `gap`, not a parameter named
+    // `at`, and both indices are provably in range.
+    expect(
+      starts
+        .slice(2)
+        .every(
+          (gap, i) => gap - at(starts, i + 1, "the crawl starts") >= 2_000,
+        ),
+    ).toBe(true);
     expect(saved.every((page) => page.fetchClass === "ok")).toBe(true);
     expect(mocks.claimChunk.mock.calls.length).toBeGreaterThan(1);
   });
@@ -265,7 +278,12 @@ describe("crawl pacing and cooldowns", () => {
     await vi.advanceTimersByTimeAsync(599_999);
     expect(pageFetches(fetchMock)).toHaveLength(1);
     expect(saved).toHaveLength(0);
-    expect(mocks.releaseUrls.mock.calls[0][0]).toHaveLength(10);
+    expect(
+      first(
+        mocks.releaseUrls.mock.calls,
+        "the row under test (mocks.releaseUrls.mock.calls)",
+      )[0],
+    ).toHaveLength(10);
     expect(mocks.sleepUntil).toHaveBeenCalledWith("crawl-cooldown-1", 600_001);
     await vi.runAllTimersAsync();
     expect(await result).toEqual({ pagesCrawled: 10, completed: true });
@@ -284,9 +302,9 @@ describe("crawl pacing and cooldowns", () => {
     );
     mocks.sleepUntil.mockRejectedValueOnce(new Error("isolate restarted"));
     const fetchMock = serve((now) => (now < 600_000 ? 429 : 200), "600");
-    const first = expect(crawl(10)).rejects.toThrow("isolate restarted");
+    const restarted = expect(crawl(10)).rejects.toThrow("isolate restarted");
     await vi.advanceTimersByTimeAsync(1_000);
-    await first;
+    await restarted;
     expect(pageFetches(fetchMock)).toHaveLength(1);
     // Resume after the timestamp has passed: the same sleep must still replay.
     vi.setSystemTime(700_000);
@@ -345,7 +363,9 @@ describe("crawl pacing and cooldowns", () => {
     expect(await result).toMatchObject({ completed: false, rateLimited: true });
     expect(pageFetches(fetchMock)).toHaveLength(4);
     expect(saved).toHaveLength(1);
-    expect(saved[0].fetchClass).toBe("rate_limited");
+    expect(first(saved, "the row under test (saved)").fetchClass).toBe(
+      "rate_limited",
+    );
     expect(mocks.sleepUntil.mock.calls.length).toBeGreaterThan(0);
     expect(mocks.releaseUrls).toHaveBeenCalled();
   });
@@ -361,6 +381,11 @@ describe("crawl pacing and cooldowns", () => {
     });
     expect(pageFetches(fetchMock)).toHaveLength(1);
     expect(mocks.sleepUntil).not.toHaveBeenCalled();
-    expect(mocks.releaseUrls.mock.calls[0][0]).toHaveLength(99);
+    expect(
+      first(
+        mocks.releaseUrls.mock.calls,
+        "the row under test (mocks.releaseUrls.mock.calls)",
+      )[0],
+    ).toHaveLength(99);
   });
 });

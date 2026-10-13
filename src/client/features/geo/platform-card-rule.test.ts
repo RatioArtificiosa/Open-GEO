@@ -246,48 +246,124 @@ describe("the platform card rule", () => {
     expect(service).toMatch(/retrievalAvailable/);
     expect(service).toMatch(/reason:/);
   });
+});
 
-  it("would actually catch the bug it was written for", () => {
-    // A gate that cannot fail is not a gate. This is the exact statement the
-    // CL-132 scan found live in `brandLookupShaping.ts`:
-    //
-    //   const totalAiSearchVolume = sumNullable(
-    //     aggregatablePlatforms.map((p) => p.aiSearchVolume),
-    //   );
-    //
-    // It caught a second gap in its own patterns on the first run —
-    // `aggregatablePlatforms` was not in `PLATFORM_COLLECTION` — which is the
-    // argument for having this test at all.
-    const theBugThatWasShipped = [
-      "const totalAiSearchVolume = sumNullable(",
-      "  aggregatablePlatforms.map((p) => p.aiSearchVolume),",
+/**
+ * Does this source build one entry per tracked platform?
+ *
+ * Named so the self-test exercises the *same* predicate the assertions use,
+ * rather than a copy of it. A copy proves nothing about the rule that runs.
+ */
+function buildsOneEntryPerPlatform(source: string): boolean {
+  return /const platformSeries = TRACKED_PLATFORMS\.map\(/.test(source);
+}
+
+/**
+ * The other half of CL-704, and the one that cannot be caught by a runtime test.
+ *
+ * ## Why a source scan rather than a rendered component
+ *
+ * "Platform cards always paired" is a rule about what a reader *sees*, and the
+ * failure it prevents is invisible in any single happy path: render a page whose
+ * project has data for ChatGPT and not for Google AIO, and one card appears
+ * alone — unlabelled, unpaired, and read as "the answer" rather than as "one
+ * platform's answer". A component test renders the states the author thought
+ * of; the platform that stopped reporting is the one nobody renders.
+ *
+ * So the assertion is over the *mapping* that decides which cards exist. The
+ * page builds one entry per tracked platform, and the render maps that array,
+ * which is what makes pairing structural rather than conditional.
+ */
+describe("platform cards are paired, not conditional", () => {
+  const hook = () =>
+    readFileSync(
+      join(SRC, "client/features/geo/useGeoPageData.ts"),
+      "utf8",
+    ).replace(/\/\*[\s\S]*?\*\//g, "");
+
+  it("builds one series entry per tracked platform, never a filtered subset", () => {
+    // The load-bearing assertion. A `platformSeries` built by `.filter`, by
+    // indexing `[0]`, or by choosing on a loading flag would drop a platform
+    // whose query had not landed yet — and a card that vanishes mid-load is the
+    // pairing bug with a plausible excuse.
+    expect(hook()).toMatch(/const platformSeries = TRACKED_PLATFORMS\.map\(/);
+  });
+
+  it("tracks more than one platform, so pairing has something to pair", () => {
+    // A single-platform project would make every assertion here vacuous: one
+    // card is the whole set. This is the vacuity guard, and it is the assertion
+    // the gate cannot fire without.
+    const platforms = /const TRACKED_PLATFORMS = \[([^\]]*)\]/.exec(hook());
+    expect(platforms).not.toBeNull();
+    const count = (platforms?.[1] ?? "")
+      .split(",")
+      .filter((s) => s.trim() !== "");
+    expect(count.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("keeps a failed platform in the series with an honest empty, rather than dropping it", () => {
+    // `?? []` on the months is what leaves an empty card explaining itself
+    // instead of disappearing. Without it, a platform whose query fails is
+    // simply absent, which is the failure this whole section is about.
+    expect(hook()).toMatch(
+      /months: mentionSeries\[index\]\?\.data\?\.months \?\? \[\]/,
+    );
+  });
+
+  it("would catch the pairing bug it was written for", () => {
+    // A source gate that cannot fail is a source gate that matches nothing. The
+    // bug is a series built from one platform, which is what a "just show what
+    // we have" change produces at 6pm.
+    const pairingBug = [
+      "const platformSeries = TRACKED_PLATFORMS.filter((_, i) => i === 0).map(",
+      "  (platform, index) => ({ platform, months: series[index]?.months ?? [] }),",
       ");",
     ].join("\n");
-    expect(sumsDemandAcrossPlatforms(theBugThatWasShipped)).toBe(true);
+    expect(buildsOneEntryPerPlatform(pairingBug)).toBe(false);
+    expect(buildsOneEntryPerPlatform(hook())).toBe(true);
   });
+});
 
-  it("does not flag a legitimate per-platform grouping", () => {
-    // The false positive that the first version produced. `citedSources.ts`
-    // buckets rows by platform and caps each bucket — the opposite of the bug, and
-    // a gate that flags it is a gate people learn to ignore.
-    const grouping = [
-      "const byPlatform = new Map<LlmPlatform, typeof rows>();",
-      "for (const row of rows) {",
-      "  const list = byPlatform.get(row.platform) ?? [];",
-      "  list.push(row);",
-      "}",
-    ].join("\n");
-    expect(sumsDemandAcrossPlatforms(grouping)).toBe(false);
-  });
+it("would actually catch the bug it was written for", () => {
+  // A gate that cannot fail is not a gate. This is the exact statement the
+  // CL-132 scan found live in `brandLookupShaping.ts`:
+  //
+  //   const totalAiSearchVolume = sumNullable(
+  //     aggregatablePlatforms.map((p) => p.aiSearchVolume),
+  //   );
+  //
+  // It caught a second gap in its own patterns on the first run —
+  // `aggregatablePlatforms` was not in `PLATFORM_COLLECTION` — which is the
+  // argument for having this test at all.
+  const theBugThatWasShipped = [
+    "const totalAiSearchVolume = sumNullable(",
+    "  aggregatablePlatforms.map((p) => p.aiSearchVolume),",
+    ");",
+  ].join("\n");
+  expect(sumsDemandAcrossPlatforms(theBugThatWasShipped)).toBe(true);
+});
 
-  it("does not flag a mention sum, because a mention is a mention", () => {
-    // 10 + 5 is 15 and is meaningful across platforms. A rule that banned it
-    // would be wrong, and a gate that is wrong is worse than no gate.
-    const mentionSum = [
-      "const totalMentions = sumNullable(",
-      "  aggregatablePlatforms.map((p) => p.mentions),",
-      ");",
-    ].join("\n");
-    expect(sumsDemandAcrossPlatforms(mentionSum)).toBe(false);
-  });
+it("does not flag a legitimate per-platform grouping", () => {
+  // The false positive that the first version produced. `citedSources.ts`
+  // buckets rows by platform and caps each bucket — the opposite of the bug, and
+  // a gate that flags it is a gate people learn to ignore.
+  const grouping = [
+    "const byPlatform = new Map<LlmPlatform, typeof rows>();",
+    "for (const row of rows) {",
+    "  const list = byPlatform.get(row.platform) ?? [];",
+    "  list.push(row);",
+    "}",
+  ].join("\n");
+  expect(sumsDemandAcrossPlatforms(grouping)).toBe(false);
+});
+
+it("does not flag a mention sum, because a mention is a mention", () => {
+  // 10 + 5 is 15 and is meaningful across platforms. A rule that banned it
+  // would be wrong, and a gate that is wrong is worse than no gate.
+  const mentionSum = [
+    "const totalMentions = sumNullable(",
+    "  aggregatablePlatforms.map((p) => p.mentions),",
+    ");",
+  ].join("\n");
+  expect(sumsDemandAcrossPlatforms(mentionSum)).toBe(false);
 });

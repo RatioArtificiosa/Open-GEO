@@ -11,6 +11,12 @@ import {
 import { readSubregionInterests } from "@/server/features/trends/subregion";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { mcpResponse } from "@/server/mcp/formatters";
+import {
+  creditsFor,
+  dryRunInputSchema,
+  dryRunResponse,
+  wantsToSpend,
+} from "@/server/mcp/dry-run";
 import { optionalMetaOutputSchema } from "@/server/mcp/output-schemas";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
 import { projectIdSchema } from "@/server/mcp/schemas";
@@ -79,6 +85,7 @@ const overviewInputSchema = {
     .describe(
       "Country-level location code. Defaults to the project's own market; this product does not request global results.",
     ),
+  ...dryRunInputSchema,
 } as const;
 
 type OverviewArgs = z.infer<z.ZodObject<typeof overviewInputSchema>>;
@@ -110,6 +117,18 @@ export const getTrendsOverviewTool = {
     },
   },
   handler: withMcpProjectAuth(async (args: OverviewArgs, context) => {
+    if (!wantsToSpend(args.dry_run)) {
+      return dryRunResponse({
+        subject: "this call",
+        estimatedCredits: creditsFor(DFS_KEYWORDS.dfsTrends.explore.perRequest),
+        unitSentence:
+          "USD " +
+          DFS_KEYWORDS.dfsTrends.explore.perRequest +
+          " per request, DataForSEO Trends — up to 5 keywords per request",
+        meta: buildProjectMeta(context, args.projectId, `/p/${args.projectId}`),
+        structured: {},
+      });
+    }
     const client = createDataforseoClient(context.billing);
     const items = await client.keywords.trendsMerged({
       keywords: args.keywords,

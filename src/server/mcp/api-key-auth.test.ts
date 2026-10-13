@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MCP_AUTH_CONTEXT_PROP } from "@/server/mcp/context";
 import { MCP_OAUTH_SCOPES } from "@/lib/oauth-resource";
 import type { handleAuthenticatedOpenSeoMcpRequest } from "@/server/mcp/transport";
+import { callArgs } from "@/shared/index-reads";
 
 const mocks = vi.hoisted(() => ({
   verifyApiKey: vi.fn(),
@@ -92,8 +93,15 @@ describe("handleMcpApiKeyRequest", () => {
     );
     expect(mocks.recordMcpAuthorized).toHaveBeenCalledWith("org-1");
     expect(mocks.handleAuthenticatedOpenSeoMcpRequest).toHaveBeenCalledTimes(1);
-    const [passedRequest, props, passedEnv, passedCtx] =
-      mocks.handleAuthenticatedOpenSeoMcpRequest.mock.calls[0];
+    // `callArgs()` rather than a bare index: the mock is typed, so the tuple
+    // is known — but the index read is still `T | undefined` under
+    // `noUncheckedIndexedAccess`, and destructuring `undefined` raises a
+    // TypeError rather than the assertion failure this test means.
+    const [passedRequest, props, passedEnv, passedCtx] = callArgs(
+      mocks.handleAuthenticatedOpenSeoMcpRequest,
+      0,
+      "the authenticated MCP handler",
+    );
     expect(passedRequest).toBe(mcpRequest);
     expect(passedEnv).toBe(env);
     expect(passedCtx).toBe(ctx);

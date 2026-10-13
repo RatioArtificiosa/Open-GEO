@@ -1,4 +1,5 @@
 import { sortBy } from "remeda";
+import { at } from "@/shared/index-reads";
 import { monthSpanSpansCutover } from "@/shared/etv-versioning";
 /**
  * Movement between the two months a category-metrics call asked about.
@@ -86,7 +87,16 @@ export function describeMetricsMovement(
   const keys = monthKeys(history);
   if (keys.length !== 2) return null;
 
-  const [fromMonth, toMonth] = keys;
+  // **`at()` rather than destructuring or a `!`.** `keys.length !== 2` returns
+  // first, so both months are provably present — and the failure mode if they
+  // were not is the one this function exists to prevent: `undefined` used as an
+  // index into `history` reads `undefined`, `organicEtv(null)` returns null, and
+  // the movement would be reported as a null change instead of as an absent one.
+  // A movement with one point is not a movement; one with an unread month is not
+  // a movement either, and this is the place where those two collapse without
+  // the narrowing.
+  const fromMonth = at(keys, 0, "a two-month metrics history");
+  const toMonth = at(keys, 1, "a two-month metrics history");
   const fromEtv = organicEtv(history[fromMonth]);
   const toEtv = organicEtv(history[toMonth]);
   const etvChange = fromEtv !== null && toEtv !== null ? toEtv - fromEtv : null;

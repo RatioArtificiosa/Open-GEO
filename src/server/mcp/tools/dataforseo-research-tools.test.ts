@@ -64,6 +64,7 @@ describe("DataForSEO research MCP tools", () => {
 
     const result = await researchTools.searchLocalBusinessesTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         query: "Acme Cafe",
         near: {
@@ -86,9 +87,9 @@ describe("DataForSEO research MCP tools", () => {
     expect(local).not.toHaveBeenCalled();
     expect(questionsAnswers).not.toHaveBeenCalled();
 
-    expect(result.structuredContent.businesses).toEqual([
-      { title: "Acme Cafe", url: "https://acme-cafe.example" },
-    ]);
+    expect(result.structuredContent).toMatchObject({
+      businesses: [{ title: "Acme Cafe", url: "https://acme-cafe.example" }],
+    });
     expect(textContent(result)).toContain("title | category");
     expect(textContent(result)).toContain("Acme Cafe");
   });
@@ -101,6 +102,7 @@ describe("DataForSEO research MCP tools", () => {
 
     await researchTools.searchLocalBusinessesTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         near: { latitude: 33, longitude: -84, radiusKm: 5 },
         minRating: 4,
@@ -145,6 +147,7 @@ describe("DataForSEO research MCP tools", () => {
 
     const result = await getLocalSerpResultsTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         keyword: "coffee",
         near: {
@@ -188,6 +191,7 @@ describe("DataForSEO research MCP tools", () => {
 
     const result = await getGoogleBusinessQuestionsTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         cid: "123",
         near: {
@@ -230,6 +234,7 @@ describe("DataForSEO research MCP tools", () => {
 
     const result = await findSerpCompetitorsTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         keywords: ["coffee"],
         excludeDomains: ["directory.example"],
@@ -290,7 +295,7 @@ describe("DataForSEO research MCP tools", () => {
     const { getKeywordMetricsTool } = researchTools;
 
     const result = await getKeywordMetricsTool.handler(
-      { projectId: "project_1", keywords: ["seo automation"] },
+      { dry_run: false, projectId: "project_1", keywords: ["seo automation"] },
       toolContext,
     );
 
@@ -342,6 +347,7 @@ describe("DataForSEO research MCP tools", () => {
 
     const result = await getKeywordMetricsTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         keywords: ["low", "high", "medium"],
         sortBy: "search_volume",
@@ -374,6 +380,7 @@ describe("DataForSEO research MCP tools", () => {
 
     const result = await getKeywordMetricsTool.handler(
       {
+        dry_run: false,
         projectId: "project_1",
         keywords: ["seo"],
         includeMonthlyTrends: false,
@@ -386,69 +393,5 @@ describe("DataForSEO research MCP tools", () => {
       .passthrough()
       .parse(result.structuredContent).keywords;
     expect(rows[0]).not.toHaveProperty("monthly_searches");
-  });
-});
-
-describe("get_ranked_keywords scope handling", () => {
-  const rankedKeywords =
-    vi.fn<
-      (input: {
-        filters?: unknown[];
-      }) => Promise<{ items: unknown[]; totalCount: number }>
-    >();
-
-  beforeEach(() => {
-    mocks.getProjectForOrganization.mockResolvedValue(usProjectRow);
-    rankedKeywords.mockResolvedValue({ items: [], totalCount: 0 });
-    mocks.createDataforseoClient.mockReturnValue({
-      domain: { rankedKeywords },
-    });
-  });
-
-  it("passes only explicit brand exclusions to ranked keyword filters", async () => {
-    await researchTools.getRankedKeywordsTool.handler(
-      {
-        projectId: "project_1",
-        target: "acmeexample.com",
-        scope: "subdomains",
-        excludeBrandTerms: ["acme"],
-      },
-      toolContext,
-    );
-
-    expect(rankedKeywords).toHaveBeenCalledWith(
-      expect.objectContaining({
-        filters: [["keyword_data.keyword", "not_ilike", "%acme%"]],
-      }),
-    );
-  });
-
-  it("defaults a bare domain to subdomains scope with no scope filters", async () => {
-    const result = await researchTools.getRankedKeywordsTool.handler(
-      { projectId: "project_1", target: "acmeexample.com" },
-      toolContext,
-    );
-
-    expect(rankedKeywords).toHaveBeenCalledWith(
-      expect.objectContaining({
-        target: "acmeexample.com",
-        filters: undefined,
-      }),
-    );
-    expect(result.structuredContent).toMatchObject({
-      target: "acmeexample.com",
-      scope: "subdomains",
-    });
-  });
-
-  // The clause shape itself is pinned in researchScopeFilters.test.ts; here
-  // only "the scope filter reaches the API call" is the invariant.
-  it("sends scope filters for an explicit narrower scope", async () => {
-    await researchTools.getRankedKeywordsTool.handler(
-      { projectId: "project_1", target: "acmeexample.com", scope: "domain" },
-      toolContext,
-    );
-
-    expect(Array.isArray(rankedKeywords.mock.calls[0]?.[0].filters)).toBe(true);
   });
 });

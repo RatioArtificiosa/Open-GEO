@@ -1,6 +1,7 @@
 import { createClient, type Client } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { eq } from "drizzle-orm";
+import { first } from "@/shared/index-reads";
 import {
   afterAll,
   beforeAll,
@@ -162,7 +163,9 @@ describe("getDueConfigsWithOrganization", () => {
       "cfg_tie",
       "cfg_newer",
     ]);
-    expect(due[0].organizationId).toBe("org_proj_1");
+    expect(first(due, "the row under test (due)").organizationId).toBe(
+      "org_proj_1",
+    );
   });
 });
 

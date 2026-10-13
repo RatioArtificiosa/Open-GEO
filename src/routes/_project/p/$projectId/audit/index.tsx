@@ -18,6 +18,7 @@ import {
   StatusBadge,
   SUPPORT_EMAIL,
 } from "@/client/features/audit/shared";
+import { at } from "@/shared/index-reads";
 
 export const Route = createFileRoute<"/_project/p/$projectId/audit/">(
   "/_project/p/$projectId/audit/",
@@ -324,7 +325,18 @@ function ProgressCard({
               Crawled Pages ({crawledUrls.length})
             </h3>
             <p className="text-xs text-base-content/50">
-              Updated {new Date(crawledUrls[0].crawledAt).toLocaleTimeString()}
+              Updated{" "}
+              {
+                // `at()` rather than `[0]`, and the empty case renders "—" rather
+                // than an Invalid Date: the audit page shows a summary for a crawl
+                // that has not produced rows yet, which is the state a fresh project
+                // is in.
+                crawledUrls.length > 0
+                  ? new Date(
+                      at(crawledUrls, 0, "the crawled urls").crawledAt,
+                    ).toLocaleTimeString()
+                  : "—"
+              }
             </p>
             <div className="max-h-[400px] overflow-y-auto -mx-1">
               {crawledUrls.map((entry, i) => (

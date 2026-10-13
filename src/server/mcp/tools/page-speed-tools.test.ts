@@ -57,7 +57,11 @@ describe("start_page_speed_audit", () => {
     });
 
     const result = await startPageSpeedAuditTool.handler(
-      { projectId: "project_1", url: "https://example.com/pricing" },
+      {
+        dry_run: false,
+        projectId: "project_1",
+        url: "https://example.com/pricing",
+      },
       toolContext,
     );
 
@@ -107,7 +111,11 @@ describe("get_page_waterfall", () => {
     });
 
     const result = await getPageWaterfallTool.handler(
-      { projectId: "project_1", taskId: "task-1", url: "https://example.com/" },
+      {
+        projectId: "project_1",
+        taskId: "task-1",
+        url: "https://example.com/",
+      },
       toolContext,
     );
 
@@ -132,7 +140,11 @@ describe("get_page_waterfall", () => {
     });
 
     const result = await getPageWaterfallTool.handler(
-      { projectId: "project_1", taskId: "task-1", url: "https://example.com/" },
+      {
+        projectId: "project_1",
+        taskId: "task-1",
+        url: "https://example.com/",
+      },
       toolContext,
     );
 

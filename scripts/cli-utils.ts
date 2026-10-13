@@ -1,12 +1,21 @@
 import { existsSync, readFileSync } from "node:fs";
+import { at } from "@/shared/index-reads";
 import process from "node:process";
 
 export function parseArgs(argv: string[]) {
   const parsed: Record<string, string> = {};
   for (let i = 0; i < argv.length; i += 1) {
-    const token = argv[i];
+    // **`at()` rather than `argv[i]`.** The loop bound is `argv.length`, so the
+    // index is always in range — which the compiler cannot see. `token` flowed
+    // into `startsWith` and then `next` flowed into a flag-name lookup, and a
+    // value that may be undefined on the *last* argument is the case this
+    // function exists to parse.
+    const token = at(argv, i, "the argument list being parsed");
     if (!token.startsWith("--")) continue;
-    const withoutPrefix = token.slice(2);
+    // The prefix check above guarantees two leading characters, so the slice is
+    // never empty-by-underflow. Written against the constant rather than `2` so
+    // the two cannot drift.
+    const withoutPrefix = token.slice("--".length);
     const sep = withoutPrefix.indexOf("=");
     if (sep >= 0) {
       parsed[withoutPrefix.slice(0, sep)] = withoutPrefix.slice(sep + 1);
