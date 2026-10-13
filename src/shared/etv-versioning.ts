@@ -20,6 +20,21 @@
  * The rule this module exists to enforce: **never compute a trend across the
  * boundary without labelling it.** A step in a traffic line is usually a formula
  * change, not a change in traffic, and most tools will not tell you which.
+ *
+ * ## What a stored `legacy` value means after 2026-11-01
+ *
+ * A value captured before the cutover under the legacy model is **a true record
+ * of what the old model computed on that date**. It is not wrong and it must not
+ * be restated: the announcement excludes historical endpoints from the new
+ * model, so a value the vendor never recomputed cannot be recomputed by us —
+ * rewriting it would be our number wearing the vendor's name. What it cannot do
+ * is **sit in one series beside a `new` value and be read as a trend**, because
+ * a step between the two is a method change pretending to be traffic. So after
+ * the cutover a stored legacy value means three things at once: the measurement
+ * is old, the method that produced it no longer runs, and the comparison is
+ * closed. {@link trendCaveat} is what says that out loud, and
+ * {@link monthSpanSpansCutover} is what detects it on month-keyed data. The
+ * values stay; only the naive join goes.
  */
 
 /** Which ETV model produced a value. */
@@ -319,24 +334,75 @@ export function monthSpanSpansCutover(
 }
 
 /**
- * What a chart must say when a series crosses the boundary.
+ * One value in an ETV series, as {@link trendCaveat} receives it.
+ *
+ * A bare version was the first shape of this, and it produced the caveat this
+ * module now refuses: "some values in this series have no recorded formula
+ * version" — true, and useless, because the reader cannot tell *which* values
+ * are unreadable or what produced them. A caveat that names nothing is an
+ * apology; a caveat that names `keyword_overview` is information.
+ */
+export type EtvCaveatPoint = {
+  /** Which model produced the value, or `null` when unknown. */
+  formulaVersion: EtvFormulaVersion | null;
+  /** The endpoint the value came from, when the caller knows it. */
+  endpoint?: string;
+};
+
+/**
+ * `` `a`, `b`, `c` and `d` `` — backticked, because these are code objects a
+ * reader may need to type into a support email or a search, and comma-joined,
+ * because a caveat naming four endpoints reads as a list rather than a
+ * sentence. The final `and` is deliberate: "`a`, `b`, `c`, `d`" scans as a
+ * truncated list and readers check whether something was cut off.
+ */
+function formatEndpointList(endpoints: readonly string[]): string {
+  const quoted = endpoints.map((endpoint) => `\`${endpoint}\``);
+  if (quoted.length <= 1) return quoted.join("");
+  return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]}`;
+}
+
+/**
+ * What a chart must say when a series carries ETV values.
  *
  * Returns `null` only when the series is internally consistent AND fully known.
  * An unstamped (`null`) value is never filtered away: we do not know which model
  * produced it, and assuming one is exactly the guess this feature exists to
  * avoid. A chart containing an unknown therefore always carries a caveat.
+ *
+ * **An unknown value names its endpoint.** When the caller can say which
+ * endpoint produced the unstamped values, the caveat names them — a reader then
+ * knows the number came from `keywords_for_categories` (which we cannot claim a
+ * formula for) rather than from the series at large. When it cannot, the caveat
+ * says so in the general form, which is the honest fallback and not a failure.
  */
 export function trendCaveat(
-  versions: Array<EtvFormulaVersion | null>,
+  points: EtvCaveatPoint[],
   cutover = ETV_CUTOVER_DATE,
 ): string | null {
-  const hasUnknown = versions.some((version) => version === null);
+  const hasUnknown = points.some((point) => point.formulaVersion === null);
   const present = new Set(
-    versions.filter((v): v is EtvFormulaVersion => v !== null),
+    points
+      .map((point) => point.formulaVersion)
+      .filter((v): v is EtvFormulaVersion => v !== null),
   );
 
   if (hasUnknown) {
-    return `Some values in this series have no recorded ETV formula version, so they cannot be compared like-for-like. DataForSEO changed the ETV model on ${cutover} — check the formula version before reading a step here as a change in traffic.`;
+    const unstampedEndpoints = [
+      ...new Set(
+        points
+          .filter((point) => point.formulaVersion === null && point.endpoint)
+          .map((point) => point.endpoint ?? ""),
+      ),
+    ];
+    // **The named form replaces the general sentence rather than tagging it
+    // onto it.** Two sentences saying the same thing — one in general and one
+    // naming the endpoints — reads as two findings.
+    const subject =
+      unstampedEndpoints.length > 0
+        ? `The values from ${formatEndpointList(unstampedEndpoints)} have no recorded ETV formula version — those endpoints are not on the vendor's list for the \`use_new_etv\` flag — so they cannot be compared like-for-like`
+        : "Some values in this series have no recorded ETV formula version, so they cannot be compared like-for-like";
+    return `${subject}. DataForSEO changed the ETV model on ${cutover} — check the formula version before reading a step here as a change in traffic.`;
   }
 
   if (present.size <= 1) {

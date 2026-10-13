@@ -16,9 +16,9 @@ import { useChartMotion } from "@/client/lib/useChartMotion";
  * An ETV trend with the formula change drawn on it.
  *
  * This component exists to make one claim true: most tools' traffic charts
- * break silently on 2026-11-01, and ours does not. The claim is only credible
- * if the boundary is *visible* — a reader who sees a step must be able to tell
- * whether it was traffic or methodology.
+ * break silently when the vendor flips the ETV model, and ours does not. The
+ * claim is only credible if the boundary is *visible* — a reader who sees a step
+ * must be able to tell whether it was traffic or methodology.
  *
  * What is plotted and what is said both come from `buildEtvSeriesView`, which
  * holds the three exclusions (unknown value, unknown model, mixed series) and is
@@ -123,6 +123,22 @@ export function EtvBoundaryChart({
           {...chartMotion}
         />
       </LineChart>
+      {/* The boundary's copy in the DOM. The ReferenceLine above is the visual,
+          but a chart drawn in SVG is invisible wherever SVG is not rendered —
+          server-side, in print, in a reader that blocks scripts — and the one
+          claim this component exists to make must not be the claim that
+          disappears. The legend carries the same date and the same label from
+          the same constant, so a reader without the picture still gets the
+          boundary, and a test can see it. */}
+      {showBoundary ? (
+        <p className="text-base-content/70 mt-2 flex items-center gap-2 text-xs">
+          <span
+            aria-hidden="true"
+            className="border-accent h-3 border-l-2 border-dashed"
+          />
+          ETV model changed on {ETV_CUTOVER_DATE}
+        </p>
+      ) : null}
       {caveat ? (
         <figcaption className="text-base-content/70 mt-2 text-xs">
           {caveat}

@@ -4,6 +4,7 @@ import { createCrawlThrottle } from "@/server/lib/audit/crawl-throttle";
 import { resetCrawlDnsBudget } from "@/server/lib/audit/url-policy";
 import { crawlPage } from "@/server/workflows/site-audit-workflow-helpers";
 import { at } from "@/shared/index-reads";
+import { SUBPROCESS_TEST_TIMEOUT_MS } from "@/__tests__/test-budgets";
 
 const PAGE_URL = "https://example.com/page";
 const PAGE_HTML =
@@ -344,19 +345,21 @@ describe("crawlPage", () => {
     expect(page?.htmlBytes).toBeGreaterThan(0);
   });
 
-  it("does not retain large source HTML in queued crawl results", () => {
-    // A dedicated V8 process makes GC available without depending on the test
-    // runner's heap. Exercise the real reader/parser with separate streamed
-    // bodies; keeping just their titles used to retain every 1 MiB document.
-    const result = spawnSync(
-      process.execPath,
-      [
-        "--expose-gc",
-        "--import",
-        "tsx",
-        "--input-type=module",
-        "-e",
-        `
+  it(
+    "does not retain large source HTML in queued crawl results",
+    () => {
+      // A dedicated V8 process makes GC available without depending on the test
+      // runner's heap. Exercise the real reader/parser with separate streamed
+      // bodies; keeping just their titles used to retain every 1 MiB document.
+      const result = spawnSync(
+        process.execPath,
+        [
+          "--expose-gc",
+          "--import",
+          "tsx",
+          "--input-type=module",
+          "-e",
+          `
           import assert from "node:assert/strict";
           import { crawlPage } from ${JSON.stringify(new URL("./site-audit-workflow-helpers.ts", import.meta.url).href)};
           import { createCrawlThrottle } from ${JSON.stringify(new URL("../lib/audit/crawl-throttle.ts", import.meta.url).href)};
@@ -408,11 +411,21 @@ describe("crawlPage", () => {
           assert.ok(retained < 16 * 1024 * 1024,
             "Queued results retained " + retained + " bytes of source HTML");
         `,
-      ],
-      { encoding: "utf8", timeout: 20_000 },
-    );
+        ],
+        // **The child's budget is the shared one, and this test's is larger** — the
+        // same shape as the sibling memory-regression tests
+        // (`string-retention.test.ts`): a dedicated V8 process crawling fifty
+        // megabyte-scale documents with forced GCs is bounded by the machine, not by
+        // the code, and it timed out on a 20-second budget under full-suite load on
+        // 2026-10-13. The test's own timeout sits above the child's so a genuine
+        // hang reports as the spawn's timeout, which names the cause, rather than as
+        // this test's.
+        { encoding: "utf8", timeout: SUBPROCESS_TEST_TIMEOUT_MS },
+      );
 
-    expect(result.error).toBeUndefined();
-    expect(result.status, result.stderr).toBe(0);
-  }, 25_000);
+      expect(result.error).toBeUndefined();
+      expect(result.status, result.stderr).toBe(0);
+    },
+    SUBPROCESS_TEST_TIMEOUT_MS + 10_000,
+  );
 });

@@ -116,3 +116,45 @@ describe("the panel renders the withheld-points note when given the data", () =>
     expect(html).not.toContain("withheld from the");
   });
 });
+
+describe("the page passes the endpoint through to the chart", () => {
+  /**
+   * The same join as the formula versions, one field further down the wire.
+   *
+   * The series read returns the endpoint at the top level — a series is never
+   * mixed across Labs endpoints — and the page must restate it onto every
+   * point. Without that join the caveat's named form is unreachable: the series
+   * view has the field, the shared caveat names it, and the chart would receive
+   * points that never say which endpoint produced them, falling back to "some
+   * values in this series". A source assertion is the only thing that sees the
+   * missing join, because by render time the decision is already made.
+   */
+  it("joins the series endpoint onto every chart point", () => {
+    const source = readFileSync(
+      join(REPO_ROOT, "src/client/features/geo/useGeoPageData.ts"),
+      "utf8",
+    );
+    // The map that copies the endpoint onto each point, not a bare pass-through
+    // of the read's points — a restatement is a thing to see by eye.
+    expect(source).toMatch(
+      /etvPoints:[\s\S]*?\.map\(\(point\) => \(\{[\s\S]*?\.\.\.point,[\s\S]*?endpoint:/,
+    );
+    // And the negative form: passing the read's points straight through is the
+    // exact shipped-bug shape this guards.
+    expect(source).not.toMatch(
+      /etvPoints: etvSeries\.data\?\.points \?\? \[\]/,
+    );
+  });
+
+  it("does not invent an endpoint the series did not carry", () => {
+    // The join must be a restatement. A fallback default (`?? "domain_rank_overview"`)
+    // would stamp every point with a guess, and the caveat would then name an
+    // endpoint that may not have produced the value — the failure the whole
+    // feature exists to prevent, one layer up.
+    const source = readFileSync(
+      join(REPO_ROOT, "src/client/features/geo/useGeoPageData.ts"),
+      "utf8",
+    );
+    expect(source).not.toMatch(/endpoint: etvSeries\.data\?\.endpoint \?\?/);
+  });
+});

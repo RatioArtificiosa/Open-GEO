@@ -91,3 +91,90 @@ describe("buildEtvSeriesView", () => {
     expect(view.showBoundary).toBe(true);
   });
 });
+
+describe("what the view says about the endpoint behind an unstamped value", () => {
+  it("passes the endpoint through so the caveat names it", () => {
+    // The general caveat — "some values" — is the one this replaces: the
+    // endpoint arrives on the point (the series read carries it at the top
+    // level, and the page joins it onto every point), so the caveat can name
+    // the producer and a reader knows which number to distrust.
+    const view = buildEtvSeriesView([
+      legacy("2026-10-15", 1000),
+      {
+        date: "2026-10-22",
+        etv: 9999,
+        formulaVersion: null,
+        endpoint: "keywords_for_categories",
+      },
+    ]);
+    expect(view.points.map((p) => p.etv)).toEqual([1000]);
+    expect(view.caveat).toContain("`keywords_for_categories`");
+  });
+});
+
+describe("the stale-read rule", () => {
+  it("flags a series whose newest capture predates the formula change", () => {
+    // The scenario the deadline makes real: on 2026-11-01 every existing
+    // series is in this state, because the newest value any of them holds was
+    // captured before the flip. Without the rule the chart reads as current
+    // while its newest number is a legacy-model number.
+    const view = buildEtvSeriesView([
+      legacy("2026-10-15", 1000),
+      legacy("2026-10-29", 1050),
+    ]);
+    expect(view.predatesFormulaChange).toBe(true);
+    expect(view.newestPointDate).toBe("2026-10-29");
+    // The claim names the last capture date, because "stale" without a date
+    // is a feeling; "last captured on 2026-10-29" is a fact a reader can act on.
+    expect(view.caveat).toContain("last captured on 2026-10-29");
+    expect(view.caveat).toContain("legacy-model number");
+  });
+
+  it("stands alone when the formula caveat is null", () => {
+    // A fully known single-model series has no formula caveat at all — that is
+    // the clean case — and the stale sentence is the only thing it carries. If
+    // it were dropped there, a clean pre-cutover series would read as current.
+    const view = buildEtvSeriesView([modern("2026-10-29", 1050)]);
+    expect(view.caveat).not.toMatch(/All values use the legacy/);
+    expect(view.caveat).toContain("last captured on 2026-10-29");
+  });
+
+  it("does not flag a series that holds a capture from on or after the change", () => {
+    // The moment a post-cutover value exists, the series is not stale even
+    // though its early points predate the change — the other rule (the mixing
+    // caveat) covers those.
+    const view = buildEtvSeriesView([
+      legacy("2026-10-29", 1050),
+      modern("2026-11-05", 5000),
+    ]);
+    expect(view.predatesFormulaChange).toBe(false);
+    expect(view.newestPointDate).toBe("2026-11-05");
+    expect(view.caveat).not.toMatch(/last captured on/);
+  });
+
+  it("measures staleness from the newest capture, not the newest plottable point", () => {
+    // An unplottable value (unknown provenance) still knows when we last saw
+    // data. Reading staleness off the plottable points only would let an
+    // unreadable newest value hide how old the series is — the opposite of the
+    // rule's purpose.
+    const view = buildEtvSeriesView([
+      legacy("2026-10-15", 1000),
+      {
+        date: "2026-11-10",
+        etv: 4000,
+        formulaVersion: null,
+        endpoint: "keyword_overview",
+      },
+    ]);
+    expect(view.predatesFormulaChange).toBe(false);
+    expect(view.newestPointDate).toBe("2026-11-10");
+  });
+
+  it("claims nothing for an empty series", () => {
+    // There is no capture to be stale, and a caveat on an empty chart is noise.
+    const view = buildEtvSeriesView([]);
+    expect(view.predatesFormulaChange).toBe(false);
+    expect(view.newestPointDate).toBeNull();
+    expect(view.caveat).toBeNull();
+  });
+});

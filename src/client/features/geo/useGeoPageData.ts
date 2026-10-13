@@ -430,9 +430,17 @@ export function useGeoPageData(projectId: string) {
 
     /**
      * Points for the boundary chart. Each carries its own formula version, which
-     * is why the chart can refuse to draw a mixed series as a clean line.
+     * is why the chart can refuse to draw a mixed series as a clean line, and
+     * the series' endpoint, which is why an unstamped value can name what
+     * produced it — the series returns the endpoint at the top level precisely
+     * because one series is never mixed across Labs endpoints, so this join is
+     * a restatement and not a guess. Omit it and the caveat falls back to
+     * "some values", which is the general form the endpoint naming replaced.
      */
-    etvPoints: etvSeries.data?.points ?? [],
+    etvPoints: (etvSeries.data?.points ?? []).map((point) => ({
+      ...point,
+      endpoint: etvSeries.data?.endpoint,
+    })),
     etvFormulaVersions: etvSeries.data?.formulaVersions ?? [],
 
     /** One entry per platform; see `platformSeries` above. */
