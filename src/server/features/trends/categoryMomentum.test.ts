@@ -68,7 +68,7 @@ describe("categoryMomentum", () => {
   it("refuses a direction when the ratio is steep but the recent half is falling", () => {
     // **The negative control for the two-signal rule.** The level shifted up —
     // the recent half's median is far above the earlier one — and the recent
-    // half is *already falling* (80, 80, 70, 60, 50). That is "elevated and
+    // half is *already falling* (80, 80, 70, 60, 50). That is "shifted and
     // turning", not "accelerating", and a single-signal verdict cannot tell the
     // two apart. Without this test the level-shift case passes alone.
     const shifted = [

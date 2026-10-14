@@ -45,11 +45,11 @@ describe("breakoutSignals", () => {
   it("names a steep sustained climb a breakout candidate", () => {
     const result = breakoutSignals("ai visibility", dated(breakout));
     expect(result.isBreakoutCandidate).toBe(true);
-    expect(result.stillElevated).toBe(true);
+    expect(result.stillAboveBaseline).toBe(true);
     expect(result.climbRatePerStep ?? 0).toBeGreaterThanOrEqual(2);
     expect(result.peakDate).not.toBeNull();
     expect(result.summary).toMatch(/breakout candidate/);
-    expect(result.summary).toMatch(/still elevated/);
+    expect(result.summary).toMatch(/holds above its earlier level/);
     // The caveat travels with the answer: the scores are one request's ruler.
     expect(result.caveat).toMatch(/relative to the biggest peak/);
   });
@@ -57,19 +57,19 @@ describe("breakoutSignals", () => {
   it("refuses a spike that returned, whatever its height", () => {
     // **The negative control the whole module exists for.** A two-step spike to
     // 100 is the tallest thing in the window and is not a breakout: the
-    // elevation lasted two steps, and a verdict that ignored the persistence
+    // level held for two steps, and a verdict that ignored the persistence
     // half would name it. A one-signal implementation passes the breakout case
     // above and fails here.
     const result = breakoutSignals("documentary title", dated(blip));
     expect(result.isBreakoutCandidate).toBe(false);
     expect(result.persistenceSteps).toBe(2);
-    expect(result.stillElevated).toBe(false);
-    expect(result.summary).toMatch(/elevation lasted 2 steps/);
+    expect(result.stillAboveBaseline).toBe(false);
+    expect(result.summary).toMatch(/held that level for 2 steps/);
   });
 
   it("refuses a peak acquired by drift", () => {
     // The other negative control: the series ends at its highest point ever and
-    // is still elevated, so persistence alone would pass it. It never climbed
+    // is still above its baseline, so persistence alone would pass it. It never climbed
     // — half a point per step is a level change over months, not a breakout,
     // and the threshold is on the rate for exactly this shape.
     const result = breakoutSignals("slow riser", dated(drift));

@@ -135,7 +135,7 @@ describe("breakout_detector", () => {
       {
         keyword: "ai visibility",
         isBreakoutCandidate: true,
-        stillElevated: true,
+        stillAboveBaseline: true,
       },
     ]);
     expect(textContent(result)).toMatch(/Breakout candidate: ai visibility/);
@@ -157,7 +157,7 @@ describe("breakout_detector", () => {
       { isBreakoutCandidate: false, persistenceSteps: 2 },
     ]);
     expect(textContent(result)).toMatch(/No breakout shape/);
-    expect(textContent(result)).toMatch(/elevation lasted 2 steps/);
+    expect(textContent(result)).toMatch(/held that level for 2 steps/);
   });
 
   it("reports no year-over-year figure from a short window, and says why", async () => {

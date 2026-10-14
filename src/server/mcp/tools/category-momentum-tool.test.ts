@@ -11,7 +11,7 @@ vi.mock("cloudflare:workers", () => ({ env: {} }));
 // The vendor seam. Mocked because the live API is unreachable (the account is
 // `40104` unverified, every daily rate limit zero) and because the shape the
 // mock returns — a graph item with an empty `keywords` array — is the shape the
-// category unlock is asserted to produce, which is exactly what should be
+// category change is asserted to produce, which is exactly what should be
 // pinned here rather than assumed.
 const googleTrendsExplore = vi.fn();
 vi.mock("@/server/lib/dataforseo/client", () => ({
@@ -110,7 +110,7 @@ describe("category_momentum", () => {
     expect(text).toMatch(/0\.0027/);
   });
 
-  it("asks the vendor for a category with no keywords, which is the unlock's shape", async () => {
+  it("asks the vendor for a category with no keywords, which is the change's shape", async () => {
     googleTrendsExplore.mockReset();
     googleTrendsExplore.mockResolvedValue(categoryGraph(RISING));
 

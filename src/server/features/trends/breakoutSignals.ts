@@ -8,7 +8,7 @@ import { TREND_SCALE_CAVEAT } from "@/server/features/trends/trendSeries";
  * A Trends chart has spikes in it. Most are one week of a documentary airing,
  * and the product that names every one a breakout is the product nobody
  * believes by the third time. A breakout has a shape: **a steep approach and a
- * sustained elevation** — the series climbs fast, peaks, and stays up. A blip
+ * sustained level** — the series climbs fast, peaks, and stays up. A blip
  * spikes and is gone inside two steps. Telling the two apart is pure maths over
  * the series the merged endpoint already returns, which is why this module
  * needs no vendor call and no schema of its own.
@@ -24,7 +24,7 @@ import { TREND_SCALE_CAVEAT } from "@/server/features/trends/trendSeries";
  *    the window *preceding* the peak, in points per step. A breakout is steep
  *    on approach; a slow drift acquires a peak without ever climbing.
  * 3. **Persistence after the peak** — how many steps the series holds above its
- *    pre-peak level, or `null` when it is still elevated at the window's end
+ *    pre-peak level, or `null` when it still stands above that baseline at the window's end
  *    (which is a *stronger* result than a number, not a missing one). A spike
  *    that returns in two steps is an event; one that holds is a change.
  *
@@ -77,15 +77,15 @@ export type BreakoutSignal = {
   climbRatePerStep: number | null;
   /**
    * Steps the series holds above its pre-peak level after the peak. Null when
-   * it is still elevated at the window's end, or when it never fell back after
+   * it still stands above that baseline at the window's end, or when it never fell back after
    * a measurement gap; the summary distinguishes the two.
    */
   persistenceSteps: number | null;
-  /** True when the elevation at the window's end still stands. */
-  stillElevated: boolean;
+  /** True when the series still stands above its pre-peak baseline. */
+  stillAboveBaseline: boolean;
   /** The date of the window's highest measured point, when the caller supplied dates. */
   peakDate: string | null;
-  /** The candidate verdict: a steep approach and a sustained elevation. */
+  /** The candidate verdict: a steep approach and a level that lasted. */
   isBreakoutCandidate: boolean;
   /** The sentence a reader sees. */
   summary: string;
@@ -139,7 +139,7 @@ export function breakoutSignals(
       yoyChangePercent: null,
       climbRatePerStep: null,
       persistenceSteps: null,
-      stillElevated: false,
+      stillAboveBaseline: false,
       peakDate: null,
       isBreakoutCandidate: false,
       summary: `No measured points for "${keyword}" in this window, so there is no breakout to report. This is not a flat result.`,
@@ -157,20 +157,20 @@ export function breakoutSignals(
 
   const yoy = yearOverYearChange(values);
   const persistence = persistenceAfter(values, peakIndex, baseline);
-  const stillElevated =
+  const stillAboveBaseline =
     persistence === null &&
     baseline !== null &&
     isAboveBaseline(values, peakIndex, baseline);
 
   // **The verdict needs both halves of the shape.** A steep approach without a
-  // sustained elevation is a blip, and an elevated plateau acquired by drift is
+  // sustained level is a blip, and a plateau acquired by drift is
   // a level, not a breakout. The threshold is a rate, not a ratio, because the
   // vendor's scale is 0-100 within one request and a ratio would move with the
   // series' own height.
   const isBreakoutCandidate =
     climbRate !== null &&
     climbRate >= STEEP_CLIMB_PER_STEP &&
-    stillElevated &&
+    stillAboveBaseline &&
     (persistence === null || persistence >= QUARTER);
 
   return {
@@ -179,14 +179,14 @@ export function breakoutSignals(
     yoyChangePercent: yoy,
     climbRatePerStep: climbRate,
     persistenceSteps: persistence,
-    stillElevated,
+    stillAboveBaseline,
     peakDate,
     isBreakoutCandidate,
     summary: describe(keyword, {
       yoy,
       climbRate,
       persistence,
-      stillElevated,
+      stillAboveBaseline,
       peakDate,
       isBreakoutCandidate,
     }),
@@ -200,7 +200,7 @@ function describe(
     yoy: number | null;
     climbRate: number | null;
     persistence: number | null;
-    stillElevated: boolean;
+    stillAboveBaseline: boolean;
     peakDate: string | null;
     isBreakoutCandidate: boolean;
   },
@@ -209,14 +209,14 @@ function describe(
     yoy,
     climbRate,
     persistence,
-    stillElevated,
+    stillAboveBaseline,
     peakDate,
     isBreakoutCandidate,
   } = input;
   const parts: string[] = [];
   if (isBreakoutCandidate) {
     parts.push(
-      `"${keyword}" is a breakout candidate: it climbed into its peak and is still elevated.`,
+      `"${keyword}" is a breakout candidate: it climbed into its peak and holds above its earlier level.`,
     );
   } else {
     parts.push(`"${keyword}" shows no breakout shape in this window.`);
@@ -226,11 +226,11 @@ function describe(
       `It climbed at ${climbRate.toFixed(2)} points per step into its peak${peakDate ? ` on ${peakDate}` : ""}.`,
     );
   }
-  if (stillElevated) {
-    parts.push("It is still elevated at the window's end.");
+  if (stillAboveBaseline) {
+    parts.push("It still stands above its earlier level at the window's end.");
   } else if (persistence !== null) {
     parts.push(
-      `The elevation lasted ${persistence} step${persistence === 1 ? "" : "s"} after the peak.`,
+      `It held that level for ${persistence} step${persistence === 1 ? "" : "s"} after the peak.`,
     );
   }
   if (yoy === null) {
@@ -293,7 +293,7 @@ function climbRateInto(
 }
 
 /**
- * Steps the elevation holds above its pre-peak baseline, **counting the peak
+ * Steps the series holds above its pre-peak baseline, **counting the peak
  * itself**.
  *
  * The count ends at the first measured point back at or below the baseline —

@@ -1,11 +1,6 @@
 import { dataforseoPost } from "@/server/lib/dataforseo/core";
 import { AppError } from "@/server/lib/errors";
-import {
-  USABLE_AD_TRAFFIC_FIELDS,
-  adTrafficChartRule,
-  adTrafficRefusalWarning,
-  type AdTrafficField,
-} from "@/shared/ad-traffic-fields";
+import type { AdTrafficRow } from "@/shared/ad-traffic-forecast-read";
 import {
   assertOk,
   buildTaskBilling,
@@ -22,15 +17,18 @@ import {
  * request rules as its siblings — keywords required, location and language
  * required, billed once per request.
  *
- * ## The landmine, and why this client enforces the guardrail at the read
+ * ## The landmine, and who enforces the guardrail
  *
  * The response carries `impressions` and `ctr` **always null** — deprecated
  * upstream. A caller that maps the row straight onto a chart publishes an empty
  * chart with axes and a trend line through no data, and the reader concludes
- * their impressions were flat. The guardrail lives in `@/shared/ad-traffic-fields`
- * so the client and any chart surface read one rule, and this client applies it
- * at the read: the deprecated fields are **named in a refusal that travels with
- * the data**, never silently dropped.
+ * their impressions were flat.
+ *
+ * The guardrail lives in `@/shared/ad-traffic-fields` so the client and any
+ * chart surface read one rule, and **the reader that applies it is
+ * `@/shared/ad-traffic-forecast-read`** — this client stops at the envelope. A
+ * reader is product code, not a vendor call, and `check-vendor-imports` refused
+ * it here for exactly that reason.
  *
  * ## Why it is a cross-check and not a forecast
  *
@@ -54,41 +52,6 @@ type KeywordsDataTask<T> = DataforseoTaskLike & { result?: T[] };
 function taskItems<T>(task: KeywordsDataTask<T>): T[] {
   return task.result ?? [];
 }
-
-/**
- * One keyword's forecast row, as the vendor sends it.
- *
- * `impressions` and `ctr` are typed as **always-null rather than omitted**: a
- * type that hides the field invites a caller to read it, and a caller that
- * reads it gets `undefined` where a null was sent and reports it as absent
- * rather than as deprecated. They are optional rather than required because the
- * envelope's `result` is `unknown[]` — the type states what the vendor sends,
- * and does not pretend the type system proved it.
- */
-export type AdTrafficRow = {
-  keyword?: string | null;
-  clicks?: number | null;
-  average_cpc?: number | null;
-  cost?: number | null;
-  /** Deprecated upstream and always null. Never charted — see the guardrail. */
-  impressions?: null;
-  /** Deprecated upstream and always null. Never charted — see the guardrail. */
-  ctr?: null;
-  [key: string]: unknown;
-};
-
-/** The forecast as the product is allowed to show it. */
-export type AdTrafficForecast = {
-  rows: Array<{
-    keyword: string;
-    /** The requested fields that carry a measurement, with their values. */
-    values: Partial<
-      Record<Exclude<AdTrafficField, "impressions" | "ctr">, number>
-    >;
-  }>;
-  /** What was refused, and why. Null when the caller asked only for usable fields. */
-  refusal: string | null;
-};
 
 export async function fetchAdTrafficForecast(input: {
   keywords: string[];
@@ -141,42 +104,5 @@ export async function fetchAdTrafficForecast(input: {
   return {
     data: taskItems(task),
     billing: buildTaskBilling(task),
-  };
-}
-
-/**
- * Read a forecast into the shape the product may show.
- *
- * **The guardrail is applied here, at the read, and not left to a caller.** The
- * two deprecated fields are named in the refusal rather than dropped: a caller
- * who asked for four fields and received three must be told which one vanished
- * and why, because an unexplained missing series reads as data the vendor never
- * sent. And the values carry **only the requested usable fields**, so a caller
- * that asked for `cost` gets `cost` — the rule's `chartable` list is what the
- * read returns, not a full row with the deprecated pair hidden inside it.
- *
- * Billing is deliberately not part of this read: it belongs to the envelope the
- * caller already holds, and a reader that manufactured a number would be the
- * paid-log defect the envelope-returning sibling of `meter` exists to prevent.
- */
-export function readAdTrafficForecast(
-  rows: AdTrafficRow[],
-  requestedFields: readonly string[],
-): AdTrafficForecast {
-  const rule = adTrafficChartRule(requestedFields);
-  const usable = new Set<string>(rule.chartable);
-  return {
-    rows: rows.map((row) => {
-      const values: Partial<
-        Record<Exclude<AdTrafficField, "impressions" | "ctr">, number>
-      > = {};
-      for (const field of USABLE_AD_TRAFFIC_FIELDS) {
-        if (!usable.has(field)) continue;
-        const value = row[field];
-        if (typeof value === "number") values[field] = value;
-      }
-      return { keyword: row.keyword ?? "", values };
-    }),
-    refusal: adTrafficRefusalWarning(rule),
   };
 }

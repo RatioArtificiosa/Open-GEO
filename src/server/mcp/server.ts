@@ -256,7 +256,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   // direction, with the medians and the recent slope that keep a spike from
   // answering it.
   register(categoryMomentumTool);
-  // The breakouts: a steep approach and a sustained elevation, or the spike is
+  // The breakouts: a steep approach and a level that lasted, or the spike is
   // reported as the event it is with its persistence number.
   register(breakoutDetectorTool);
   // The paid-side cross-check, and the guardrail that keeps its two deprecated

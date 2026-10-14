@@ -22,7 +22,7 @@ import { DFS_KEYWORDS } from "@/shared/dataforseo-pricing";
  * `category_momentum` — is an industry's interest rising, cooling, or flat, with
  * no seed keyword.
  *
- * ## What it unlocks
+ * ## What this makes possible
  *
  * `google_trends/explore` takes a `category_code` with **no keywords**, so a
  * whole industry can be read before anyone knows which terms to track. The
@@ -37,7 +37,7 @@ import { DFS_KEYWORDS } from "@/shared/dataforseo-pricing";
  *    move a mean far past any margin while leaving the median where it was, and
  *    the verdict named from that mean would be a climb two points long.
  * 2. **A shifted level that is already falling is not acceleration.** The
- *    verdict needs the recent half's *own* slope to agree in sign, so "elevated
+ *    verdict needs the recent half's *own* slope to agree in sign, so "shifted
  *    and turning" reads as steady, with the level shift visible in the numbers
  *    rather than hidden.
  * 3. **A category is compared with its own past, never with another category's

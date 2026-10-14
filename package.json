@@ -44,7 +44,6 @@
     "test:watch": "vitest",
     "test:ci": "vitest run --reporter=dot",
     "test:e2e": "playwright test",
-    "test:e2e:free-tools": "playwright test --config playwright.free-tools.config.ts",
     "test:e2e:domain": "playwright test e2e/domain-overview-filters.spec.ts",
     "test:e2e:domain:perf": "playwright test e2e/domain-overview-filters.perf.spec.ts",
     "test:e2e:keywords": "playwright test e2e/keyword-research-navigation.spec.ts",

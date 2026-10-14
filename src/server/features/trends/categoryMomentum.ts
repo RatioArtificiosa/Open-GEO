@@ -7,7 +7,7 @@ import { at } from "@/shared/index-reads";
  * ## What this is for
  *
  * `google_trends/explore` accepts a `category_code` with **no keywords** — the
- * September unlock — so a whole industry's trend can be read before anyone knows
+ * September change — so a whole industry's trend can be read before anyone knows
  * which keywords to track. The product sentence this module exists to make true
  * is *"CRM is cooling; AI-visibility is accelerating"*, and the failure it exists
  * to refuse is a spike reading as a trend.
@@ -109,7 +109,7 @@ const MIN_POINTS_FOR_VERDICT = 6;
  *
  * A category-only request returns **one series**, and the graph item is keyed by
  * keyword: with no keyword the series is positional — index 0. That reading is
- * the documented capability of the unlock, and it is **unverified against a live
+ * the documented capability of that change, and it is **unverified against a live
  * response**, because the account cannot make one (`40104`, every daily rate
  * limit zero). The extraction is therefore small, pure and named: when the live
  * call happens, this is the one function a correction lands in, and nowhere
@@ -210,7 +210,7 @@ export function categoryMomentum(
 
   // **Both signals, or neither.** The median ratio says how far the level
   // shifted; the recent half's own slope says which way it is going now. A
-  // shifted level that is already falling is "elevated", not "accelerating",
+  // shifted level that is already falling is "shifted", not "accelerating",
   // and only a second signal can tell the two apart.
   let direction: CategoryDirection = "steady";
   if (changePercent !== null && Math.abs(changePercent) >= STEEP_PERCENT) {

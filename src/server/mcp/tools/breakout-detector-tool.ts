@@ -27,7 +27,7 @@ import { DFS_KEYWORDS } from "@/shared/dataforseo-pricing";
  * ## Why pure maths over a series we already fetch
  *
  * There is no breakout endpoint. A breakout is a **shape** — a steep approach
- * and a sustained elevation — and the merged Trends response already carries
+ * and a level that lasted — and the merged Trends response already carries
  * the series the shape is read from, so this tool adds no vendor call of its
  * own beyond the one read it needs. The maths lives in
  * `features/trends/breakoutSignals.ts`, pure and separately tested.
@@ -35,7 +35,7 @@ import { DFS_KEYWORDS } from "@/shared/dataforseo-pricing";
  * ## The two refusals that travel with every answer
  *
  * 1. **A spike that returned is not a breakout.** The verdict needs the
- *    persistence half of the shape: an elevation that lasted two steps is an
+ *    persistence half of the shape: a level that lasted two steps is an
  *    event, and a detector that named it would teach its readers to ignore the
  *    third one.
  * 2. **A window shorter than a year has no year-over-year figure.** "Up 40% on
@@ -107,7 +107,7 @@ export const breakoutDetectorTool = {
   config: {
     title: "Which of these terms is breaking out",
     description:
-      "Reads the merged Trends series for up to five keywords and reports the breakout shape for each: year-over-year change when the window holds a year, the climb rate into the peak, and how long the elevation held after it. A candidate is called only when the series climbed steeply AND stayed elevated — a two-step spike is reported as the event it is, with the persistence number visible. Shorter-than-a-year windows carry no year-over-year figure rather than a shorter comparison under the same name. Charges credits once per request; dry_run defaults to true.",
+      "Reads the merged Trends series for up to five keywords and reports the breakout shape for each: year-over-year change when the window holds a year, the climb rate into the peak, and how long the level held after it. A candidate is called only when the series climbed steeply AND stayed above its earlier level — a two-step spike is reported as the event it is, with the persistence number visible. Shorter-than-a-year windows carry no year-over-year figure rather than a shorter comparison under the same name. Charges credits once per request; dry_run defaults to true.",
     inputSchema: detectorInputSchema,
     outputSchema: z
       .object({
@@ -118,7 +118,7 @@ export const breakoutDetectorTool = {
             yoyChangePercent: z.number().nullable(),
             climbRatePerStep: z.number().nullable(),
             persistenceSteps: z.number().nullable(),
-            stillElevated: z.boolean(),
+            stillAboveBaseline: z.boolean(),
             peakDate: z.string().nullable(),
             summary: z.string(),
           }),
@@ -201,7 +201,7 @@ export const breakoutDetectorTool = {
           yoyChangePercent: signal.yoyChangePercent,
           climbRatePerStep: signal.climbRatePerStep,
           persistenceSteps: signal.persistenceSteps,
-          stillElevated: signal.stillElevated,
+          stillAboveBaseline: signal.stillAboveBaseline,
           peakDate: signal.peakDate,
           summary: signal.summary,
         })),

@@ -7,11 +7,11 @@ import {
   isDeprecatedAdTrafficField,
 } from "@/shared/ad-traffic-fields";
 import { requestUrl } from "./test-support";
+import { fetchAdTrafficForecast } from "./adTraffic";
 import {
-  fetchAdTrafficForecast,
   readAdTrafficForecast,
   type AdTrafficRow,
-} from "./adTraffic";
+} from "@/shared/ad-traffic-forecast-read";
 
 vi.mock("@/server/lib/runtime-env", () => ({
   getRequiredEnvValue: vi.fn(async () => "test-api-key"),

@@ -1,9 +1,7 @@
 import { z } from "zod";
 import { createDataforseoClient } from "@/server/lib/dataforseo/client";
-import {
-  readAdTrafficForecast,
-  type AdTrafficForecast,
-} from "@/server/lib/dataforseo/adTraffic";
+import { readAdTrafficForecast } from "@/shared/ad-traffic-forecast-read";
+import type { AdTrafficForecast } from "@/shared/ad-traffic-forecast-read";
 import { USABLE_AD_TRAFFIC_FIELDS } from "@/shared/ad-traffic-fields";
 import { buildProjectMeta } from "@/server/mcp/context";
 import {
