@@ -200,18 +200,105 @@ export async function openDomainOverview(page: Page, tab: DomainTab) {
   await expect(
     page.getByRole("heading", { name: "Domain Overview" }),
   ).toBeVisible();
-  await dismissSetupModal(page);
+  // **After the navigation, and waiting.** The modal re-arms on every pathname
+  // change, so this is the dismissal that actually matters; the one on `/` cleared
+  // the route before it and is not evidence about this one.
+  await dismissSetupModal(page, { wait: true });
   await expect(page.getByRole("button", { name: /Filters/ })).toBeVisible({
     timeout: 30_000,
   });
   await expectPageResponsive(page, "after opening Domain Overview");
 }
 
-async function dismissSetupModal(page: Page) {
-  const dismissButton = page.getByRole("button", { name: "Dismiss" });
-  if (await dismissButton.isVisible()) {
-    await dismissButton.click();
+/**
+ * Clear the DataForSEO setup modal out of the way, and prove it is gone.
+ *
+ * ## Why the previous helper was a race, and what it cost
+ *
+ * It read `await dismissButton.isVisible()` — a **non-waiting** check — and clicked
+ * only if that snapshot already saw the button. The modal is opened by an effect that
+ * fires once `getSeoApiKeyStatus()` resolves, which is *after* the route has rendered,
+ * so the check almost always ran before it existed: the click never happened, the
+ * backdrop stayed, and every later `click()` failed with
+ * *"…bg-black/50 p-4 intercepts pointer events"*. Four of the seven tests failed that
+ * way, and the error names an unlabelled `<div>` from `AppShellParts.tsx` — which
+ * points at the layout, not at the modal, so the reader is sent to the wrong file.
+ *
+ * ## Why one dismissal is not enough, and why waiting once is not either
+ *
+ * The modal's opener is a React Query call, so **there is more than one render that
+ * can show it**: the effect runs once when the query first resolves, and again on any
+ * refetch (React Query returns a fresh object identity each time, which is a new value
+ * in the effect's dependency array). A helper that dismisses on the first sighting and
+ * returns is therefore racy in the *other* direction — it proves a dismissal, not the
+ * absence of the next one.
+ *
+ * So this waits for the modal to settle: dismiss, then confirm it stays hidden for a
+ * quiet period that is long enough for a refetch to have happened. **`waitFor("hidden")`
+ * alone is not enough** — it is satisfied the instant the dialog unmounts, which is
+ * before the refetch that re-opens it has run. That is precisely the sequence that
+ * produced the four remaining failures after the first fix.
+ *
+ * ## Why Dismiss rather than Escape
+ *
+ * Both close the dialog (`AppShell.tsx:105` binds Escape, and the button calls
+ * `onClose`). The button is used here because it is the path a user takes and the one
+ * whose click proves the backdrop is not swallowing pointer events — if the backdrop
+ * *were* intercepting, the click would fail here rather than three assertions later.
+ *
+ * @param settleMs How long the modal must stay hidden. Defaults to the query's refetch
+ *   window, so the check spans one refetch rather than hoping to beat it.
+ */
+async function dismissSetupModal(
+  page: Page,
+  options?: { wait?: boolean; settleMs?: number },
+): Promise<boolean> {
+  const dialog = page.getByRole("dialog", { name: /One quick setup step/i });
+  const settleMs = options?.settleMs ?? 3_000;
+
+  if (options?.wait) {
+    // Wait for it to be *present or provably absent*, rather than guessing which.
+    // The modal's opener is a query, so "absent" is a real state on a machine with a
+    // key configured — and the previous helper's silent pass made that state
+    // indistinguishable from a failure to dismiss.
+    try {
+      await dialog.waitFor({ state: "visible", timeout: 15_000 });
+    } catch {
+      return false;
+    }
+  } else if (!(await dialog.isVisible())) {
+    // Still wait a beat: the modal may be opening right now, and an early "absent"
+    // is the same silent pass the previous helper made.
+    await page.waitForTimeout(500);
+    if (!(await dialog.isVisible())) return false;
   }
+
+  // Scoped, because "Dismiss" is not unique on this page — `GoogleAnalyticsConnectionCard`
+  // renders one too, and an unscoped click resolves to two elements and fails in
+  // strict mode. The failure message from that names the other component's file,
+  // which is a second way this helper can point a reader at the wrong artifact.
+  const dismiss = dialog.getByRole("button", { name: "Dismiss" });
+  await dismiss.click();
+
+  await dialog.waitFor({ state: "hidden", timeout: 5_000 });
+
+  // **The settle.** The dialog is gone; now prove it stays gone across a refetch
+  // window. This is the assertion the previous version was missing entirely, and it
+  // is what turns "I dismissed a modal" into "this page is usable".
+  await page.waitForTimeout(settleMs);
+  if (await dialog.isVisible()) {
+    // A re-opened modal is a **product defect, not a test artifact**, and it is
+    // reported as one: the layout re-opens the reminder on a refetch that should not
+    // have re-opened it. Surfacing it as an error here keeps the suite honest about
+    // which side of the boundary the bug is on.
+    throw new Error(
+      "The DataForSEO setup modal re-opened after being dismissed. That is a product defect in " +
+        "AppShell.tsx: the reminder re-arms on a status refetch it should ignore. Fix the app, " +
+        "not this helper.",
+    );
+  }
+
+  return true;
 }
 
 export async function waitForDomainRows(page: Page, label: string) {

@@ -4,6 +4,28 @@
   "main": "src/server.ts",
   "compatibility_date": "2025-09-02",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // **`local_noauth` is the committed default, and it is the only auth mode that
+  // can be.** Auth mode is not a secret — the client needs it at *build* time
+  // (`import.meta.env.AUTH_MODE`, see `isHostedClientAuthMode`) and the worker
+  // needs it at *runtime* (`env.AUTH_MODE`, read by `resolveUserContextFromHeaders`),
+  // and a value that is absent from both falls through `getAuthMode`'s fail-closed
+  // default to `cloudflare_access`. That default demands `TEAM_DOMAIN` and
+  // `POLICY_AUD`, so a fresh clone or a CI runner renders an "Authentication setup
+  // required" page instead of the app — **which is exactly what the e2e suite hit,
+  // and why it had never run: CI sets no `AUTH_MODE` either.**
+  //
+  // Committing it here is the fix that works everywhere: Playwright's `webServer.env`
+  // reaches the *process*, not the cloudflare worker's environment, so the variable
+  // was set in the config and still never arrived. `vars` is the layer the worker
+  // actually reads, in dev, in `vite preview` and in CI alike.
+  //
+  // A self-hoster overrides this the documented way (`AUTH_MODE=hosted` in
+  // `.env.selfhost` → `.dev.vars`/deploy), and the Docker entrypoint passes its own
+  // through — so this is a default, not a lock. It is deliberately *not* the hosted
+  // value: nothing in this repository authenticates against OpenGeo's own accounts.
+  "vars": {
+    "AUTH_MODE": "local_noauth",
+  },
   "observability": {
     "enabled": true,
     // Spans are billed as observability events (free tier 200k/day); add a

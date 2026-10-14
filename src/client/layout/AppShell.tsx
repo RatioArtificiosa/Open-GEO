@@ -30,6 +30,20 @@ export function AuthenticatedAppLayout({
   const setupModalRef = React.useRef<HTMLDivElement | null>(null);
   const [showMissingSeoApiKeyModal, setShowMissingSeoApiKeyModal] =
     React.useState(false);
+  /**
+   * Whether the user has dismissed the setup modal in **this session**.
+   *
+   * Separate from `showMissingSeoApiKeyModal` on purpose. `show…` says the dialog is
+   * open right now; this says the user has answered the question. Keeping them apart
+   * is what lets the effect open the modal exactly once rather than once per
+   * refetch — see the effect below for the debugging that distinction cost.
+   *
+   * Deliberately **not persisted**: a dismissed reminder should not silently vanish
+   * for good, or a user who dismisses it on Monday never learns their key is still
+   * missing. A reload re-arms it, which is the right behaviour for a nudge about a
+   * missing credential and the wrong one for a dismissal the user expects to stick.
+   */
+  const [dismissedSetupModal, setDismissedSetupModal] = React.useState(false);
   // On non-project pages (e.g. /settings) there's no projectId in the URL, so
   // derive one for the nav/switcher: prefer the last-visited project, else the
   // most recent. The whole app tree is client-only (see root ClientOnly), so we
@@ -80,13 +94,50 @@ export function AuthenticatedAppLayout({
     }
 
     if (!seoApiKeyStatusQuery.isSuccess) return;
-    setShowMissingSeoApiKeyModal(!seoApiKeyStatusQuery.data.configured);
+
+    /**
+     * **Only open it, and only once per session.**
+     *
+     * The previous line unconditionally wrote `!configured`, which means the value a
+     * user dismissed was overwritten by the next thing that changed this effect's
+     * inputs — and those inputs include `location.pathname` and
+     * `seoApiKeyStatusQuery.data`, the latter a fresh object identity on every
+     * refetch. So dismissing the modal did nothing: it came back on the next
+     * navigation or the next status poll.
+     *
+     * Guarding on `!showMissingSeoApiKeyModal` alone is **not** enough, and the
+     * reason is worth writing down because it cost a debugging cycle: state is
+     * closed by `onClose`, so the guard should have held — but the effect's *first*
+     * run and its second run are indistinguishable from inside it. React Query
+     * resolves the query, the effect opens the modal, the user dismisses it, and the
+     * **refetch** re-runs the effect on new data. Each of those is a legitimate
+     * trigger for "should the modal be shown?", and only the first one should win.
+     *
+     * So the decision is recorded in state rather than inferred: `true` means "shown
+     * at least once", `false` means "not yet", and `onClose` is what marks a
+     * dismissal as final. The modal still appears for a user who has never dismissed
+     * it — that is its job — but a dismissal inside this session is durable.
+     *
+     * The error branch above is unchanged: it *closes*, because an unknown status is
+     * not evidence of a missing key, and asserting one would be the guess
+     * `getAuthMode` already refuses to make.
+     */
+    if (!seoApiKeyStatusQuery.data.configured && !dismissedSetupModal) {
+      setShowMissingSeoApiKeyModal(true);
+    }
   }, [
     location.pathname,
     seoApiKeyStatusQuery.data,
     seoApiKeyStatusQuery.isError,
     seoApiKeyStatusQuery.isSuccess,
     shouldCheckSeoApiKeyStatus,
+    // **`dismissedSetupModal`, and omitting it was the last version of this bug.**
+    // The effect closes over the flag, so without it in the array a refetch re-runs
+    // the effect with the closure captured at the *previous* render — where the flag
+    // was still `false` — and the guard passes even though the user dismissed it.
+    // The exact stale-closure class `exhaustive-deps` exists to catch, which this
+    // file did not have enabled because the array was written by hand.
+    dismissedSetupModal,
   ]);
 
   const shouldShowMissingSeoApiKeyModal =
@@ -104,7 +155,12 @@ export function AuthenticatedAppLayout({
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        // **Both flags, because Escape is a dismissal too.** Setting only the
+        // "open" flag closed the dialog and left the "answered" flag untouched, so
+        // the very next refetch re-opened it — the same bug as the button's path,
+        // one line lower.
         setShowMissingSeoApiKeyModal(false);
+        setDismissedSetupModal(true);
       }
     };
 
@@ -151,7 +207,13 @@ export function AuthenticatedAppLayout({
       <MissingSeoSetupModal
         ref={setupModalRef}
         isOpen={shouldShowMissingSeoApiKeyModal}
-        onClose={() => setShowMissingSeoApiKeyModal(false)}
+        onClose={() => {
+          setShowMissingSeoApiKeyModal(false);
+          // **Mark the dismissal, so no later refetch re-opens it.** Without this the
+          // guard in the effect has nothing to check, and the modal returns on the
+          // next status poll — which is exactly what it did before.
+          setDismissedSetupModal(true);
+        }}
       />
 
       <GscReEngagementModal
