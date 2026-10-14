@@ -251,3 +251,66 @@ describe("each chart rule can fail — the negative controls", () => {
     expect(/\bhide\b/.test("<YAxis hide />")).toBe(true);
   });
 });
+
+/**
+ * CL-816's second class: the same slot in both forms.
+ *
+ * The first near-miss was one hard-coded `font-family` on the page that
+ * mattered. This one is subtler and it shipped for longer: **within a single
+ * series map, one entry read its token and the others were raw hex.** The
+ * existing colour rule permits both forms, so nothing failed — and the chart
+ * then claimed two different brands, because a theme change reached the token
+ * and left the literals on the values the palette was designed against.
+ *
+ * The rule is narrow on purpose: it compares *sibling entries in one map*, not
+ * colours across a file. Two unrelated components may legitimately differ —
+ * one reading a token for theme-awareness and another naming a documented
+ * series colour — and a scan that flagged that would be noise nobody reads.
+ */
+describe("chart colours keep one form within a series map", () => {
+  /**
+   * A `{ …, color: … }` entry line — keyed or anonymous. The keyed form
+   * (`mobile: { label: …, color: … }`) is the common one, and this pattern was
+   * first written for anonymous entries only, which matched nothing at all.
+   */
+  const MAP_ENTRY = /^\s*(?:\w+:\s*)?\{.*\bcolor:\s*"([^"]+)".*\}\s*,?\s*$/;
+
+  it("never mixes a token and a literal inside one map", () => {
+    const mixed: string[] = [];
+    for (const file of walk(join(SRC_CLIENT), ".tsx")) {
+      const relativePath = relative(SRC_CLIENT, file);
+      if (BRAND_MARK_FILES.has(relativePath)) continue;
+      const lines = readFileSync(file, "utf8").split(/\r?\n/);
+      // Consecutive `color:` entries are one map; a lone entry is not a mix.
+      let run: Array<{ line: number; color: string }> = [];
+      const flush = () => {
+        const first = run[0];
+        if (run.length < 2 || first === undefined) return;
+        const forms = new Set(
+          run.map((e) => (e.color.startsWith("var(") ? "token" : "literal")),
+        );
+        if (forms.size > 1)
+          mixed.push(
+            `  ${relativePath}:${first.line} — ${run
+              .map((e) => `${e.color} (line ${e.line})`)
+              .join(" and ")}`,
+          );
+        run = [];
+      };
+      lines.forEach((text, index) => {
+        const match = text.match(MAP_ENTRY);
+        if (match) {
+          run.push({ line: index + 1, color: match[1] as string });
+          return;
+        }
+        flush();
+      });
+      flush();
+    }
+    expect(
+      mixed,
+      `A series map must read one form throughout, or a theme change reaches ` +
+        `some entries and leaves the rest on the palette's light-canvas values:\n${mixed.join("\n")}`,
+    ).toEqual([]);
+  });
+});

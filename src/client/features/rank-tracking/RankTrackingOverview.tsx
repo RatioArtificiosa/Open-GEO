@@ -18,11 +18,33 @@ import {
 } from "./RankTrackingTrendChart";
 import { useChartMotion } from "@/client/lib/useChartMotion";
 
+/**
+ * The rank buckets, and the token each one reads.
+ *
+ * **Three of these four were raw hex**, which is the CL-816 near-miss exactly:
+ * `top3` beside them read `--color-accent`, so a palette change reached one
+ * bucket's series and left the other three on the old colours. The buckets then
+ * claimed two different brands on one chart, and nothing failed.
+ *
+ * `notRanking` is the sharpest case: `#6B7280` is the *documented* contrast
+ * failure in `styles/app.css` — 4.02:1 on the dark canvas, below AA — and the
+ * measured replacement (`--og-text-muted`, #737B88 at 4.56:1) already exists.
+ * The fix was on file and this line was still reading the old value, which is
+ * what a near-miss means.
+ */
 const BUCKETS = [
   { key: "top3", label: "Top 3", color: "var(--color-accent, #F59E0B)" },
-  { key: "top4to10", label: "4–10", color: "#34D399" },
-  { key: "top11to20", label: "11–20", color: "#60A5FA" },
-  { key: "notRanking", label: "Not in top 20", color: "#6B7280" },
+  {
+    key: "top4to10",
+    label: "4–10",
+    color: "var(--color-success, #34D399)",
+  },
+  { key: "top11to20", label: "11–20", color: "var(--color-info, #60A5FA)" },
+  {
+    key: "notRanking",
+    label: "Not in top 20",
+    color: "var(--og-text-muted, #6B7280)",
+  },
 ] as const;
 
 /** Narrowed recharts tooltip payload entry (typed `any` upstream). */

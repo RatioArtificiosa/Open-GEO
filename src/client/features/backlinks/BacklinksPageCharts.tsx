@@ -88,7 +88,7 @@ export function BacklinksTrendChart({
               yAxisId="right"
               type="monotone"
               dataKey="referringDomains"
-              stroke="#34D399"
+              stroke="var(--color-success, #34D399)"
               strokeWidth={2}
               dot={false}
               name="Referring domains"
@@ -104,10 +104,17 @@ export function BacklinksTrendChart({
   );
 }
 
-/** Gain and loss are the one place a status pair is the honest encoding. */
+/**
+ * Gain and loss are the one place a status pair is the honest encoding.
+ *
+ * Both colours were raw hex while the accent beside them read its token, so a
+ * palette change moved the chart's other series and left this pair behind —
+ * three brands on one panel. The status tokens carry the same meaning, and the
+ * fallback keeps the pair readable if a stylesheet fails to define them.
+ */
 const NEW_LOST_SERIES = [
-  { label: "New backlinks", color: "#34D399" },
-  { label: "Lost backlinks", color: "#F87171" },
+  { label: "New backlinks", color: "var(--color-success, #34D399)" },
+  { label: "Lost backlinks", color: "var(--color-error, #F87171)" },
 ] as const;
 
 export function BacklinksNewLostChart({
@@ -173,7 +180,7 @@ export function BacklinksNewLostChart({
             <Line
               type="monotone"
               dataKey="lostBacklinks"
-              stroke="#F87171"
+              stroke="var(--color-error, #F87171)"
               strokeWidth={2}
               dot={false}
               name="Lost backlinks"
@@ -182,7 +189,7 @@ export function BacklinksNewLostChart({
             <Line
               type="monotone"
               dataKey="newBacklinks"
-              stroke="#34D399"
+              stroke="var(--color-success, #34D399)"
               strokeWidth={2}
               dot={false}
               name="New backlinks"

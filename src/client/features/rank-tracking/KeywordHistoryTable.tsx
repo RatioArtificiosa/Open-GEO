@@ -16,7 +16,13 @@ export const DEVICE_STYLE: Record<
   { label: string; color: string }
 > = {
   desktop: { label: "Desktop", color: "var(--color-accent, #F59E0B)" },
-  mobile: { label: "Mobile", color: "#34D399" },
+  // **A token with a fallback, not a raw hex.** This was the CL-816 near-miss:
+  // the accent beside it read its token, so a palette change reached one device
+  // series and left the other on the old colour — the two lines then claimed
+  // two brands. The `--color-success` token is the same green family, and the
+  // fallback keeps a stylesheet that fails to define it drawing the colour it
+  // drew before rather than nothing.
+  mobile: { label: "Mobile", color: "var(--color-success, #34D399)" },
 };
 
 /**
