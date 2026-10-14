@@ -55,6 +55,6 @@ discovering at review.
 
 ## What happens after you open one
 
-Reviews are by a human, with an independent pass from CodeRabbit. A finding has to
-be reproducible before it is fixed, so expect a "what is the failing case" question
-more often than a style comment.
+Reviews are by a human, with an independent second opinion from an automated reviewer run
+over the change before it is merged. A finding has to be reproducible before it is fixed,
+so expect a "what is the failing case" question more often than a style comment.
