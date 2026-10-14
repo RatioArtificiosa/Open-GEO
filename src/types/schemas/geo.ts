@@ -201,6 +201,27 @@ export const getGeoVisibilityForecastSchema = z.object({
   platform: geoPlatformSchema,
 });
 
+/**
+ * The forecast scoreboard's inputs.
+ *
+ * `platforms` rather than `platform`: the scoreboard's point is that a brand's
+ * projection and its score are read together, and one platform at a time would let
+ * a reader see a "miss" on ChatGPT without the panel that says what was predicted.
+ * `today` is accepted so a caller can ask about a past day rather than being
+ * silently scored against a clock it did not choose.
+ */
+export const getGeoForecastAccuracySchema = z.object({
+  domain: z.string().min(1).max(253),
+  platforms: z.array(geoPlatformSchema).min(1).max(10),
+  /** `YYYY-MM-DD`. Defaults to the server's day, which is the only honest default. */
+  today: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  /** Include projections whose horizon has not elapsed. Off by default; see the module. */
+  includePending: z.boolean().optional(),
+});
+
 export const getGeoAiKeywordHistorySchema = z.object({
   keyword: z.string().trim().min(1).max(250),
 });

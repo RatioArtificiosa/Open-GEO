@@ -11,6 +11,7 @@ import { runDueGeoPatrols } from "@/server/features/geo/services/scheduledGeoPat
 import { runNightlyBillableCaptures } from "@/server/features/geo/services/nightlyCaptures";
 import { runQueueDrain } from "@/server/features/geo/services/queueDrainRunner";
 import { runScheduledGeoRetention } from "@/server/features/geo/services/scheduledGeoRetention";
+import { runDueForecastSnapshots } from "@/server/features/geo/services/scheduledForecastCapture";
 import { reconcileStaleAudits } from "@/server/features/audit/services/auditReconciler";
 import { getOrCreateOrganizationCustomer } from "@/server/billing/subscription";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
@@ -342,6 +343,36 @@ export default {
     // tick a no-op for it. Only the three that *bill* are gated.
     if (isNightlyTick) {
       await withPgClient(() => runNightlyBillableCaptures());
+    }
+
+    /**
+     * The nightly forecast sweep, on the same tick and **after** the captures.
+     *
+     * ## Why after, and why not inside `nightlyCaptures.ts`
+     *
+     * The forecasts read the archive the captures just filled, so they run after —
+     * the one ordering that matters. They are not inside `runNightlyBillableCaptures`
+     * because that module's contract is *"the nightly captures that bill the vendor"*,
+     * and its ordering rule is cheap-work-first-billable-last: putting a free job in
+     * it would break both claims, and a reader looking there for cost would find a
+     * job that has none.
+     *
+     * ## Why it is on the nightly tick at all
+     *
+     * The row's claim is **the day it was made**, so one row per day is the contract,
+     * and a job that ran every five minutes would write one row per day anyway while
+     * doing the work ninety times. There is no budget to gate and no `lastAskedAt`
+     * rotation: nothing here calls the vendor, and the unique key makes a second run
+     * on the same night a no-op rather than a fork.
+     */
+    try {
+      await withPgClient(() => runDueForecastSnapshots());
+    } catch (err) {
+      // Isolated from the retention sweep and the rank checks below it, for the
+      // reason each of those is isolated in turn: a forecast writer failing must not
+      // stop an archive from ageing out, and this is the only nightly job whose
+      // failure leaves no evidence at all — the rows simply do not exist.
+      console.error("[cron] Forecast snapshots failed:", err);
     }
 
     // Retention follows the patrol on the same tick: the sweep only deletes what

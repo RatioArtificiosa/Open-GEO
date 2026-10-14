@@ -18,6 +18,7 @@ import * as sqlitePendingTasks from "./geo-pending-tasks.schema";
 import * as sqliteAlertDispatches from "./alert-dispatches.schema";
 import * as sqliteLabsCategories from "./labs-categories.schema";
 import * as sqliteKeywordOpportunityInputs from "./keyword-opportunity-inputs.schema";
+import * as sqliteForecastSnapshots from "./forecast-snapshots.schema";
 import * as sqliteBillingConfig from "./billing-config.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgDomainMetrics from "./pg/domain-metrics.schema";
@@ -38,6 +39,7 @@ import * as pgPendingTasks from "./pg/geo-pending-tasks.schema";
 import * as pgAlertDispatches from "./pg/alert-dispatches.schema";
 import * as pgLabsCategories from "./pg/labs-categories.schema";
 import * as pgKeywordOpportunityInputs from "./pg/keyword-opportunity-inputs.schema";
+import * as pgForecastSnapshots from "./pg/forecast-snapshots.schema";
 import * as pgBillingConfig from "./pg/billing-config.schema";
 
 // Canonical schema barrel. Repositories import their tables from here and the
@@ -69,7 +71,8 @@ type AppSchema = typeof sqliteApp &
   typeof sqliteAlertDispatches &
   typeof sqliteLabsCategories &
   typeof sqliteKeywordOpportunityInputs &
-  typeof sqliteBillingConfig;
+  typeof sqliteBillingConfig &
+  typeof sqliteForecastSnapshots;
 
 const runtimeSchema =
   getDatabaseProvider() === "postgres"
@@ -94,6 +97,7 @@ const runtimeSchema =
         ...pgLabsCategories,
         ...pgKeywordOpportunityInputs,
         ...pgBillingConfig,
+        ...pgForecastSnapshots,
       }
     : {
         ...sqliteApp,
@@ -116,6 +120,7 @@ const runtimeSchema =
         ...sqliteLabsCategories,
         ...sqliteKeywordOpportunityInputs,
         ...sqliteBillingConfig,
+        ...sqliteForecastSnapshots,
       };
 
 /**
@@ -199,4 +204,5 @@ export const {
   geoPendingTasks,
   geoAlertDispatches,
   categoryTaxonomy,
+  geoForecastSnapshots,
 } = schema;

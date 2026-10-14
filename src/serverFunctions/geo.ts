@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { GeoService } from "@/server/features/geo/services/GeoService";
 import { forecastForStoredSeries } from "@/server/features/geo/services/visibilityForecastReads";
+import { readForecastAccuracy } from "@/server/features/geo/services/forecastAccuracyReads";
 import { createDataforseoClient } from "@/server/lib/dataforseo/client";
 import {
   getNewLostSeries,
@@ -26,6 +27,7 @@ import {
   getGeoAiKeywordHistorySchema,
   getGeoAnswerSchema,
   getGeoCitationGapSchema,
+  getGeoForecastAccuracySchema,
   getGeoRunSchema,
   getGeoVisibilitySchema,
   getGeoVisibilityForecastSchema,
@@ -339,6 +341,31 @@ export const getGeoVisibilityForecast = createServerFn({ method: "POST" })
       projectId: context.projectId,
       domain: data.domain,
       platform: data.platform,
+    }),
+  );
+
+/**
+ * The forecast scoreboard: what we predicted, and what was measured.
+ *
+ * The only endpoint that answers *were we right*, which is the sentence the whole
+ * CL-503 table exists to make sayable. `projectId` comes from the authorized
+ * context, as in every function in this file, so a caller cannot score another
+ * project's forecasts by naming its id.
+ *
+ * `today` is optional and defaults to the server's day: a caller that supplies one
+ * is asking about a past scoreboard, which is legitimate — "what did we say on the
+ * 1st" — and the default is the only honest one because a forecast is dated.
+ */
+export const getGeoForecastAccuracy = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getGeoForecastAccuracySchema)
+  .handler(async ({ data, context }) =>
+    readForecastAccuracy({
+      projectId: context.projectId,
+      domain: data.domain,
+      platforms: data.platforms,
+      today: data.today ?? new Date().toISOString().slice(0, 10),
+      includePending: data.includePending,
     }),
   );
 

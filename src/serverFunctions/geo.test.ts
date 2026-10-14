@@ -215,6 +215,10 @@ const EXPECTED = [
   "getGeoCitationProfile",
   "getGeoEtvSeries",
   "getGeoEvidence",
+  // The forecast scoreboard. Added here when it shipped: the pin exists so a new
+  // entry point is a *decision* about the surface rather than a silent addition,
+  // and adding the name is the whole of that decision.
+  "getGeoForecastAccuracy",
   "getGeoMentionHistory",
   "getGeoNewLost",
   "getGeoTopCited",
