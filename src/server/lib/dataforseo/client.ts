@@ -62,6 +62,7 @@ import {
   fetchAdsKeywordIdeas,
   fetchAdsSearchVolume,
 } from "@/server/lib/dataforseo/google-ads";
+import { fetchAdTrafficForecast } from "@/server/lib/dataforseo/adTraffic";
 import { fetchClickstreamVolumes } from "@/server/lib/dataforseo/clickstream";
 import {
   fetchLiveSerp,
@@ -222,6 +223,12 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       // Google Ads endpoints for countries Labs doesn't support.
       adsIdeas: meter(customer, fetchAdsKeywordIdeas),
       adsSearchVolume: meter(customer, fetchAdsSearchVolume),
+      // The ad forecast, and the landmine it carries: `impressions` and `ctr`
+      // are deprecated upstream and always null. Metered like its siblings, and
+      // read through `readAdTrafficForecast` — which names any deprecated field
+      // a caller asked for rather than dropping it silently — so a chart can
+      // never be built from an empty axis that reads as flat interest.
+      adTrafficForecast: meter(customer, fetchAdTrafficForecast),
       // Clickstream-measured volume: the arbitration source that checks a volume we
       // already show. Metered here rather than called directly, because a call that
       // skips this wrapper is spend nobody attributes — and it is billed **per request**,

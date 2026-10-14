@@ -91,6 +91,7 @@ import { getSearchTrendsTool } from "@/server/mcp/tools/trends-tools";
 import { getTrendsOverviewTool } from "@/server/mcp/tools/trends-overview-tool";
 import { categoryMomentumTool } from "@/server/mcp/tools/category-momentum-tool";
 import { breakoutDetectorTool } from "@/server/mcp/tools/breakout-detector-tool";
+import { adTrafficCrossCheckTool } from "@/server/mcp/tools/ad-traffic-cross-check-tool";
 import {
   getBusinessProfileTool,
   getBusinessReviewsTool,
@@ -258,6 +259,9 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   // The breakouts: a steep approach and a sustained elevation, or the spike is
   // reported as the event it is with its persistence number.
   register(breakoutDetectorTool);
+  // The paid-side cross-check, and the guardrail that keeps its two deprecated
+  // always-null fields off a chart — the refusal names them instead.
+  register(adTrafficCrossCheckTool);
   register(serpAskTool);
   register(reportPublishTool);
   register(compareSentimentTool);
