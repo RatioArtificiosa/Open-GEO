@@ -288,6 +288,13 @@
       "when": 1791974399924,
       "tag": "0040_superb_wong",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1791987012596,
+      "tag": "0041_sturdy_machine_man",
+      "breakpoints": true
     }
   ]
 }

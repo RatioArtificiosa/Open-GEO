@@ -58,6 +58,8 @@ type ForecastSnapshotRecord = {
   id: number;
   projectId: string;
   kind: ForecastKind;
+  /** The brand, part of this table's identity rather than a label on it. */
+  domain: string;
   subject: string;
   modelVersion: string;
   issuedOn: string;
@@ -78,6 +80,7 @@ type RawForecastRow = {
   id: number;
   projectId: string;
   kind: string;
+  domain: string;
   subject: string;
   modelVersion: string;
   issuedOn: string;
@@ -106,6 +109,7 @@ function toRecord(row: RawForecastRow): ForecastSnapshotRecord {
     id: row.id,
     projectId: row.projectId,
     kind: asForecastKind(row.kind),
+    domain: row.domain,
     subject: row.subject,
     modelVersion: row.modelVersion,
     issuedOn: row.issuedOn,
@@ -141,6 +145,14 @@ export const ForecastSnapshotsRepository = {
           "a row nobody can name is a row nobody can read back",
       );
     }
+    if (input.domain.trim().length === 0) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "ForecastSnapshotsRepository refuses to store a snapshot with no domain: " +
+          "a project can monitor several brands, and a row that cannot name its brand " +
+          "would either collide with the other brand's row or be read back against it",
+      );
+    }
     if (input.modelVersion.trim().length === 0) {
       throw new AppError(
         "VALIDATION_ERROR",
@@ -169,6 +181,7 @@ export const ForecastSnapshotsRepository = {
       .values({
         projectId: input.projectId,
         kind: input.kind,
+        domain: input.domain,
         subject: input.subject,
         modelVersion: input.modelVersion,
         issuedOn: input.issuedOn,
@@ -196,8 +209,10 @@ export const ForecastSnapshotsRepository = {
    */
   async latestFor(input: {
     projectId: string;
+    domain: string;
     kind: ForecastKind;
     subject: string;
+    modelVersion?: string;
   }): Promise<ForecastSnapshotRecord | null> {
     const rows = await db
       .select()
@@ -205,8 +220,12 @@ export const ForecastSnapshotsRepository = {
       .where(
         and(
           eq(geoForecastSnapshots.projectId, input.projectId),
+          eq(geoForecastSnapshots.domain, input.domain),
           eq(geoForecastSnapshots.kind, input.kind),
           eq(geoForecastSnapshots.subject, input.subject),
+          input.modelVersion === undefined
+            ? undefined
+            : eq(geoForecastSnapshots.modelVersion, input.modelVersion),
         ),
       )
       .orderBy(desc(geoForecastSnapshots.issuedOn))
@@ -224,26 +243,52 @@ export const ForecastSnapshotsRepository = {
    */
   async historyFor(input: {
     projectId: string;
+    domain: string;
     kind: ForecastKind;
     subject: string;
     limit?: number;
+    modelVersion?: string;
   }): Promise<ForecastSnapshotRecord[]> {
     const bounded = Math.max(1, Math.floor(input.limit ?? 60));
 
+    /**
+     * Newest first, and the order is the fix rather than a preference.
+     *
+     * This read exists so the accuracy path can pick the **newest horizon-eligible**
+     * row, and it cannot express that in SQL — eligibility depends on the horizon
+     * each row carries. Ordering oldest-first and bounding the rows meant the
+     * selection was made from the *oldest* 200 nights: once a platform had more than
+     * that, the newest eligible row was outside the window and the score froze at an
+     * early forecast forever, with the pending rows past the bound never reported.
+     * Newest-first means the row being looked for is always the first one read.
+     */
     const rows = await db
       .select()
       .from(geoForecastSnapshots)
       .where(
         and(
           eq(geoForecastSnapshots.projectId, input.projectId),
+          eq(geoForecastSnapshots.domain, input.domain),
           eq(geoForecastSnapshots.kind, input.kind),
           eq(geoForecastSnapshots.subject, input.subject),
+          input.modelVersion === undefined
+            ? undefined
+            : eq(geoForecastSnapshots.modelVersion, input.modelVersion),
         ),
       )
-      .orderBy(geoForecastSnapshots.issuedOn)
+      .orderBy(desc(geoForecastSnapshots.issuedOn))
       .limit(bounded);
 
-    return rows.map(toRecord);
+    // Oldest-first for the caller, which charts the series in that order. Built from
+    // the newest-first read by iterating backwards rather than by `reverse()`: the
+    // repo bans the mutating one, and `toReversed` is unavailable to an ES2022 lib.
+    const ordered = rows.map(toRecord);
+    const ascending: ForecastSnapshotRecord[] = [];
+    for (let index = ordered.length - 1; index >= 0; index -= 1) {
+      const row = ordered[index];
+      if (row !== undefined) ascending.push(row);
+    }
+    return ascending;
   },
 
   /**
@@ -260,8 +305,10 @@ export const ForecastSnapshotsRepository = {
    */
   async latestBySubject(input: {
     projectId: string;
+    domain: string;
     kind: ForecastKind;
     limit?: number;
+    modelVersion?: string;
   }): Promise<ForecastSnapshotRecord[]> {
     const bounded = Math.max(1, Math.floor(input.limit ?? 50));
 
@@ -271,7 +318,11 @@ export const ForecastSnapshotsRepository = {
       .where(
         and(
           eq(geoForecastSnapshots.projectId, input.projectId),
+          eq(geoForecastSnapshots.domain, input.domain),
           eq(geoForecastSnapshots.kind, input.kind),
+          input.modelVersion === undefined
+            ? undefined
+            : eq(geoForecastSnapshots.modelVersion, input.modelVersion),
         ),
       )
       .orderBy(desc(geoForecastSnapshots.issuedOn))
@@ -309,10 +360,12 @@ export const ForecastSnapshotsRepository = {
    */
   async asOfFor(input: {
     projectId: string;
+    domain: string;
     kind: ForecastKind;
     subject: string;
     /** `YYYY-MM-DD`, inclusive. */
     onOrBefore: string;
+    modelVersion?: string;
   }): Promise<ForecastSnapshotRecord | null> {
     const rows = await db
       .select()
@@ -320,8 +373,12 @@ export const ForecastSnapshotsRepository = {
       .where(
         and(
           eq(geoForecastSnapshots.projectId, input.projectId),
+          eq(geoForecastSnapshots.domain, input.domain),
           eq(geoForecastSnapshots.kind, input.kind),
           eq(geoForecastSnapshots.subject, input.subject),
+          input.modelVersion === undefined
+            ? undefined
+            : eq(geoForecastSnapshots.modelVersion, input.modelVersion),
           lte(geoForecastSnapshots.issuedOn, input.onOrBefore),
         ),
       )
@@ -341,6 +398,7 @@ export const ForecastSnapshotsRepository = {
    */
   async countSince(input: {
     projectId: string;
+    domain?: string;
     since: string;
   }): Promise<number> {
     const rows = await db
@@ -349,6 +407,9 @@ export const ForecastSnapshotsRepository = {
       .where(
         and(
           eq(geoForecastSnapshots.projectId, input.projectId),
+          input.domain === undefined
+            ? undefined
+            : eq(geoForecastSnapshots.domain, input.domain),
           gte(geoForecastSnapshots.issuedOn, input.since),
         ),
       );

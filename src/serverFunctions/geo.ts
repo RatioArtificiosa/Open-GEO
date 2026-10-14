@@ -359,15 +359,31 @@ export const getGeoVisibilityForecast = createServerFn({ method: "POST" })
 export const getGeoForecastAccuracy = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
   .validator(getGeoForecastAccuracySchema)
-  .handler(async ({ data, context }) =>
-    readForecastAccuracy({
+  .handler(async ({ data, context }) => {
+    // **The server's own day, and a caller-supplied future day is refused.**
+    //
+    // A past `today` is legitimate — "what did the scoreboard say on the 1st" — but a
+    // future one is not: horizon eligibility is arithmetic on `today`, so a date in the
+    // future makes a forecast that has not had its band pass as already scorable. The
+    // schema's shape check cannot see that, so the bound lives here.
+    const today = new Date().toISOString().slice(0, 10);
+    if (data.today !== undefined && data.today > today) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        `Forecast accuracy cannot be read for ${data.today}: the horizon rule compares the ` +
+          `forecast's own issue date against ${today}, and a future day would score a ` +
+          "band that has not passed yet.",
+      );
+    }
+
+    return readForecastAccuracy({
       projectId: context.projectId,
       domain: data.domain,
       platforms: data.platforms,
-      today: data.today ?? new Date().toISOString().slice(0, 10),
+      today: data.today ?? today,
       includePending: data.includePending,
-    }),
-  );
+    });
+  });
 
 // --- AI demand -------------------------------------------------------------
 

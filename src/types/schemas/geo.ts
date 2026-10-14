@@ -201,6 +201,13 @@ export const getGeoVisibilityForecastSchema = z.object({
   platform: geoPlatformSchema,
 });
 
+/** `2026-13-45` matches the shape of a date and is not one. See the schema comment. */
+function isRealDay(value: string): boolean {
+  const parsed = Date.parse(`${value}T00:00:00Z`);
+  if (Number.isNaN(parsed)) return false;
+  return new Date(parsed).toISOString().startsWith(value);
+}
+
 /**
  * The forecast scoreboard's inputs.
  *
@@ -213,10 +220,21 @@ export const getGeoVisibilityForecastSchema = z.object({
 export const getGeoForecastAccuracySchema = z.object({
   domain: z.string().min(1).max(253),
   platforms: z.array(geoPlatformSchema).min(1).max(10),
-  /** `YYYY-MM-DD`. Defaults to the server's day, which is the only honest default. */
+  /**
+   * `YYYY-MM-DD`, and **a real day in the calendar**.
+   *
+   * The regex alone is not enough — `2026-13-45` matches the shape and is not a date,
+   * and every date comparison downstream is a string comparison that would sort it
+   * into the wrong place rather than failing. So the shape is checked *and* the value
+   * is round-tripped through `Date`: an impossible day is normalised into a different
+   * one, so the round trip only succeeds for a day that exists.
+   */
   today: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .refine(isRealDay, {
+      message: "must be a real YYYY-MM-DD day, not a date-shaped string",
+    })
     .optional(),
   /** Include projections whose horizon has not elapsed. Off by default; see the module. */
   includePending: z.boolean().optional(),

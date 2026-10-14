@@ -40,7 +40,7 @@ import { projects } from "./app.schema";
  * ## Why the issue date is in the unique key, and why nothing is ever updated
  *
  * `issued_on` is a **date**, and the unique index carries it beside the model
- * version. So a second run on the same night produces the same key and is ignored
+ * version and the brand. So a second run on the same night produces the same key and is ignored
  * rather than written twice, and a run on a later night produces a different key and
  * is appended. **History is append-only on purpose:** overwriting yesterday's
  * forecast with today's would delete the only evidence that the forecast changed,
@@ -99,6 +99,22 @@ export const geoForecastSnapshots = sqliteTable(
      */
     subject: text("subject").notNull(),
     /**
+     * The brand the row is about, and it is **required and in the key**.
+     *
+     * A project can monitor several brands — `geo_targets` is one row per
+     * `(project, domain, market)`, and the patrol runs once per target. Without the
+     * domain in the key, two brands in one project produce the *same* key for the
+     * same platform on the same night: the second insert collides and is silently
+     * dropped by `onConflictDoNothing`, so one brand's forecast quietly disappears
+     * while the sweep reports having written it. Worse, a reader measuring one domain
+     * would then read back the other brand's row.
+     *
+     * `citation_win` rows carry it twice over — `subject` is the domain and so is
+     * this — which is duplication kept deliberately: the column's meaning must not
+     * depend on the kind it sits beside.
+     */
+    domain: text("domain").notNull(),
+    /**
      * The model version the numbers were computed by. NOT NULL and in the key.
      *
      * `FORECAST_MODEL_VERSION` in `forecastSnapshot.ts` is the only writer, so a
@@ -146,13 +162,15 @@ export const geoForecastSnapshots = sqliteTable(
       .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`),
   },
   (table) => [
-    // One row per (target, kind, subject, model, day). Second run of the same
-    // night is ignored rather than duplicated: a cron that fires twice must not
+    // One row per (project, brand, kind, subject, model, day). Second run of the
+    // same night is ignored rather than duplicated: a cron that fires twice must not
     // be able to fork a series, and the day-granularity key is what makes that
-    // true without a "did we already run" table of its own.
+    // true without a "did we already run" table of its own. The brand is part of it
+    // because a project can monitor several.
     uniqueIndex("geo_forecast_snapshots_point_idx").on(
       table.projectId,
       table.kind,
+      table.domain,
       table.subject,
       table.modelVersion,
       table.issuedOn,
@@ -161,6 +179,7 @@ export const geoForecastSnapshots = sqliteTable(
     index("geo_forecast_snapshots_series_idx").on(
       table.projectId,
       table.kind,
+      table.domain,
       table.subject,
       table.issuedOn,
     ),

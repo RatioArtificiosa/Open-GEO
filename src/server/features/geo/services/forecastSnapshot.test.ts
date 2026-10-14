@@ -28,6 +28,7 @@ import {
 const base = {
   projectId: "proj-1",
   issuedOn: "2026-10-14",
+  domain: "acme.com",
   subject: "chat_gpt",
   share: 0.34,
   low: 0.28,
@@ -95,6 +96,7 @@ describe("forecastSnapshot builders", () => {
   it("names the citation win row by its target domain, with no weekly pace", () => {
     const row = citationWinSnapshot({
       ...base,
+      domain: "acme.com",
       subject: "acme.com",
       share: 0.21,
       now: 0.21,

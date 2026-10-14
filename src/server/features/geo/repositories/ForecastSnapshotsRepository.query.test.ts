@@ -27,6 +27,7 @@ import {
 
 const base: ForecastSnapshotRow = {
   projectId: "proj-1",
+  domain: "acme.com",
   kind: "visibility_pace",
   subject: "chat_gpt",
   modelVersion: FORECAST_MODEL_VERSION,
@@ -99,6 +100,13 @@ describe("ForecastSnapshotsRepository.insertSnapshot", () => {
     await expect(
       ForecastSnapshotsRepository.insertSnapshot({ ...base, subject: "  " }),
     ).rejects.toThrow(/refuses to store a snapshot with no subject/);
+    expect(written).toHaveLength(0);
+  });
+
+  it("refuses a row that cannot name its brand, so it cannot collide with the other brand's", async () => {
+    await expect(
+      ForecastSnapshotsRepository.insertSnapshot({ ...base, domain: "  " }),
+    ).rejects.toThrow(/refuses to store a snapshot with no domain/);
     expect(written).toHaveLength(0);
   });
 

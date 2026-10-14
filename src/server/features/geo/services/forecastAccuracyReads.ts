@@ -1,7 +1,11 @@
+import { AppError } from "@/server/lib/errors";
 import { forecastAccuracy } from "@/server/features/geo/services/forecastAccuracy";
 import { ForecastSnapshotsRepository } from "@/server/features/geo/repositories/ForecastSnapshotsRepository";
 import { forecastVisibility } from "@/server/features/geo/services/visibilityForecast";
-import { FORECAST_KINDS } from "@/server/features/geo/services/forecastSnapshot";
+import {
+  FORECAST_KINDS,
+  FORECAST_MODEL_VERSION,
+} from "@/server/features/geo/services/forecastSnapshot";
 import { readForecastInput } from "@/server/features/geo/services/visibilityForecastReads";
 
 /**
@@ -49,6 +53,17 @@ type ForecastAccuracyRow = {
   kind: string;
   /** When the forecast under test was made. */
   issuedOn: string;
+  /**
+   * The day the measurement actually reflects.
+   *
+   * Not the same as `today`, and the difference is the point: the actual is computed
+   * from the **stored archive**, so a forecast whose horizon closed on the 14th can be
+   * scored against a measurement taken on the 5th if no run has landed since. The
+   * score is then a comparison with a stale number, and a stale score that looks
+   * current is the specific failure this field exists to make visible rather than to
+   * hide behind a verdict.
+   */
+  measuredOn: string | null;
   horizonDays: number;
   predictedShareBp: number | null;
   actualShareBp: number | null;
@@ -121,7 +136,10 @@ export async function readForecastAccuracy(input: {
   // archive, not of the forecast being scored, and reading it per row would let two
   // rows on the same panel disagree about what "now" means if the archive changed
   // between them — which is the exact bug class the scoreboard exists to prevent.
-  const measured = new Map<string, number | null>();
+  const measured = new Map<
+    string,
+    { rate: number | null; measuredOn: string | null }
+  >();
   for (const platform of platforms) {
     try {
       const series = await readForecastInput({
@@ -131,17 +149,44 @@ export async function readForecastAccuracy(input: {
       });
       const forecast = forecastVisibility(series.observations);
       const reading = forecast.current.find((row) => row.platform === platform);
-      measured.set(platform, reading?.rate ?? null);
-    } catch {
-      // A platform whose series cannot be read is **unmeasured**, not a zero. The
-      // map keeps the key with a null so the scoreboard says "could not measure"
-      // rather than dropping the platform and silently shrinking the panel.
-      measured.set(platform, null);
+      /**
+       * The date the newest observation was taken, from the series itself.
+       *
+       * A **stored** date rather than `today`, because the actual is only ever as
+       * fresh as the last archived run. Reporting it beside the score means a reader
+       * can see that a 90-day forecast was checked against a measurement three weeks
+       * old — which is the difference between a fair score and a flattering one, and
+       * a distinction the verdict cannot carry on its own.
+       */
+      const newest = series.observations.reduce<string | null>(
+        (latest, row) =>
+          latest === null || row.date > latest ? row.date : latest,
+        null,
+      );
+      measured.set(platform, {
+        rate: reading?.rate ?? null,
+        measuredOn: newest,
+      });
+    } catch (error) {
+      // **Only a refusal is an absence; anything else propagates.** `readForecastInput`
+      // throws when the domain is not a monitored target in this project, which is a
+      // real "we do not measure that" — and that is the only kind of failure readable
+      // as `unmeasured`. Converting a database error into a null would let the panel
+      // say "nothing was measured, which is not the same as nothing was cited" while
+      // the truth is that the read failed, and the two need different readers: one
+      // waits, the other acts.
+      if (error instanceof AppError) {
+        measured.set(platform, { rate: null, measuredOn: null });
+        continue;
+      }
+      throw error;
     }
   }
 
   for (const platform of platforms) {
-    const actual = measured.get(platform) ?? null;
+    const measurement = measured.get(platform);
+    const actual = measurement?.rate ?? null;
+    const measuredOn = measurement?.measuredOn ?? null;
 
     /**
      * The history, not the newest row, and the selection happens here.
@@ -155,9 +200,15 @@ export async function readForecastAccuracy(input: {
      */
     const history = await ForecastSnapshotsRepository.historyFor({
       projectId: input.projectId,
+      domain: input.domain,
       kind: FORECAST_KINDS.visibilityPace,
       subject: platform,
       limit: HISTORY_LIMIT,
+      // **Pinned to the build's model version.** The unique key permits several
+      // same-day rows for different versions, so without this a reader across a
+      // version bump could score either row and the score would not name the model
+      // that produced it.
+      modelVersion: FORECAST_MODEL_VERSION,
     });
 
     const scorable = history.filter((row) => hasElapsed(row, input.today));
@@ -181,6 +232,7 @@ export async function readForecastAccuracy(input: {
         withinInterval: scored.withinInterval,
         verdict: scored.verdict,
         summary: scored.summary,
+        measuredOn,
         scorableOn: null,
       });
     }
@@ -205,6 +257,7 @@ export async function readForecastAccuracy(input: {
           withinInterval: scored.withinInterval,
           verdict: scored.verdict,
           summary: scored.summary,
+          measuredOn,
           // "Not yet" is a **date**, not a shrug: the day this row becomes scorable
           // is arithmetic on its own issue date and horizon.
           scorableOn: addDays(row.issuedOn, row.horizonDays),
@@ -222,8 +275,10 @@ export async function readForecastAccuracy(input: {
   if (headlinePlatform !== undefined) {
     const current = await ForecastSnapshotsRepository.latestFor({
       projectId: input.projectId,
+      domain: input.domain,
       kind: FORECAST_KINDS.visibilityPace,
       subject: headlinePlatform,
+      modelVersion: FORECAST_MODEL_VERSION,
     });
     if (current !== null) {
       projected = {

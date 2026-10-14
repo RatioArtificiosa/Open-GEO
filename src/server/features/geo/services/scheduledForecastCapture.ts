@@ -273,6 +273,7 @@ async function captureTarget(input: {
     const anchor = visibilityForecastSnapshot({
       projectId: target.projectId,
       issuedOn,
+      domain: target.domain,
       subject: platform,
       share: reading?.rate ?? null,
       low: reading?.low ?? null,
@@ -302,6 +303,7 @@ async function captureTarget(input: {
     const paceSnapshot = visibilityPaceSnapshot({
       projectId: target.projectId,
       issuedOn,
+      domain: target.domain,
       subject: platform,
       share: pace.shareAfterHorizon,
       low: null,
@@ -360,6 +362,7 @@ async function captureTarget(input: {
     const win = citationWinSnapshot({
       projectId: target.projectId,
       issuedOn,
+      domain: target.domain,
       subject: target.domain,
       share: probability.probability,
       low: probability.low,

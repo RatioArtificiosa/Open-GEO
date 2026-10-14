@@ -32,6 +32,7 @@ function snapshot(
 ): ForecastSnapshotRow {
   return {
     projectId: "proj-1",
+    domain: "acme.com",
     kind: "visibility_pace",
     subject: "chat_gpt",
     modelVersion: FORECAST_MODEL_VERSION,
@@ -69,8 +70,12 @@ describe("forecastAccuracy: the horizon must have elapsed", () => {
       actual: 0.42,
       today: "2026-10-14",
     });
+    // Named in full, because `not.toBe("too-early")` would also pass on
+    // `no-forecast`, `unmeasured` and `beat` — a weaker assertion than the claim.
     expect(result.verdict).toBe("held");
     expect(result.actualShareBp).toBe(4200);
+    expect(result.errorBp).toBe(200);
+    expect(result.summary).toContain("measured 42%");
   });
 
   it("scores long after the horizon ended, because a late reader is still asking", () => {
@@ -146,13 +151,27 @@ describe("forecastAccuracy: the verdict is interval-first", () => {
     // Both columns are rounded to basis points, so a share stored and re-read can
     // differ by one with nothing having happened. Calling that a miss would be
     // reporting rounding as error.
+    //
+    // **The actual is a true one-bp deviation.** The first draft used 0.40001, which
+    // rounds to 4000 bp and produced an error of exactly zero — so the tolerance
+    // under test was never exercised and the assertion passed for the wrong reason.
     const result = forecastAccuracy({
       snapshot: snapshot({ shareBp: 4000, lowBp: null, highBp: null }),
-      actual: 0.40001,
+      actual: 0.4001, // 0.4001 → 4001 bp, one above the stored 4000.
       today: "2026-10-14",
     });
-    expect(result.errorBp).toBe(0);
+    expect(result.errorBp).toBe(1);
     expect(result.verdict).toBe("held");
+  });
+
+  it("calls a two-basis-point deviation outside no interval, because that is a real deviation", () => {
+    const result = forecastAccuracy({
+      snapshot: snapshot({ shareBp: 4000, lowBp: null, highBp: null }),
+      actual: 0.4002, // → 4002 bp, two above.
+      today: "2026-10-14",
+    });
+    expect(result.errorBp).toBe(2);
+    expect(result.verdict).toBe("beat");
   });
 
   it("calls an exact hit an exact hit", () => {
@@ -206,6 +225,7 @@ describe("forecastAccuracy: an anchor is not a projection", () => {
     const result = forecastAccuracy({
       snapshot: snapshot({
         kind: "citation_win",
+        domain: "acme.com",
         subject: "acme.com",
         horizonDays: 90,
         shareBp: 2100,

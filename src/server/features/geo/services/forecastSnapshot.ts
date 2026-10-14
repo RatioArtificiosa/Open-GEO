@@ -124,6 +124,18 @@ export function asForecastKind(value: string): ForecastKind {
 export type ForecastSnapshotRow = {
   projectId: string;
   kind: ForecastKind;
+  /**
+   * The brand the row is about — **required, and in the unique key.**
+   *
+   * A project can monitor several brands (`geo_targets` is one row per
+   * `(project, domain, market)` and the patrol runs once per target), so "which
+   * platform" does not identify a forecast. Without the domain in the key, two brands
+   * in one project produce the same key for the same platform on the same night: the
+   * second insert is silently dropped by `onConflictDoNothing`, one brand's forecast
+   * vanishes while the sweep reports success, and a reader measuring one domain reads
+   * back the other brand's row.
+   */
+  domain: string;
   subject: string;
   modelVersion: string;
   /** `YYYY-MM-DD`. The date, not the timestamp — a forecast is dated to the day. */
@@ -171,6 +183,8 @@ export function maybeBp(value: number | null): number | null {
 type SnapshotNumbers = {
   projectId: string;
   issuedOn: string;
+  /** The brand. Required, for the reason on `ForecastSnapshotRow.domain`. */
+  domain: string;
   /** The platform, or the target domain for a citation win. */
   subject: string;
   /**
@@ -198,6 +212,7 @@ function snapshotOf(
   return {
     projectId: input.projectId,
     kind,
+    domain: input.domain,
     subject: input.subject,
     modelVersion: FORECAST_MODEL_VERSION,
     issuedOn: input.issuedOn,

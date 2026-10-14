@@ -333,6 +333,11 @@ const EXEMPT: Array<{ module: string; reason: string }> = [
       "A shared in-memory SQLite harness for alertRunner.test.ts and alertBrandScoping.test.ts. It is test infrastructure, so test-only consumers are its purpose rather than a symptom — and it is shared precisely because two copies of a migration harness drift.",
   },
   {
+    module: "src/server/features/geo/services/forecastDbHarness.ts",
+    reason:
+      "The shared real-SQLite harness behind forecastAccuracyReads.db.test.ts and forecastTableGuarantees.db.test.ts. Test-only consumers are its purpose, and it is shared for the reason alertFixture.ts gives: two copies of a migration harness drift, and a drifted copy loads 0048 alone and then fails on columns the schema declares. Its whole contract is the load order — `vi.doMock` before any value import of `@/db`, because `@/db` binds at import time — so it is one module rather than a block at the top of each file, where the order can silently invert in one of them.",
+  },
+  {
     module:
       "src/server/features/domain/services/scheduledOpportunityInputs.fixtures.ts",
     reason:

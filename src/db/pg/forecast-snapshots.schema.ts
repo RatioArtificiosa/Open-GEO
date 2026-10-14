@@ -36,6 +36,13 @@ export const geoForecastSnapshots = pgTable(
       .references(() => projects.id, { onDelete: "cascade" }),
     kind: text("kind").notNull(),
     subject: text("subject").notNull(),
+    // The brand the row is about. Required and in the key: a project can monitor
+    // several, and without the domain two brands in one project collide on
+    // `(project, kind, subject, model, day)` — the second row dropped silently by
+    // `onConflictDoNothing` while the sweep reports success, and a reader measuring
+    // one domain reading back the other brand's forecast. See the SQLite schema for
+    // the full reasoning, including why the duplication on `citation_win` is kept.
+    domain: text("domain").notNull(),
     modelVersion: text("model_version").notNull(),
     issuedOn: timestampColumn("issued_on").notNull(),
     horizonDays: integer("horizon_days").notNull(),
@@ -54,6 +61,7 @@ export const geoForecastSnapshots = pgTable(
     uniqueIndex("geo_forecast_snapshots_point_idx").on(
       table.projectId,
       table.kind,
+      table.domain,
       table.subject,
       table.modelVersion,
       table.issuedOn,
@@ -61,6 +69,7 @@ export const geoForecastSnapshots = pgTable(
     index("geo_forecast_snapshots_series_idx").on(
       table.projectId,
       table.kind,
+      table.domain,
       table.subject,
       table.issuedOn,
     ),
