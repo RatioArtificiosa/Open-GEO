@@ -4,6 +4,7 @@ import {
   DEPRECATED_AD_TRAFFIC_FIELDS,
   adTrafficChartRule,
   adTrafficRefusalWarning,
+  isDeprecatedAdTrafficField,
 } from "@/shared/ad-traffic-fields";
 import { requestUrl } from "./test-support";
 import {
@@ -180,5 +181,17 @@ describe("fetchAdTrafficForecast path", () => {
       "/v3/keywords_data/google_ads/ad_traffic_by_keywords/live",
     );
     vi.unstubAllGlobals();
+  });
+});
+
+describe("the field guards", () => {
+  it("reports whether a field is deprecated, including for names it does not own", () => {
+    // The negative control: an unknown name is not this rule's business to
+    // refuse, so a second list nobody maintains cannot answer for it. The two
+    // guard functions are the only place the field lists are read.
+    expect(isDeprecatedAdTrafficField("impressions")).toBe(true);
+    expect(isDeprecatedAdTrafficField("ctr")).toBe(true);
+    expect(isDeprecatedAdTrafficField("clicks")).toBe(false);
+    expect(isDeprecatedAdTrafficField("position")).toBe(false);
   });
 });

@@ -90,7 +90,13 @@ vi.mock("@/server/features/audit/services/AuditService", () => ({
   AuditService: { latestReadinessState },
 }));
 
-export type ToolResult = {
+/**
+ * The response shape every tool handler returns.
+ *
+ * Not exported: each suite reads the result through `callTool`'s return type,
+ * and an exported type nobody names is a surface the next change has to keep.
+ */
+type ToolResult = {
   content?: Array<{ type: string; text?: string }>;
   structuredContent?: Record<string, unknown>;
 };

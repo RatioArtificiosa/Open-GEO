@@ -73,8 +73,11 @@ export function isDeprecatedAdTrafficField(field: string): boolean {
  * Separated from `isDeprecatedAdTrafficField` so the rule's push is a narrowing
  * on a guard's result rather than a cast on a `string` — the repo bans the
  * latter, and the guard is the fact the cast would have asserted.
+ *
+ * Module-private: no other file names it, and a guard exported for symmetry is
+ * a name that drifts from the thing it names.
  */
-export function isUsableAdTrafficField(field: string): field is AdTrafficField {
+function isUsableAdTrafficField(field: string): field is AdTrafficField {
   return (USABLE_AD_TRAFFIC_FIELDS as readonly string[]).includes(field);
 }
 
