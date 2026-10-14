@@ -130,6 +130,12 @@ describe("citationWinProbability", () => {
       });
       states.add(result.readinessModifier);
     }
-    expect([...states].sort()).toEqual([...READINESS_STATES].sort());
+    // Sorted through a named local, because the repo's `lib` has no `toSorted`
+    // and the lint rule fires on a `.sort()` over a fresh spread.
+    const seen = [...states];
+    seen.sort((a, b) => a.localeCompare(b));
+    const expected = [...READINESS_STATES];
+    expected.sort((a, b) => a.localeCompare(b));
+    expect(seen).toEqual(expected);
   });
 });

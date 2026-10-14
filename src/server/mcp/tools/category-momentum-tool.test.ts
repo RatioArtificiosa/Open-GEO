@@ -116,17 +116,26 @@ describe("category_momentum", () => {
 
     await callTool(categoryMomentumTool, { categoryCode: 16, dry_run: false });
 
-    expect(googleTrendsExplore).toHaveBeenCalledWith(
-      expect.objectContaining({ categoryCode: 16 }),
-    );
-    const call = googleTrendsExplore.mock.calls[0]?.[0] as
-      | Record<string, unknown>
-      | undefined;
     // **The keywords field must stay absent.** A caller that sent an empty
     // keywords array alongside the category would change the request the vendor
     // bills for, and the empty array is the default-parameter shape the client
     // already refuses.
-    expect(call).not.toHaveProperty("keywords");
+    //
+    // Asserted as the whole recorded object rather than by casting it to read
+    // one key: `toStrictEqual` fails on an extra key *and* on a changed one, so
+    // a `keywords: []` arriving later breaks this line and nothing has to be
+    // re-read to find out why.
+    expect(googleTrendsExplore).toHaveBeenCalledTimes(1);
+    expect(googleTrendsExplore.mock.calls[0]?.[0]).toStrictEqual({
+      categoryCode: 16,
+      type: undefined,
+      timeRange: undefined,
+      dateFrom: undefined,
+      dateTo: undefined,
+      // The project's own market, not the global request the product refuses.
+      locationCode: 2840,
+      languageCode: undefined,
+    });
   });
 
   it("returns the verdict with both signals and the caveat", async () => {

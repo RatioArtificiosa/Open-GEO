@@ -1,4 +1,5 @@
 import { TREND_SCALE_CAVEAT } from "@/server/features/trends/trendSeries";
+import { at } from "@/shared/index-reads";
 
 /**
  * Category momentum: is an industry's interest rising, cooling, or steady?
@@ -275,17 +276,39 @@ function formatSlope(slope: number): string {
 
 /** The median of the measured values in a slice, or null when none was measured. */
 function medianOf(values: Array<number | null>): number | null {
-  const measured = values
-    .filter((value): value is number => typeof value === "number")
-    .sort((a, b) => a - b);
+  // **`toSorted`, not `sort`.** This repo bans `Array#sort()` (it mutates), and
+  // the median must not disturb the caller's series — the slope is computed from
+  // the same array and a sorted version would report a different trend.
+  // **Filtered into a local, then sorted in place.** The repo's `lib` is ES2022
+  // so there is no `toSorted` to reach for, and `unicorn/no-array-sort` fires on
+  // a `.sort()` whose receiver is a fresh expression — which is why the filter
+  // lands in a named local first, exactly as `serp-location-search` sorts its
+  // own built array. `values` itself is never touched: the slope below reads the
+  // caller's series in its original order.
+  const measured: number[] = [];
+  for (const value of values) {
+    if (typeof value === "number") measured.push(value);
+  }
+  measured.sort((a, b) => a - b);
   if (measured.length === 0) return null;
-  const middle = Math.floor(measured.length / 2);
   // An even count averages the two middle values, the standard reading; the
   // alternative (taking the lower) is a different estimator, and either is fine
   // as long as it is the same one for every category compared.
-  return measured.length % 2 === 1
-    ? (measured[middle] as number)
-    : ((measured[middle - 1] as number) + (measured[middle] as number)) / 2;
+  //
+  // The middles are read through `at` rather than a bare index with an
+  // `as number`: the repo bans that cast, and `at` fails loudly with the index
+  // and the length instead of coercing a missing value into `NaN`.
+  if (measured.length % 2 === 1) {
+    return at(
+      measured,
+      Math.floor(measured.length / 2),
+      "the median of an odd slice",
+    );
+  }
+  const middle = Math.floor(measured.length / 2);
+  const lower = at(measured, middle - 1, "the lower middle of an even slice");
+  const upper = at(measured, middle, "the upper middle of an even slice");
+  return (lower + upper) / 2;
 }
 
 /**

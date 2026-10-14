@@ -68,11 +68,28 @@ export function isDeprecatedAdTrafficField(field: string): boolean {
 }
 
 /**
+ * True when a field carries a measurement.
+ *
+ * Separated from `isDeprecatedAdTrafficField` so the rule's push is a narrowing
+ * on a guard's result rather than a cast on a `string` — the repo bans the
+ * latter, and the guard is the fact the cast would have asserted.
+ */
+export function isUsableAdTrafficField(field: string): field is AdTrafficField {
+  return (USABLE_AD_TRAFFIC_FIELDS as readonly string[]).includes(field);
+}
+
+/**
  * Apply the rule to the fields a caller wants to chart.
  *
  * An unknown field is **not** refused by this rule — it is nobody's deprecated
  * field, and a second list to maintain is a second thing to forget. The caller's
  * own schema decides what exists; this decides what is chartable.
+ *
+ * The guard functions answer the membership question and the push is a
+ * narrowing on their result, not an assertion on a `string`: a field that has
+ * just been proven to be one of the five is one of the five, and writing that
+ * as `as` would be a cast the type checker has to trust rather than a fact it
+ * can check.
  */
 export function adTrafficChartRule(
   requested: readonly string[],
@@ -81,11 +98,11 @@ export function adTrafficChartRule(
   const refused: AdTrafficField[] = [];
   for (const field of requested) {
     if (isDeprecatedAdTrafficField(field)) {
-      refused.push(field as AdTrafficField);
+      refused.push(field === "impressions" ? "impressions" : "ctr");
       continue;
     }
-    if ((USABLE_AD_TRAFFIC_FIELDS as readonly string[]).includes(field)) {
-      chartable.push(field as AdTrafficField);
+    if (isUsableAdTrafficField(field)) {
+      chartable.push(field);
     }
   }
   return { chartable, refused, hasRefusal: refused.length > 0 };

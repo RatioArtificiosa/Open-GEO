@@ -130,15 +130,14 @@ describe("breakout_detector", () => {
       dry_run: false,
     });
 
-    const signals = (result.structuredContent?.signals ?? []) as Array<
-      Record<string, unknown>
-    >;
-    expect(signals).toHaveLength(1);
-    expect(signals[0]).toMatchObject({
-      keyword: "ai visibility",
-      isBreakoutCandidate: true,
-      stillElevated: true,
-    });
+    expect(result.structuredContent?.signals).toHaveLength(1);
+    expect(result.structuredContent?.signals).toMatchObject([
+      {
+        keyword: "ai visibility",
+        isBreakoutCandidate: true,
+        stillElevated: true,
+      },
+    ]);
     expect(textContent(result)).toMatch(/Breakout candidate: ai visibility/);
     expect(textContent(result)).toMatch(/relative to the biggest peak/);
   });
@@ -154,11 +153,9 @@ describe("breakout_detector", () => {
       dry_run: false,
     });
 
-    const signals = (result.structuredContent?.signals ?? []) as Array<
-      Record<string, unknown>
-    >;
-    expect(signals[0]?.isBreakoutCandidate).toBe(false);
-    expect(signals[0]?.persistenceSteps).toBe(2);
+    expect(result.structuredContent?.signals).toMatchObject([
+      { isBreakoutCandidate: false, persistenceSteps: 2 },
+    ]);
     expect(textContent(result)).toMatch(/No breakout shape/);
     expect(textContent(result)).toMatch(/elevation lasted 2 steps/);
   });
@@ -172,10 +169,9 @@ describe("breakout_detector", () => {
       dry_run: false,
     });
 
-    const signals = (result.structuredContent?.signals ?? []) as Array<
-      Record<string, unknown>
-    >;
-    expect(signals[0]?.yoyChangePercent).toBeNull();
+    expect(result.structuredContent?.signals).toMatchObject([
+      { yoyChangePercent: null },
+    ]);
     expect(textContent(result)).toMatch(/shorter than a year plus a quarter/);
   });
 });

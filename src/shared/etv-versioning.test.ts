@@ -159,20 +159,20 @@ describe("the boundary constants", () => {
   });
 });
 
-describe("the caveat a chart must carry", () => {
-  /**
-   * The point shape `trendCaveat` takes: a version, and what produced it.
-   *
-   * Typed by the module's own exported contract rather than by hand, so a
-   * signature change fails these tests at compile time instead of at an
-   * assertion — the failure the repo has already produced once this week, in
-   * the timeout scanner, by pinning a scanner's *output* as a fact.
-   */
-  const point = (
-    formulaVersion: EtvFormulaVersion | null,
-    endpoint?: string,
-  ): EtvCaveatPoint => ({ formulaVersion, endpoint });
+/**
+ * The point shape `trendCaveat` takes: a version, and what produced it.
+ *
+ * Typed by the module's own exported contract rather than by hand, so a
+ * signature change fails these tests at compile time instead of at an
+ * assertion — the failure the repo has already produced once this week, in
+ * the timeout scanner, by pinning a scanner's *output* as a fact.
+ */
+const point = (
+  formulaVersion: EtvFormulaVersion | null,
+  endpoint?: string,
+): EtvCaveatPoint => ({ formulaVersion, endpoint });
 
+describe("the caveat a chart must carry", () => {
   it("says nothing extra for a single-formula series", () => {
     expect(trendCaveat([point("new"), point("new"), point("new")])).toBeNull();
   });

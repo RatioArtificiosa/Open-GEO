@@ -12,6 +12,21 @@ import { categoryMomentum, readCategoryTrend } from "./categoryMomentum";
 
 /** A steady climb: half the points rising, no spikes, nothing to misread. */
 const rising = Array.from({ length: 20 }, (_, i) => 40 + i * 2);
+
+/**
+ * A graph item, in the shape the reader's contract names.
+ *
+ * Module scope because it captures nothing from any suite — the repo's
+ * `consistent-function-scoping` rule rejects re-creating it per test. The point
+ * shape is spelled out rather than left to a `Record`, because a loose record
+ * makes the nested `values` `any` and the reader's own type is what pins it.
+ */
+const graph = (
+  data: Array<{
+    values?: Array<number | null> | null;
+    missing_data?: boolean | null;
+  }>,
+) => ({ data });
 /** The mirror: a steady decline. */
 const cooling = Array.from({ length: 20 }, (_, i) => 100 - i * 2);
 /** Flat with wobble, the shape weekly interest reports actually have. */
@@ -134,8 +149,6 @@ describe("categoryMomentum", () => {
 });
 
 describe("readCategoryTrend", () => {
-  const graph = (data: Array<Record<string, unknown>>) => ({ data });
-
   it("reads the positional series a category-only request returns", () => {
     const read = readCategoryTrend(
       graph([{ values: [30] }, { values: [65] }, { values: [100] }]),

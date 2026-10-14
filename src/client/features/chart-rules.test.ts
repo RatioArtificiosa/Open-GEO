@@ -299,8 +299,8 @@ describe("chart colours keep one form within a series map", () => {
       };
       lines.forEach((text, index) => {
         const match = text.match(MAP_ENTRY);
-        if (match) {
-          run.push({ line: index + 1, color: match[1] as string });
+        if (match && match[1] !== undefined) {
+          run.push({ line: index + 1, color: match[1] });
           return;
         }
         flush();

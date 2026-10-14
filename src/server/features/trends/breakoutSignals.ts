@@ -170,7 +170,7 @@ export function breakoutSignals(
   const isBreakoutCandidate =
     climbRate !== null &&
     climbRate >= STEEP_CLIMB_PER_STEP &&
-    stillElevated === true &&
+    stillElevated &&
     (persistence === null || persistence >= QUARTER);
 
   return {

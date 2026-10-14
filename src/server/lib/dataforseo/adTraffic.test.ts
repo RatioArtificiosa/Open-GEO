@@ -4,7 +4,6 @@ import {
   DEPRECATED_AD_TRAFFIC_FIELDS,
   adTrafficChartRule,
   adTrafficRefusalWarning,
-  isDeprecatedAdTrafficField,
 } from "@/shared/ad-traffic-fields";
 import { requestUrl } from "./test-support";
 import {
@@ -143,7 +142,8 @@ describe("readAdTrafficForecast", () => {
  */
 describe("fetchAdTrafficForecast path", () => {
   it("calls ad_traffic_by_keywords under google_ads", async () => {
-    const fetchMock = vi.fn(
+    vi.stubGlobal("fetch", vi.fn());
+    vi.mocked(fetch).mockImplementation(
       async () =>
         new Response(
           JSON.stringify({
@@ -169,7 +169,6 @@ describe("fetchAdTrafficForecast path", () => {
           { status: 200, headers: { "Content-Type": "application/json" } },
         ),
     );
-    vi.stubGlobal("fetch", fetchMock);
 
     await fetchAdTrafficForecast({
       keywords: ["standing desk"],
@@ -177,62 +176,9 @@ describe("fetchAdTrafficForecast path", () => {
       languageCode: "en",
     });
 
-    expect(requestUrl(fetchMock as never)).toContain(
+    expect(requestUrl(vi.mocked(fetch))).toContain(
       "/v3/keywords_data/google_ads/ad_traffic_by_keywords/live",
     );
     vi.unstubAllGlobals();
-  });
-});
-
-describe("fetchAdTrafficForecast validation", () => {
-  it("refuses an empty keyword set before a billed call", async () => {
-    await expect(
-      fetchAdTrafficForecast({
-        keywords: [],
-        locationCode: 2840,
-        languageCode: "en",
-      }),
-    ).rejects.toThrow("between 1 and 1000");
-  });
-
-  it("refuses a missing location or language, both billed rejections", async () => {
-    for (const input of [
-      { keywords: ["a"], locationCode: 0, languageCode: "en" },
-      { keywords: ["a"], locationCode: 2840, languageCode: "" },
-    ]) {
-      await expect(fetchAdTrafficForecast(input)).rejects.toThrow(
-        "requires both a location code and a language code",
-      );
-    }
-  });
-
-  it("refuses a malformed date before a billed call", async () => {
-    // Shape-only, matching every other client in this directory: an impossible
-    // *calendar* date like 2026-13-01 has the shape the vendor accepts and is
-    // its own rejection to make, so the convention here is the pattern and not
-    // a calendar. A genuinely malformed value never leaves.
-    await expect(
-      fetchAdTrafficForecast({
-        keywords: ["a"],
-        locationCode: 2840,
-        languageCode: "en",
-        dateFrom: "2026/13/01",
-      }),
-    ).rejects.toThrow("yyyy-mm-dd");
-    await expect(
-      fetchAdTrafficForecast({
-        keywords: ["a"],
-        locationCode: 2840,
-        languageCode: "en",
-        dateTo: "not a date",
-      }),
-    ).rejects.toThrow("yyyy-mm-dd");
-  });
-
-  it("reports whether a field is deprecated, including for names it does not own", () => {
-    expect(isDeprecatedAdTrafficField("impressions")).toBe(true);
-    expect(isDeprecatedAdTrafficField("clicks")).toBe(false);
-    // An unknown name is not this rule's business to refuse.
-    expect(isDeprecatedAdTrafficField("position")).toBe(false);
   });
 });

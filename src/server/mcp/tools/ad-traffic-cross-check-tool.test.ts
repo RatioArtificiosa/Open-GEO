@@ -120,19 +120,31 @@ describe("ad_traffic_cross_check", () => {
       dry_run: false,
     });
 
-    const rows = (result.structuredContent?.rows ?? []) as Array<
-      Record<string, unknown>
-    >;
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({
-      keyword: "standing desk",
-      values: { clicks: 12.5, average_cpc: 0.37, cost: 4.62 },
-    });
-    // The always-null pair is absent from the payload, not present-and-null.
-    expect(Object.keys(rows[0]?.values ?? {})).toEqual([
-      "clicks",
-      "average_cpc",
-      "cost",
+    expect(result.structuredContent?.rows).toHaveLength(2);
+    expect(result.structuredContent?.rows).toMatchObject([
+      {
+        keyword: "standing desk",
+        values: { clicks: 12.5, average_cpc: 0.37, cost: 4.62 },
+      },
+      {
+        keyword: "standing desk mat",
+        values: { clicks: 12.5, average_cpc: 0.37, cost: 4.62 },
+      },
+    ]);
+    // **The always-null pair is absent from the payload, not present-and-null.**
+    // `toStrictEqual` over the whole rows array is the assertion: it fails on a
+    // key that should not be there *and* on one that should, which a
+    // property-by-property `toMatchObject` cannot say. Reading the key set out
+    // of an `unknown` would need the cast the repo's lint rules refuse.
+    expect(result.structuredContent?.rows).toStrictEqual([
+      {
+        keyword: "standing desk",
+        values: { clicks: 12.5, average_cpc: 0.37, cost: 4.62 },
+      },
+      {
+        keyword: "standing desk mat",
+        values: { clicks: 12.5, average_cpc: 0.37, cost: 4.62 },
+      },
     ]);
     // No refusal, because nothing deprecated was asked for.
     expect(result.structuredContent?.refusal).toBeNull();
@@ -155,11 +167,10 @@ describe("ad_traffic_cross_check", () => {
     expect(result.structuredContent?.refusal).toMatch(
       /empty impressions chart would read as flat interest/,
     );
-    const rows = (result.structuredContent?.rows ?? []) as Array<
-      Record<string, unknown>
-    >;
     // The usable field survives the refusal.
-    expect(rows[0]).toMatchObject({ values: { clicks: 12.5 } });
+    expect(result.structuredContent?.rows).toMatchObject([
+      { values: { clicks: 12.5 } },
+    ]);
   });
 
   it("returns nothing measurable when every usable field is null", async () => {
@@ -183,10 +194,9 @@ describe("ad_traffic_cross_check", () => {
       dry_run: false,
     });
 
-    const rows = (result.structuredContent?.rows ?? []) as Array<
-      Record<string, unknown>
-    >;
-    expect(rows[0]).toEqual({ keyword: "obscure term", values: {} });
+    expect(result.structuredContent?.rows).toEqual([
+      { keyword: "obscure term", values: {} },
+    ]);
     expect(textContent(result)).toMatch(/nothing measurable returned/);
   });
 
