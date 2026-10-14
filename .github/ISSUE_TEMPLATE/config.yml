@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask for help
+    url: https://discord.gg/c9uGs3cFXr
+    about: Questions about using OpenGeo, self-hosting it, or where to start. Fastest answer here.
+  - name: Agent Skills setup
+    url: https://opengeo.so/docs/skills/setup
+    about: Installing the OpenGeo skills, or the plugin, in your own agent.
+  - name: Report a security problem
+    url: https://github.com/RatioArtificiosa/Open-GEO/security/advisories/new
+    about: Anything that could expose a self-hosted instance. Do not open a public issue for it.

@@ -1,0 +1,48 @@
+name: Feature request
+description: Something you wish OpenGeo did.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues are the best way to contribute here, so this form is the front door — and it is
+        short on purpose, because two things are what actually move a request forward: the
+        problem from your side, and the full user experience of using the feature you are
+        asking for. Everything else is optional.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that OpenGeo does not let you? One paragraph, plain words.
+    validations:
+      required: true
+
+  - type: textarea
+    id: experience
+    attributes:
+      label: The full user experience
+      description: Walk through using this from start to finish. What you do, and what happens as a result — not what the screen looks like.
+      placeholder: |
+        I export a PDF for the client... then I want to attach it to the weekly memo without
+        re-uploading, so I'd pick the memo from a list and it would land in the draft.
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters
+      description: One sentence, and only if it is not already obvious.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before posting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I have left out implementation detail — file names, architecture, priority labels. The maintainer builds it.
+          required: true

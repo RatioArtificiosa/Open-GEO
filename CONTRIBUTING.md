@@ -46,6 +46,19 @@ from the client bundle, the source and the site. A PR that reintroduces a rate
 literal to `src/shared/**` will fail `scripts/check-business-model.mjs` on the
 marketing site and is the wrong shape regardless of that.
 
+## Opening an issue
+
+Issues are the most useful thing you can contribute here, and the templates are
+short on purpose: `.github/ISSUE_TEMPLATE/bug_report.yml`,
+`feature_request.yml`, and `good_first_issue.yml` if you are looking for somewhere
+to start. There is a `/simple-issue-description` skill for the format the
+maintainer reads fastest — plain words, the problem, and for a feature the full user
+experience rather than what the screen looks like.
+
+**A note on how issues land here.** Pull requests are read but not merged yet, so an
+issue with a clear problem statement, a reproduction or a short walkthrough is worth
+more than a patch. If you have built a proof of concept, link it.
+
 ## Useful starting points
 
 The repository carries a `.greptile/` reviewer config scoped to `src/**`; the

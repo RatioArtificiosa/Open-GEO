@@ -1,0 +1,58 @@
+name: Good first issue
+description: A self-contained task a first-time contributor can pick up without knowing the codebase.
+labels: ["good first issue"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This is for maintainers.** Open this only when the task is genuinely self-contained,
+        and write it so the contributor does not have to ask a question to start.
+
+        The bar for this label: someone who has never run the project can go from clone to
+        merged fix following only what is in this issue and `docs/LOCAL_DEVELOPMENT.md`.
+        If it needs a design decision, a migration, or a conversation, it is not a good first
+        issue — file it as a normal feature request instead.
+
+  - type: input
+    id: outcome
+    attributes:
+      label: What changes when this is done
+      description: One sentence, about the product. "The 404 page links back to the dashboard", not "refactor the router".
+    validations:
+      required: true
+
+  - type: textarea
+    id: where
+    attributes:
+      label: Where it is
+      description: The files or pages, and the line if you know it.
+      placeholder: src/routes/_app/support.tsx, the "Contact" block
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to run it
+      description: The exact commands, from a clean clone. Copy them from `docs/LOCAL_DEVELOPMENT.md` rather than trusting memory.
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: How we know it is finished
+      description: What the reviewer checks, and whether `pnpm ci:check` covers it.
+      placeholder: |
+        Run `pnpm ci:check` — green.
+        Then open the support page and confirm the link resolves.
+    validations:
+      required: true
+
+  - type: input
+    id: estimate
+    attributes:
+      label: Rough size
+      description: A single line or a page change, or something that needs a new file.
+    validations:
+      required: true

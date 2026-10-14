@@ -1,0 +1,78 @@
+name: Bug report
+description: Something that does not work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to write this up. The clearer the issue, the faster it gets fixed.
+
+        Prefer a fast answer? The [Discord](https://discord.gg/c9uGs3cFXr) is the quickest route.
+        Doing it privately matters — a security problem goes through
+        [security advisories](https://github.com/RatioArtificiosa/Open-GEO/security/advisories/new),
+        not here.
+
+        The [`/simple-issue-description`](https://github.com/RatioArtificiosa/Open-GEO/blob/main/docs/CONTRIBUTING.md#simple-issue-description)
+        skill writes issues in the format that gets acted on fastest.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened
+      description: What you were doing, what happened, and what you expected instead. Plain words.
+      placeholder: |
+        Running the nightly patrol on a self-hosted instance, `/api/patrol` returns...
+        I expected it to record the answers and return a count.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered, and the exact commands if you ran any.
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: OpenGeo version
+      description: The release tag or commit. `git rev-parse --short HEAD` if you are running main.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How is it installed
+      multiple: false
+      options:
+        - Self-hosted (source)
+        - Self-hosted (Docker)
+        - Hosted (app.opengeo.so)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Anything that shows it
+      description: The error, a log excerpt, or a transcript from your agent. A transcript that demonstrates the failure is often more useful than a description of it.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before posting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I removed keys, tokens and any private data from the logs above.
+          required: true
