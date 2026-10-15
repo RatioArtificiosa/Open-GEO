@@ -33,6 +33,8 @@ const STANDARD_MESSAGES: Record<ErrorCode, string> = {
   RATE_LIMITED: "Too many requests. Please wait and try again.",
   UPSTREAM_UNAVAILABLE:
     "The data provider is temporarily unavailable. Please retry in a moment.",
+  UPSTREAM_FEATURE_DISABLED:
+    "This data source is not enabled on the connected DataForSEO account. It is switched off rather than failing — ask your provider to enable it, or contact support.",
   CONFLICT: "This request conflicts with existing data.",
   INTERNAL_ERROR:
     "An unexpected error occurred. Please check server logs and try again.",

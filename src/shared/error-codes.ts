@@ -31,6 +31,19 @@ const ERROR_CODES = [
   "BILLING_CALLS_CLOSED",
   "RATE_LIMITED",
   "UPSTREAM_UNAVAILABLE",
+  /**
+   * A vendor route that is **switched off for this account**, as opposed to the
+   * provider being temporarily unavailable.
+   *
+   * DataForSEO answers `50304` "This function temporarily unavailable." for a
+   * family the account has no entitlement to. Collapsing it into
+   * `UPSTREAM_UNAVAILABLE` reads as a provider flake, which is exactly what it is
+   * not: it never recovers on its own, and the reader is told to retry in a
+   * moment for something that will not work in any moment. The distinction is
+   * the difference between "disabled" and "broken", and the two need different
+   * actions — one is a decision, the other is a wait.
+   */
+  "UPSTREAM_FEATURE_DISABLED",
   "CONFLICT",
   "INTERNAL_ERROR",
 ] as const;
@@ -61,6 +74,12 @@ const NON_REPORTABLE_ERROR_CODES = new Set<ErrorCode>([
   // log what they capture, so every throw site warns on its own line to keep
   // the failure rate visible in Workers Observability.
   "UPSTREAM_UNAVAILABLE",
+  // A vendor route switched off for this account. Non-reportable for the same
+  // reason as the code above: nothing in the app can act on it, and the fact
+  // the registry records is the one that matters — "existence is not
+  // entitlement". Captured here so a rollout that switches a family off shows
+  // up as a count rather than as silence.
+  "UPSTREAM_FEATURE_DISABLED",
 ]);
 
 export function isErrorCode(value: string): value is ErrorCode {

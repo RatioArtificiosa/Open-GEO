@@ -6,6 +6,7 @@ import {
   parseTaskItems,
 } from "@/server/lib/dataforseo/envelope";
 import { AppError } from "@/server/lib/errors";
+import { getStandardErrorMessage } from "@/client/lib/error-messages";
 
 const itemSchema = z.object({ keyword: z.string().optional() }).passthrough();
 
@@ -79,6 +80,92 @@ describe("assertOk", () => {
         expect(error.code).toBe("UPSTREAM_UNAVAILABLE");
       }
     }
+  });
+
+  /**
+   * `50304` is the one code in the failure set that is **not** a provider flake.
+   *
+   * It answers for a family the account holds no entitlement to — the ten hidden
+   * families all answer it today, every time, forever. Folding it into
+   * `UPSTREAM_UNAVAILABLE` tells a reader to retry in a moment for something that
+   * will not work in any moment, which is the shape this repository already paid
+   * for once: a route answering "temporarily unavailable" that surfaces as
+   * **broken** rather than **disabled** costs an afternoon, because the symptom is
+   * identical to a provider outage and the cause is an entitlement nobody granted.
+   */
+  describe("50304 is a feature that is switched off, not a provider flake", () => {
+    it("classifies as UPSTREAM_FEATURE_DISABLED, not UPSTREAM_UNAVAILABLE", () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const task = {
+        status_code: 50304,
+        status_message: "This function temporarily unavailable.",
+        path: ["v3", "content_generation", "generate_text", "live"],
+        cost: 0.002,
+        result_count: 0,
+      };
+      try {
+        assertOk({ status_code: 20000, tasks: [task] });
+        throw new Error("expected assertOk to throw");
+      } catch (error) {
+        expect(error).toBeInstanceOf(DataforseoChargedTaskError);
+        if (error instanceof DataforseoChargedTaskError) {
+          expect(error.code).toBe("UPSTREAM_FEATURE_DISABLED");
+        }
+      }
+    });
+
+    it("logs on its own line, so a rollout switching a family off is a count and not silence", () => {
+      // The other failure codes warn under `upstream-task-failed`, where a
+      // permanent entitlement decision would be filed as a provider outage and
+      // buried in a rate. This is the assertion that keeps it visible.
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const task = {
+        status_code: 50304,
+        status_message: "This function temporarily unavailable.",
+        path: ["v3", "content_generation", "generate_text", "live"],
+        cost: 0.002,
+        result_count: 0,
+      };
+      try {
+        assertOk({ status_code: 20000, tasks: [task] });
+      } catch {}
+      const calls = warn.mock.calls.map((call) => String(call[0]));
+      expect(calls).toContain("dataforseo.feature-disabled");
+      expect(calls).not.toContain("dataforseo.upstream-task-failed");
+    });
+
+    it("keeps a genuine provider flake on the unavailable path", () => {
+      // The negative control: 50303 "Update in progress" is transient and must
+      // still read as "retry in a moment". Without this, the disabled branch
+      // could widen to the whole family and nothing would notice.
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const task = {
+        status_code: 50303,
+        status_message: "Update in progress. Please try after a few minutes.",
+        path: ["v3", "serp", "google", "organic", "live", "advanced"],
+        cost: 0.002,
+        result_count: 0,
+      };
+      try {
+        assertOk({ status_code: 20000, tasks: [task] });
+        throw new Error("expected assertOk to throw");
+      } catch (error) {
+        if (error instanceof DataforseoChargedTaskError) {
+          expect(error.code).toBe("UPSTREAM_UNAVAILABLE");
+        }
+      }
+    });
+
+    it("tells the reader it is switched off rather than failing", () => {
+      // The copy is the product surface of this classification. "Retry in a
+      // moment" on a permanent refusal is the sentence that costs the afternoon.
+      expect(
+        getStandardErrorMessage(new Error("UPSTREAM_FEATURE_DISABLED")),
+      ).toContain("not enabled");
+      expect(
+        getStandardErrorMessage(new Error("UPSTREAM_FEATURE_DISABLED")),
+      ).not.toContain("retry in a moment");
+    });
   });
 
   it("keeps 'Not Implemented' reportable — we posted a bad task", () => {

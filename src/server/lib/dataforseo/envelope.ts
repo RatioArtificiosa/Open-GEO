@@ -183,6 +183,31 @@ const UPSTREAM_FAILURE_STATUS_CODES = new Set([
   50402, // Target page took too long to respond.
 ]);
 
+/**
+ * `50304` — the one status in the failure set that is **not** a provider flake.
+ *
+ * DataForSEO answers it for a family the account holds no entitlement to: the ten
+ * hidden families all answer it today, and they answer it every time, forever. So it is
+ * not "temporarily unavailable" in any useful sense, and folding it into
+ * `UPSTREAM_UNAVAILABLE` tells a reader to retry in a moment for something that will not
+ * work in any moment.
+ *
+ * Classified separately as `UPSTREAM_FEATURE_DISABLED` so the two states differ in the
+ * message a reader sees and in what an operator does about it: one is a wait, the other
+ * is a decision to stop offering the feature. **A route answering "temporarily
+ * unavailable" that surfaces as broken rather than disabled is what costs an afternoon
+ * of debugging**, because the symptom is identical to a provider outage and the cause is
+ * an entitlement nobody granted.
+ */
+const FEATURE_DISABLED_STATUS_CODES = new Set([50304]);
+
+function isFeatureDisabledTask(task: DataforseoTaskLike): boolean {
+  return (
+    task.status_code !== undefined &&
+    FEATURE_DISABLED_STATUS_CODES.has(task.status_code)
+  );
+}
+
 function isUpstreamServerErrorTask(task: DataforseoTaskLike): boolean {
   return (
     task.status_code !== undefined &&
@@ -257,19 +282,39 @@ export function assertOk<T extends DataforseoTaskLike>(
 
     const detailedMessage = describeInvalidField(message, task);
     const isUpstreamFailure = isUpstreamServerErrorTask(task);
+    const isFeatureDisabled = isFeatureDisabledTask(task);
     // UPSTREAM_UNAVAILABLE is non-reportable, and the error handlers only log
     // what they capture, so warn here to keep the provider's failure rate — and
     // the only remaining record of the message — visible in Workers
     // Observability. Warn, not error: there is nothing in the app to fix.
-    if (isUpstreamFailure)
+    //
+    // **`&& !isFeatureDisabled`, and the guard is the fix for a real defect a test
+    // found.** 50304 is in the failure set *and* in the disabled set, so it
+    // satisfied both branches and logged twice: once as a provider flake that
+    // recovers, once as an entitlement decision that never does. Filing a
+    // permanent decision in a transient rate is what makes the rate useless —
+    // the operator's eye slides past the one line that never recovered.
+    if (isUpstreamFailure && !isFeatureDisabled)
       console.warn("dataforseo.upstream-task-failed", {
         path,
         status: task.status_code,
         message: task.status_message,
       });
-    const code: ErrorCode = isUpstreamFailure
-      ? "UPSTREAM_UNAVAILABLE"
-      : "INTERNAL_ERROR";
+    // **The feature-disabled branch, and it is a `warn` of a different kind.**
+    // A 50304 does not recover, so it gets its own line carrying the path — which
+    // is what makes a rollout that switches a family off visible as a count rather
+    // than as silence.
+    if (isFeatureDisabled)
+      console.warn("dataforseo.feature-disabled", {
+        path,
+        status: task.status_code,
+        message: task.status_message,
+      });
+    const code: ErrorCode = isFeatureDisabled
+      ? "UPSTREAM_FEATURE_DISABLED"
+      : isUpstreamFailure
+        ? "UPSTREAM_UNAVAILABLE"
+        : "INTERNAL_ERROR";
 
     const billing = tryBuildTaskBilling(task);
     if (billing)
