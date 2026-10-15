@@ -58,10 +58,21 @@ Score = 40 × Mention Coverage     (your mentions ÷ matching records, vs catego
 Mention Coverage, Share of Voice and Citation Authority are computed **within a single platform** and
 then combined. See the rule above.
 
+The composite counts mentions, not traffic, so its components are not ETV-dependent and it does not
+change at the **2026-11-01** formula boundary. The score's _inputs_ can still move: share-of-voice is
+a function of the mentions recorded, and a provider change in what it records would move the score
+without a ranking changing. It is therefore version-stamped by the same mechanism as ETV, and the
+page a reader consults for the definition of that mechanism is the section below.
+
+_Measured and last checked against the vendor's own output on **2026-10-12**, and explicitly **not
+affected by the 2026-11-01 ETV formula change**._
+
 ### Mentions
 
 A count of matching AI answer records. Not a score, not a rate. This is a raw count and is labelled
 as one.
+
+_Measured and last checked against the vendor's own output on **2026-10-12**._
 
 ### Estimated Traffic Volume (ETV)
 
@@ -93,17 +104,20 @@ Provided by DataForSEO's Labs endpoints as a model output, not a measurement.
 
 `onpage_score` from DataForSEO's On-Page API — 0 to 100. It is a **technical/on-page score**, not an
 editorial or content-quality grade, and we label it that way.
+_Measured and last checked against the vendor's own output on **2026-10-12**._
 
 ### Keyword difficulty, competition, CPC
 
 Straight from Google Ads (or Bing Ads) via DataForSEO. Competition is 0–1 from Google Ads;
 `competition_level` is the LOW/MEDIUM/HIGH label. These are Google's numbers, not ours.
+_Measured and last checked against Google Ads's output on **2026-10-12**._
 
 ### AI Readiness / citability
 
 **Our score, our method** — DataForSEO provides the raw signals (crawl, schema, `onpage_score`,
 SERP structure) but not an AI-readiness grade. It is a heuristic, published in full, and always
 shown with the individual checks that produced it so you can disagree with a specific item.
+_Heuristic last reviewed on **2026-10-12**._
 
 ### Forecasts
 
@@ -116,6 +130,8 @@ snapshots, AI mention history) plus a stated model version. Forecasts are publis
   can defend.
 
 **A forecast is a direction, not a promise.**
+_Forecast model version and horizon are carried per forecast; the model producing them was last
+reviewed on **2026-10-12**._
 
 ### Inclusion–Citation Gap
 
@@ -126,6 +142,36 @@ anomaly / Not retrieved.
 
 **Scope limit:** `search_results` is available for **ChatGPT records only**. For Google AI Overview
 records we cannot see the retrieval list, so we do not claim the gap there.
+
+_Method last reviewed on **2026-10-12**._
+
+### Cited-source rate
+
+The share of archived answers in the window that cited at least one source, published on
+`/data/ai-rankings`. Measured directly from the answer records, **2026-10-15**, over the edition's
+stated window. A rate without its denominator is a claim nobody can check, so the page states the
+answer count beside it.
+
+### Most-cited domains
+
+The domains AI answers cited most in the window, as a share of every citation in that window, also
+on `/data/ai-rankings`. Measured directly from the citation records, **2026-10-15**. The ranking is
+of _domains_, never of answers or prompts, and it ranks what the archive contains — not the web.
+
+### Archive sample size
+
+How many archived answers the window holds, and how many distinct prompts they came from. This is
+the denominator every other figure on the publication rests on, and it is published first for that
+reason. Measured **2026-10-15**.
+
+**What the publication's sample is, and what it is not.** The three metrics above aggregate the
+answers the patrol archives. The mentions are **ChatGPT-only, US/English** — the market and language
+the patrol measures — so none of them describes a global or cross-platform population, and the
+platform rows are never summed. Aggregate only: no prompt, answer, brand or project is published,
+because what one customer asked is a secret they paid to keep, while what AI answers cite in
+aggregate helps everybody.
+
+---
 
 ---
 
