@@ -7,6 +7,7 @@ import { GeoTargetForm } from "./GeoTargetForm";
 import { GeoAcquisitionSettings } from "./GeoAcquisitionSettings";
 import { MentionsTrendPanel } from "./MentionsTrendPanel";
 import { VisibilityForecast } from "./VisibilityForecast";
+import { ForecastAccuracyScoreboard } from "./ForecastAccuracyScoreboard";
 import { NewLostPanel, TopCitedPanel, MetricFootnote } from "./LivePanels";
 import { ScoreRing } from "./ScoreRing";
 import { useGeoPageData } from "./useGeoPageData";
@@ -271,6 +272,24 @@ export function GeoPage({ projectId }: { projectId: string }) {
                   />
                 ));
               })()}
+
+              {/*
+                The scoreboard, below the forecasts it scores.
+
+                It is one panel for the whole brand rather than one per platform, and
+                that is the one deliberate difference from the forecasts above: a row is
+                keyed by the *forecast that was made*, and the platforms' rows are read
+                side by side precisely so a reader can see that we did not quietly
+                report only the platform we were right about. One blended figure would
+                have hidden exactly the choice a reader wants to audit.
+              */}
+              {data.domain ? (
+                <ForecastAccuracyScoreboard
+                  projectId={projectId}
+                  domain={data.domain}
+                  platforms={data.mentionSeries.map((entry) => entry.platform)}
+                />
+              ) : null}
             </section>
 
             <section
