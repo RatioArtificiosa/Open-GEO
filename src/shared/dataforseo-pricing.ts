@@ -42,7 +42,7 @@
 import {
   ETV_BEARING_LABS_ENDPOINTS,
   HISTORICAL_LABS_ENDPOINTS,
-} from "@/shared/etv-versioning";
+} from "./etv-versioning";
 
 /** Which DataForSEO queue/priority a call runs on. */
 export type DfsQueue = "standard" | "priority" | "live";
