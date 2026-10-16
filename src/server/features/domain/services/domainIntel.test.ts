@@ -76,6 +76,9 @@ describe("DomainIntel.getHistoricalRanks", () => {
     expect(mocks.historicalRankOverview).toHaveBeenCalledTimes(1);
     expect(sent.target).toBe("example.com");
     expect(sent.locationCode).toBe(2840);
+    // The fully-open window leaves as an explicit date_to, so the billed
+    // span is the quoted span rather than the vendor's silent default.
+    expect(sent.dateTo).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(result.months).toEqual([
       {
         year: 2026,

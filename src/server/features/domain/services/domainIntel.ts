@@ -118,6 +118,13 @@ async function getHistoricalRanks(
 ): Promise<HistoricalRanksResult> {
   const target = parseResearchTargetOrThrow(input.domain, input.scope);
 
+  // A fully-open window is resolved explicitly: the vendor defaults a missing
+  // date_to to today, and a resolved six-month window touches seven calendar
+  // months (pinned in labsDomainOverview.test.ts) while the flat estimator
+  // default quotes six. Quoting and billing the same explicit window keeps
+  // the estimate above the actual instead of $0.0012 below it.
+  const dateTo = input.dateTo ?? new Date().toISOString().slice(0, 10);
+
   const cacheKey = await buildCacheKey("domain:historical", {
     organizationId: billingCustomer.organizationId,
     projectId: input.projectId,
@@ -127,7 +134,7 @@ async function getHistoricalRanks(
     languageCode: input.languageCode,
     languageName: input.languageName,
     dateFrom: input.dateFrom,
-    dateTo: input.dateTo,
+    dateTo,
     limit: input.limit,
   });
 
@@ -152,7 +159,7 @@ async function getHistoricalRanks(
     languageCode: input.languageCode,
     languageName: input.languageName,
     dateFrom: input.dateFrom,
-    dateTo: input.dateTo,
+    dateTo,
     limit: input.limit,
     ...metering,
   });

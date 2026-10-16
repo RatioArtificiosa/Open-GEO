@@ -92,19 +92,20 @@ type MonthRow = {
 };
 
 function HistorySection({ projectId, domain, locationCode }: IntelProps) {
+  // Explicit date_to, matching the quote: a resolved six-month window touches
+  // seven calendar months, and the request quotes what it sends.
+  const dateTo = new Date().toISOString().slice(0, 10);
   const history = useMutation({
     mutationFn: () =>
       getDomainHistoricalRanks({
-        data: { projectId, domain, locationCode },
+        data: { projectId, domain, locationCode, dateTo },
       }),
     onError: (error) =>
       toast.error(getStandardErrorMessage(error, "Could not load history.")),
   });
-  // Six months is the vendor's default window — the button quotes the window
-  // it actually requests, computed from the book rather than typed.
   const price = (
     DFS_LABS.historicalRank.perRequest +
-    DFS_LABS.historicalRank.perUnit * 6
+    DFS_LABS.historicalRank.perUnit * 7
   ).toFixed(3);
   const months = (history.data?.months ?? []) as MonthRow[];
   return (

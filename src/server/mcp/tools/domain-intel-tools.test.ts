@@ -66,11 +66,13 @@ describe("get_domain_historical", () => {
     expect(mocks.getHistoricalRanks).not.toHaveBeenCalled();
     const structured = dryRunShape.parse(result.structuredContent);
     // Triple: historical_rank_overview, DFS_LABS.historicalRank, this pin.
-    // Default window is six months: 0.12 + 6 × 0.0012 = 0.1272 USD.
+    // The open-ended default resolves to today's explicit date_to, and a
+    // resolved six-month window touches seven calendar months:
+    // 0.12 + 7 × 0.0012 = 0.1284 USD.
     expect(structured.estimatedCredits).toBeCloseTo(
       creditsFor(
         DFS_LABS.historicalRank.perRequest +
-          DFS_LABS.historicalRank.perUnit * 6,
+          DFS_LABS.historicalRank.perUnit * 7,
       ),
       10,
     );

@@ -93,10 +93,14 @@ type Args = z.infer<z.ZodObject<typeof inputSchema>>;
 function estimateHistoricalUsd(input: {
   dateFrom?: string;
   dateTo?: string;
+  today: string;
 }): number {
-  const today = new Date().toISOString().slice(0, 10);
+  // The service sends an explicit date_to (today when omitted), so the quote
+  // resolves the same window rather than the flat six the fully-open default
+  // would price.
+  const dateTo = input.dateTo ?? input.today;
   const months = Math.max(
-    historicalMonthsSpanned(input.dateFrom, input.dateTo, today),
+    historicalMonthsSpanned(input.dateFrom, dateTo, input.today),
     1,
   );
   return (
@@ -135,6 +139,7 @@ export const getDomainHistoricalTool = {
       const usd = estimateHistoricalUsd({
         dateFrom: args.date_from,
         dateTo: args.date_to,
+        today: new Date().toISOString().slice(0, 10),
       });
       return dryRunResponse({
         subject: `traffic history for ${args.domain}`,
