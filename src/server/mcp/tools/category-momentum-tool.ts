@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { createDataforseoClient } from "@/server/lib/dataforseo/client";
 import {
+  type CategoryMomentum,
   categoryMomentum,
   readCategoryTrend,
-  type CategoryMomentum,
 } from "@/server/features/trends/categoryMomentum";
+import { createDataforseoClient } from "@/server/lib/dataforseo/client";
 import { buildProjectMeta } from "@/server/mcp/context";
 import {
   creditsFor,
@@ -146,10 +146,12 @@ export const categoryMomentumTool = {
     if (!wantsToSpend(args.dry_run)) {
       return dryRunResponse({
         subject: "this category momentum read",
-        estimatedCredits: creditsFor(
-          DFS_KEYWORDS.googleTrends.standard.perRequest,
-        ),
-        unitSentence: `USD ${DFS_KEYWORDS.googleTrends.standard.perRequest} per request — one task, whether the request carries keywords or only a category`,
+        // The live endpoint, not the standard one: this tool calls
+        // `google_trends/explore/live`, and quoting the standard price would
+        // understate the charge fourfold. A quote that does not match the
+        // charge is a lie in whichever direction it misses.
+        estimatedCredits: creditsFor(DFS_KEYWORDS.googleTrends.live.perRequest),
+        unitSentence: `USD ${DFS_KEYWORDS.googleTrends.live.perRequest} per request — one live task, whether the request carries keywords or only a category`,
         meta: buildProjectMeta(context, args.projectId, `/p/${args.projectId}`),
         structured: {},
       });

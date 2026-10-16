@@ -1,18 +1,22 @@
-import { useEffect } from "react";
-import { AlertTriangle, RefreshCw, SearchCheck } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { GeoVisibilityPanel } from "./GeoVisibilityPanel";
+import { AlertTriangle, RefreshCw, SearchCheck } from "lucide-react";
+import { useEffect } from "react";
+import {
+  fireMilestoneOnce,
+  GEO_ACTIVATION_KEY,
+} from "@/client/lib/milestone-events";
+import { captureClientEvent } from "@/client/lib/posthog";
+import { FUNNEL_EVENTS } from "@/shared/analytics-events";
 import { EarnTheCitationPanel } from "./EarnTheCitationPanel";
-import { GeoTargetForm } from "./GeoTargetForm";
-import { GeoAcquisitionSettings } from "./GeoAcquisitionSettings";
-import { MentionsTrendPanel } from "./MentionsTrendPanel";
-import { VisibilityForecast } from "./VisibilityForecast";
 import { ForecastAccuracyScoreboard } from "./ForecastAccuracyScoreboard";
-import { NewLostPanel, TopCitedPanel, MetricFootnote } from "./LivePanels";
+import { GeoAcquisitionSettings } from "./GeoAcquisitionSettings";
+import { GeoTargetForm } from "./GeoTargetForm";
+import { GeoVisibilityPanel } from "./GeoVisibilityPanel";
+import { MetricFootnote, NewLostPanel, TopCitedPanel } from "./LivePanels";
+import { MentionsTrendPanel } from "./MentionsTrendPanel";
 import { ScoreRing } from "./ScoreRing";
 import { useGeoPageData } from "./useGeoPageData";
-import { FUNNEL_EVENTS } from "@/shared/analytics-events";
-import { captureClientEvent } from "@/client/lib/posthog";
+import { VisibilityForecast } from "./VisibilityForecast";
 
 /**
  * The GEO page: what AI systems actually say about this brand, kept over time.
@@ -41,16 +45,12 @@ export function GeoPage({ projectId }: { projectId: string }) {
   // precise figure, so it must not be reported as one.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const key = "geoActivationRecorded";
-    try {
-      if (window.sessionStorage.getItem(key) === projectId) return;
-      window.sessionStorage.setItem(key, projectId);
-    } catch {
-      // Storage can be unavailable (private mode, a blocked API). An event that
-      // cannot be de-duplicated is not worth failing a page over, and the honest
-      // degradation is to record it and accept the count may be high.
-    }
-    captureClientEvent(FUNNEL_EVENTS.geoActivation, { projectId });
+    // Once per user, not once per session: a funnel stage counts users who
+    // reached it, and a user with five projects who viewed five dashboards
+    // activated once. The first view's project travels as the property.
+    fireMilestoneOnce(window.localStorage, GEO_ACTIVATION_KEY, () =>
+      captureClientEvent(FUNNEL_EVENTS.geoActivation, { projectId }),
+    );
   }, [projectId]);
 
   return (

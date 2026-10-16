@@ -1,9 +1,10 @@
-import { isHostedClientAuthMode } from "@/lib/auth-mode";
+import { clearMilestoneMarks } from "@/client/lib/milestone-events";
 import {
   POSTHOG_PERSONAL_DATA_QUERY_PARAMETERS,
   sanitizePostHogProperties,
   sanitizePostHogUrl,
 } from "@/client/lib/posthog-sanitize";
+import { isHostedClientAuthMode } from "@/lib/auth-mode";
 
 // Type-only import: extracts the type at compile time without bundling posthog-js
 // oxlint-disable-next-line typescript/consistent-type-imports -- import() type avoids eagerly bundling posthog-js
@@ -173,6 +174,11 @@ export function resetAnalyticsUser() {
     client.stopSessionRecording();
     client.reset();
   });
+  // The funnel marks live in the browser, not the account: without this a
+  // second user on the same browser inherits the first user's funnel state.
+  if (typeof window !== "undefined") {
+    clearMilestoneMarks(window.localStorage);
+  }
 }
 
 export function stopAnalyticsCapture() {

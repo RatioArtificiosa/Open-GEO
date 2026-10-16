@@ -107,7 +107,7 @@ describe("category_momentum", () => {
     expect(googleTrendsExplore).not.toHaveBeenCalled();
     const text = textContent(result);
     expect(text).toMatch(/dry run/i);
-    expect(text).toMatch(/0\.0027/);
+    expect(text).toMatch(/0\.011/);
   });
 
   it("asks the vendor for a category with no keywords, which is the change's shape", async () => {

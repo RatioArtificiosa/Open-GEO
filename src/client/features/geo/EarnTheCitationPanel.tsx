@@ -33,10 +33,14 @@
  * - an insight and no outreach — everything cited is already reachable;
  * - an insight with a list.
  */
-import { useEffect, useState, type ReactNode } from "react";
-import { CitationGraphView } from "./CitationGraphView";
-import { FUNNEL_EVENTS } from "@/shared/analytics-events";
+import { type ReactNode, useEffect, useState } from "react";
+import {
+  CITATION_GAP_KEY,
+  fireMilestoneOnce,
+} from "@/client/lib/milestone-events";
 import { captureClientEvent } from "@/client/lib/posthog";
+import { FUNNEL_EVENTS } from "@/shared/analytics-events";
+import { CitationGraphView } from "./CitationGraphView";
 
 /** One row, as `buildCitationGraph` produces it. */
 type EarnableDomain = {
@@ -106,10 +110,14 @@ export function EarnTheCitationPanel({
   // list for the same reason: without it the effect would re-run on the stale
   // closure after the error cleared.
   useEffect(() => {
+    if (typeof window === "undefined") return;
     if (errorMessage !== null || data.insight === null) return;
-    captureClientEvent(FUNNEL_EVENTS.citationGapViewed, {
-      target: targetName,
-    });
+    // Once per user: the wow is the first gap ever viewed, and a counter that
+    // fires on each render grows with refreshes. No target travels with it:
+    // brand names are customer data and do not belong in external analytics.
+    fireMilestoneOnce(window.localStorage, CITATION_GAP_KEY, () =>
+      captureClientEvent(FUNNEL_EVENTS.citationGapViewed),
+    );
   }, [data.insight, targetName, errorMessage]);
 
   if (errorMessage !== null) {
