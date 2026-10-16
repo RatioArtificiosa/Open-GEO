@@ -72,16 +72,18 @@ describe("whatToBuild", () => {
     expect(build[0]?.reason).toMatch(/the SERP asks for guide/);
   });
 
-  it("trails an ineligible SERP winner as evidence, never as the lead", () => {
-    // video is outside the informational trio: leading with it would advise
-    // long-form buyers to shoot video. It trails, named as outside.
+  it("carries an ineligible SERP winner as evidence, never as a format", () => {
+    // video is outside the informational trio: recommending it would advise
+    // long-form buyers to shoot video. Formats stay eligible; the evidence
+    // rides alongside, named as outside.
     const { build } = whatToBuild([
       candidate({
         keyword: "video SERP",
         serpElements: ["unknown-thing", "video"],
       }),
     ]);
-    expect(build[0]?.formats).toEqual(["guide", "tutorial", "faq", "video"]);
+    expect(build[0]?.formats).toEqual(["guide", "tutorial", "faq"]);
+    expect(build[0]?.serpEvidence).toBe("video");
     expect(build[0]?.reason).toMatch(/outside informational formats/);
   });
 

@@ -147,7 +147,7 @@ export function renderCouncilMemo(input: CouncilMemoInput): string {
   const unmeasuredClause =
     unmeasured === 0
       ? ""
-      : ` ${unmeasured} record(s) moved by unmeasured amounts — excluded from the totals, not treated as zero.`;
+      : ` ${unmeasured} record(s) moved by unmeasured amounts — the verdict above covers measured movement only.`;
   if (gainedRecords.length === 0 && lostRecords.length === 0) {
     lines.push(
       `Nothing to interpret yet — interpretation without movement is narrative.`,

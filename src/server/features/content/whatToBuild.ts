@@ -49,8 +49,14 @@ export type BuildCandidate = {
 
 export type BuildRecommendation = {
   keyword: string;
-  /** Eligible formats, intent first, SERP-element winner first. */
+  /** Eligible formats, intent first, SERP-element winner first — never an ineligible one. */
   formats: ContentFormat[];
+  /**
+   * An ineligible SERP winner, kept as evidence rather than advice: the
+   * SERP shows it, the intent table does not bless it, and merging the two
+   * would let consumers build a format the contract never recommended.
+   */
+  serpEvidence: ContentFormat | null;
   /** 0–100 from the opportunity scorer, with its version attached. */
   score: number;
   scoreVersion: string;
@@ -129,9 +135,7 @@ export function whatToBuild(candidates: BuildCandidate[]): {
         : undefined;
     const ordered =
       eligibleWinner === undefined
-        ? trailingWinner === undefined
-          ? formats
-          : [...formats, trailingWinner]
+        ? formats
         : [
             eligibleWinner,
             ...formats.filter((format) => format !== eligibleWinner),
@@ -162,6 +166,7 @@ export function whatToBuild(candidates: BuildCandidate[]): {
     const recommendation: BuildRecommendation = {
       keyword: candidate.keyword,
       formats: ordered,
+      serpEvidence: trailingWinner ?? null,
       score: scored.score,
       scoreVersion: OPPORTUNITY_SCORE_VERSION,
       reason,

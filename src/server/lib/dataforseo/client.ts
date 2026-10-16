@@ -310,9 +310,10 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
               historicalMonthsSpanned(
                 input.dateFrom,
                 input.dateTo,
-                input.now === undefined
-                  ? undefined
-                  : input.now.toISOString().slice(0, 10),
+                // Mirrors the request: fetch defaults an absent date_to to
+                // today via its own clock, so the estimator uses the same
+                // clock rather than pricing a six-month fiction.
+                (input.now ?? new Date()).toISOString().slice(0, 10),
               ),
               1,
             ),

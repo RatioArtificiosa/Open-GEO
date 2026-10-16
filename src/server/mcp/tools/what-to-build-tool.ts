@@ -26,7 +26,8 @@ import { projectIdSchema } from "@/server/mcp/schemas";
  *
  * Unmeasurable keywords are listed as unpriced (never zero, never dropped);
  * unknown intent excludes formats (never defaults to guides for a buyer); the
- * SERP-element winner leads the eligible set; ties break on ETV, never on
+ * SERP-element winner leads the eligible set while ineligible winners travel
+ * as evidence, never as formats; ties break on ETV, never on
  * input order. The module documents each refusal; this tool reports them.
  */
 
@@ -105,6 +106,7 @@ export const whatToBuildTool = {
           z.looseObject({
             keyword: z.string(),
             formats: z.array(z.string()),
+            serpEvidence: z.string().nullable(),
             score: z.number(),
             scoreVersion: z.string(),
             reason: z.string(),
@@ -150,7 +152,10 @@ export const whatToBuildTool = {
       text: ranked.build
         .map(
           (entry, index) =>
-            `${index + 1}. ${entry.keyword} — score ${entry.score} — ${entry.formats.join("/")}: ${entry.reason}`,
+            `${index + 1}. ${entry.keyword} — score ${entry.score} — ${entry.formats.join("/")}` +
+            (entry.serpEvidence === null
+              ? `: ${entry.reason}`
+              : ` (SERP also shows ${entry.serpEvidence}, outside the intent table): ${entry.reason}`),
         )
         .concat(
           ranked.unpriced.map(
