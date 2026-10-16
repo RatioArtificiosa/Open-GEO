@@ -20,6 +20,7 @@ import { getCategoryDomainMetricsTool } from "@/server/mcp/tools/category-domain
 import { categoryMomentumTool } from "@/server/mcp/tools/category-momentum-tool";
 import { compareSentimentTool } from "@/server/mcp/tools/compare-ai-web-sentiment-tool";
 import { computeShareOfVoiceTool } from "@/server/mcp/tools/compute-share-of-voice";
+import { councilMemoTool } from "@/server/mcp/tools/council-memo-tool";
 import { createProjectTool } from "@/server/mcp/tools/create-project";
 import { createRankTrackerTool } from "@/server/mcp/tools/create-rank-tracker";
 import {
@@ -265,6 +266,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   // The build list: gaps ranked with formats, priced by the opportunity
   // scorer — pure ranking over supplied candidates, no vendor call.
   register(whatToBuildTool);
+  register(councilMemoTool);
   // Pure readers over supplied data — grading, benchmarks, personas — no
   // vendor call in any of them, so no dry_run to offer.
   register(gradeContentTool);
