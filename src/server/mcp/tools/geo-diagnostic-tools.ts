@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { GeoService } from "@/server/features/geo/services/GeoService";
 import { AuditService } from "@/server/features/audit/services/AuditService";
-import { citationWinProbability } from "@/server/features/geo/services/citationWinProbability";
-import type { CitationWinProbability } from "@/server/features/geo/services/citationWinProbability";
+import {
+  summarizeWinWindow,
+  type CitationWinProbability,
+} from "@/server/features/geo/services/citationWinProbability";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
@@ -159,24 +161,10 @@ export const getGeoCitationGapTool = {
     const readinessState = await AuditService.latestReadinessState(
       args.projectId,
     );
-    const winProbability: CitationWinProbability = citationWinProbability({
-      retrievals: [
-        ...Array.from(
-          {
-            length: Math.max(
-              0,
-              result.winWindow.retrievals - result.winWindow.citations,
-            ),
-          },
-          () => ({ cited: false }),
-        ),
-        ...Array.from({ length: result.winWindow.citations }, () => ({
-          cited: true,
-        })),
-      ],
-      retrievalsComplete:
-        readinessState === "unknown" ? null : readinessState === "complete",
-    });
+    const winProbability: CitationWinProbability = summarizeWinWindow(
+      result.winWindow,
+      readinessState,
+    );
 
     return mcpResponse({
       text: [

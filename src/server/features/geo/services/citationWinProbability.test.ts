@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   citationWinProbability,
+  summarizeWinWindow,
   type CitationWinProbability,
   type ReadinessModifier,
   type RetrievalObservation,
@@ -137,5 +138,54 @@ describe("citationWinProbability", () => {
     const expected = [...READINESS_STATES];
     expected.sort((a, b) => a.localeCompare(b));
     expect(seen).toEqual(expected);
+  });
+});
+
+describe("summarizeWinWindow", () => {
+  it("widens counts to rows with the same mapping every caller shares", () => {
+    // The MCP citation-gap tool inlined this widening; the page's win-rate
+    // function reads it from here. Both must quote the same number for the
+    // same window, or the page and the agent disagree about one measurement.
+    const shared = summarizeWinWindow(
+      { retrievals: 40, citations: 10 },
+      "fixes-outstanding",
+    );
+    const inline = citationWinProbability({
+      retrievals: [
+        ...Array.from({ length: 30 }, () => ({ cited: false })),
+        ...Array.from({ length: 10 }, () => ({ cited: true })),
+      ],
+      retrievalsComplete: false,
+    });
+    expect(shared).toEqual(inline);
+    expect(shared.probability).toBe(shared.low);
+    expect(shared.readinessModifier).toBe("capped-by-readiness");
+  });
+
+  it("maps each readiness state to its sentence, never inventing a penalty", () => {
+    expect(
+      summarizeWinWindow({ retrievals: 40, citations: 10 }, "complete")
+        .readinessModifier,
+    ).toBe("readiness-complete");
+    expect(
+      summarizeWinWindow({ retrievals: 40, citations: 10 }, "unknown")
+        .readinessModifier,
+    ).toBe("readiness-unknown");
+    // Unknown changes nothing: inventing a penalty for a check never run is
+    // inventing evidence, so the point estimate stands.
+    expect(
+      summarizeWinWindow({ retrievals: 40, citations: 10 }, "unknown")
+        .probability,
+    ).toBeCloseTo(0.25, 5);
+  });
+
+  it("declines a thin window rather than printing arithmetic on noise", () => {
+    const declined = summarizeWinWindow(
+      { retrievals: 3, citations: 3 },
+      "complete",
+    );
+    expect(declined.probability).toBeNull();
+    expect(declined.retrievalsObserved).toBe(3);
+    expect(declined.citationsObserved).toBe(3);
   });
 });

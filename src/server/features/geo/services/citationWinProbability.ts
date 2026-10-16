@@ -176,6 +176,35 @@ export function citationWinProbability(input: {
   };
 }
 
+/**
+ * The win rate from window counts, in one place.
+ *
+ * Both callers hold the same two counters (retrieved, cited) and the same
+ * readiness answer; the module reads observations, not totals, so the counts
+ * are widened to per-retrieval rows here rather than in each caller. A second
+ * copy of the widening is a second place for the readiness mapping to drift —
+ * "unknown" and "outstanding" are different sentences, and the mapping is the
+ * load-bearing part.
+ */
+export function summarizeWinWindow(
+  winWindow: { retrievals: number; citations: number },
+  readiness: "complete" | "fixes-outstanding" | "unknown",
+): CitationWinProbability {
+  return citationWinProbability({
+    retrievals: [
+      ...Array.from(
+        { length: Math.max(0, winWindow.retrievals - winWindow.citations) },
+        () => ({ cited: false }),
+      ),
+      ...Array.from({ length: winWindow.citations }, () => ({
+        cited: true,
+      })),
+    ],
+    retrievalsComplete:
+      readiness === "unknown" ? null : readiness === "complete",
+  });
+}
+
 function modifierOf(retrievalsComplete: boolean | null): ReadinessModifier {
   if (retrievalsComplete === null) return "readiness-unknown";
   return retrievalsComplete ? "readiness-complete" : "capped-by-readiness";

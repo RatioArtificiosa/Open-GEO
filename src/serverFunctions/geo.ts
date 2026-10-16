@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { GeoService } from "@/server/features/geo/services/GeoService";
+import { AuditService } from "@/server/features/audit/services/AuditService";
+import { summarizeWinWindow } from "@/server/features/geo/services/citationWinProbability";
 import { forecastForStoredSeries } from "@/server/features/geo/services/visibilityForecastReads";
 import { readForecastAccuracy } from "@/server/features/geo/services/forecastAccuracyReads";
 import { createDataforseoClient } from "@/server/lib/dataforseo/client";
@@ -172,6 +174,38 @@ export const getGeoCitationGap = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) =>
     GeoService.getCitationGap({ ...data, projectId: context.projectId }),
   );
+
+/**
+ * Citation win probability for the page (CL-502 surface).
+ *
+ * The measured base rate with its Wilson interval, bounded by the project's
+ * audit readiness — the same summarizer the MCP citation-gap tool reads, so
+ * the page and the agent quote one number. Refusals (thin sample, no
+ * retrievals) travel verbatim: a rate the archive cannot support is declined,
+ * not rounded to zero.
+ */
+export const getGeoCitationWinRate = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getGeoCitationGapSchema)
+  .handler(async ({ data, context }) => {
+    const gap = await GeoService.getCitationGap({
+      ...data,
+      projectId: context.projectId,
+    });
+    if (!gap.retrievalAvailable) {
+      return {
+        retrievalAvailable: false as const,
+        reason: gap.reason,
+      };
+    }
+    const readiness = await AuditService.latestReadinessState(
+      context.projectId,
+    );
+    return {
+      retrievalAvailable: true as const,
+      ...summarizeWinWindow(gap.winWindow, readiness),
+    };
+  });
 
 export const getGeoAnswer = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)

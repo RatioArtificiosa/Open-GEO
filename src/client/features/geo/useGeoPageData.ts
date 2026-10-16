@@ -119,6 +119,7 @@ export function useGeoPageData(projectId: string) {
 
   const targetList = targets.data;
   const domain = targetList?.[0]?.domain ?? null;
+  const targetId = targetList?.[0]?.id ?? null;
 
   // Per-target queries stay disabled until a domain exists. Fetching with null
   // would either error or quietly read some other project's first target, and
@@ -135,7 +136,7 @@ export function useGeoPageData(projectId: string) {
     queryKey: ["geoVisibility", projectId, domain],
     enabled: ready,
     staleTime: GEO_QUERY_STALE_TIME_MS,
-    queryFn: () => getGeoVisibility({ data: { targetId: domain ?? "" } }),
+    queryFn: () => getGeoVisibility({ data: { targetId: targetId ?? "" } }),
   });
 
   const citationGap = useQuery({
@@ -144,7 +145,7 @@ export function useGeoPageData(projectId: string) {
     staleTime: GEO_QUERY_STALE_TIME_MS,
     queryFn: () =>
       getGeoCitationGap({
-        data: { targetId: domain ?? "", platform: "chat_gpt" },
+        data: { targetId: targetId ?? "", platform: "chat_gpt" },
       }),
   });
 
@@ -370,6 +371,7 @@ export function useGeoPageData(projectId: string) {
 
   return {
     domain,
+    targetId,
     hasTarget: ready,
     isLoading: targets.isLoading,
     errorMessage: geoErrorMessage(

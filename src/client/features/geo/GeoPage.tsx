@@ -7,6 +7,7 @@ import {
 } from "@/client/lib/milestone-events";
 import { captureClientEvent } from "@/client/lib/posthog";
 import { FUNNEL_EVENTS } from "@/shared/analytics-events";
+import { CitationWinPanel } from "./CitationWinPanel";
 import { EarnTheCitationPanel } from "./EarnTheCitationPanel";
 import { ForecastAccuracyScoreboard } from "./ForecastAccuracyScoreboard";
 import { GeoAcquisitionSettings } from "./GeoAcquisitionSettings";
@@ -213,6 +214,22 @@ export function GeoPage({ projectId }: { projectId: string }) {
                   retrieved, which is a different statement.
                 </p>
               )}
+              {(() => {
+                // The win rate is keyed to the monitored target, not its
+                // domain string: the server function validates targetId as a
+                // uuid, and a domain fails it before the service is reached.
+                const targetId = data.targetId;
+                if (!targetId) return null;
+                return (
+                  <div className="mt-3">
+                    <CitationWinPanel
+                      projectId={projectId}
+                      targetId={targetId}
+                      platform="chat_gpt"
+                    />
+                  </div>
+                );
+              })()}
             </section>
 
             {/*

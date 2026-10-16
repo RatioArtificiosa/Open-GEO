@@ -90,6 +90,15 @@ vi.mock("@/server/features/geo/services/GeoService", () => ({
   GeoService: geoServiceMock,
 }));
 
+// The win-rate handler branches on the gap it is handed. Unavailable by
+// default: the hostile-body test below drives every handler, and an
+// available gap would pull the summarizer (and its readiness read) into a
+// test about spread order. The summarizer's own suite owns that behavior.
+geoServiceMock.getCitationGap.mockResolvedValue({
+  retrievalAvailable: false,
+  reason: "test default: no retrieval archive",
+});
+
 // The two metered reads live in their own module, so the surface test needs a
 // mock for it as well — without one, importing `@/serverFunctions/geo` would
 // pull the real DataForSEO client in and the "exports the full surface" test
@@ -132,6 +141,14 @@ vi.mock("@/server/features/geo/services/visibilityForecastReads", () => ({
 // imports `cloudflare:workers` — a Workers-only module vitest cannot resolve.
 // Same reason every other tool test mocks it.
 vi.mock("cloudflare:workers", () => ({ env: {} }));
+
+// The win-rate handler reads audit readiness beside the gap. The real module
+// reaches `@/db`, which has no client outside a Worker — same reason as
+// `evidenceDrawer` above. Unknown by default: the readiness mapping is the
+// summarizer's own tested behavior, not this surface's.
+vi.mock("@/server/features/audit/services/AuditService", () => ({
+  AuditService: { latestReadinessState: vi.fn(async () => "unknown") },
+}));
 
 function isServerFn(value: unknown): value is ServerFn {
   if (typeof value !== "object" || value === null) return false;
@@ -213,6 +230,10 @@ const EXPECTED = [
   "getGeoCitationGap",
   "getGeoCitationGraph",
   "getGeoCitationProfile",
+  // The win-rate panel. Added here when it shipped: the pin exists so a new
+  // entry point is a *decision* about the surface rather than a silent
+  // addition, and adding the name is the whole of that decision.
+  "getGeoCitationWinRate",
   "getGeoEtvSeries",
   "getGeoEvidence",
   // The forecast scoreboard. Added here when it shipped: the pin exists so a new
