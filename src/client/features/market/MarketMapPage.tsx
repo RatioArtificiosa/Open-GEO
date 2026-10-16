@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2, Map as MapIcon } from "lucide-react";
 import { toast } from "sonner";
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
 import { getDomainCategories } from "@/serverFunctions/market";
+import { getProjects } from "@/serverFunctions/projects";
 import { DFS_LABS } from "@/shared/dataforseo-pricing";
 import {
   summariseMarket,
@@ -27,8 +28,42 @@ import {
  * a reader should see rather than have tidied away. And a row with no measured ETV sorts **last**
  * rather than as zero, so the biggest category on screen is never one nobody measured.
  */
+/**
+ * The project's own domain, for prefilling the profiler input.
+ *
+ * Pure so the lookup is pinned without a DOM: first match wins, absent
+ * project or null domain reads as empty (honestly empty field, never a
+ * guessed target — a guessed domain would spend the reader's money).
+ */
+export function projectDomainFor(
+  projects: Array<{ id: string; domain: string | null }>,
+  projectId: string,
+): string {
+  return projects.find((project) => project.id === projectId)?.domain ?? "";
+}
+
 export function MarketMapPage({ projectId }: { projectId: string }) {
   const [target, setTarget] = useState("");
+  const projectsQuery = useQuery({
+    queryKey: ["projects"],
+    queryFn: () => getProjects(),
+  });
+  // Prefill once from the project: the guard is a ref, not the empty value,
+  // because clearing the field is also empty — gating on target alone refills
+  // what the user just cleared. Typing marks the field touched; switching
+  // projects re-arms for the new project's domain.
+  const filledOnce = useRef(false);
+  useEffect(() => {
+    setTarget("");
+    filledOnce.current = false;
+  }, [projectId]);
+  useEffect(() => {
+    if (target !== "" || filledOnce.current) return;
+    const domain = projectDomainFor(projectsQuery.data ?? [], projectId);
+    if (domain === "") return;
+    filledOnce.current = true;
+    setTarget(domain);
+  }, [target, projectsQuery.data, projectId]);
 
   const analyse = useMutation({
     mutationFn: () => getDomainCategories({ data: { projectId, target } }),
@@ -73,7 +108,10 @@ export function MarketMapPage({ projectId }: { projectId: string }) {
             className="input input-bordered w-full"
             placeholder="example.com"
             value={target}
-            onChange={(event) => setTarget(event.target.value)}
+            onChange={(event) => {
+              filledOnce.current = true;
+              setTarget(event.target.value);
+            }}
           />
         </label>
         <button
