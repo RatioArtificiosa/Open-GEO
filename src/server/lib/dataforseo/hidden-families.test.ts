@@ -225,6 +225,19 @@ describe("quoteHiddenFamilyCall", () => {
     expect(quote.unit).toBe("10 reviews");
   });
 
+  it("quotes tripadvisor per task from the book, not the family refusal", () => {
+    // The table refused this path while DFS_LOCAL.tripadvisorReviews
+    // documented $0.00075 per 10 reviews: a refusal where the book has a
+    // figure is the same lie as a guess, in the safe direction only by luck.
+    const quote = quoteHiddenFamilyCall(
+      "/v3/business_data/tripadvisor/reviews/task_post",
+      2,
+    );
+    expect(quote.usd).toBeCloseTo(0.0015, 10);
+    expect(quote.priceSource).toBe("DFS_LOCAL.tripadvisorReviews.standard");
+    expect(quote.unit).toBe("10 reviews");
+  });
+
   it("refuses an undocumented price by name rather than guessing one", () => {
     expect(() => quoteHiddenFamilyCall(GENERATE_PATH)).toThrowError(
       /No documented price for \/v3\/content_generation\/generate\/live/,

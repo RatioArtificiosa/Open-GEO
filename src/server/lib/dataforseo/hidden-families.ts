@@ -101,7 +101,11 @@ const HIDDEN_FAMILY_PRICES: Record<
     source: "DFS_LOCAL.googleReviews.standard",
     unit: "10 reviews",
   },
-  "/v3/business_data/tripadvisor/reviews/task_post": null,
+  "/v3/business_data/tripadvisor/reviews/task_post": {
+    usdPerCall: DFS_LOCAL.tripadvisorReviews.standard,
+    source: "DFS_LOCAL.tripadvisorReviews.standard",
+    unit: "10 reviews",
+  },
   "/v3/business_data/trustpilot/reviews/task_post": {
     usdPerCall: DFS_LOCAL.trustpilotReviews.standard,
     source: "DFS_LOCAL.trustpilotReviews.standard",
@@ -137,6 +141,8 @@ const HIDDEN_FAMILY_PRICES: Record<
  * per task, and each task returns up to `unit` rows. A caller reading 100
  * reviews at 10 per task quotes 10 tasks, not 1 — quoting one task for a
  * ten-task read would understate tenfold, which is the same lie as guessing.
+ * Depth is the caller's to convert: a single deep task_post bills per block
+ * (ceil(depth/unit)), so pass tasks already scaled or the quote understates.
  * Throws `VALIDATION_ERROR` naming the path when no documented price exists:
  * a quote the book cannot support is a number someone will budget against, and
  * an invented one is worse than a refusal.
