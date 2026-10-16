@@ -7,6 +7,7 @@ import {
   MobileSidebarDrawer,
   SeoApiStatusBanners,
 } from "@/client/layout/AppShellParts";
+import { resolveSetupModal } from "@/client/layout/setupModalDecision";
 import { GscReEngagementModal } from "@/client/features/gsc/GscReEngagementModal";
 import { Sidebar } from "@/client/components/Sidebar";
 import { BILLING_ROUTE } from "@/shared/billing";
@@ -83,17 +84,16 @@ export function AuthenticatedAppLayout({
     shouldCheckSeoApiKeyStatus && seoApiKeyStatusQuery.isError;
 
   React.useEffect(() => {
-    if (!shouldCheckSeoApiKeyStatus) {
-      setShowMissingSeoApiKeyModal(false);
-      return;
-    }
-
-    if (seoApiKeyStatusQuery.isError) {
-      setShowMissingSeoApiKeyModal(false);
-      return;
-    }
-
-    if (!seoApiKeyStatusQuery.isSuccess) return;
+    // The open/close/leave-alone decision lives in setupModalDecision so the
+    // contract is pinned without a DOM; the arms below are that function.
+    const decision = resolveSetupModal({
+      shouldCheck: shouldCheckSeoApiKeyStatus,
+      isError: seoApiKeyStatusQuery.isError,
+      isSuccess: seoApiKeyStatusQuery.isSuccess,
+      configured: seoApiKeyStatusQuery.data?.configured ?? null,
+      dismissed: dismissedSetupModal,
+    });
+    if (decision !== null) setShowMissingSeoApiKeyModal(decision);
 
     /**
      * **Only open it, and only once per session.**
@@ -122,9 +122,6 @@ export function AuthenticatedAppLayout({
      * not evidence of a missing key, and asserting one would be the guess
      * `getAuthMode` already refuses to make.
      */
-    if (!seoApiKeyStatusQuery.data.configured && !dismissedSetupModal) {
-      setShowMissingSeoApiKeyModal(true);
-    }
   }, [
     location.pathname,
     seoApiKeyStatusQuery.data,
