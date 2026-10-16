@@ -165,6 +165,26 @@ const EXEMPT_BINDINGS = new Map([
     "src/server/features/rank-tracking/services/RankTrackingService.ts|assertSerpLocationNameAccepted",
     "probes the vendor's sandbox, which the module's own docblock documents as validating request fields exactly like production at no cost",
   ],
+  [
+    "src/server/features/domain/services/techLeads.ts|sliceByTechnology",
+    "pure row filter over supplied rows: keeps the rows running every required technology and none of the excluded ones, makes no vendor call",
+  ],
+  [
+    "src/server/features/domain/services/techLeads.ts|technologyNames",
+    "pure field reader over a supplied row: flattens the vendor's category buckets to lowercase names, makes no vendor call",
+  ],
+  [
+    "src/server/mcp/tools/get-domain-subdomains.ts|standardLabsItemEstimate",
+    "pure quote arithmetic over the price book for the dry-run preview: per-request plus per-item at the stated limit, makes no vendor call",
+  ],
+  [
+    "src/server/mcp/tools/get-domain-competitors.ts|standardLabsItemEstimate",
+    "pure quote arithmetic over the price book for the dry-run preview: per-request plus per-item at the stated limit, makes no vendor call",
+  ],
+  [
+    "src/server/mcp/tools/get-domain-historical.ts|historicalMonthsSpanned",
+    "pure calendar span over injected date strings for the dry-run preview: counts whole months without reading a clock or the network",
+  ],
 ]);
 
 /**
