@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getGeoVisibilityForecast } from "@/serverFunctions/geo";
 import { GEO_QUERY_STALE_TIME_MS } from "./useGeoPageData";
+import { resolveForecastPanelState } from "@/client/features/geo/forecastPanelState";
 import { GEO_PLATFORM_LABELS, type GEO_PLATFORMS } from "@/types/schemas/geo";
 
 type GeoPlatform = (typeof GEO_PLATFORMS)[number];
@@ -93,17 +94,31 @@ export function VisibilityForecast({
   }
 
   const { series, forecast } = data;
-  const current = forecast.current[0];
+  // Every branch below reads this state, computed once: the decision is
+  // unit-tested in forecastPanelState.test.ts, and this file renders it.
+  // Loading and fault returned above, so only ready states reach here.
   const skipped =
     series.skipped.unknownDenominator +
     series.skipped.noText +
     series.skipped.noAnswers;
+  const panelState = resolveForecastPanelState({
+    isPending: false,
+    isError: false,
+    current: forecast.current[0] ?? null,
+    hasNote: Boolean(series.note),
+    directionPerWeek: forecast.direction.perWeek,
+    skipped:
+      series.skipped.unknownDenominator +
+      series.skipped.noText +
+      series.skipped.noAnswers,
+  });
+  const current = forecast.current[0];
 
   return (
     <section className="rounded-lg border border-base-content/10 p-4">
       <h2 className="text-base font-semibold">Visibility forecast</h2>
 
-      {current && current.basedOn > 0 && current.rate !== null ? (
+      {panelState.showRate && current && current.rate !== null ? (
         <div className="mt-3 space-y-1">
           <p className="text-sm text-base-content/70">
             Based on{" "}
@@ -115,17 +130,20 @@ export function VisibilityForecast({
           <p className="text-2xl font-semibold">
             {Math.round(current.rate * 100)}%
           </p>
-          {current.low !== null && current.high !== null ? (
+          {panelState.showInterval &&
+          current &&
+          current.low !== null &&
+          current.high !== null ? (
             <p className="text-xs text-base-content/60">
               Between {Math.round(current.low * 100)}% and{" "}
               {Math.round(current.high * 100)}%. That spread is the measurement,
               not decoration.
             </p>
           ) : null}
-          {current.confidence !== "high" ? (
+          {panelState.confidenceNote !== null ? (
             <p className="text-xs text-base-content/60">
-              Confidence: {current.confidence}.{" "}
-              {current.confidence === "none"
+              Confidence: {current?.confidence}.{" "}
+              {panelState.confidenceNote === "none"
                 ? "Too few prompts for a rate to mean anything yet."
                 : "More runs will narrow this."}
             </p>
@@ -145,7 +163,7 @@ export function VisibilityForecast({
         </p>
       )}
 
-      {series.note ? (
+      {panelState.showNote ? (
         <p className="mt-3 text-xs text-base-content/60">{series.note}</p>
       ) : null}
 
@@ -173,7 +191,7 @@ export function VisibilityForecast({
        */}
       <div className="mt-3">
         <p className="text-xs font-medium text-base-content/70">Direction</p>
-        {forecast.direction.perWeek === null ? (
+        {!panelState.directionPresent || forecast.direction.perWeek === null ? (
           <p className="text-xs text-base-content/60">
             {forecast.direction.reading}
           </p>
@@ -194,7 +212,7 @@ export function VisibilityForecast({
         {forecast.doesNotClaim}
       </p>
 
-      {skipped > 0 ? (
+      {panelState.showSkipped ? (
         <details className="mt-3 text-xs text-base-content/60">
           <summary className="cursor-pointer">
             Runs not included ({skipped})
