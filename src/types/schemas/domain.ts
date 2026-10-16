@@ -111,10 +111,7 @@ export const domainLeadsSchema = z.object({
     .array(z.string().min(1).max(64))
     .min(1, "At least one required technology")
     .max(10),
-  excludedTech: z
-    .array(z.string().min(1).max(64))
-    .max(10)
-    .optional(),
+  excludedTech: z.array(z.string().min(1).max(64)).max(10).optional(),
   maxCandidates: z.number().int().min(1).max(25).optional(),
 });
 
