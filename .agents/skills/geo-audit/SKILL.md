@@ -58,8 +58,11 @@ elsewhere.
 
 For the 3–5 highest-traffic queries where the brand appears or should:
 ```
-geo_search_mentions(target, query, platform, limit)
+get_geo_answer_history(domain, platform, prompt, limit)
 ```
+
+Every archived answer to one prompt, newest first. The prompt is the exact
+question; the archive stores answers verbatim.
 
 **Quote the answer verbatim.** The client needs to see AI's actual words, not your paraphrase of
 them. Record the exact prompt alongside it.

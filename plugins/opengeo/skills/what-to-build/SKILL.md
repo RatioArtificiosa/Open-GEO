@@ -12,17 +12,16 @@ these four pages, in this order, in these formats" is.
 
 ### 1. Find the gaps
 
-```
-geo_content_gaps(domain, competitors)
-```
-or the underlying Labs call, `domain_intersection(target, competitor)`.
-
-Keep every field it returns — each drives a decision below: `search_volume`, `keyword_difficulty`,
-`main_intent`, `serp_item_types`, `etv`, `backlinks_info`.
+For each competitor, call `get_domain_keyword_suggestions(domain)` and keep
+`keyword`, `position`, `volume`, `difficulty` per row. A gap is a keyword a
+competitor ranks for that the user does not (checked in step 3): there is no
+single gap call on the wire, so the comparison is yours, not the tool's.
+(The Labs domain-intersection endpoint exists server-side but is not exposed
+as a tool. Do not call `domain_intersection` by name.)
 
 ### 2. Decide the format — never skip this
 
-`search_intent` maps directly to a content format:
+The intent label maps directly to a content format:
 
 | Intent | Build |
 |---|---|
@@ -47,7 +46,9 @@ being indirect, not for being short.
 
 ### 3. Check we don't already rank for it
 
-Pull current rank tracking first. **Never recommend a keyword the user already ranks #1 for** — it's
+Pull current rank tracking first with `get_rank_tracker` (read-only latest
+results, no credits — never `run_rank_tracker` for this, which spends).
+**Never recommend a keyword the user already ranks #1 for** — it's
 the fastest way to lose trust.
 
 ### 4. Add the AI-demand signal
@@ -74,8 +75,13 @@ back to the user.
 For the top 3: target query, format, the questions it must answer, the entities to mention, the
 internal links to include.
 
-If an LLM tool is available, `generate_sub_topics` ($0.0001/task) turns a topic into an outline
-cheaply. Prefer it to a full draft — clients usually want to write it themselves.
+For the top 3, call `generate_content_brief(candidate)` with the gap
+candidate — the candidateSchema keys (keyword, volume, keywordDifficulty,
+intent, serpCompetitors, serpElements, competitorDomains, etv).
+The brief is pure assembly — free, no vendor call. Its machine outline stays
+explicitly empty until the funding-day vendor call fills it, so never invent
+one. Prefer a brief to a full draft — clients usually want to write it
+themselves.
 
 ## Reporting
 

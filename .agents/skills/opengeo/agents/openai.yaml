@@ -1,0 +1,24 @@
+# Codex skill-picker metadata for the opengeo router skill (CL-213g).
+# Display and invocation policy only: routing lives in SKILL.md. Only the MCP
+# tools the router names appear below; the geo-audit and what-to-build skills
+# it routes to carry their own files. check-skill-tool-calls.mjs enforces both.
+interface:
+  display_name: "OpenGeo"
+  short_description: "SEO and AI-visibility routing: the right workflow, honest numbers."
+  default_prompt: "Audit my site and give me a one-page report with a single next action."
+
+policy:
+  allow_implicit_invocation: true
+
+dependencies:
+  tools:
+    - server: opengeo
+      tools:
+        - run_site_audit
+        - get_audit_issues
+        - research_keywords
+        - run_rank_tracker
+        - get_rank_tracker
+        - find_serp_competitors
+        - get_domain_overview
+        - get_search_console_performance

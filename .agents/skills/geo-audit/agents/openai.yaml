@@ -1,0 +1,21 @@
+# Codex skill-picker metadata for the geo-audit skill (CL-213g).
+# Display and invocation policy only: the workflow lives in SKILL.md, and the
+# tool names below must match the MCP surface or the skill fails halfway.
+# check-skill-tool-calls.mjs enforces both.
+interface:
+  display_name: "GEO audit"
+  short_description: "Find out what AI actually says about your brand, then fix it."
+  default_prompt: "Does AI recommend my brand? Show my mentions and citations in ChatGPT and Google AI."
+
+policy:
+  allow_implicit_invocation: true
+
+dependencies:
+  tools:
+    - server: opengeo
+      tools:
+        - get_geo_visibility
+        - compute_share_of_voice
+        - get_geo_citation_gap
+        - geo_brand_framing
+        - get_geo_answer_history

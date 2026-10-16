@@ -1,0 +1,19 @@
+# Codex skill-picker metadata for the what-to-build skill (CL-213g).
+# Display and invocation policy only: the workflow lives in SKILL.md, and the
+# tool names below must match the MCP surface or the skill fails halfway.
+# check-skill-tool-calls.mjs enforces both.
+interface:
+  display_name: "What to build"
+  short_description: "Turn competitor keyword gaps into a prioritised build plan with briefs."
+  default_prompt: "Research keywords for my site and shortlist the best opportunities."
+
+policy:
+  allow_implicit_invocation: true
+
+dependencies:
+  tools:
+    - server: opengeo
+      tools:
+        - get_domain_keyword_suggestions
+        - ai_keyword_volume
+        - generate_content_brief
