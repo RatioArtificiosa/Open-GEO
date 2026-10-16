@@ -1,7 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { getGeoVisibilityForecast } from "@/serverFunctions/geo";
 import { GEO_QUERY_STALE_TIME_MS } from "./useGeoPageData";
-import { resolveForecastPanelState } from "@/client/features/geo/forecastPanelState";
+import {
+  FORECAST_COPY,
+  resolveForecastPanelState,
+} from "@/client/features/geo/forecastPanelState";
 import { GEO_PLATFORM_LABELS, type GEO_PLATFORMS } from "@/types/schemas/geo";
 
 type GeoPlatform = (typeof GEO_PLATFORMS)[number];
@@ -73,7 +76,9 @@ export function VisibilityForecast({
     return (
       <section className="rounded-lg border border-base-content/10 p-4">
         <h2 className="text-base font-semibold">Visibility forecast</h2>
-        <p className="mt-2 text-sm text-base-content/70">Loading forecast</p>
+        <p className="mt-2 text-sm text-base-content/70">
+          {FORECAST_COPY.loading}
+        </p>
       </section>
     );
   }
@@ -83,8 +88,7 @@ export function VisibilityForecast({
       <section className="rounded-lg border border-base-content/10 p-4">
         <h2 className="text-base font-semibold">Visibility forecast</h2>
         <p className="mt-2 text-sm text-base-content/70">
-          This panel could not be read. That is a fault here, not a statement
-          about your visibility.
+          {FORECAST_COPY.fault}
         </p>
         <p className="mt-1 text-xs text-base-content/50">
           {error instanceof Error ? error.message : "Unknown error"}
@@ -144,8 +148,8 @@ export function VisibilityForecast({
             <p className="text-xs text-base-content/60">
               Confidence: {current?.confidence}.{" "}
               {panelState.confidenceNote === "none"
-                ? "Too few prompts for a rate to mean anything yet."
-                : "More runs will narrow this."}
+                ? FORECAST_COPY.thinSample
+                : FORECAST_COPY.narrowSample}
             </p>
           ) : null}
         </div>
@@ -157,9 +161,7 @@ export function VisibilityForecast({
         // version names the queued path as ours to fix, because that is the
         // actionable half.
         <p className="mt-3 text-sm text-base-content/70">
-          A mention rate is only meaningful with its sample size, so this panel
-          will not show a percentage it cannot stand behind. The reason is
-          below.
+          {FORECAST_COPY.refusal}
         </p>
       )}
 

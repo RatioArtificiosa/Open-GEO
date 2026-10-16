@@ -6,14 +6,32 @@
  * the branch logic is extracted here where tests drive it on the real path,
  * rather than living only in JSX a suite cannot reach (the public vitest env
  * is node, no DOM). The component calls this and renders what it says; the
- * copy sentences stay in the component and are pinned separately by
- * VisibilityForecast.states.test.ts.
+ * panel-owned copy lives in FORECAST_COPY below and is pinned byte for byte
+ * by VisibilityForecast.states.test.ts.
  *
  * Three outcomes at the top, never two: loading and fault are their own
  * states because neither is evidence about visibility, and "ready" carries
  * one boolean per optional block. Collapsing "leave out" into any other
  * value is how a refusal silently becomes a confident number.
  */
+/**
+ * The panel's own sentences, as values the tests drive.
+ *
+ * Whitespace is single-spaced exactly as JSX collapses it at render: these
+ * strings are what the reader sees, so the tests assert them byte for byte.
+ * Change a sentence here and both the suite and the screen move together —
+ * that is the point. Server-owned sentences are deliberately absent.
+ */
+export const FORECAST_COPY = {
+  loading: "Loading forecast",
+  fault:
+    "This panel could not be read. That is a fault here, not a statement about your visibility.",
+  refusal:
+    "A mention rate is only meaningful with its sample size, so this panel will not show a percentage it cannot stand behind. The reason is below.",
+  thinSample: "Too few prompts for a rate to mean anything yet.",
+  narrowSample: "More runs will narrow this.",
+} as const;
+
 export type ForecastCurrent = {
   basedOn: number;
   rate: number | null;
