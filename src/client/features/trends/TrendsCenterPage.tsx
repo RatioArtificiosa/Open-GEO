@@ -25,7 +25,10 @@ import {
 } from "@/server/features/trends/trendSeries";
 import { getSearchTrends } from "@/serverFunctions/trends";
 import { TrendsOverviewPanel } from "@/client/features/trends/TrendsOverviewPanel";
-import { trendVerdictsFor } from "@/client/features/trends/trendVerdicts";
+import {
+  trendVerdictsFor,
+  type TrendVerdict,
+} from "@/client/features/trends/trendVerdicts";
 
 /**
  * The Trends Center: whether interest in a term is rising, seasonal, or fading.
@@ -94,7 +97,7 @@ export function TrendsCenterPage({ projectId }: { projectId: string }) {
   // Momentum + breakout verdicts over the lines drawn above — the engines
   // are pure over the charted values, so no second request bills for the
   // same window. Short windows decline inside their summaries.
-  const verdicts = useMemo(
+  const verdicts: TrendVerdict[] = useMemo(
     () =>
       chart && chart.series.length > 0 ? trendVerdictsFor(chart.series) : [],
     [chart],
