@@ -1,3 +1,8 @@
+import {
+  type CalendarDate,
+  monthKey,
+  parseCalendarDate,
+} from "@/server/lib/calendarDate";
 import { dataforseoPost } from "@/server/lib/dataforseo/core";
 import {
   assertOk,
@@ -6,6 +11,7 @@ import {
   type DataforseoItemsTask,
 } from "@/server/lib/dataforseo/envelope";
 import { AppError } from "@/server/lib/errors";
+import { DFS_LABS } from "@/shared/dataforseo-pricing";
 import { type EtvProvenance, resolveEtvMode } from "@/shared/etv-versioning";
 
 /**
@@ -23,30 +29,71 @@ import { type EtvProvenance, resolveEtvMode } from "@/shared/etv-versioning";
  * accepts and then drops must never be replayed.
  */
 
-/** `yyyy-mm-dd`, the only date format these endpoints accept. */
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
 /**
  * Whole months spanned by a historical window, for the per-domain-month estimate.
  *
- * Defaults to the vendor's six months when a bound is absent (the documented
- * default window). Pure over its inputs — the estimator that prices a call
- * must not read a clock, or identical requests would quote differently.
+ * Six when both bounds are absent (the vendor's documented default window).
+ * With exactly one bound, the missing side resolves against `todayYmd`:
+ * the vendor defaults a missing date_from to six months back and a missing
+ * date_to to today, and quoting a flat six against a caller-supplied 2020
+ * bound understated the call. `todayYmd` arrives as a string (callers pass
+ * the request's injected clock) so the estimator never reads one: identical
+ * inputs quote identically. Without it, or on unparseable bounds, the answer
+ * is the documented six rather than a billed guess.
  */
 export function historicalMonthsSpanned(
   dateFrom: string | undefined,
   dateTo: string | undefined,
+  todayYmd?: string,
 ): number {
-  // The vendor defaults an absent bound to six months back / today; the
-  // estimate uses the same six rather than reading a clock for "today".
-  if (dateFrom === undefined || dateTo === undefined) return 6;
-  const fromKey =
-    Number(dateFrom.slice(0, 4)) * 12 + Number(dateFrom.slice(5, 7));
-  const toKey = Number(dateTo.slice(0, 4)) * 12 + Number(dateTo.slice(5, 7));
-  if (!Number.isFinite(fromKey) || !Number.isFinite(toKey) || toKey < fromKey) {
-    return 6;
+  if (dateFrom === undefined && dateTo === undefined) return 6;
+  const fromGiven = dateFrom === undefined ? null : parseCalendarDate(dateFrom);
+  const toGiven = dateTo === undefined ? null : parseCalendarDate(dateTo);
+  if (dateFrom !== undefined && fromGiven === null) return 6;
+  if (dateTo !== undefined && toGiven === null) return 6;
+  if (fromGiven !== null && toGiven !== null) {
+    // Both bounds present: a pure span, no clock involved.
+    const fromKey = monthKey(fromGiven);
+    const toKey = monthKey(toGiven);
+    if (toKey < fromKey) return 6;
+    return Math.max(toKey - fromKey + 1, 1);
   }
+  // Exactly one side given: resolve the missing side against the request
+  // clock, or fall back to the documented window without one.
+  const today = todayYmd === undefined ? null : parseCalendarDate(todayYmd);
+  if (today === null) return 6;
+  const from = fromGiven ?? shiftMonths(today, -6);
+  const to = toGiven ?? today;
+  const fromKey = monthKey(from);
+  const toKey = monthKey(to);
+  if (toKey < fromKey) return 6;
   return Math.max(toKey - fromKey + 1, 1);
+}
+
+/** Shift a calendar date by whole months; the day resets, spans count months. */
+function shiftMonths(date: CalendarDate, delta: number): CalendarDate {
+  const key = monthKey(date) - 1 + delta;
+  return { year: Math.floor(key / 12), month: (key % 12) + 1, day: 1 };
+}
+
+/**
+ * Standard-Labs per-item estimate with a fail-closed ceiling.
+ *
+ * Most Labs endpoints bill per request plus per returned item
+ * (`DFS_LABS.standard.perUnit`). A stated limit quotes exactly that many
+ * items; an omitted limit quotes the family maximum (1,000 items per
+ * request, per the price book) rather than zero — an estimate that
+ * understates the call lets the credit gate admit what the balance cannot
+ * cover. Overquoting refuses early, which is the safe direction.
+ */
+const STANDARD_LABS_FAMILY_MAX_ITEMS = 1000;
+
+export function standardLabsItemEstimate(limit?: number): number {
+  const units =
+    limit === undefined || !Number.isFinite(limit)
+      ? STANDARD_LABS_FAMILY_MAX_ITEMS
+      : Math.max(Math.floor(limit), 1);
+  return DFS_LABS.standard.perRequest + DFS_LABS.standard.perUnit * units;
 }
 
 function requireTarget(target: string, endpoint: string): void {
@@ -81,10 +128,38 @@ function assertDate(
   endpoint: string,
 ): void {
   if (value === undefined) return;
-  if (!DATE_PATTERN.test(value)) {
+  if (parseCalendarDate(value) === null) {
     throw new AppError(
       "VALIDATION_ERROR",
-      `${label} must be in yyyy-mm-dd format, got "${value}" (${endpoint})`,
+      `${label} must be a real calendar date in yyyy-mm-dd format, got "${value}" (${endpoint})`,
+    );
+  }
+}
+
+/**
+ * Reversed ranges are refused before the vendor sees them: a range that ends
+ * before it starts bills a rejection the envelope reader cannot classify.
+ */
+function assertDateRange(
+  dateFrom: string | undefined,
+  dateTo: string | undefined,
+  endpoint: string,
+): void {
+  if (dateFrom === undefined || dateTo === undefined) return;
+  const from = parseCalendarDate(dateFrom);
+  const to = parseCalendarDate(dateTo);
+  if (
+    from !== null &&
+    to !== null &&
+    (to.year !== from.year
+      ? to.year < from.year
+      : to.month !== from.month
+        ? to.month < from.month
+        : to.day < from.day)
+  ) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      `dateFrom ${dateFrom} is after dateTo ${dateTo} (${endpoint})`,
     );
   }
 }
@@ -141,6 +216,7 @@ export async function fetchHistoricalRankOverview(input: {
   );
   assertDate("dateFrom", input.dateFrom, endpoint);
   assertDate("dateTo", input.dateTo, endpoint);
+  assertDateRange(input.dateFrom, input.dateTo, endpoint);
 
   const mode = resolveEtvMode({ endpoint, now: input.now });
   const response = await dataforseoPost<DataforseoItemsTask<HistoricalMonth>>(

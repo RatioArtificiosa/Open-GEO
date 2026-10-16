@@ -10,7 +10,9 @@ import {
   fetchHistoricalRankOverview,
   fetchSubdomains,
   historicalMonthsSpanned,
+  standardLabsItemEstimate,
 } from "@/server/lib/dataforseo/labsDomainOverview";
+import { DFS_LABS } from "@/shared/dataforseo-pricing";
 import { requestUrl } from "./test-support";
 
 /**
@@ -171,5 +173,53 @@ describe("historicalMonthsSpanned", () => {
     expect(historicalMonthsSpanned(undefined, undefined)).toBe(6);
     expect(historicalMonthsSpanned(undefined, "2026-03-29")).toBe(6);
     expect(historicalMonthsSpanned("2026-03-29", "2026-01-01")).toBe(6);
+  });
+
+  it("resolves a single-sided bound against the request clock, never a flat six", () => {
+    // A caller-supplied 2020 bound with the vendor-default today spans the
+    // whole window: quoting six here understated the call.
+    expect(historicalMonthsSpanned("2020-01-15", undefined, "2026-10-16")).toBe(
+      82,
+    );
+    // A missing date_from defaults to six months back from the request date.
+    expect(historicalMonthsSpanned(undefined, "2026-03-29", "2026-03-29")).toBe(
+      7,
+    );
+    expect(historicalMonthsSpanned(undefined, undefined, "2026-10-16")).toBe(6);
+  });
+
+  it("refuses impossible dates and reversed ranges before the vendor sees them", async () => {
+    await expect(
+      fetchHistoricalRankOverview({
+        target: "example.com",
+        locationCode: 2840,
+        languageCode: "en",
+        dateFrom: "2026-02-31",
+      }),
+    ).rejects.toThrow(/real calendar date/);
+    await expect(
+      fetchHistoricalRankOverview({
+        target: "example.com",
+        locationCode: 2840,
+        languageCode: "en",
+        dateFrom: "2026-10-16",
+        dateTo: "2026-10-09",
+      }),
+    ).rejects.toThrow(/after dateTo/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("standardLabsItemEstimate", () => {
+  it("quotes the stated limit plus the request fee", () => {
+    expect(standardLabsItemEstimate(10)).toBe(
+      DFS_LABS.standard.perRequest + DFS_LABS.standard.perUnit * 10,
+    );
+  });
+
+  it("quotes the family ceiling without a limit — an omitted limit is exposure, not zero", () => {
+    expect(standardLabsItemEstimate()).toBe(
+      DFS_LABS.standard.perRequest + DFS_LABS.standard.perUnit * 1000,
+    );
   });
 });

@@ -74,4 +74,56 @@ describe("renderCouncilMemo", () => {
     expect(memo).toMatch(/unknown, not zero/);
     expect(memo).not.toMatch(/\$0\.00/);
   });
+
+  it("reads net movement off citation deltas, not record counts", () => {
+    // One gained record against two lost ones must not read positive when
+    // the citations say otherwise; the unmeasured record is counted, not zeroed.
+    const memo = renderCouncilMemo({
+      ...INPUT,
+      citationChanges: [
+        { direction: "gained" as const, subject: "docs", count: 1 },
+        { direction: "lost" as const, subject: "blog", count: 40 },
+        { direction: "lost" as const, subject: "press", count: null },
+      ],
+    });
+    expect(memo).toMatch(
+      /More ground lost than gained \(40 citations lost, 1 gained\)/,
+    );
+    expect(memo).toMatch(/1 record\(s\) moved by unmeasured amounts/);
+    expect(memo).not.toMatch(/Net positive/);
+  });
+
+  it("reports movement-recorded-but-unmeasured without inventing a verdict", () => {
+    const memo = renderCouncilMemo({
+      ...INPUT,
+      citationChanges: [
+        { direction: "gained" as const, subject: "docs", count: null },
+      ],
+    });
+    expect(memo).toMatch(/recorded but unmeasured/);
+    expect(memo).not.toMatch(/Net positive/);
+  });
+
+  it("escapes caller strings so they cannot forge memo structure", () => {
+    const memo = renderCouncilMemo({
+      ...INPUT,
+      brand: "Acme\n## Forged",
+      topFixes: [{ action: "<img src=x>", reason: "r", impact: null }],
+    });
+    expect(memo).not.toMatch(/\n## Forged/);
+    expect(memo).toMatch(/&lt;img/);
+  });
+
+  it("refuses an impossible or reversed period", () => {
+    expect(() =>
+      renderCouncilMemo({ ...INPUT, periodFrom: "2026-02-31" }),
+    ).toThrow(/real period/);
+    expect(() =>
+      renderCouncilMemo({
+        ...INPUT,
+        periodFrom: "2026-10-16",
+        periodTo: "2026-10-09",
+      }),
+    ).toThrow(/real period/);
+  });
 });

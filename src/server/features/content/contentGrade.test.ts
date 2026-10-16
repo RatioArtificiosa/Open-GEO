@@ -67,4 +67,25 @@ describe("gradeContent", () => {
     expect(grade.densityNote).toMatch(/not a grade/);
     expect(grade.checkCoverage).toBe("12/40 checks passed");
   });
+
+  it("refuses more passed than total, and names an empty check run", () => {
+    expect(() =>
+      gradeContent({
+        onpageScore: 70,
+        readability: {},
+        keywordDensityRatio: null,
+        checksPassed: 3,
+        checksTotal: 2,
+      }),
+    ).toThrow(/at most/);
+    expect(
+      gradeContent({
+        onpageScore: 70,
+        readability: {},
+        keywordDensityRatio: null,
+        checksPassed: 0,
+        checksTotal: 0,
+      }).checkCoverage,
+    ).toBe("no checks ran — coverage unmeasured");
+  });
 });

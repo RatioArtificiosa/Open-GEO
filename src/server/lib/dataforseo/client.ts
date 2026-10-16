@@ -83,6 +83,7 @@ import {
   fetchHistoricalRankOverview,
   fetchSubdomains,
   historicalMonthsSpanned,
+  standardLabsItemEstimate,
 } from "@/server/lib/dataforseo/labsDomainOverview";
 import { fetchLighthouseResult } from "@/server/lib/dataforseo/lighthouse";
 import { postLlmResponseTasks } from "@/server/lib/dataforseo/llm-responses-queue";
@@ -294,28 +295,39 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       ),
       // The three missing domain-overview endpoints (CL-401 remainder),
       // each metered with an estimator that matches its billing shape:
-      // historical bills per domain-month over the requested span, the
-      // other two per request like the rest of standard Labs.
+      // historical bills per domain-month over the requested span
+      // (single-sided bounds resolve against the request clock); the other
+      // two bill per request plus per returned item, quoted at the stated
+      // limit or the family ceiling.
       historicalRankOverview: meter(
         customer,
         fetchHistoricalRankOverview,
         undefined,
-        (input: { dateFrom?: string; dateTo?: string }) =>
+        (input: { dateFrom?: string; dateTo?: string; now?: Date }) =>
           DFS_LABS.historicalRank.perRequest +
           DFS_LABS.historicalRank.perUnit *
-            Math.max(historicalMonthsSpanned(input.dateFrom, input.dateTo), 1),
+            Math.max(
+              historicalMonthsSpanned(
+                input.dateFrom,
+                input.dateTo,
+                input.now === undefined
+                  ? undefined
+                  : input.now.toISOString().slice(0, 10),
+              ),
+              1,
+            ),
       ),
       subdomains: meter(
         customer,
         fetchSubdomains,
         undefined,
-        () => DFS_LABS.standard.perRequest,
+        (input: { limit?: number }) => standardLabsItemEstimate(input.limit),
       ),
       competitorsDomain: meter(
         customer,
         fetchCompetitorsDomain,
         undefined,
-        () => DFS_LABS.standard.perRequest,
+        (input: { limit?: number }) => standardLabsItemEstimate(input.limit),
       ),
       // The categories a domain ranks in. Metered with everything else in Labs, and the
       // `includeClickstreamData` flag doubles the vendor's price — a caller's decision, never a

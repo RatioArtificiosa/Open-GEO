@@ -12,6 +12,8 @@
  * wrapper live outside this file.
  */
 
+import { dayKey, parseCalendarDate } from "@/server/lib/calendarDate";
+
 export type MemoCitationChange = {
   subject: string;
   direction: "gained" | "lost";
@@ -39,6 +41,57 @@ export type CouncilMemoInput = {
   forecastsScored: number | null;
 };
 
+/**
+ * Caller strings enter markdown — escape them.
+ *
+ * Brand, subject, action, reason, and impact arrive from the caller, and
+ * an unescaped newline forges a section while raw HTML rides into
+ * HTML-capable Markdown consumers as markup. Newlines become spaces,
+ * HTML metacharacters become entities, Markdown metacharacters take a
+ * backslash. Our own literals (headings, counts, money) stay literal —
+ * only caller input passes through here.
+ */
+function memoText(value: string): string {
+  const flat = value.replaceAll("\r", " ").replaceAll("\n", " ");
+  const html = flat
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+  const specials = [
+    "\\",
+    "`",
+    "*",
+    "_",
+    "{",
+    "}",
+    "[",
+    "]",
+    "(",
+    ")",
+    "#",
+    "+",
+    "!",
+    "|",
+    "~",
+  ];
+  let out = html;
+  for (const char of specials) {
+    out = out.split(char).join(`\\${char}`);
+  }
+  return out;
+}
+
+/** A memo without a real window is a narrative — refuse it up front. */
+function assertPeriod(periodFrom: string, periodTo: string): void {
+  const from = parseCalendarDate(periodFrom);
+  const to = parseCalendarDate(periodTo);
+  if (from === null || to === null || dayKey(to) < dayKey(from)) {
+    throw new Error(
+      `council memo needs a real period (yyyy-mm-dd, from at most to), got "${periodFrom}" to "${periodTo}"`,
+    );
+  }
+}
+
 function money(usd: number): string {
   return `$${usd.toFixed(2)}`;
 }
@@ -46,15 +99,18 @@ function money(usd: number): string {
 /**
  * Render the memo.
  *
- * At most three fixes, highest-impact first — fixes without an impact figure
- * sort after fixes with one, because an unestimated fix ranked above an
+ * At most three fixes in the caller's ranked order (highest-impact first —
+ * the caller ranks, the renderer preserves; impact is prose, not a number,
+ * so no ordering is computable here). Fixes without an impact figure sort
+ * after fixes with one, because an unestimated fix ranked above an
  * estimated one would be a guess wearing priority's clothes. Surplus fixes
  * are dropped with the count stated, not silently.
  */
 export function renderCouncilMemo(input: CouncilMemoInput): string {
+  assertPeriod(input.periodFrom, input.periodTo);
   const lines: string[] = [
-    `# GEO Council Memo — ${input.brand}`,
-    `_${input.periodFrom} to ${input.periodTo}. Every number below was measured in this window._`,
+    `# GEO Council Memo — ${memoText(input.brand)}`,
+    `_${memoText(input.periodFrom)} to ${memoText(input.periodTo)}. Every number below was measured in this window._`,
     ``,
     `## What changed`,
   ];
@@ -68,27 +124,49 @@ export function renderCouncilMemo(input: CouncilMemoInput): string {
         change.count === null
           ? "an unmeasured number of"
           : String(change.count);
-      lines.push(`- ${change.subject} ${change.direction} ${count} citations.`);
+      lines.push(
+        `- ${memoText(change.subject)} ${change.direction} ${count} citations.`,
+      );
     }
   }
   lines.push(``, `## What it means`);
-  const gained = input.citationChanges.filter(
+  // Net movement is citations, not records: one gained record and one lost
+  // record can hide forty lost citations. Null counts are unmeasured —
+  // excluded from the totals with the count stated, never treated as zero.
+  const gainedRecords = input.citationChanges.filter(
     (c) => c.direction === "gained",
-  ).length;
-  const lost = input.citationChanges.filter(
+  );
+  const lostRecords = input.citationChanges.filter(
     (c) => c.direction === "lost",
+  );
+  const gainedTotal = gainedRecords.reduce((sum, c) => sum + (c.count ?? 0), 0);
+  const lostTotal = lostRecords.reduce((sum, c) => sum + (c.count ?? 0), 0);
+  const unmeasured = input.citationChanges.filter(
+    (c) => c.count === null,
   ).length;
-  if (gained === 0 && lost === 0) {
+  const unmeasuredClause =
+    unmeasured === 0
+      ? ""
+      : ` ${unmeasured} record(s) moved by unmeasured amounts — excluded from the totals, not treated as zero.`;
+  if (gainedRecords.length === 0 && lostRecords.length === 0) {
     lines.push(
       `Nothing to interpret yet — interpretation without movement is narrative.`,
     );
-  } else if (lost > gained) {
+  } else if (lostTotal > gainedTotal) {
     lines.push(
-      `More ground lost than gained (${lost} lost, ${gained} gained). The fix list below is ordered by expected impact, not by comfort.`,
+      `More ground lost than gained (${lostTotal} citations lost, ${gainedTotal} gained). The fix list below is ordered by expected impact, not by comfort.${unmeasuredClause}`,
+    );
+  } else if (gainedTotal > lostTotal) {
+    lines.push(
+      `Net positive (${gainedTotal} citations gained, ${lostTotal} lost). Hold the gains first — the fixes below protect what moved before chasing what did not.${unmeasuredClause}`,
+    );
+  } else if (unmeasured > 0) {
+    lines.push(
+      `Movement recorded but unmeasured in ${unmeasured} record(s) — no measured delta either way, so no verdict.`,
     );
   } else {
     lines.push(
-      `Net positive (${gained} gained, ${lost} lost). Hold the gains first — the fixes below protect what moved before chasing what did not.`,
+      `Dead even (${gainedTotal} citations each way). Parity is not progress — the fix list below still applies.`,
     );
   }
   lines.push(``, `## Top fixes`);
@@ -100,7 +178,7 @@ export function renderCouncilMemo(input: CouncilMemoInput): string {
   } else {
     ranked.forEach((fix, index) => {
       lines.push(
-        `${index + 1}. ${fix.action} — ${fix.reason}${fix.impact === null ? " (impact unestimated)" : ` (expected impact: ${fix.impact})`}`,
+        `${index + 1}. ${memoText(fix.action)} — ${memoText(fix.reason)}${fix.impact === null ? " (impact unestimated)" : ` (expected impact: ${memoText(fix.impact)})`}`,
       );
     });
     if (input.topFixes.length > 3) {

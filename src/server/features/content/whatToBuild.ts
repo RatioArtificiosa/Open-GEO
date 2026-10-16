@@ -116,12 +116,25 @@ export function whatToBuild(candidates: BuildCandidate[]): {
     const elementWinner = candidate.serpElements
       .map((element) => formatForElement(element))
       .find((format): format is ContentFormat => format !== null);
+    // The SERP signal leads only inside the intent-eligible set: a video
+    // element on a commercial keyword must not outrank the evaluation trio
+    // the intent contract names. An ineligible winner trails as evidence.
+    const eligibleWinner =
+      elementWinner !== undefined && formats.includes(elementWinner)
+        ? elementWinner
+        : undefined;
+    const trailingWinner =
+      elementWinner !== undefined && eligibleWinner === undefined
+        ? elementWinner
+        : undefined;
     const ordered =
-      elementWinner === undefined
-        ? formats
+      eligibleWinner === undefined
+        ? trailingWinner === undefined
+          ? formats
+          : [...formats, trailingWinner]
         : [
-            elementWinner,
-            ...formats.filter((format) => format !== elementWinner),
+            eligibleWinner,
+            ...formats.filter((format) => format !== eligibleWinner),
           ];
 
     const scored = opportunityScore({
@@ -141,9 +154,11 @@ export function whatToBuild(candidates: BuildCandidate[]): {
     }
     const reason =
       `scores ${scored.score} (${scored.version}) at volume ${candidate.volume} ${trendClause}` +
-      (elementWinner === undefined
-        ? ""
-        : `; the SERP asks for ${elementWinner}`);
+      (eligibleWinner === undefined
+        ? trailingWinner === undefined
+          ? ""
+          : `; the SERP also shows ${trailingWinner}, outside ${intent} formats`
+        : `; the SERP asks for ${eligibleWinner}`);
     const recommendation: BuildRecommendation = {
       keyword: candidate.keyword,
       formats: ordered,

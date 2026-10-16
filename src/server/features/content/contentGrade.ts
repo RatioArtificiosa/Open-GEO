@@ -77,6 +77,27 @@ export type ContentGrade = {
  * absent density or check count is null with the reason, never a zero that
  * would top-or-bottom a comparison.
  */
+/**
+ * Checks as counts, refused when impossible.
+ *
+ * More passed than total is not a grade — it is a broken read, and 0/0
+ * divides by nothing. Both throw rather than render. Zero of zero means
+ * no checks ran, which the string says outright.
+ */
+function checkCoverage(
+  passed: number | null,
+  total: number | null,
+): string | null {
+  if (passed === null || total === null) return null;
+  if (passed > total) {
+    throw new Error(
+      `content grade needs checksPassed (${passed}) at most checksTotal (${total}) — more passed than total is a broken read, not a grade`,
+    );
+  }
+  if (total === 0) return "no checks ran — coverage unmeasured";
+  return `${passed}/${total} checks passed`;
+}
+
 export function gradeContent(input: ContentGradeInput): ContentGrade {
   const indices: ReadabilityReading[] = [];
   const names: ReadabilityIndexName[] = [
@@ -107,11 +128,8 @@ export function gradeContent(input: ContentGradeInput): ContentGrade {
         : Math.round(input.keywordDensityRatio * 10000) / 100,
     densityNote:
       input.keywordDensityRatio === null
-        ? "density not reported for this crawl"
+        ? "not reported for this crawl"
         : "a ratio of occurrences to words, not a grade — higher is not better",
-    checkCoverage:
-      input.checksPassed === null || input.checksTotal === null
-        ? null
-        : `${input.checksPassed}/${input.checksTotal} checks passed`,
+    checkCoverage: checkCoverage(input.checksPassed, input.checksTotal),
   };
 }

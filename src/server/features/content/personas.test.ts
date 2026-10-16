@@ -6,7 +6,9 @@ import { aggregatePersona } from "./personas";
  *
  * The input type has no field a person could be assigned to, so the
  * aggregate-only rule is structural. Shares that do not sum to ~1 are
- * refused, and an unmeasured funnel stage travels as null.
+ * refused, individual shares outside 0-1 are refused with them, habits
+ * describe what the SERP shows (never what the audience does), and an
+ * unmeasured funnel stage travels as null.
  */
 
 describe("aggregatePersona", () => {
@@ -26,8 +28,8 @@ describe("aggregatePersona", () => {
     expect(persona.dominantSegment).toBe("25–34");
     expect(persona.funnelStage).toBe("commercial");
     expect(persona.readingHabits).toEqual([
-      "watches video answers",
-      "asks follow-up questions",
+      "video answers surface on the SERP",
+      "follow-up questions are asked outright (PAA)",
     ]);
     expect(persona.sampleSize).toBe(1200);
     expect(persona.caveat).toMatch(/never a person/);
@@ -43,6 +45,16 @@ describe("aggregatePersona", () => {
         demography: [{ label: "x", share: 0.4 }],
       }),
     ).toThrow(/not ~1/);
+    // -0.2 and 1.2 sum to 1 and would otherwise pass as a population.
+    expect(() =>
+      aggregatePersona({
+        ...input,
+        demography: [
+          { label: "x", share: -0.2 },
+          { label: "y", share: 1.2 },
+        ],
+      }),
+    ).toThrow(/outside 0-1/);
   });
 
   it("carries unmeasured funnel stage as null, not a guess", () => {

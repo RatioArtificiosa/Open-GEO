@@ -106,12 +106,16 @@ export const gradeContentTool = {
           `${entry.label} ${entry.value} (higher means ${entry.higherMeans}).`,
       ),
     ];
-    if (grade.densityPercent !== null) {
-      lines.push(`Density ${grade.densityPercent}% — ${grade.densityNote}.`);
-    }
-    if (grade.checkCoverage !== null) {
-      lines.push(grade.checkCoverage + ".");
-    }
+    lines.push(
+      grade.densityPercent === null
+        ? `Density unmeasured — ${grade.densityNote}.`
+        : `Density ${grade.densityPercent}% — ${grade.densityNote}.`,
+    );
+    lines.push(
+      grade.checkCoverage === null
+        ? "Check coverage unmeasured — counts not supplied."
+        : grade.checkCoverage + ".",
+    );
     return mcpResponse({
       text: lines.join("\n"),
       structuredContent: { ...grade },

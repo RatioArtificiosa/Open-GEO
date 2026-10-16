@@ -6,8 +6,8 @@ import { type BuildCandidate, whatToBuild } from "./whatToBuild";
  *
  * The load-bearing properties, not the arithmetic: unmeasurable inputs are
  * listed as unpriced (never zero, never dropped silently); unknown intent
- * excludes formats (never defaults to guides for a buyer); the SERP winner
- * leads the eligible set; ordering is score × volume × trend with ETV
+ * excluded formats (never defaults to guides for a buyer); the SERP winner
+ * leads only inside the eligible set, trailing as evidence otherwise; ordering is score × volume × trend with ETV
  * breaking ties so equal ranks never depend on input order.
  */
 
@@ -59,15 +59,30 @@ describe("whatToBuild", () => {
     }
   });
 
-  it("leads with the SERP-element winner inside the eligible set", () => {
+  it("leads with the SERP-element winner only inside the eligible set", () => {
+    const { build } = whatToBuild([
+      candidate({
+        keyword: "guide SERP",
+        serpElements: ["unknown-thing", "ai_overview"],
+      }),
+    ]);
+    // ai_overview maps to guide, already first for informational intent —
+    // and exactly once, never duplicated by the winner logic.
+    expect(build[0]?.formats).toEqual(["guide", "tutorial", "faq"]);
+    expect(build[0]?.reason).toMatch(/the SERP asks for guide/);
+  });
+
+  it("trails an ineligible SERP winner as evidence, never as the lead", () => {
+    // video is outside the informational trio: leading with it would advise
+    // long-form buyers to shoot video. It trails, named as outside.
     const { build } = whatToBuild([
       candidate({
         keyword: "video SERP",
         serpElements: ["unknown-thing", "video"],
       }),
     ]);
-    expect(build[0]?.formats[0]).toBe("video");
-    expect(build[0]?.formats).toContain("guide");
+    expect(build[0]?.formats).toEqual(["guide", "tutorial", "faq", "video"]);
+    expect(build[0]?.reason).toMatch(/outside informational formats/);
   });
 
   it("orders by volume and trend, with ETV breaking ties", () => {

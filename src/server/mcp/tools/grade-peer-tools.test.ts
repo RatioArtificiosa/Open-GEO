@@ -78,6 +78,20 @@ describe("grade_content", () => {
     expect(text).toMatch(/12\/40/);
     expect(result.structuredContent).toMatchObject({ score: 88 });
   });
+
+  it("names unmeasured density and coverage instead of omitting them", async () => {
+    const result = await callTool(gradeContentTool, {
+      projectId: "p1",
+      onpageScore: 70,
+      readability: {},
+      keywordDensityRatio: null,
+      checksPassed: null,
+      checksTotal: null,
+    });
+    const text = textContent(result);
+    expect(text).toMatch(/Density unmeasured/);
+    expect(text).toMatch(/coverage unmeasured/i);
+  });
 });
 
 describe("peer_benchmark", () => {

@@ -48,7 +48,9 @@ const memoInputSchema = {
         impact: z.string().nullable(),
       }),
     )
-    .describe("Candidate fixes; impact null when unestimated.")
+    .describe(
+      "Candidate fixes in highest-impact-first order; impact null when unestimated.",
+    )
     .default([]),
   spendUsd: z
     .number()
@@ -70,7 +72,7 @@ export const councilMemoTool = {
   config: {
     title: "Write the weekly GEO council memo",
     description:
-      "Renders a client memo from supplied period data: citation movements with direction, what the net movement means, top three fixes ordered by estimated impact, and spend plus scored forecasts with honest empty states throughout. Unwatched inputs report as unmeasured, never as good news. Pure composition — no vendor call, no credits, nothing to dry-run.",
+      "Renders a client memo from supplied period data: citation movements with direction, what the net movement means, top three fixes in the caller's ranked order (highest-impact first), and spend plus scored forecasts with honest empty states throughout. Net movement reads off citation deltas with unmeasured counts excluded and counted. Unwatched inputs report as unmeasured, never as good news. Pure composition — no vendor call, no credits, nothing to dry-run.",
     inputSchema: memoInputSchema,
     outputSchema: z
       .object({
