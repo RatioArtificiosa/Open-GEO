@@ -30,6 +30,34 @@ import { monitorRuns } from "@/db/schema";
 /** Statuses that hold the single-in-flight slot. Mirrors the index exactly. */
 const ACTIVE_STATUSES = ["pending", "running"] as const;
 
+/**
+ * A claim older than this is dead, not slow: the holder isolate is gone.
+ *
+ * 12 hours against a nightly cadence and minute-scale vendor calls (60s
+ * timeout each). A legitimate run never approaches it; a run past it would
+ * be stolen by the next nightly tick anyway, which then double-bills. The
+ * horizon trades a bounded double-bill risk in the pathological case for
+ * never silently stopping a monitor in the common one — and the theft is
+ * recorded with its reason, so it reads as an incident, not a gap.
+ */
+const STALE_CLAIM_AFTER_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * Either dialect's timestamp as UTC millis, or null when it is not a date.
+ *
+ * SQLite `current_timestamp` is `YYYY-MM-DD HH:MM:SS` (space, UTC, no zone);
+ * Postgres writes ISO with `T` and usually `Z`. Both are UTC by convention
+ * here, so a zoneless value is read as UTC rather than local time — parsing
+ * it as local would shift the horizon by the server's offset and steal live
+ * claims (or shelter dead ones) depending on sign.
+ */
+function parseRunTimestamp(value: string): number | null {
+  const dated = value.includes("T") ? value : value.replace(" ", "T");
+  const zoned = /[zZ]|[+-]\d{2}:?\d{2}$/.test(dated) ? dated : `${dated}Z`;
+  const ms = Date.parse(zoned);
+  return Number.isFinite(ms) ? ms : null;
+}
+
 type MonitorIdentity = {
   projectId: string;
   monitorType: string;
@@ -75,7 +103,59 @@ export async function tryBeginRun(
   // reading — the source-scan gate over this file passed 7/7 through both. A text
   // gate can check that two files agree; it cannot know what the engine's
   // grammar requires. Hence the patrol suite running a real in-memory database.
-  const inserted = await runRaw<{ id: string }>(sql`
+  const inserted = await insertClaim(identity, monitorSubject, platform);
+  const row = inserted[0];
+  if (row !== undefined) return { ok: true, runId: row.id };
+
+  // The insert was blocked. Read who holds the slot so the caller can name it —
+  // "already running" with no run id is a message a user cannot act on.
+  const blocker = await getActiveRun(identity);
+  if (blocker !== null && isStaleClaim(blocker.startedAt, Date.now())) {
+    // The holder isolate died without releasing (deploys, OOM, timeouts —
+    // `finally` never runs on isolate death). A stale slot blocks its monitor
+    // FOREVER, so the claim is stolen exactly once: mark failed with the
+    // reason stated, then retry the insert. A retry conflict means a live
+    // worker claimed between the read and the retry, which is the correct
+    // loser for this race — fall through to the refusal below.
+    await releaseRun(
+      blocker.id,
+      `stale claim (started ${blocker.startedAt}); stolen by a new tick`,
+    );
+    const retried = await insertClaim(identity, monitorSubject, platform);
+    const winner = retried[0];
+    if (winner !== undefined) return { ok: true, runId: winner.id };
+  }
+
+  return {
+    ok: false,
+    reason: "already_running",
+    blockingRunId: blocker?.id ?? null,
+  };
+}
+
+/**
+ * A claim is stale when its holder is older than the horizon, or never:
+ * an unreadable timestamp fails closed (refuse) rather than stealing on a
+ * guess about whose row this is.
+ */
+function isStaleClaim(startedAt: string, nowMs: number): boolean {
+  const startedMs = parseRunTimestamp(startedAt);
+  if (startedMs === null) return false;
+  return nowMs - startedMs > STALE_CLAIM_AFTER_MS;
+}
+
+async function insertClaim(
+  identity: {
+    id: string;
+    projectId: string;
+    monitorType: string;
+    plannedItems?: number | null;
+    budgetUsd?: number | null;
+  },
+  monitorSubject: string,
+  platform: string,
+): Promise<Array<{ id: string }>> {
+  return runRaw<{ id: string }>(sql`
     INSERT INTO monitor_runs (
       id, project_id, monitor_type, monitor_subject, platform,
       status, planned_items, budget_usd, completed_at
@@ -90,18 +170,6 @@ export async function tryBeginRun(
       DO NOTHING
     RETURNING id
   `);
-
-  const row = inserted[0];
-  if (row !== undefined) return { ok: true, runId: row.id };
-
-  // The insert was blocked. Read who holds the slot so the caller can name it —
-  // "already running" with no run id is a message a user cannot act on.
-  const blocker = await getActiveRun(identity);
-  return {
-    ok: false,
-    reason: "already_running",
-    blockingRunId: blocker?.id ?? null,
-  };
 }
 
 /** The run currently holding a monitor's slot, if any. */
