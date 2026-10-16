@@ -53,8 +53,9 @@ export async function handleAutumnWebhookRequest(request: Request) {
       return json({ error: "Missing customer_id" }, 400);
     }
 
+    let planChanged = false;
     try {
-      await syncAutumnCustomerStatus(customerId);
+      ({ planChanged } = await syncAutumnCustomerStatus(customerId));
     } catch (error) {
       // Drizzle truncates its own message to "Failed query:"; the real driver
       // detail (postgres.js code/constraint) lives on error.cause, so log that
@@ -92,6 +93,13 @@ export async function handleAutumnWebhookRequest(request: Request) {
     // durable state. Recording a plan we did not read would be inventing a
     // property, and a funnel whose stage carries a field nothing verified is
     // worse than one whose stage carries a count.
+    //
+    // Fired only on a newly-paying or re-planned org (the sync's verdict),
+    // never on a replay: Svix retries every non-2xx, and a retry that
+    // re-counted the conversion would inflate paid. Same for out-of-order
+    // delivery converging to an older plan — the row converges, the count
+    // does not move.
+    if (!planChanged) return json({ received: true });
     await captureServerEvent({
       distinctId: customerId,
       event: FUNNEL_EVENTS.planChanged,
