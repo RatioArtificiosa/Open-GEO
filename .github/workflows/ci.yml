@@ -170,6 +170,12 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chrome
 
+      # The app reads D1, and a fresh runner has no tables: without this every
+      # spec fails on `no such table` while local runs stay green on a migrated
+      # `.wrangler/state`. Migrate the local database before the server boots.
+      - name: Migrate local D1
+        run: pnpm run db:migrate:local
+
       - name: Run e2e
         run: pnpm exec playwright test
 
