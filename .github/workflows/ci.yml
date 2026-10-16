@@ -143,6 +143,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DOMAIN_FILTER_BUDGET_SCALE: "4"
+      # The transport requires a key before anything runs, fixtures included.
+      # This value cannot authenticate (so it cannot bill): any spec that
+      # reaches the vendor fails closed on 401 instead of crashing on a
+      # missing variable, and the fixture flags below keep reads off the
+      # network entirely. Real keys live in developers' local .env, never here.
+      DATAFORSEO_API_KEY: "e2e-dummy-key-never-bills"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
