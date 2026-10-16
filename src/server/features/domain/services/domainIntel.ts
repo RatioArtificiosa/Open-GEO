@@ -82,23 +82,6 @@ function readOrganic(item: {
   };
 }
 
-function writeCache(
-  cacheKey: string,
-  stored: unknown,
-  organizationId: string,
-  label: string,
-): void {
-  // waitUntil, not void: workerd cancels unregistered pending I/O once the
-  // response is sent, so a fire-and-forget put never persists the cache.
-  waitUntil(
-    setCached(cacheKey, stored, DOMAIN_INTEL_TTL_SECONDS, organizationId).catch(
-      (error: unknown) => {
-        console.error(`${label}.cache-write failed:`, error);
-      },
-    ),
-  );
-}
-
 export type HistoricalRanksResult = {
   months: MonthRow[];
   /** Legacy by vendor definition — historical endpoints are excluded from the new ETV model. */
@@ -186,11 +169,17 @@ async function getHistoricalRanks(
     .filter((row): row is MonthRow => row !== null);
 
   if (months.length > 0) {
-    writeCache(
-      cacheKey,
-      { months, etv },
-      billingCustomer.organizationId,
-      "domain.historical",
+    // waitUntil, not void: workerd cancels unregistered pending I/O once the
+    // response is sent, so a fire-and-forget put never persists the cache.
+    waitUntil(
+      setCached(
+        cacheKey,
+        { months, etv },
+        DOMAIN_INTEL_TTL_SECONDS,
+        billingCustomer.organizationId,
+      ).catch((error: unknown) => {
+        console.error("domain.historical.cache-write failed:", error);
+      }),
     );
   }
 
@@ -260,11 +249,17 @@ async function getSubdomains(
     .filter((row): row is DomainTrafficRow => row !== null);
 
   if (rows.length > 0) {
-    writeCache(
-      cacheKey,
-      rows,
-      billingCustomer.organizationId,
-      "domain.subdomains",
+    // waitUntil, not void: workerd cancels unregistered pending I/O once the
+    // response is sent, so a fire-and-forget put never persists the cache.
+    waitUntil(
+      setCached(
+        cacheKey,
+        rows,
+        DOMAIN_INTEL_TTL_SECONDS,
+        billingCustomer.organizationId,
+      ).catch((error: unknown) => {
+        console.error("domain.subdomains.cache-write failed:", error);
+      }),
     );
   }
 
@@ -322,11 +317,17 @@ async function getCompetitors(
     .filter((row): row is DomainTrafficRow => row !== null);
 
   if (rows.length > 0) {
-    writeCache(
-      cacheKey,
-      rows,
-      billingCustomer.organizationId,
-      "domain.competitors",
+    // waitUntil, not void: workerd cancels unregistered pending I/O once the
+    // response is sent, so a fire-and-forget put never persists the cache.
+    waitUntil(
+      setCached(
+        cacheKey,
+        rows,
+        DOMAIN_INTEL_TTL_SECONDS,
+        billingCustomer.organizationId,
+      ).catch((error: unknown) => {
+        console.error("domain.competitors.cache-write failed:", error);
+      }),
     );
   }
 

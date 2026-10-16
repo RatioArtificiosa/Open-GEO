@@ -30,19 +30,44 @@ const SOURCE = readFileSync(
   "utf8",
 );
 
+/**
+ * Every `targetId:` argument in a source, in order. Extracted so the
+ * negative control below drives the same matcher the file assertion uses —
+ * a control testing a copy of the logic proves the copy.
+ */
+function targetIdArgValues(source: string): string[] {
+  return [...source.matchAll(/targetId:\s*([a-zA-Z? ]+)/g)].map(
+    (match) => match[1]?.trim() ?? "",
+  );
+}
+
+function checkWiring(source: string): void {
+  const args = targetIdArgValues(source);
+  expect(args.length).toBeGreaterThan(0);
+  for (const arg of args) {
+    expect(arg).not.toContain("domain");
+    expect(arg).toContain("targetId");
+  }
+}
+
 describe("target id wiring", () => {
   it("derives the id binding from the target row's id", () => {
     expect(SOURCE).toContain("targetList?.[0]?.id");
   });
 
   it("passes the id binding, never the domain, as targetId", () => {
-    const targetIdArgs = [...SOURCE.matchAll(/targetId:\s*([a-zA-Z? ]+)/g)].map(
-      (match) => match[1]?.trim(),
-    );
-    expect(targetIdArgs.length).toBeGreaterThan(0);
-    for (const arg of targetIdArgs) {
-      expect(arg).not.toContain("domain");
-      expect(arg).toContain("targetId");
-    }
+    checkWiring(SOURCE);
+  });
+
+  it("flags the original defect: a domain string as targetId", () => {
+    // The matcher sees the defect's shape — a passing control here would
+    // mean the file assertion above cannot see the defect it exists to
+    // catch (proven by injection during development: this case failed at
+    // the arg assertion).
+    const defective = [
+      'queryFn: () => getGeoVisibility({ data: { targetId: domain ?? "" } }),',
+    ].join("\n");
+    expect(targetIdArgValues(defective)).toHaveLength(1);
+    expect(() => checkWiring(defective)).toThrow();
   });
 });
