@@ -46,6 +46,7 @@ import {
   estimateAiKeywordVolume,
   estimateBacklinksHistory,
   estimateBacklinksList,
+  estimateBulkDifficulty,
   estimateBusinessListings,
   estimateCategoryItems,
   estimateClickstreamVolumes,
@@ -107,6 +108,7 @@ import {
   fetchOnPageWaterfall,
   postOnPageCrawlTaskForWaterfall,
 } from "@/server/lib/dataforseo/on-page-waterfall";
+import { fetchBulkKeywordDifficulty } from "@/server/lib/dataforseo/bulk-difficulty";
 import { fetchSearchIntent } from "@/server/lib/dataforseo/search-intent";
 import {
   fetchLiveSerp,
@@ -426,6 +428,18 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
         fetchSearchIntent,
         undefined,
         estimateSearchIntent,
+      ),
+      // Difficulty is market-scoped like the rest of Labs — location AND
+      // language, one of each pair — which is the opposite of search_intent
+      // beside it. A caller copying this entry's market handling onto
+      // search_intent sends a billed rejection.
+      // Estimate: per keyword sent against the Labs family tier (see the
+      // estimator for the doc-sample discrepancy it carries knowingly).
+      bulkDifficulty: meter(
+        customer,
+        fetchBulkKeywordDifficulty,
+        undefined,
+        estimateBulkDifficulty,
       ),
     },
     lighthouse: {

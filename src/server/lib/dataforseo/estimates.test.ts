@@ -12,6 +12,7 @@ import {
   estimatePhraseTrends,
   estimateRankedKeywords,
   estimateRelevantPages,
+  estimateBulkDifficulty,
   estimateSearchIntent,
   estimateSerpCompetitors,
   estimateTechnologies,
@@ -81,6 +82,18 @@ describe("named estimators (the gate's actual inputs)", () => {
   it("business listings bills the request plus per listing", () => {
     // 0.012 + 20 × 0.00036
     expect(estimateBusinessListings({ limit: 20 })).toBeCloseTo(0.0192, 6);
+  });
+
+  it("bulk_keyword_difficulty bills per keyword sent against the family tier", () => {
+    // 0.012 + 1000 × 0.00012 (raw length; dedupe can only overquote).
+    // The reference's own sample carries cost 0.0103 for 3 keywords against
+    // this $0.01236 quote: doc-sample costs are illustrative, so the family
+    // tier governs in the safe direction and CL-712a settles the number.
+    expect(
+      estimateBulkDifficulty({
+        keywords: Array.from({ length: 1000 }, () => "x"),
+      }),
+    ).toBeCloseTo(0.132, 6);
   });
 
   it("search_intent bills per keyword sent", () => {

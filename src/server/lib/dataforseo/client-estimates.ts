@@ -148,6 +148,21 @@ export function estimateSearchIntent(input: { keywords: string[] }): number {
   );
 }
 
+/**
+ * Raw length, same shape: the fetcher validates (1–1000) and dedupes, so this
+ * can only overquote duplicates. Quoted against DFS_LABS.standard — the Labs
+ * family tier — while the reference's own sample carries cost 0.0103 for 3
+ * keywords against a $0.01236 family quote. Doc-sample costs are illustrative,
+ * so the family tier governs in the safe direction; CL-712a settles the number.
+ */
+export function estimateBulkDifficulty(input: { keywords: string[] }): number {
+  return requestPlusUnits(
+    DFS_LABS.standard.perRequest,
+    DFS_LABS.standard.perUnit,
+    countUnits(input.keywords.length, 1),
+  );
+}
+
 /** Mirror: the shared internal-list formula (default 10, cap 20). */
 export function estimateContentListings(input: {
   internalListLimit?: number;
