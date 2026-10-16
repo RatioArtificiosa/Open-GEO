@@ -103,7 +103,7 @@ const resultSchema = z
   })
   .passthrough();
 
-export type BulkDifficultyItem = {
+type BulkDifficultyItem = {
   keyword: string;
   /** Null when the vendor returned no usable difficulty — unmeasured, never zero. */
   keywordDifficulty: number | null;

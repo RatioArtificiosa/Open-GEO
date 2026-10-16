@@ -91,9 +91,6 @@
   // pipeline is how the next real failure gets missed.
   "ignore": ["drizzle-prod.config.ts"],
   "ignoreDependencies": [
-    // Tailwindcss used via @tailwindcss/vite plugin
-    "tailwindcss",
-    "daisyui",
     // `portless` is spawned by `scripts/dev-with-log.mjs`, not from a source
     // file, so knip cannot see the reference. It moved out of a `package.json`
     // script when the dev server's log pipe became a Node wrapper for
