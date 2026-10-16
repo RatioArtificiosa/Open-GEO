@@ -49,8 +49,11 @@ import {
 import { getGeoTopCitationsTool } from "@/server/mcp/tools/geo-top-citations-tool";
 import { getBacklinksOverviewTool } from "@/server/mcp/tools/get-backlinks-overview";
 import { getBacklinksProfileTool } from "@/server/mcp/tools/get-backlinks-profile";
+import { getDomainCompetitorsTool } from "@/server/mcp/tools/get-domain-competitors";
+import { getDomainHistoricalTool } from "@/server/mcp/tools/get-domain-historical";
 import { getDomainKeywordSuggestionsTool } from "@/server/mcp/tools/get-domain-keyword-suggestions";
 import { getDomainOverviewTool } from "@/server/mcp/tools/get-domain-overview";
+import { getDomainSubdomainsTool } from "@/server/mcp/tools/get-domain-subdomains";
 import { getRankTrackerTool } from "@/server/mcp/tools/get-rank-tracker";
 import { getSerpResultsTool } from "@/server/mcp/tools/get-serp-results";
 import { getWebCitationsTool } from "@/server/mcp/tools/get-web-citations-tool";
@@ -233,6 +236,9 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(saveKeywordsTool);
   register(getDomainOverviewTool);
   register(getDomainKeywordSuggestionsTool);
+  register(getDomainHistoricalTool);
+  register(getDomainSubdomainsTool);
+  register(getDomainCompetitorsTool);
   register(getBacklinksOverviewTool);
   register(getBacklinksProfileTool);
   register(getSerpResultsTool);

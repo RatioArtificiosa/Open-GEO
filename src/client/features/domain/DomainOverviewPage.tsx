@@ -20,6 +20,7 @@ import {
 import { useDomainOverviewQuery } from "@/client/features/domain/hooks/useDomainOverviewQuery";
 import { DomainOverviewLoadingState } from "@/client/features/domain/components/DomainOverviewLoadingState";
 import { DomainHistorySection } from "@/client/features/domain/components/DomainHistorySection";
+import { DomainIntelSections } from "@/client/features/domain/components/DomainIntelSections";
 import { DomainSearchCard } from "@/client/features/domain/components/DomainSearchCard";
 import { KeywordsTab } from "@/client/features/domain/components/KeywordsTab";
 import { PagesTab } from "@/client/features/domain/components/PagesTab";
@@ -683,6 +684,14 @@ export function DomainOverviewPage({
                 />
               )}
             </div>
+
+            {state.overview.hasData ? (
+              <DomainIntelSections
+                projectId={projectId}
+                domain={state.overview.domain}
+                locationCode={routeState.sentLocationCode}
+              />
+            ) : null}
           </>
         )}
       </div>

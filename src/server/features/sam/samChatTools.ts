@@ -6,8 +6,11 @@ import { type ToolAuthContext, type ToolContext } from "@/server/mcp/context";
 import { instrumentMcpToolHandler } from "@/server/mcp/instrumentation";
 import { getBacklinksOverviewTool } from "@/server/mcp/tools/get-backlinks-overview";
 import { getBacklinksProfileTool } from "@/server/mcp/tools/get-backlinks-profile";
+import { getDomainCompetitorsTool } from "@/server/mcp/tools/get-domain-competitors";
+import { getDomainHistoricalTool } from "@/server/mcp/tools/get-domain-historical";
 import { getDomainKeywordSuggestionsTool } from "@/server/mcp/tools/get-domain-keyword-suggestions";
 import { getDomainOverviewTool } from "@/server/mcp/tools/get-domain-overview";
+import { getDomainSubdomainsTool } from "@/server/mcp/tools/get-domain-subdomains";
 import { addRankTrackingKeywordsTool } from "@/server/mcp/tools/add-rank-tracking-keywords";
 import { createRankTrackerTool } from "@/server/mcp/tools/create-rank-tracker";
 import { estimateRankTrackerCostTool } from "@/server/mcp/tools/estimate-rank-tracker-cost";
@@ -369,6 +372,9 @@ export function buildSamMcpTools(
     save_keywords: adaptTool(saveKeywordsTool),
     get_domain_overview: adaptTool(getDomainOverviewTool),
     get_domain_keyword_suggestions: adaptTool(getDomainKeywordSuggestionsTool),
+    get_domain_historical: adaptTool(getDomainHistoricalTool),
+    get_domain_subdomains: adaptTool(getDomainSubdomainsTool),
+    get_domain_competitors: adaptTool(getDomainCompetitorsTool),
     get_backlinks_overview: adaptTool(getBacklinksOverviewTool),
     get_backlinks_profile: adaptTool(getBacklinksProfileTool),
     get_serp_results: adaptTool(getSerpResultsTool),

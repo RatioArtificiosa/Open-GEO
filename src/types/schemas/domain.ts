@@ -58,6 +58,58 @@ const domainSortModes = ["rank", "traffic", "volume", "score", "cpc"] as const;
 const domainSortOrders = ["asc", "desc"] as const;
 const domainTabs = ["keywords", "pages"] as const;
 
+/** Strict yyyy-mm-dd, matching the calendar-date module the clients validate with. */
+const calendarDateField = z
+  .string()
+  .regex(
+    /^\d{4}-\d{2}-\d{2}$/,
+    "Use a real calendar date in yyyy-mm-dd format",
+  );
+
+const labsNameField = z.string().min(1).max(128);
+const labsLanguageNameField = z.string().min(1).max(64);
+
+/**
+ * CL-401 first callers: the three domain-overview endpoints that shipped with
+ * no reader. Location/language arrive as either/or pairs (code or name) —
+ * mirroring the clients, which require one of each pair for
+ * historical_rank_overview and competitors_domain and accept all-optional for
+ * subdomains. Project-market codes fill an absent pair downstream.
+ */
+export const domainHistoricalSchema = z.object({
+  projectId: z.string().uuid(),
+  domain: z.string().min(1, "Domain is required").max(2048),
+  locationCode: z.number().int().positive().optional(),
+  locationName: labsNameField.optional(),
+  languageCode: z.string().min(2).max(8).optional(),
+  languageName: labsLanguageNameField.optional(),
+  dateFrom: calendarDateField.optional(),
+  dateTo: calendarDateField.optional(),
+  limit: z.number().int().positive().max(1000).optional(),
+});
+
+export const domainSubdomainsSchema = z.object({
+  projectId: z.string().uuid(),
+  domain: z.string().min(1, "Domain is required").max(2048),
+  locationCode: z.number().int().positive().optional(),
+  locationName: labsNameField.optional(),
+  languageCode: z.string().min(2).max(8).optional(),
+  languageName: labsLanguageNameField.optional(),
+  limit: z.number().int().positive().max(1000).optional(),
+  offset: z.number().int().min(0).max(100000).optional(),
+});
+
+export const domainCompetitorsSchema = z.object({
+  projectId: z.string().uuid(),
+  domain: z.string().min(1, "Domain is required").max(2048),
+  locationCode: z.number().int().positive().optional(),
+  locationName: labsNameField.optional(),
+  languageCode: z.string().min(2).max(8).optional(),
+  languageName: labsLanguageNameField.optional(),
+  limit: z.number().int().positive().max(1000).optional(),
+  offset: z.number().int().min(0).max(100000).optional(),
+});
+
 export const domainKeywordSuggestionsSchema = z.object({
   projectId: z.string().uuid(),
   domain: z.string().min(1, "Domain is required").max(2048),
