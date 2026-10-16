@@ -99,6 +99,12 @@ export async function handleAutumnWebhookRequest(request: Request) {
     // re-counted the conversion would inflate paid. Same for out-of-order
     // delivery converging to an older plan — the row converges, the count
     // does not move.
+    //
+    // Residual: two SIMULTANEOUS deliveries can both read the old state
+    // before either upserts and both fire (re-review P2). Closing it needs
+    // a dedupe table on the Svix message id; sequential retries — the real
+    // Svix behavior — are already covered above, so the table waits for a
+    // second witness, not a first suspicion.
     if (!planChanged) return json({ received: true });
     await captureServerEvent({
       distinctId: customerId,

@@ -47,6 +47,14 @@ describe("countUnits", () => {
     expect(countUnits(Number.POSITIVE_INFINITY, 100)).toBe(100);
     expect(countUnits(2000, 100, 1000)).toBe(1000);
   });
+
+  it("prices an unbounded ask at the fetcher's clamp, not the default", () => {
+    // Re-review P2: +Infinity used to take the fallback (100 rows) while
+    // the fetcher expands it to its maximum (1000). The estimator must
+    // mirror the expansion, not the default.
+    expect(countUnits(Number.POSITIVE_INFINITY, 100, 1000)).toBe(1000);
+    expect(countUnits(Number.NEGATIVE_INFINITY, 100, 1000)).toBe(1);
+  });
 });
 
 describe("requestPlusUnits", () => {
@@ -187,6 +195,22 @@ describe("trendPeriods", () => {
   it("returns null when the window is not real", () => {
     expect(trendPeriods("2025-03-01", "2025-01-01", "day")).toBeNull();
     expect(trendPeriods("garbage", "2025-01-01", "month")).toBeNull();
+  });
+});
+
+describe("estimates cover recorded task costs (reconciliation pins)", () => {
+  // The book is a ceiling reference; the vendor bills less. These pins tie
+  // each estimator at default inputs to a RECORDED task cost from fixtures
+  // — if an estimator ever drops below what the vendor actually charged,
+  // the credit gate admits what the balance cannot cover.
+  it("content summary estimate covers its recorded cost", () => {
+    // Fixture: default internal_list_limit (10) billed cost 0.02003.
+    expect(estimateContentListings({})).toBeGreaterThanOrEqual(0.02003);
+  });
+
+  it("content search estimate covers its recorded cost", () => {
+    // Fixture: default limit/internal list billed cost 0.0203.
+    expect(estimateContentSearch({})).toBeGreaterThanOrEqual(0.0203);
   });
 });
 

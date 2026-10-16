@@ -16,14 +16,21 @@ import { dayKey, monthKey, parseCalendarDate } from "@/server/lib/calendarDate";
  *
  * `Math.floor(NaN)` is NaN and `Math.max(NaN, 1)` stays NaN, so a NaN limit
  * must never reach arithmetic — it takes the fallback, which callers set to
- * the request's own default (the `?? N` the fetcher sends).
+ * the request's own default (the `?? N` the fetcher sends). Positive infinity
+ * (an unbounded ask) takes the cap when one is known, because every fetcher
+ * clamps to its documented maximum — pricing the fallback instead would
+ * quote 100 rows for a request the fetcher expands to 1,000 (re-review P2).
+ * Negative infinity floors to 1 through the normal path.
  */
 export function countUnits(
   raw: number | undefined,
   fallback: number,
   cap: number = Number.POSITIVE_INFINITY,
 ): number {
-  if (raw === undefined || !Number.isFinite(raw)) return fallback;
+  if (raw === undefined || Number.isNaN(raw)) return fallback;
+  if (raw === Number.POSITIVE_INFINITY) {
+    return Number.isFinite(cap) ? cap : fallback;
+  }
   return Math.min(cap, Math.max(Math.floor(raw), 1));
 }
 
