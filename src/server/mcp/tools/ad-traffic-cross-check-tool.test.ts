@@ -105,7 +105,9 @@ describe("ad_traffic_cross_check", () => {
     expect(adTrafficForecast).not.toHaveBeenCalled();
     const text = textContent(result);
     expect(text).toMatch(/dry run/i);
-    expect(text).toMatch(/0\.06/);
+    // The live rate: the client posts to ad_traffic_by_keywords/live ($0.09),
+    // so quoting standard ($0.06) understated the call by a third.
+    expect(text).toMatch(/0\.09/);
     // The refusal is promised before the spend, so a caller learns what they
     // will not get while they can still choose not to pay for it.
     expect(text).toMatch(/deprecated fields are refused rather than charted/);

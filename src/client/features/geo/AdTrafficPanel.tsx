@@ -36,7 +36,9 @@ export function AdTrafficPanel({ projectId }: { projectId: string }) {
       ),
   });
 
-  const requestUsd = DFS_KEYWORDS.adTrafficForecast.standard.perRequest;
+  // The live rate: the client posts to ad_traffic_by_keywords/live, so
+  // quoting standard would understate the call by a third.
+  const requestUsd = DFS_KEYWORDS.adTrafficForecast.live.perRequest;
   const rows = check.data?.rows ?? [];
 
   return (

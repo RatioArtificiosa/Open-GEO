@@ -114,9 +114,9 @@ export const adTrafficCrossCheckTool = {
       return dryRunResponse({
         subject: `this ad-traffic cross-check for ${args.keywords.length} keyword(s)`,
         estimatedCredits: creditsFor(
-          DFS_KEYWORDS.adTrafficForecast.standard.perRequest,
+          DFS_KEYWORDS.adTrafficForecast.live.perRequest,
         ),
-        unitSentence: `USD ${DFS_KEYWORDS.adTrafficForecast.standard.perRequest} per request — one task whatever it carries, and the deprecated fields are refused rather than charted`,
+        unitSentence: `USD ${DFS_KEYWORDS.adTrafficForecast.live.perRequest} per request — one task whatever it carries, and the deprecated fields are refused rather than charted`,
         meta: buildProjectMeta(context, args.projectId, `/p/${args.projectId}`),
         structured: {},
       });
