@@ -138,10 +138,10 @@ describe("fetchWhoisOverview", () => {
     );
     await expect(
       fetchWhoisOverview({ filters: [["domain", "like", "%example%"]] }),
-    ).rejects.toMatchObject({
-      code: "DOMAIN_BILLING_ISSUE",
-      message: expect.stringContaining("verification"),
-    });
+    ).rejects.toMatchObject({ code: "DOMAIN_BILLING_ISSUE" });
+    await expect(
+      fetchWhoisOverview({ filters: [["domain", "like", "%example%"]] }),
+    ).rejects.toThrow(/verification/);
   });
 
   it("reads the vendor's real date field names, so an expiry cannot silently read as unknown", async () => {

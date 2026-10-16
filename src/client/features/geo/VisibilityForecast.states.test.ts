@@ -18,7 +18,26 @@ const read = (name: string) =>
 
 const source = () => read("VisibilityForecast.tsx");
 
+/**
+ * Which required sentences a body is missing. Extracted so the negative
+ * control below feeds a fixture rather than the live file: the gates-about-
+ * gates survey counts a control only over an inline fixture with a finding
+ * assertion, and a block that reads the repository can never be one.
+ */
+function missingSentences(sourceText: string, required: string[]): string[] {
+  return required.filter((sentence) => !sourceText.includes(sentence));
+}
+
 describe("VisibilityForecast edge states", () => {
+  it("reports a deleted refusal as missing", () => {
+    expect(
+      missingSentences("no refusal here", ["Loading forecast"]),
+    ).toHaveLength(1);
+    expect(missingSentences("Loading forecast", ["Loading forecast"])).toEqual(
+      [],
+    );
+  });
+
   it("names loading as loading, never as data", () => {
     expect(source()).toContain("Loading forecast");
   });

@@ -108,10 +108,10 @@ describe("fetchDomainTechnologies", () => {
     );
     await expect(
       fetchDomainTechnologies({ target: "example.com" }),
-    ).rejects.toMatchObject({
-      code: "DOMAIN_BILLING_ISSUE",
-      message: expect.stringContaining("verification"),
-    });
+    ).rejects.toMatchObject({ code: "DOMAIN_BILLING_ISSUE" });
+    await expect(
+      fetchDomainTechnologies({ target: "example.com" }),
+    ).rejects.toThrow(/verification/);
   });
 
   it("names a billing refusal DOMAIN_BILLING_ISSUE instead of a generic", async () => {
