@@ -1,35 +1,33 @@
 import {
-  type CreditFeature,
-  mapDataforseoPathToCreditFeature,
-} from "@/shared/billing-credit-features";
-import {
-  DFS_DOMAIN,
-  DFS_LABS,
-  estimateQueuedLlmResponsesPost,
-} from "@/shared/dataforseo-pricing";
+  applyCostMarkup,
+  resolveCostMarkup,
+} from "@/server/billing/costMarkup";
+import type { BillingCustomerContext } from "@/server/billing/subscription";
 import {
   assertUsageCreditsAvailable,
   getOrCreateOrganizationCustomer,
   trackUsageCreditSpend,
 } from "@/server/billing/subscription";
-import type { BillingCustomerContext } from "@/server/billing/subscription";
+import { fetchAdTrafficForecast } from "@/server/lib/dataforseo/adTraffic";
 import {
-  applyCostMarkup,
-  resolveCostMarkup,
-} from "@/server/billing/costMarkup";
-import { AUTUMN_SEO_DATA_CREDITS_PER_USD } from "@/shared/billing";
+  fetchLlmAggregatedMetrics,
+  fetchLlmCrossAggregatedMetrics,
+  fetchLlmMentionsSearch,
+  fetchLlmResponse,
+  fetchLlmTopPages,
+} from "@/server/lib/dataforseo/ai";
+import type { AiKeywordVolumeInput } from "@/server/lib/dataforseo/ai-keywords";
+import { fetchAiKeywordVolume } from "@/server/lib/dataforseo/ai-keywords";
 import {
-  DataforseoChargedTaskError,
-  type DataforseoApiCallCost,
-  type DataforseoApiResponse,
-} from "@/server/lib/dataforseo/envelope";
+  fetchLlmNewLost,
+  fetchLlmTargetMetrics,
+  fetchLlmTopMentioned,
+} from "@/server/lib/dataforseo/ai-mentions";
+import { fetchAiModeAnswer } from "@/server/lib/dataforseo/ai-mode";
 import {
-  fetchBusinessListingsSearch,
-  fetchMyBusinessInfo,
-  fetchQuestionsAnswers,
-  postGoogleReviewsTask,
-  postMyBusinessUpdatesTask,
-} from "@/server/lib/dataforseo/business";
+  fetchAiSummary,
+  postSerpTaskForSummary,
+} from "@/server/lib/dataforseo/ai-summary";
 import {
   fetchBacklinksHistory,
   fetchBacklinksRows,
@@ -37,6 +35,34 @@ import {
   fetchDomainPagesSummary,
   fetchReferringDomains,
 } from "@/server/lib/dataforseo/backlinks";
+import {
+  fetchBusinessListingsSearch,
+  fetchMyBusinessInfo,
+  fetchQuestionsAnswers,
+  postGoogleReviewsTask,
+  postMyBusinessUpdatesTask,
+} from "@/server/lib/dataforseo/business";
+import { fetchClickstreamVolumes } from "@/server/lib/dataforseo/clickstream";
+import {
+  fetchContentAnalysisSummary,
+  fetchPhraseTrends,
+} from "@/server/lib/dataforseo/content-analysis";
+import { fetchContentSearch } from "@/server/lib/dataforseo/content-analysis-search";
+import { fetchSentimentAnalysis } from "@/server/lib/dataforseo/content-analysis-sentiment";
+import { fetchDataforseoTrendsExplore } from "@/server/lib/dataforseo/dataforseoTrends";
+import { fetchDataforseoTrendsDemography } from "@/server/lib/dataforseo/dataforseoTrendsDemography";
+import { fetchDataforseoTrendsMergedData } from "@/server/lib/dataforseo/dataforseoTrendsMerged";
+import { fetchDataforseoTrendsSubregion } from "@/server/lib/dataforseo/dataforseoTrendsSubregion";
+import {
+  type DataforseoApiCallCost,
+  type DataforseoApiResponse,
+  DataforseoChargedTaskError,
+} from "@/server/lib/dataforseo/envelope";
+import {
+  fetchAdsKeywordIdeas,
+  fetchAdsSearchVolume,
+} from "@/server/lib/dataforseo/google-ads";
+import { fetchGoogleTrendsExplore } from "@/server/lib/dataforseo/googleTrends";
 import {
   fetchDomainRankOverview,
   fetchKeywordIdeas,
@@ -47,66 +73,48 @@ import {
   fetchRelevantPages,
   fetchSerpCompetitors,
 } from "@/server/lib/dataforseo/labs";
-import { fetchCategoriesForDomain } from "@/server/lib/dataforseo/labsCategories";
-import { fetchSearchIntent } from "@/server/lib/dataforseo/search-intent";
-import { fetchKeywordsForCategories } from "@/server/lib/dataforseo/labsCategories";
-import { fetchDomainMetricsByCategories } from "@/server/lib/dataforseo/labsDomainMetrics";
-import { fetchWhoisOverview } from "@/server/lib/dataforseo/whois";
-import { fetchDomainTechnologies } from "@/server/lib/dataforseo/technologies";
-import { fetchDataforseoTrendsExplore } from "@/server/lib/dataforseo/dataforseoTrends";
-import { fetchGoogleTrendsExplore } from "@/server/lib/dataforseo/googleTrends";
-import { fetchDataforseoTrendsDemography } from "@/server/lib/dataforseo/dataforseoTrendsDemography";
-import { fetchDataforseoTrendsSubregion } from "@/server/lib/dataforseo/dataforseoTrendsSubregion";
-import { fetchDataforseoTrendsMergedData } from "@/server/lib/dataforseo/dataforseoTrendsMerged";
 import {
-  fetchAdsKeywordIdeas,
-  fetchAdsSearchVolume,
-} from "@/server/lib/dataforseo/google-ads";
-import { fetchAdTrafficForecast } from "@/server/lib/dataforseo/adTraffic";
-import { fetchClickstreamVolumes } from "@/server/lib/dataforseo/clickstream";
+  fetchCategoriesForDomain,
+  fetchKeywordsForCategories,
+} from "@/server/lib/dataforseo/labsCategories";
+import { fetchDomainMetricsByCategories } from "@/server/lib/dataforseo/labsDomainMetrics";
+import {
+  fetchCompetitorsDomain,
+  fetchHistoricalRankOverview,
+  fetchSubdomains,
+  historicalMonthsSpanned,
+} from "@/server/lib/dataforseo/labsDomainOverview";
+import { fetchLighthouseResult } from "@/server/lib/dataforseo/lighthouse";
+import { postLlmResponseTasks } from "@/server/lib/dataforseo/llm-responses-queue";
+import {
+  fetchOnPageContentParsing,
+  postOnPageTaskForContentParsing,
+} from "@/server/lib/dataforseo/on-page-content-parsing";
+import {
+  fetchOnPageWaterfall,
+  postOnPageCrawlTaskForWaterfall,
+} from "@/server/lib/dataforseo/on-page-waterfall";
+import { fetchSearchIntent } from "@/server/lib/dataforseo/search-intent";
 import {
   fetchLiveSerp,
   fetchLocalSerp,
   fetchRankCheckSerp,
   postRankCheckTasks,
 } from "@/server/lib/dataforseo/serp";
-import { fetchLighthouseResult } from "@/server/lib/dataforseo/lighthouse";
-import {
-  fetchOnPageWaterfall,
-  postOnPageCrawlTaskForWaterfall,
-} from "@/server/lib/dataforseo/on-page-waterfall";
-import {
-  fetchOnPageContentParsing,
-  postOnPageTaskForContentParsing,
-} from "@/server/lib/dataforseo/on-page-content-parsing";
-import {
-  fetchAiSummary,
-  postSerpTaskForSummary,
-} from "@/server/lib/dataforseo/ai-summary";
-import {
-  fetchContentAnalysisSummary,
-  fetchPhraseTrends,
-} from "@/server/lib/dataforseo/content-analysis";
-import { fetchSentimentAnalysis } from "@/server/lib/dataforseo/content-analysis-sentiment";
-import { fetchContentSearch } from "@/server/lib/dataforseo/content-analysis-search";
-import { postLlmResponseTasks } from "@/server/lib/dataforseo/llm-responses-queue";
-import { fetchAiModeAnswer } from "@/server/lib/dataforseo/ai-mode";
-import {
-  fetchLlmAggregatedMetrics,
-  fetchLlmCrossAggregatedMetrics,
-  fetchLlmMentionsSearch,
-  fetchLlmResponse,
-  fetchLlmTopPages,
-} from "@/server/lib/dataforseo/ai";
-import {
-  fetchLlmNewLost,
-  fetchLlmTargetMetrics,
-  fetchLlmTopMentioned,
-} from "@/server/lib/dataforseo/ai-mentions";
-import { fetchAiKeywordVolume } from "@/server/lib/dataforseo/ai-keywords";
-import type { AiKeywordVolumeInput } from "@/server/lib/dataforseo/ai-keywords";
-import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
+import { fetchDomainTechnologies } from "@/server/lib/dataforseo/technologies";
+import { fetchWhoisOverview } from "@/server/lib/dataforseo/whois";
 import { AppError } from "@/server/lib/errors";
+import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
+import { AUTUMN_SEO_DATA_CREDITS_PER_USD } from "@/shared/billing";
+import {
+  type CreditFeature,
+  mapDataforseoPathToCreditFeature,
+} from "@/shared/billing-credit-features";
+import {
+  DFS_DOMAIN,
+  DFS_LABS,
+  estimateQueuedLlmResponsesPost,
+} from "@/shared/dataforseo-pricing";
 import { getLlmScraperTask, postLlmScraperTasks } from "./ai-scraper";
 
 export { mapDataforseoPathToCreditFeature };
@@ -283,6 +291,31 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
         fetchDomainTechnologies,
         undefined,
         () => DFS_DOMAIN.technologies.perRequest,
+      ),
+      // The three missing domain-overview endpoints (CL-401 remainder),
+      // each metered with an estimator that matches its billing shape:
+      // historical bills per domain-month over the requested span, the
+      // other two per request like the rest of standard Labs.
+      historicalRankOverview: meter(
+        customer,
+        fetchHistoricalRankOverview,
+        undefined,
+        (input: { dateFrom?: string; dateTo?: string }) =>
+          DFS_LABS.historicalRank.perRequest +
+          DFS_LABS.historicalRank.perUnit *
+            Math.max(historicalMonthsSpanned(input.dateFrom, input.dateTo), 1),
+      ),
+      subdomains: meter(
+        customer,
+        fetchSubdomains,
+        undefined,
+        () => DFS_LABS.standard.perRequest,
+      ),
+      competitorsDomain: meter(
+        customer,
+        fetchCompetitorsDomain,
+        undefined,
+        () => DFS_LABS.standard.perRequest,
       ),
       // The categories a domain ranks in. Metered with everything else in Labs, and the
       // `includeClickstreamData` flag doubles the vendor's price — a caller's decision, never a
