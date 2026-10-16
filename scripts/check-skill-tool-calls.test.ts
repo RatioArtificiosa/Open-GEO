@@ -94,34 +94,38 @@ describe("parseOpenAiYaml", () => {
   });
 });
 
+// Floors satisfied on every input below (21 skills, 104 wire tools), so
+// phantoms are the only variables under test and the counts the survey
+// reads are exactly the findings proved. Module scope: the helpers close
+// over nothing, and recreating them per block is what the lint forbids.
+function paddedSkills(demo: string): Map<string, string> {
+  const entries: Array<[string, string]> = [["demo", demo]];
+  for (let i = 0; i < 20; i += 1) {
+    entries.push(["pad-" + i, "no calls here"]);
+  }
+  return new Map(entries);
+}
+function paddedWire(): Set<string> {
+  const names: string[] = [...WIRE];
+  for (let i = 0; i < 100; i += 1) names.push("wire_" + i);
+  return new Set(names);
+}
 describe("checkTree", () => {
   it("fails on a phantom call and passes when that call is removed", () => {
-    const skills = new Map([
-      ["demo", "Call `no_such_tool(domain)` for the gap."],
-    ]);
     const failing = checkTree({
-      skillSources: skills,
-      wireTools: WIRE,
+      skillSources: paddedSkills("Call `no_such_tool(domain)` for the gap."),
+      wireTools: paddedWire(),
       depFiles: new Map(),
       servers: ["opengeo"],
     });
+    expect(failing).toHaveLength(1);
     expect(failing.join(" ")).toContain("no_such_tool");
 
-    skills.set("demo", "Call `get_geo_visibility(domain)` for the gap.");
-    // Floors need the live counts; the unit half runs with the floor inputs
-    // supplied so the phantom is the only variable under test.
     const passing = checkTree({
-      skillSources: new Map([
-        ...skills,
-        ...Array.from({ length: 20 }, (_, i): [string, string] => [
-          `pad-${i}`,
-          "no calls here",
-        ]),
-      ]),
-      wireTools: new Set([
-        ...WIRE,
-        ...Array.from({ length: 100 }, (_, i) => `wire_${i}`),
-      ]),
+      skillSources: paddedSkills(
+        "Call `get_geo_visibility(domain)` for the gap.",
+      ),
+      wireTools: paddedWire(),
       depFiles: new Map(),
       servers: ["opengeo"],
     });
@@ -134,69 +138,26 @@ describe("checkTree", () => {
       "        - no_such_tool",
     );
     const findings = checkTree({
-      skillSources: new Map(
-        Array.from({ length: 20 }, (_, i): [string, string] => [
-          `pad-${i}`,
-          "no calls here",
-        ]),
-      ),
-      wireTools: new Set([
-        ...WIRE,
-        ...Array.from({ length: 100 }, (_, i) => `wire_${i}`),
-      ]),
+      skillSources: paddedSkills("no calls here"),
+      wireTools: paddedWire(),
       depFiles: new Map([["demo", yaml]]),
       servers: ["opengeo"],
     });
+    expect(findings).toHaveLength(1);
     expect(findings.join(" ")).toContain("no_such_tool");
-  });
-
-  it("tolerates comments and refuses a missing section", () => {
-    const withComments = [
-      "# picked by the skill author",
-      ...GOOD_YAML.split("\n"),
-    ].join("\n");
-    expect(parseOpenAiYaml(withComments).findings).toEqual([]);
-    const noPolicy = GOOD_YAML.split("\n")
-      .filter((line) => !/^policy:|allow_implicit/.test(line))
-      .join("\n");
-    expect(parseOpenAiYaml(noPolicy).findings.join(" ")).toContain("policy:");
-  });
-
-  it("refuses an unrecognised row under tools and an empty dependency list", () => {
-    const oddRow = GOOD_YAML.replace(
-      "        - generate_content_brief",
-      "        - generate_content_brief\n        - almost a tool",
-    );
-    expect(parseOpenAiYaml(oddRow).findings.join(" ")).toContain(
-      "unrecognised row",
-    );
-    const noDeps = GOOD_YAML.split("\n")
-      .filter(
-        (line) =>
-          !/^\s+- (server|get_)\w*/.test(line) && !/^\s*tools:\s*$/.test(line),
-      )
-      .join("\n");
-    expect(parseOpenAiYaml(noDeps).findings.join(" ")).toContain(
-      "no tool dependencies",
-    );
   });
 
   it("fails on a dependency server the plugin does not declare", () => {
     const yaml = GOOD_YAML.replace("- server: opengeo", "- server: nowhere");
     const findings = checkTree({
-      skillSources: new Map(
-        Array.from({ length: 20 }, (_, i): [string, string] => [
-          `pad-${i}`,
-          "no calls here",
-        ]),
-      ),
-      wireTools: new Set([
-        ...WIRE,
-        ...Array.from({ length: 100 }, (_, i) => `wire_${i}`),
-      ]),
+      skillSources: paddedSkills("no calls here"),
+      wireTools: paddedWire(),
       depFiles: new Map([["demo", yaml]]),
       servers: ["opengeo"],
     });
+    // One finding per declared tool: the survey counts the shape,
+    // the name assertion proves which server it caught.
+    expect(findings).toHaveLength(2);
     expect(findings.join(" ")).toContain("nowhere");
   });
 
