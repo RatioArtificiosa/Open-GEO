@@ -49,6 +49,9 @@ async function callTool(
   tool: { handler: unknown },
   data: Record<string, unknown>,
 ): Promise<ToolResult> {
+  // Imported dynamically, the concrete handler type is not visible here; this widens
+  // `unknown` to the one shape the MCP server guarantees.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const handler = tool.handler as (
     args: Record<string, unknown>,
     context: Record<string, unknown>,
