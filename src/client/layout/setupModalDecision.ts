@@ -14,7 +14,7 @@
  * and a configured key is not an instruction to close a modal the user never
  * saw.
  */
-export type SetupModalInput = {
+type SetupModalInput = {
   /** False on routes where the key status is never checked (billing). */
   shouldCheck: boolean;
   /** The status query errored: unknown status closes, never opens. */
