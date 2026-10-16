@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { AppError } from "@/server/lib/errors";
 import { dataforseoPost } from "@/server/lib/dataforseo/core";
+import { createDataforseoBillingClassifier } from "@/server/lib/dataforseoBillingClassification";
 import {
   assertOk,
   buildTaskBilling,
@@ -26,6 +27,13 @@ import {
  */
 
 const WHOIS_PATH = "/v3/domain_analytics/whois/overview/live";
+
+const classifyWhoisError = createDataforseoBillingClassifier({
+  pathPrefix: "/domain_analytics/",
+  billingIssueCode: "DOMAIN_BILLING_ISSUE",
+  billingIssueMessage:
+    "The connected DataForSEO account has a billing or balance issue",
+});
 
 /**
  * **This endpoint rejects `order_by` in every form tried** — as an array and as a comma-delimited
@@ -120,8 +128,13 @@ export async function fetchWhoisOverview(
     limit: query.limit ?? 10,
   };
 
-  const response = await dataforseoPost(WHOIS_PATH, [body]);
-  const task = assertOk(response);
+  const response = await dataforseoPost(WHOIS_PATH, [body], {
+    classify: classifyWhoisError,
+  });
+  const task = assertOk(response, {
+    classify: classifyWhoisError,
+    classifyPath: WHOIS_PATH,
+  });
 
   const rawResult = task.result?.[0];
   const first = z.record(z.string(), z.unknown()).safeParse(rawResult ?? {});

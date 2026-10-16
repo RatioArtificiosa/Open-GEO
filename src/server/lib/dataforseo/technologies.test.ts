@@ -91,6 +91,47 @@ describe("fetchDomainTechnologies", () => {
     );
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("names an unverified account without sending the operator to top up", async () => {
+    fetchMock.mockImplementation(async () =>
+      Response.json({
+        status_code: 20000,
+        tasks: [
+          {
+            status_code: 40104,
+            status_message: "Please verify your account before using the API.",
+            cost: 0,
+            result: null,
+          },
+        ],
+      }),
+    );
+    await expect(
+      fetchDomainTechnologies({ target: "example.com" }),
+    ).rejects.toMatchObject({
+      code: "DOMAIN_BILLING_ISSUE",
+      message: expect.stringContaining("verification"),
+    });
+  });
+
+  it("names a billing refusal DOMAIN_BILLING_ISSUE instead of a generic", async () => {
+    fetchMock.mockImplementation(async () =>
+      Response.json({
+        status_code: 20000,
+        tasks: [
+          {
+            status_code: 40200,
+            status_message: "Insufficient funds.",
+            cost: 0,
+            result: null,
+          },
+        ],
+      }),
+    );
+    await expect(
+      fetchDomainTechnologies({ target: "example.com" }),
+    ).rejects.toMatchObject({ code: "DOMAIN_BILLING_ISSUE" });
+  });
 });
 
 describe("technologyNames", () => {

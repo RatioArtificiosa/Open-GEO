@@ -101,6 +101,49 @@ describe("fetchWhoisOverview", () => {
     expect(rows.data[0]?.registrar).toBeNull();
     expect(rows.data[1]?.registrar).toBe("Example Registrar");
   });
+  it("names a billing refusal DOMAIN_BILLING_ISSUE instead of a generic", async () => {
+    // The named open: without a taxonomy member these clients could not
+    // classify a billing failure at all. A 40200 names money, not the vendor.
+    fetchMock.mockImplementation(async () =>
+      Response.json({
+        status_code: 20000,
+        tasks: [
+          {
+            status_code: 40200,
+            status_message: "Insufficient funds.",
+            cost: 0,
+            result: null,
+          },
+        ],
+      }),
+    );
+    await expect(
+      fetchWhoisOverview({ filters: [["domain", "like", "%example%"]] }),
+    ).rejects.toMatchObject({ code: "DOMAIN_BILLING_ISSUE" });
+  });
+
+  it("names an unverified account without sending the operator to top up", async () => {
+    fetchMock.mockImplementation(async () =>
+      Response.json({
+        status_code: 20000,
+        tasks: [
+          {
+            status_code: 40104,
+            status_message: "Please verify your account before using the API.",
+            cost: 0,
+            result: null,
+          },
+        ],
+      }),
+    );
+    await expect(
+      fetchWhoisOverview({ filters: [["domain", "like", "%example%"]] }),
+    ).rejects.toMatchObject({
+      code: "DOMAIN_BILLING_ISSUE",
+      message: expect.stringContaining("verification"),
+    });
+  });
+
   it("reads the vendor's real date field names, so an expiry cannot silently read as unknown", async () => {
     // The regression guard for a real defect: `created`, `expired` and `updated` were invented, and
     // because they were optional every row parsed cleanly with no dates at all. A test that only

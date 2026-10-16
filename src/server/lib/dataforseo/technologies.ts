@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { AppError } from "@/server/lib/errors";
 import { dataforseoPost } from "@/server/lib/dataforseo/core";
+import { createDataforseoBillingClassifier } from "@/server/lib/dataforseoBillingClassification";
 import {
   assertOk,
   buildTaskBilling,
@@ -28,6 +29,13 @@ import {
 
 const TECHNOLOGIES_PATH =
   "/v3/domain_analytics/technologies/domain_technologies/live";
+
+const classifyTechnologiesError = createDataforseoBillingClassifier({
+  pathPrefix: "/domain_analytics/",
+  billingIssueCode: "DOMAIN_BILLING_ISSUE",
+  billingIssueMessage:
+    "The connected DataForSEO account has a billing or balance issue",
+});
 
 /** A technology entry: the vendor nests a name under a category key. */
 const technologySchema = z.object({
@@ -100,10 +108,15 @@ export async function fetchDomainTechnologies(input: {
     );
   }
 
-  const response = await dataforseoPost(TECHNOLOGIES_PATH, [
-    { target, limit: input.limit ?? 10 },
-  ]);
-  const task = assertOk(response);
+  const response = await dataforseoPost(
+    TECHNOLOGIES_PATH,
+    [{ target, limit: input.limit ?? 10 }],
+    { classify: classifyTechnologiesError },
+  );
+  const task = assertOk(response, {
+    classify: classifyTechnologiesError,
+    classifyPath: TECHNOLOGIES_PATH,
+  });
 
   const rows = z
     .array(domainTechnologiesRowSchema)

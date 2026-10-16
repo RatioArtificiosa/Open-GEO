@@ -20,6 +20,10 @@ const ERROR_CODES = [
   // either way. Added with the Labs search-intent client, the first Labs caller that
   // classifies billing failures.
   "LABS_BILLING_ISSUE",
+  // Added with the domain_analytics clients (whois, technologies), which
+  // previously could not classify a billing failure at all: without a member
+  // here there is nothing for their classifier to name.
+  "DOMAIN_BILLING_ISSUE",
   "DATAFORSEO_AUTH_FAILED",
   // CL-052's two controls, checked on the request path before the vendor is
   // called. Both are a *platform* decision rather than a funds state: the
