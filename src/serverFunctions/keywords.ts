@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import {
+  adTrafficCrossCheckSchema,
   deleteSavedKeywordTagSchema,
   researchKeywordsSchema,
   saveKeywordsSchema,
@@ -13,6 +14,9 @@ import {
   updateSavedKeywordTagsSchema,
 } from "@/types/schemas/keywords";
 import { KeywordResearchService } from "@/server/features/keywords/services/KeywordResearchService";
+import { createDataforseoClient } from "@/server/lib/dataforseo/client";
+import { readAdTrafficForecast } from "@/shared/ad-traffic-forecast-read";
+import { USABLE_AD_TRAFFIC_FIELDS } from "@/shared/ad-traffic-fields";
 import { reconcileVolumes } from "@/server/features/keywords/services/reconcile-volumes";
 import { requireProjectContext } from "@/serverFunctions/middleware";
 import { resolveMarket } from "@/shared/keyword-locations";
@@ -153,3 +157,28 @@ export const getSerpAnalysis = createServerFn({ method: "POST" })
       context,
     ),
   );
+
+/**
+ * Ad-traffic cross-check for the page (CL-723 surface).
+ *
+ * What a Google Ads plan for these keywords is expected to return — clicks,
+ * average CPC and cost — beside the organic numbers, never as a forecast of
+ * its own. The deprecation guardrail travels in the response: impressions
+ * and ctr are refused by name rather than charted as flat lines that never
+ * happened.
+ */
+export const getAdTrafficCrossCheck = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(adTrafficCrossCheckSchema)
+  .handler(async ({ data, context }) => {
+    const market = resolveMarket(data, context.project);
+    const client = createDataforseoClient(context);
+    const rows = await client.keywords.adTrafficForecast({
+      keywords: data.keywords,
+      locationCode: market.locationCode,
+      languageCode: market.languageCode,
+      dateFrom: data.dateFrom,
+      dateTo: data.dateTo,
+    });
+    return readAdTrafficForecast(rows, [...USABLE_AD_TRAFFIC_FIELDS]);
+  });

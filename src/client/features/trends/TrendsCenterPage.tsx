@@ -25,6 +25,7 @@ import {
 } from "@/server/features/trends/trendSeries";
 import { getSearchTrends } from "@/serverFunctions/trends";
 import { TrendsOverviewPanel } from "@/client/features/trends/TrendsOverviewPanel";
+import { trendVerdictsFor } from "@/client/features/trends/trendVerdicts";
 
 /**
  * The Trends Center: whether interest in a term is rising, seasonal, or fading.
@@ -89,6 +90,14 @@ export function TrendsCenterPage({ projectId }: { projectId: string }) {
   const chart = useMemo(
     () => (analyse.data ? toTrendChart(analyse.data.series) : null),
     [analyse.data],
+  );
+  // Momentum + breakout verdicts over the lines drawn above — the engines
+  // are pure over the charted values, so no second request bills for the
+  // same window. Short windows decline inside their summaries.
+  const verdicts = useMemo(
+    () =>
+      chart && chart.series.length > 0 ? trendVerdictsFor(chart.series) : [],
+    [chart],
   );
   const unmeasured = chart ? countUnmeasured(chart) : 0;
   const requestCostUsd = priceFor(source);
@@ -216,6 +225,20 @@ export function TrendsCenterPage({ projectId }: { projectId: string }) {
           <div className="flex flex-col gap-4 rounded-xl border border-base-300 p-4">
             {chart.series.map((entry) => (
               <TrendLine key={entry.keyword} series={entry} peak={chart.peak} />
+            ))}
+          </div>
+          <div className="flex flex-col gap-3 rounded-xl border border-base-300 p-4">
+            <h2 className="text-base font-semibold">Direction and breakouts</h2>
+            {verdicts.map((verdict) => (
+              <div key={verdict.keyword} className="space-y-1">
+                <p className="text-sm font-medium">{verdict.keyword}</p>
+                <p className="text-sm text-base-content/70">
+                  {verdict.momentum.summary}
+                </p>
+                <p className="text-sm text-base-content/70">
+                  {verdict.breakout.summary}
+                </p>
+              </div>
             ))}
           </div>
           <p className="text-xs text-base-content/60">

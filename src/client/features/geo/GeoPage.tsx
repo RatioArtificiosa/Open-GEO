@@ -7,6 +7,7 @@ import {
 } from "@/client/lib/milestone-events";
 import { captureClientEvent } from "@/client/lib/posthog";
 import { FUNNEL_EVENTS } from "@/shared/analytics-events";
+import { AdTrafficPanel } from "./AdTrafficPanel";
 import { CitationWinPanel } from "./CitationWinPanel";
 import { EarnTheCitationPanel } from "./EarnTheCitationPanel";
 import { ForecastAccuracyScoreboard } from "./ForecastAccuracyScoreboard";
@@ -307,6 +308,14 @@ export function GeoPage({ projectId }: { projectId: string }) {
                   platforms={data.mentionSeries.map((entry) => entry.platform)}
                 />
               ) : null}
+
+              {/*
+                The paid cross-check sits with the forecasts it sanity-checks:
+                a bid's expected return beside the organic numbers, never as a
+                forecast of its own. Billed on click with the price on the
+                button, like every other vendor read on this page.
+              */}
+              <AdTrafficPanel projectId={projectId} />
             </section>
 
             <section

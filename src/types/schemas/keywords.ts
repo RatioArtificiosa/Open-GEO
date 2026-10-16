@@ -152,6 +152,29 @@ export const reconcileKeywordVolumesSchema = z.object({
   countryIsoCode: z.string().trim().length(2).toUpperCase().optional(),
 });
 
+/**
+ * Ad-traffic cross-check inputs (CL-723 surface).
+ *
+ * Keywords cap at 10: the vendor bills once per request whatever it carries,
+ * but a 1000-keyword UI call returns a table nobody reads — the MCP tool
+ * keeps the full range for agents. Dates are optional; the vendor defaults
+ * the window when they are absent.
+ */
+export const adTrafficCrossCheckSchema = z.object({
+  projectId: z.string().min(1),
+  keywords: z.array(z.string().trim().min(1)).min(1).max(10),
+  locationCode: z.number().int().positive().optional(),
+  languageCode: z.string().min(2).max(8).optional(),
+  dateFrom: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use yyyy-mm-dd")
+    .optional(),
+  dateTo: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use yyyy-mm-dd")
+    .optional(),
+});
+
 export type ResearchKeywordsInput = z.infer<typeof researchKeywordsSchema>;
 export type SaveKeywordsInput = z.infer<typeof saveKeywordsSchema>;
 type ResolvedMarket = { locationCode: number; languageCode: string };
