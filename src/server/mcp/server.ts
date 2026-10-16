@@ -65,6 +65,7 @@ import {
   getGoogleAnalyticsTrafficAcquisitionTool,
   getSearchOpportunitiesTool,
 } from "@/server/mcp/tools/google-analytics-tools";
+import { gradeContentTool } from "@/server/mcp/tools/grade-content-tool";
 import { listProjectsTool } from "@/server/mcp/tools/list-projects";
 import { listSavedKeywordsTool } from "@/server/mcp/tools/list-saved-keywords";
 import {
@@ -82,6 +83,7 @@ import {
   getPageWaterfallTool,
   startPageSpeedAuditTool,
 } from "@/server/mcp/tools/page-speed-tools";
+import { peerBenchmarkTool } from "@/server/mcp/tools/peer-benchmark-tool";
 import {
   getProjectContextTool,
   updateProjectContextTool,
@@ -263,6 +265,10 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   // The build list: gaps ranked with formats, priced by the opportunity
   // scorer — pure ranking over supplied candidates, no vendor call.
   register(whatToBuildTool);
+  // Pure readers over supplied data — grading, benchmarks, personas — no
+  // vendor call in any of them, so no dry_run to offer.
+  register(gradeContentTool);
+  register(peerBenchmarkTool);
   // The paid-side cross-check, and the guardrail that keeps its two deprecated
   // always-null fields off a chart — the refusal names them instead.
   register(adTrafficCrossCheckTool);

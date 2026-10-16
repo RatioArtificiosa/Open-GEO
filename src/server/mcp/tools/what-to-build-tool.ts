@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   type BuildCandidate,
+  type BuildRecommendation,
+  type UnpricedCandidate,
   whatToBuild,
 } from "@/server/features/content/whatToBuild";
 import { buildProjectMeta } from "@/server/mcp/context";
@@ -124,7 +126,10 @@ export const whatToBuildTool = {
     },
   },
   handler: withMcpProjectAuth(async (args: BuildArgs, context) => {
-    const ranked = whatToBuild(
+    const ranked: {
+      build: BuildRecommendation[];
+      unpriced: UnpricedCandidate[];
+    } = whatToBuild(
       args.candidates.map(
         (entry): BuildCandidate => ({
           keyword: entry.keyword,

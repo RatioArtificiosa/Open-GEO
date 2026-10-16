@@ -50,7 +50,7 @@ export const INTENT_FORMAT_RULES: Record<ContentIntent, ContentFormat[]> = {
 };
 
 /** SERP elements this product recognizes, as the vendor names them. */
-export type SerpElement =
+type SerpElement =
   | "video"
   | "people_also_ask"
   | "images"
