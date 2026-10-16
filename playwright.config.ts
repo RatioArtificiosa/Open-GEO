@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { defineConfig } from "@playwright/test";
 
 /**
@@ -70,10 +71,21 @@ import { defineConfig } from "@playwright/test";
  * the tree, and a claim that does not match the tree is corrected in place.**
  */
 
-/** Chrome as installed on this machine. Overridable for a machine without it. */
+/**
+ * Chrome as installed on this machine. Overridable for a machine without it.
+ *
+ * The Windows path is used only when that file exists: it is a fact about one
+ * workstation, and a fact shipped as the default broke every CI run with
+ * "executable doesn't exist" while local runs stayed green. Elsewhere the
+ * config defers to Playwright's own `chrome` channel (installed by CI via
+ * `playwright install chrome`), overridable per-run with
+ * `PLAYWRIGHT_CHROME_PATH`.
+ */
+const WINDOWS_CHROME_PATH =
+  "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const CHROME_PATH =
   process.env.PLAYWRIGHT_CHROME_PATH ??
-  "C:/Program Files/Google/Chrome/Application/chrome.exe";
+  (existsSync(WINDOWS_CHROME_PATH) ? WINDOWS_CHROME_PATH : undefined);
 
 export default defineConfig({
   testDir: "./e2e",
@@ -88,8 +100,9 @@ export default defineConfig({
     baseURL: "http://localhost:3101",
     actionTimeout: 5_000,
     navigationTimeout: 30_000,
+    ...(CHROME_PATH === undefined ? { channel: "chrome" as const } : {}),
     launchOptions: {
-      executablePath: CHROME_PATH,
+      ...(CHROME_PATH === undefined ? {} : { executablePath: CHROME_PATH }),
       args: ["--no-sandbox", "--disable-dev-shm-usage"],
     },
     screenshot: "only-on-failure",
