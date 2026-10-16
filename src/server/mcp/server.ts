@@ -9,20 +9,50 @@ import {
   type McpProps,
   type ToolContext,
 } from "@/server/mcp/context";
-import { objectSchema } from "@/server/mcp/output-schemas";
 import { instrumentMcpToolHandler } from "@/server/mcp/instrumentation";
+import { objectSchema } from "@/server/mcp/output-schemas";
+import { adTrafficCrossCheckTool } from "@/server/mcp/tools/ad-traffic-cross-check-tool";
+import { addRankTrackingKeywordsTool } from "@/server/mcp/tools/add-rank-tracking-keywords";
+import { aiKeywordVolumeTool } from "@/server/mcp/tools/ai-keyword-volume-tool";
+import { aiModeQueryTool } from "@/server/mcp/tools/ai-mode-query-tool";
+import { breakoutDetectorTool } from "@/server/mcp/tools/breakout-detector-tool";
+import { getCategoryDomainMetricsTool } from "@/server/mcp/tools/category-domain-metrics";
+import { categoryMomentumTool } from "@/server/mcp/tools/category-momentum-tool";
+import { compareSentimentTool } from "@/server/mcp/tools/compare-ai-web-sentiment-tool";
+import { computeShareOfVoiceTool } from "@/server/mcp/tools/compute-share-of-voice";
+import { createProjectTool } from "@/server/mcp/tools/create-project";
+import { createRankTrackerTool } from "@/server/mcp/tools/create-rank-tracker";
+import {
+  findSerpCompetitorsTool,
+  getGoogleBusinessQuestionsTool,
+  getKeywordMetricsTool,
+  getLocalSerpResultsTool,
+  getRankedKeywordsTool,
+  searchLocalBusinessesTool,
+} from "@/server/mcp/tools/dataforseo-research-tools";
+import { estimateRankTrackerCostTool } from "@/server/mcp/tools/estimate-rank-tracker-cost";
+import { forecastTrafficTool } from "@/server/mcp/tools/forecast-traffic-tool";
+import { getGeoAnswerDiffTool } from "@/server/mcp/tools/geo-answer-diff-tool";
+import { geoBrandFramingTool } from "@/server/mcp/tools/geo-brand-framing-tool";
+import {
+  getGeoCitationGapTool,
+  getGeoRunsTool,
+} from "@/server/mcp/tools/geo-diagnostic-tools";
+import { geoPromptRunTool } from "@/server/mcp/tools/geo-prompt-run-tool";
+import {
+  getGeoAnswerHistoryTool,
+  getGeoVisibilityForecastTool,
+  getGeoVisibilityTool,
+  listGeoTargetsTool,
+} from "@/server/mcp/tools/geo-read-tools";
+import { getGeoTopCitationsTool } from "@/server/mcp/tools/geo-top-citations-tool";
 import { getBacklinksOverviewTool } from "@/server/mcp/tools/get-backlinks-overview";
 import { getBacklinksProfileTool } from "@/server/mcp/tools/get-backlinks-profile";
 import { getDomainKeywordSuggestionsTool } from "@/server/mcp/tools/get-domain-keyword-suggestions";
 import { getDomainOverviewTool } from "@/server/mcp/tools/get-domain-overview";
-import { addRankTrackingKeywordsTool } from "@/server/mcp/tools/add-rank-tracking-keywords";
-import { createRankTrackerTool } from "@/server/mcp/tools/create-rank-tracker";
-import { estimateRankTrackerCostTool } from "@/server/mcp/tools/estimate-rank-tracker-cost";
 import { getRankTrackerTool } from "@/server/mcp/tools/get-rank-tracker";
-import { removeRankTrackingKeywordsTool } from "@/server/mcp/tools/remove-rank-tracking-keywords";
-import { runRankTrackerTool } from "@/server/mcp/tools/run-rank-tracker";
-import { searchSerpLocationsTool } from "@/server/mcp/tools/search-serp-locations";
 import { getSerpResultsTool } from "@/server/mcp/tools/get-serp-results";
+import { getWebCitationsTool } from "@/server/mcp/tools/get-web-citations-tool";
 import {
   getGoogleAnalyticsAudienceBreakdownTool,
   getGoogleAnalyticsEcommercePerformanceTool,
@@ -35,63 +65,8 @@ import {
   getGoogleAnalyticsTrafficAcquisitionTool,
   getSearchOpportunitiesTool,
 } from "@/server/mcp/tools/google-analytics-tools";
-import { createProjectTool } from "@/server/mcp/tools/create-project";
 import { listProjectsTool } from "@/server/mcp/tools/list-projects";
-import {
-  getGeoAnswerHistoryTool,
-  getGeoVisibilityForecastTool,
-  getGeoVisibilityTool,
-  listGeoTargetsTool,
-} from "@/server/mcp/tools/geo-read-tools";
-import { getGeoAnswerDiffTool } from "@/server/mcp/tools/geo-answer-diff-tool";
-import {
-  getGeoCitationGapTool,
-  getGeoRunsTool,
-} from "@/server/mcp/tools/geo-diagnostic-tools";
-import { getGeoTopCitationsTool } from "@/server/mcp/tools/geo-top-citations-tool";
-import { geoBrandFramingTool } from "@/server/mcp/tools/geo-brand-framing-tool";
-import { geoPromptRunTool } from "@/server/mcp/tools/geo-prompt-run-tool";
-import { aiModeQueryTool } from "@/server/mcp/tools/ai-mode-query-tool";
-import { aiKeywordVolumeTool } from "@/server/mcp/tools/ai-keyword-volume-tool";
-import { forecastTrafficTool } from "@/server/mcp/tools/forecast-traffic-tool";
-import { serpAskTool } from "@/server/mcp/tools/serp-ask-tool";
-import { reportPublishTool } from "@/server/mcp/tools/report-publish-tool";
-import { compareSentimentTool } from "@/server/mcp/tools/compare-ai-web-sentiment-tool";
-import { getWebCitationsTool } from "@/server/mcp/tools/get-web-citations-tool";
-import { computeShareOfVoiceTool } from "@/server/mcp/tools/compute-share-of-voice";
-import {
-  getProjectContextTool,
-  updateProjectContextTool,
-} from "@/server/mcp/tools/project-context";
 import { listSavedKeywordsTool } from "@/server/mcp/tools/list-saved-keywords";
-import { removeSavedKeywordsTool } from "@/server/mcp/tools/remove-saved-keywords";
-import {
-  findSerpCompetitorsTool,
-  getGoogleBusinessQuestionsTool,
-  getKeywordMetricsTool,
-  getLocalSerpResultsTool,
-  getRankedKeywordsTool,
-  searchLocalBusinessesTool,
-} from "@/server/mcp/tools/dataforseo-research-tools";
-import { reconcileKeywordVolumesTool } from "@/server/mcp/tools/reconcile-keyword-volumes";
-import {
-  getPageWaterfallTool,
-  startPageSpeedAuditTool,
-} from "@/server/mcp/tools/page-speed-tools";
-import {
-  getCategoryKeywordsTool,
-  getDomainCategoriesTool,
-} from "@/server/mcp/tools/market-tools";
-import { getCategoryDomainMetricsTool } from "@/server/mcp/tools/category-domain-metrics";
-import {
-  getSearchDemographyTool,
-  getSearchRegionsTool,
-} from "@/server/mcp/tools/trends-audience-tools";
-import { getSearchTrendsTool } from "@/server/mcp/tools/trends-tools";
-import { getTrendsOverviewTool } from "@/server/mcp/tools/trends-overview-tool";
-import { categoryMomentumTool } from "@/server/mcp/tools/category-momentum-tool";
-import { breakoutDetectorTool } from "@/server/mcp/tools/breakout-detector-tool";
-import { adTrafficCrossCheckTool } from "@/server/mcp/tools/ad-traffic-cross-check-tool";
 import {
   getBusinessProfileTool,
   getBusinessReviewsTool,
@@ -100,22 +75,45 @@ import {
   listBusinessCategoriesTool,
 } from "@/server/mcp/tools/local-seo-tools";
 import {
-  deleteReportTool,
-  getReportTool,
-  listReportsTool,
-  saveReportTool,
-} from "@/server/mcp/tools/report-tools";
+  getCategoryKeywordsTool,
+  getDomainCategoriesTool,
+} from "@/server/mcp/tools/market-tools";
+import {
+  getPageWaterfallTool,
+  startPageSpeedAuditTool,
+} from "@/server/mcp/tools/page-speed-tools";
+import {
+  getProjectContextTool,
+  updateProjectContextTool,
+} from "@/server/mcp/tools/project-context";
+import { reconcileKeywordVolumesTool } from "@/server/mcp/tools/reconcile-keyword-volumes";
+import { removeRankTrackingKeywordsTool } from "@/server/mcp/tools/remove-rank-tracking-keywords";
+import { removeSavedKeywordsTool } from "@/server/mcp/tools/remove-saved-keywords";
+import { reportPublishTool } from "@/server/mcp/tools/report-publish-tool";
 import {
   deleteReportTemplateTool,
   listReportTemplatesTool,
   saveReportTemplateTool,
 } from "@/server/mcp/tools/report-template-tools";
+import {
+  deleteReportTool,
+  getReportTool,
+  listReportsTool,
+  saveReportTool,
+} from "@/server/mcp/tools/report-tools";
 import { researchKeywordsTool } from "@/server/mcp/tools/research-keywords";
+import { runRankTrackerTool } from "@/server/mcp/tools/run-rank-tracker";
 import { saveKeywordsTool } from "@/server/mcp/tools/save-keywords";
 import {
   getSearchConsolePerformanceTool,
   inspectUrlsTool,
 } from "@/server/mcp/tools/search-console-tools";
+import { searchSerpLocationsTool } from "@/server/mcp/tools/search-serp-locations";
+import { serpAskTool } from "@/server/mcp/tools/serp-ask-tool";
+import {
+  deleteSiteAuditTool,
+  listSiteAuditsTool,
+} from "@/server/mcp/tools/site-audit-cleanup-tools";
 import {
   getAuditIssuesTool,
   getAuditPagesTool,
@@ -123,9 +121,12 @@ import {
   runSiteAuditTool,
 } from "@/server/mcp/tools/site-audit-tools";
 import {
-  deleteSiteAuditTool,
-  listSiteAuditsTool,
-} from "@/server/mcp/tools/site-audit-cleanup-tools";
+  getSearchDemographyTool,
+  getSearchRegionsTool,
+} from "@/server/mcp/tools/trends-audience-tools";
+import { getTrendsOverviewTool } from "@/server/mcp/tools/trends-overview-tool";
+import { getSearchTrendsTool } from "@/server/mcp/tools/trends-tools";
+import { whatToBuildTool } from "@/server/mcp/tools/what-to-build-tool";
 import { whoamiTool } from "@/server/mcp/tools/whoami";
 
 type ToolSchema = z.ZodType | z.ZodRawShape;
@@ -259,6 +260,9 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   // The breakouts: a steep approach and a level that lasted, or the spike is
   // reported as the event it is with its persistence number.
   register(breakoutDetectorTool);
+  // The build list: gaps ranked with formats, priced by the opportunity
+  // scorer — pure ranking over supplied candidates, no vendor call.
+  register(whatToBuildTool);
   // The paid-side cross-check, and the guardrail that keeps its two deprecated
   // always-null fields off a chart — the refusal names them instead.
   register(adTrafficCrossCheckTool);

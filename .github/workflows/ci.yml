@@ -143,12 +143,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DOMAIN_FILTER_BUDGET_SCALE: "4"
-      # The transport requires a key before anything runs, fixtures included.
-      # This value cannot authenticate (so it cannot bill): any spec that
-      # reaches the vendor fails closed on 401 instead of crashing on a
-      # missing variable, and the fixture flags below keep reads off the
-      # network entirely. Real keys live in developers' local .env, never here.
-      DATAFORSEO_API_KEY: "e2e-dummy-key-never-bills"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -179,6 +173,17 @@ jobs:
       # The app reads D1, and a fresh runner has no tables: without this every
       # spec fails on `no such table` while local runs stay green on a migrated
       # `.wrangler/state`. Migrate the local database before the server boots.
+      # The transport requires a key before anything runs, fixtures included,
+      # and the worker reads it from wrangler vars or `.dev.vars` — never from
+      # the process environment, so a job-level `env:` would silently do
+      # nothing (proven by a run that kept failing with it set). This value
+      # cannot authenticate and therefore cannot bill: any spec that reaches
+      # the vendor fails closed on 401, the fixture flags keep reads off the
+      # network, and real keys live only in developers' local files. The file
+      # is gitignored, so this step affects CI alone.
+      - name: Dummy vendor key for e2e
+        run: printf 'DATAFORSEO_API_KEY="e2e-dummy-key-never-bills"\n' > .dev.vars
+
       - name: Migrate local D1
         run: pnpm run db:migrate:local
 
