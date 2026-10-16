@@ -402,7 +402,11 @@ export const DFS_COMMERCE = {
 } as const;
 
 export const DFS_LOCAL = {
-  businessListings: { perRequest: money(0.012), perItem: money(0.00036) },
+  businessListings: {
+    perRequest: money(0.012),
+    perUnit: money(0.00036),
+    unitName: "listing",
+  } satisfies DfsPrice,
   gmbInfo: {
     standard: money(0.0015),
     priority: money(0.003),
@@ -451,8 +455,16 @@ export const DFS_LOCAL = {
 } as const;
 
 export const DFS_DOMAIN = {
-  technologies: { perRequest: money(0.012), perItem: money(0.0012) },
-  whois: { perRequest: money(0.12), perItem: money(0.0012), unit: "domain" },
+  technologies: {
+    perRequest: money(0.012),
+    perUnit: money(0.0012),
+    unitName: "technology",
+  } satisfies DfsPrice,
+  whois: {
+    perRequest: money(0.12),
+    perUnit: money(0.0012),
+    unitName: "domain",
+  } satisfies DfsPrice,
 } as const;
 
 // ---------------------------------------------------------------------------

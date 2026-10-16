@@ -500,13 +500,13 @@ describe("remaining price families", () => {
 
   it("prices local/reputation endpoints per published tier", () => {
     expect(DFS_LOCAL.businessListings.perRequest).toBe(0.012);
-    expect(DFS_LOCAL.businessListings.perItem).toBe(0.00036);
+    expect(DFS_LOCAL.businessListings.perUnit).toBe(0.00036);
     expect(DFS_LOCAL.gmbInfo.standard).toBe(0.0015);
   });
 
   it("prices domain intelligence per published tier", () => {
     expect(DFS_DOMAIN.whois.perRequest).toBe(0.12);
-    expect(DFS_DOMAIN.whois.perItem).toBe(0.0012);
+    expect(DFS_DOMAIN.whois.perUnit).toBe(0.0012);
   });
 
   it("prices a scraper patrol on each queue", () => {

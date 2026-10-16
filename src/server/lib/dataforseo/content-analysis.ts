@@ -61,7 +61,22 @@ import {
 const PATH = "/v3/content_analysis/summary/live";
 
 /** Documented maximum for the internal arrays. */
+
+/**
+ * The internal-list limit every content endpoint clamps the same way.
+ *
+ * Four call sites spelled this formula independently; the estimator must
+ * mirror the request exactly, so the formula lives here once and the
+ * fetchers and the gate read the same function. NaN defaults (a NaN used
+ * to travel to the vendor as null and bill a rejection for garbage).
+ */
+/** Vendor cap shared by summary, trends, sentiment, and search. */
 const MAX_INTERNAL_LIST_LIMIT = 20;
+
+export function resolveInternalListLimit(value?: number): number {
+  if (value === undefined || !Number.isFinite(value)) return 10;
+  return Math.min(MAX_INTERNAL_LIST_LIMIT, Math.max(1, Math.floor(value)));
+}
 
 /** The vendor's own defaults, sent explicitly so the answer is reproducible. */
 const DEFAULT_CONNOTATION_THRESHOLD = 0.4;
@@ -160,10 +175,7 @@ export async function fetchContentAnalysisSummary(
     throw new AppError("VALIDATION_ERROR", "keyword is required");
   }
 
-  const listLimit = Math.min(
-    MAX_INTERNAL_LIST_LIMIT,
-    Math.max(1, Math.floor(input.internalListLimit ?? 10)),
-  );
+  const listLimit = resolveInternalListLimit(input.internalListLimit);
   const positiveThreshold = clampThreshold(
     input.positiveConnotationThreshold,
     DEFAULT_CONNOTATION_THRESHOLD,
@@ -271,7 +283,6 @@ const TRENDS_PATH = "/v3/content_analysis/phrase_trends/live";
 export const PHRASE_TRENDS_HISTORY_FLOOR = "2022-10-31";
 
 /** Documented maximum for the internal arrays, same as `summary`. */
-const MAX_TRENDS_LIST_LIMIT = 20;
 
 const trendsResultSchema = z
   .object({
@@ -389,10 +400,7 @@ export async function fetchPhraseTrends(input: {
     }
   }
 
-  const listLimit = Math.min(
-    MAX_TRENDS_LIST_LIMIT,
-    Math.max(1, Math.floor(input.internalListLimit ?? 10)),
-  );
+  const listLimit = resolveInternalListLimit(input.internalListLimit);
 
   const response = await dataforseoPost(
     TRENDS_PATH,

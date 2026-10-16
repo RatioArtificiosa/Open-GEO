@@ -1,13 +1,4 @@
-import {
-  applyCostMarkup,
-  resolveCostMarkup,
-} from "@/server/billing/costMarkup";
 import type { BillingCustomerContext } from "@/server/billing/subscription";
-import {
-  assertUsageCreditsAvailable,
-  getOrCreateOrganizationCustomer,
-  trackUsageCreditSpend,
-} from "@/server/billing/subscription";
 import { fetchAdTrafficForecast } from "@/server/lib/dataforseo/adTraffic";
 import {
   fetchLlmAggregatedMetrics,
@@ -44,6 +35,24 @@ import {
 } from "@/server/lib/dataforseo/business";
 import { fetchClickstreamVolumes } from "@/server/lib/dataforseo/clickstream";
 import {
+  estimateAiKeywordVolume,
+  estimateBacklinksHistory,
+  estimateBacklinksList,
+  estimateBusinessListings,
+  estimateCategoryItems,
+  estimateClickstreamVolumes,
+  estimateContentListings,
+  estimateContentSearch,
+  estimateKeywordOverview,
+  estimatePhraseTrends,
+  estimateRankedKeywords,
+  estimateRelevantPages,
+  estimateSearchIntent,
+  estimateSerpCompetitors,
+  estimateTechnologies,
+  estimateWhois,
+} from "@/server/lib/dataforseo/client-estimates";
+import {
   fetchContentAnalysisSummary,
   fetchPhraseTrends,
 } from "@/server/lib/dataforseo/content-analysis";
@@ -53,11 +62,6 @@ import { fetchDataforseoTrendsExplore } from "@/server/lib/dataforseo/dataforseo
 import { fetchDataforseoTrendsDemography } from "@/server/lib/dataforseo/dataforseoTrendsDemography";
 import { fetchDataforseoTrendsMergedData } from "@/server/lib/dataforseo/dataforseoTrendsMerged";
 import { fetchDataforseoTrendsSubregion } from "@/server/lib/dataforseo/dataforseoTrendsSubregion";
-import {
-  type DataforseoApiCallCost,
-  type DataforseoApiResponse,
-  DataforseoChargedTaskError,
-} from "@/server/lib/dataforseo/envelope";
 import {
   fetchAdsKeywordIdeas,
   fetchAdsSearchVolume,
@@ -104,112 +108,25 @@ import {
 } from "@/server/lib/dataforseo/serp";
 import { fetchDomainTechnologies } from "@/server/lib/dataforseo/technologies";
 import { fetchWhoisOverview } from "@/server/lib/dataforseo/whois";
-import { AppError } from "@/server/lib/errors";
-import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
-import { AUTUMN_SEO_DATA_CREDITS_PER_USD } from "@/shared/billing";
+import { mapDataforseoPathToCreditFeature } from "@/shared/billing-credit-features";
 import {
-  type CreditFeature,
-  mapDataforseoPathToCreditFeature,
-} from "@/shared/billing-credit-features";
-import {
-  DFS_DOMAIN,
   DFS_LABS,
   estimateQueuedLlmResponsesPost,
 } from "@/shared/dataforseo-pricing";
 import { getLlmScraperTask, postLlmScraperTasks } from "./ai-scraper";
+import { meter, meterEnvelope } from "./client-meter";
 
 export { mapDataforseoPathToCreditFeature };
-
-/**
- * Wraps a section fetcher with billing metering. Each entry on the client is
- * `meter(customer, fetchX, defaultFeature?)`, which returns a function with
- * the fetcher's own input type and resolves to its unwrapped `.data`.
- *
- * `defaultFeature` is the fallback credit feature; a caller can override it per
- * call by passing `creditFeature` in the input (e.g. an MCP tool attributing
- * spend to its own feature). The extra field is ignored by the fetchers, which
- * read named fields rather than spreading the input.
- */
-/**
- * Wrap one vendor fetcher in the metering + credit gate.
- *
- * `estimateUsd` is what the call is *expected* to cost, drawn from
- * `@/shared/dataforseo-pricing`. It is passed to `assertUsageCreditsAvailable`
- * so the gate can refuse a call the wallet cannot cover, rather than only a call
- * against an empty wallet. One remaining credit used to admit a $0.12 WHOIS read.
- *
- * **A function of the input, not a number**, because the expensive endpoints
- * bill per task: `rankCheckTaskPost` posts up to 100 tasks and
- * `domainMetricsByCategories` bills per returned row. A fixed estimate would
- * understate them by exactly the factor that makes them dangerous.
- *
- * Endpoints that omit it keep the old "any non-empty wallet" behaviour. That is
- * deliberate: the price book's own header calls most of its rows the
- * least-verified part of the file, and a floor built on an unverified price
- * would refuse legitimate work. The estimate only has to be right to be useful —
- * a wrong one that is too low is the old behaviour, and a wrong one that is too
- * high is a refusal, which is loud rather than silent.
- */
-function meter<I, T>(
-  customer: BillingCustomerContext,
-  fetcher: (input: I) => Promise<DataforseoApiResponse<T>>,
-  defaultFeature?: CreditFeature,
-  estimateUsd?: (input: I) => number,
-): (input: I & { creditFeature?: CreditFeature }) => Promise<T> {
-  return (input) =>
-    meterDataforseoCall(
-      customer,
-      () => fetcher(input),
-      input.creditFeature ?? defaultFeature,
-      estimateUsd?.(input),
-    ).then((response) => response.data);
-}
-
-/**
- * The envelope-returning sibling of `meter`.
- *
- * ## Who needs it and why
- *
- * A scheduled capture reconciles its spend. `scheduledEtvCapture.ts` reads
- * `response.billing.costUsd` into `report.actualCostUsd`, and that number is the
- * one an operator checks against the DataForSEO invoice. `meter` unwrps the
- * billing away, so a capture built on it would charge the customer correctly and
- * record a cost of `undefined` — and nothing would fail, because the budget runs
- * on the price-book estimate rather than the vendor's figure.
- *
- * **That is what made the shape dangerous**: a metered capture that reports zero
- * actual spend is indistinguishable from a correctly metered one, from the tests
- * and from the log. The receipt has to travel with the charge, which is the same
- * principle as the design system's evidence drawer, applied to money.
- *
- * Identical gating, identical credit feature, identical estimate — only the
- * return type differs, so the two cannot disagree about whether a call is
- * permitted.
- */
-function meterEnvelope<I, T>(
-  customer: BillingCustomerContext,
-  fetcher: (input: I) => Promise<DataforseoApiResponse<T>>,
-  defaultFeature?: CreditFeature,
-  estimateUsd?: (input: I) => number,
-): (
-  input: I & { creditFeature?: CreditFeature },
-) => Promise<DataforseoApiResponse<T>> {
-  return (input) =>
-    meterDataforseoCall(
-      customer,
-      () => fetcher(input),
-      input.creditFeature ?? defaultFeature,
-      estimateUsd?.(input),
-    );
-}
 
 export function createDataforseoClient(customer: BillingCustomerContext) {
   return {
     business: {
+      // Estimate: per-request fee plus per listing; `limit` is required.
       businessListings: meter(
         customer,
         fetchBusinessListingsSearch,
         "local_seo",
+        estimateBusinessListings,
       ),
       questionsAnswers: meter(customer, fetchQuestionsAnswers, "local_seo"),
       myBusinessInfo: meter(customer, fetchMyBusinessInfo, "local_seo"),
@@ -220,10 +137,32 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
     },
     backlinks: {
       summary: meter(customer, fetchBacklinksSummary),
-      rows: meter(customer, fetchBacklinksRows),
-      referringDomains: meter(customer, fetchReferringDomains),
-      domainPages: meter(customer, fetchDomainPagesSummary),
-      history: meter(customer, fetchBacklinksHistory),
+      // Estimates mirror `limit ?? 100` (lists) and the inclusive day range
+      // (history); see client-estimates.ts.
+      rows: meter(
+        customer,
+        fetchBacklinksRows,
+        undefined,
+        estimateBacklinksList,
+      ),
+      referringDomains: meter(
+        customer,
+        fetchReferringDomains,
+        undefined,
+        estimateBacklinksList,
+      ),
+      domainPages: meter(
+        customer,
+        fetchDomainPagesSummary,
+        undefined,
+        estimateBacklinksList,
+      ),
+      history: meter(
+        customer,
+        fetchBacklinksHistory,
+        undefined,
+        estimateBacklinksHistory,
+      ),
     },
     keywords: {
       related: meter(customer, fetchRelatedKeywords),
@@ -250,10 +189,12 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       trendsSubregion: meter(customer, fetchDataforseoTrendsSubregion),
       // All three views in one request, so they cannot disagree about the window they describe.
       trendsMerged: meter(customer, fetchDataforseoTrendsMergedData),
+      // Estimate: per-request fee plus per keyword sent (validated upstream).
       clickstreamVolumes: meter(
         customer,
         fetchClickstreamVolumes,
         "keyword_research",
+        estimateClickstreamVolumes,
       ),
     },
     domain: {
@@ -272,8 +213,18 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
        * differs, so the two cannot disagree about whether a call is permitted.
        */
       rankOverviewEnvelope: meterEnvelope(customer, fetchDomainRankOverview),
-      rankedKeywords: meter(customer, fetchRankedKeywords),
-      relevantPages: meter(customer, fetchRelevantPages),
+      rankedKeywords: meter(
+        customer,
+        fetchRankedKeywords,
+        undefined,
+        estimateRankedKeywords,
+      ),
+      relevantPages: meter(
+        customer,
+        fetchRelevantPages,
+        undefined,
+        estimateRelevantPages,
+      ),
       // WHOIS and technologies are both billed at request time, so both are metered. WHOIS is the
       // expensive one (~$0.12) and technologies the cheap one (~$0.012) that carries the contact
       // fields the lead list is built from.
@@ -285,13 +236,13 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
         customer,
         fetchWhoisOverview,
         undefined,
-        () => DFS_DOMAIN.whois.perRequest,
+        estimateWhois,
       ),
       domainTechnologies: meter(
         customer,
         fetchDomainTechnologies,
         undefined,
-        () => DFS_DOMAIN.technologies.perRequest,
+        estimateTechnologies,
       ),
       // The three missing domain-overview endpoints (CL-401 remainder),
       // each metered with an estimator that matches its billing shape:
@@ -333,12 +284,23 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       // The categories a domain ranks in. Metered with everything else in Labs, and the
       // `includeClickstreamData` flag doubles the vendor's price — a caller's decision, never a
       // default.
-      categoriesForDomain: meter(customer, fetchCategoriesForDomain),
+      // Estimate: tested helper plus the clickstream request-fee double.
+      categoriesForDomain: meter(
+        customer,
+        fetchCategoriesForDomain,
+        undefined,
+        estimateCategoryItems,
+      ),
       // The drill-down: keywords relevant to a set of categories. `categoryIntersection` is
       // required rather than defaulted, because the vendor's own default (`true`) silently means
       // "keywords in ALL of these categories", which is not what a caller passing several
       // categories usually means.
-      keywordsForCategories: meter(customer, fetchKeywordsForCategories),
+      keywordsForCategories: meter(
+        customer,
+        fetchKeywordsForCategories,
+        undefined,
+        estimateCategoryItems,
+      ),
       // The comparison read: who ranks in a set of categories and how their traffic moved between
       // two months. Priced at `heavyHistorical` — about 10× the standard Labs rate, and billed
       // **per returned row**, so the estimate scales with the task rather than being a constant.
@@ -388,26 +350,61 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
         customer,
         fetchContentAnalysisSummary,
         "ai_citations",
+        estimateContentListings,
       ),
       // The same citation data with a time axis. Also `ai_citations`, and for
       // the same reason: it measures citing pages, not prompts.
-      contentPhraseTrends: meter(customer, fetchPhraseTrends, "ai_citations"),
+      contentPhraseTrends: meter(
+        customer,
+        fetchPhraseTrends,
+        "ai_citations",
+        estimatePhraseTrends,
+      ),
       // Two overlapping distributions over the same corpus. `ai_citations`
       // again — citing pages classified by sentiment, still not prompts.
-      contentSentiment: meter(customer, fetchSentimentAnalysis, "ai_citations"),
+      contentSentiment: meter(
+        customer,
+        fetchSentimentAnalysis,
+        "ai_citations",
+        estimateContentListings,
+      ),
       // The individual citing pages. Same feature: citing pages, not prompts.
-      contentSearch: meter(customer, fetchContentSearch, "ai_citations"),
+      // Estimate folds per-row internal lists into the row count (see above).
+      contentSearch: meter(
+        customer,
+        fetchContentSearch,
+        "ai_citations",
+        estimateContentSearch,
+      ),
     },
     labs: {
       // Callers (e.g. the keyword-metrics MCP tool) can attribute the spend to
       // their own feature by passing `creditFeature` in the input; defaults to
       // rank_tracking when omitted.
-      keywordOverview: meter(customer, fetchKeywordOverview, "rank_tracking"),
-      serpCompetitors: meter(customer, fetchSerpCompetitors),
+      // Estimate: per keyword sent, clickstream doubling the request fee.
+      keywordOverview: meter(
+        customer,
+        fetchKeywordOverview,
+        "rank_tracking",
+        estimateKeywordOverview,
+      ),
+      // Estimate: single post, the limit caps items.
+      serpCompetitors: meter(
+        customer,
+        fetchSerpCompetitors,
+        undefined,
+        estimateSerpCompetitors,
+      ),
       // Intent is a property of the keyword rather than of the market, so the
       // endpoint takes neither location nor language; the caller that omits
       // both is doing it right, not being careless.
-      searchIntent: meter(customer, fetchSearchIntent),
+      // Estimate: per keyword sent (validation dedupes; safe-side overquote).
+      searchIntent: meter(
+        customer,
+        fetchSearchIntent,
+        undefined,
+        estimateSearchIntent,
+      ),
     },
     lighthouse: {
       live: meter(customer, fetchLighthouseResult),
@@ -486,8 +483,12 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
         (input) => estimateQueuedLlmResponsesPost(input.tasks.length),
       ),
       // AI demand for a topic: the "high AI demand, low Google demand" signal.
-      keywordVolume: meter(customer, (input: AiKeywordVolumeInput) =>
-        fetchAiKeywordVolume(input),
+      // Estimate: tested batch helper (task fee plus per-keyword rate).
+      keywordVolume: meter(
+        customer,
+        (input: AiKeywordVolumeInput) => fetchAiKeywordVolume(input),
+        undefined,
+        estimateAiKeywordVolume,
       ),
       /**
        * The envelope-returning sibling, for the nightly AI keyword capture.
@@ -500,6 +501,8 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       keywordVolumeEnvelope: meterEnvelope(
         customer,
         (input: AiKeywordVolumeInput) => fetchAiKeywordVolume(input),
+        undefined,
+        estimateAiKeywordVolume,
       ),
       // LLM Scraper: authentic ChatGPT Search and Gemini answers, scraped rather than
       // generated. The POST is where the vendor charges, so it is metered; the `task_get`
@@ -509,122 +512,4 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       scraperTaskResult: getLlmScraperTask,
     },
   } as const;
-}
-
-/**
- * Run one vendor call through the credit gate, and return the **envelope**.
- *
- * ## Why this returns the envelope while `meter` unwraps it
- *
- * This returned `T` — the payload with the billing envelope stripped — and every
- * consumer was written against that. A scheduled capture is not.
- *
- * `scheduledEtvCapture.ts` reads `response.billing.costUsd` into its report, and
- * `report.actualCostUsd` is the figure an operator reconciles against the
- * DataForSEO invoice. The metered client had charged the customer and thrown the
- * receipt away, so a capture routed through it would silently report an
- * `actualCostUsd` of `undefined` — the budget still works, because it runs on the
- * price-book estimate, but the one number that shows what the vendor actually
- * billed would read as zero forever. **A charge with no receipt is exactly the
- * trust failure the evidence-drawer design exists to prevent.**
- *
- * So the internal helper keeps the envelope — strictly more information — and
- * `meter` unwraps, which leaves every existing consumer's type and behaviour
- * untouched. `meterEnvelope` is the sibling for a caller that needs the receipt.
- */
-async function meterDataforseoCall<T>(
-  customer: BillingCustomerContext,
-  execute: () => Promise<DataforseoApiResponse<T>>,
-  creditFeature?: CreditFeature,
-  estimatedCostUsd?: number,
-): Promise<DataforseoApiResponse<T>> {
-  const isHostedMode = await isHostedServerAuthMode();
-
-  if (!isHostedMode) {
-    return execute();
-  }
-
-  const billingCustomer = await getOrCreateOrganizationCustomer(customer);
-
-  const { monthlyRemaining } = await assertUsageCreditsAvailable(
-    billingCustomer.id,
-    estimatedCostUsd,
-  );
-
-  let result: DataforseoApiResponse<T>;
-  try {
-    result = await execute();
-  } catch (error) {
-    if (error instanceof DataforseoChargedTaskError) {
-      // A malformed request (DataForSEO "Invalid Field: ...") that DataForSEO
-      // did not bill returns no value to the customer, so don't charge — surface
-      // it as a non-reportable VALIDATION_ERROR. If DataForSEO still billed us
-      // (costUsd > 0), fall through to the normal charge + capture path so the
-      // spend stays metered and visible instead of silently eaten.
-      if (error.isInvalidField && error.billing.costUsd <= 0) {
-        throw new AppError("VALIDATION_ERROR", error.message);
-      }
-      const chargedCredits = Math.round(
-        applyCostMarkup(error.billing.costUsd, await resolveCostMarkup()) *
-          AUTUMN_SEO_DATA_CREDITS_PER_USD,
-      );
-      await trackDataforseoCost({
-        customer,
-        customerId: billingCustomer.id,
-        billing: error.billing,
-        monthlyRemaining,
-        creditFeature,
-        totalCostCredits: chargedCredits,
-      });
-    }
-    throw error;
-  }
-
-  // One computation of the charge, shared by the two side effects: what the
-  // customer is charged cannot be computed twice and expected to agree, and the
-  // ledger's `credits` is the number the charge used — a ledger row holding a
-  // different figure is a reconciliation that never closes.
-  const totalCostCredits = Math.round(
-    applyCostMarkup(result.billing?.costUsd ?? 0, await resolveCostMarkup()) *
-      AUTUMN_SEO_DATA_CREDITS_PER_USD,
-  );
-
-  await trackDataforseoCost({
-    customer,
-    customerId: billingCustomer.id,
-    billing: result.billing,
-    monthlyRemaining,
-    creditFeature,
-    totalCostCredits,
-  });
-
-  // The whole envelope, so a caller that needs the receipt — a nightly capture
-  // reconciling `actualCostUsd` against the vendor invoice — is not handed a
-  // charge with the billing stripped off. `meter` below unwraps it for the
-  // callers that want the payload.
-  return result;
-}
-
-async function trackDataforseoCost(args: {
-  customer: BillingCustomerContext;
-  customerId: string;
-  billing: DataforseoApiCallCost;
-  monthlyRemaining: number;
-  creditFeature?: CreditFeature;
-  /** The credits the charge used, computed once and shared with the ledger. */
-  totalCostCredits: number;
-}) {
-  await trackUsageCreditSpend({
-    customer: args.customer,
-    customerId: args.customerId,
-    creditFeature:
-      args.creditFeature ?? mapDataforseoPathToCreditFeature(args.billing.path),
-    costUsd: args.billing.costUsd,
-    monthlyRemaining: args.monthlyRemaining,
-    properties: {
-      provider: "dataforseo",
-      paths: [args.billing.path.join("/")],
-      fromCache: false,
-    },
-  });
 }

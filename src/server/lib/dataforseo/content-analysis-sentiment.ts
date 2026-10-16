@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { resolveInternalListLimit } from "@/server/lib/dataforseo/content-analysis";
 import { dataforseoPost } from "@/server/lib/dataforseo/core";
 import { NO_RETRY_BILLED_POST } from "@/server/lib/dataforseo/billedTasks";
 import { createDataforseoBillingClassifier } from "@/server/lib/dataforseoBillingClassification";
@@ -83,7 +84,6 @@ const classifyError = createDataforseoBillingClassifier({
 });
 
 /** Documented maximum for the internal arrays. */
-const MAX_INTERNAL_LIST_LIMIT = 20;
 
 /** The vendor's own defaults, sent explicitly so the answer is reproducible. */
 const DEFAULT_CONNOTATION_THRESHOLD = 0.4;
@@ -247,10 +247,7 @@ export async function fetchSentimentAnalysis(input: {
     throw new AppError("VALIDATION_ERROR", "keyword is required");
   }
 
-  const listLimit = Math.min(
-    MAX_INTERNAL_LIST_LIMIT,
-    Math.max(1, Math.floor(input.internalListLimit ?? 10)),
-  );
+  const listLimit = resolveInternalListLimit(input.internalListLimit);
   const positiveThreshold = clampThreshold(
     input.positiveConnotationThreshold,
     DEFAULT_CONNOTATION_THRESHOLD,

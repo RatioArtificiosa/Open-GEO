@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { sortBy } from "remeda";
+import { resolveInternalListLimit } from "@/server/lib/dataforseo/content-analysis";
 import { dataforseoPost } from "@/server/lib/dataforseo/core";
 import { NO_RETRY_BILLED_POST } from "@/server/lib/dataforseo/billedTasks";
 import { createDataforseoBillingClassifier } from "@/server/lib/dataforseoBillingClassification";
@@ -82,7 +83,6 @@ const DEFAULT_LIMIT = 100;
 const DEFAULT_ORDER_BY = ["content_info.sentiment_connotations.anger,desc"];
 
 /** Documented maximum for the internal arrays; the default here is 1. */
-const MAX_INTERNAL_LIST_LIMIT = 20;
 
 /**
  * Per-citation **emotion** scores, 0-1. Not counts — see the module note.
@@ -275,10 +275,7 @@ export async function fetchContentSearch(input: {
     MAX_LIMIT,
     Math.max(1, Math.floor(input.limit ?? DEFAULT_LIMIT)),
   );
-  const internalListLimit = Math.min(
-    MAX_INTERNAL_LIST_LIMIT,
-    Math.max(1, Math.floor(input.internalListLimit ?? 10)),
-  );
+  const internalListLimit = resolveInternalListLimit(input.internalListLimit);
   // The vendor's documented default is most-angry-first. It is kept as the
   // fallback so the answer is reproducible, and `orderBy` in the result records
   // which sort was actually sent.

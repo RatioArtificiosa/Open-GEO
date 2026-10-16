@@ -90,6 +90,26 @@
       }
     },
     {
+      // **The price table grows one entry per endpoint, so a logic-file cap
+      // misfires on it by construction.** `src/shared/dataforseo-pricing.ts`
+      // sat at 399/400 code lines: any new endpoint — the product's normal
+      // growth — breaks the build without anything getting worse. Splitting
+      // the table would scatter the single source of truth the quote triple
+      // (endpoint path, book entry, test pin) depends on, which trades a
+      // green gate for a real defect class. 450 fits ~8 more entries; the
+      // 400 cap in `src/**` is untouched, and entries stay reviewable
+      // because each is one typed row (`satisfies DfsPrice` — untyped rows
+      // like the old `perItem` shape fail the typecheck instead of billing
+      // wrong).
+      "files": ["src/shared/dataforseo-pricing.ts"],
+      "rules": {
+        "eslint/max-lines": [
+          "error",
+          { "max": 450, "skipBlankLines": true, "skipComments": true }
+        ]
+      }
+    },
+    {
       // **`scripts/**` has a higher line cap, and the reason is the kind of file
       // they are.** `src/**` is the product, where 400 lines is a real signal: a
       // source file over it is usually several responsibilities. This directory
