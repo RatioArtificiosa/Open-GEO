@@ -1,11 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { DomainService } from "@/server/features/domain/services/DomainService";
 import { DomainIntel } from "@/server/features/domain/services/domainIntel";
+import { TechLeadsService } from "@/server/features/domain/services/techLeads";
 import { requireProjectContext } from "@/serverFunctions/middleware";
 import { resolveLabsMarket } from "@/shared/keyword-locations";
 import {
   domainCompetitorsSchema,
   domainHistoricalSchema,
+  domainLeadsSchema,
   domainKeywordSuggestionsSchema,
   domainKeywordsPageRequestSchema,
   domainOverviewSchema,
@@ -134,6 +136,26 @@ export const getDomainCompetitors = createServerFn({ method: "POST" })
       {
         ...data,
         ...resolveLabsMarket(data, context.project),
+        organizationId: context.organizationId,
+        projectId: context.projectId,
+      },
+      context,
+    ),
+  );
+
+/**
+ * CL-408 lead lists (server half). WHOIS prospecting plus per-candidate
+ * technology reads, behind project auth like every other domain read. The
+ * price preview lives on the button and in the MCP dry run; this function
+ * spends when called.
+ */
+export const findTechLeads = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(domainLeadsSchema)
+  .handler(async ({ data, context }) =>
+    TechLeadsService.findTechLeads(
+      {
+        ...data,
         organizationId: context.organizationId,
         projectId: context.projectId,
       },

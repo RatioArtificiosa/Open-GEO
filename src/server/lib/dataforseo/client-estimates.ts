@@ -19,6 +19,7 @@ import {
   trendPeriods,
 } from "@/server/lib/dataforseo/estimates";
 import { standardLabsItemEstimate } from "@/server/lib/dataforseo/labsDomainOverview";
+import { TECH_LEAD_TECH_ROWS } from "@/shared/tech-lead-cost";
 import { estimateAiKeywordBatch } from "@/shared/ai-keyword-batch-cost";
 import {
   DFS_DOMAIN,
@@ -42,7 +43,7 @@ export function estimateTechnologies(input: { limit?: number }): number {
   return requestPlusUnits(
     DFS_DOMAIN.technologies.perRequest,
     DFS_DOMAIN.technologies.perUnit,
-    countUnits(input.limit, 10),
+    countUnits(input.limit, TECH_LEAD_TECH_ROWS),
   );
 }
 

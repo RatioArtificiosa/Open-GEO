@@ -49,6 +49,7 @@ import {
 import { getGeoTopCitationsTool } from "@/server/mcp/tools/geo-top-citations-tool";
 import { getBacklinksOverviewTool } from "@/server/mcp/tools/get-backlinks-overview";
 import { getBacklinksProfileTool } from "@/server/mcp/tools/get-backlinks-profile";
+import { findTechLeadsTool } from "@/server/mcp/tools/find-tech-leads";
 import { getDomainCompetitorsTool } from "@/server/mcp/tools/get-domain-competitors";
 import { getDomainHistoricalTool } from "@/server/mcp/tools/get-domain-historical";
 import { getDomainKeywordSuggestionsTool } from "@/server/mcp/tools/get-domain-keyword-suggestions";
@@ -239,6 +240,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getDomainHistoricalTool);
   register(getDomainSubdomainsTool);
   register(getDomainCompetitorsTool);
+  register(findTechLeadsTool);
   register(getBacklinksOverviewTool);
   register(getBacklinksProfileTool);
   register(getSerpResultsTool);

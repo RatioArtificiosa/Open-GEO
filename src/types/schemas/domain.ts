@@ -99,6 +99,25 @@ export const domainSubdomainsSchema = z.object({
   offset: z.number().int().min(0).max(100000).optional(),
 });
 
+/**
+ * CL-408 lead lists: a WHOIS domain pattern plus the stack gap to slice on.
+ * maxCandidates bounds the per-list spend (one technologies read per
+ * candidate); the service cap is the backstop and this schema is the UI's.
+ */
+export const domainLeadsSchema = z.object({
+  projectId: z.string().uuid(),
+  domainPattern: z.string().min(1, "Domain pattern is required").max(128),
+  requiredTech: z
+    .array(z.string().min(1).max(64))
+    .min(1, "At least one required technology")
+    .max(10),
+  excludedTech: z
+    .array(z.string().min(1).max(64))
+    .max(10)
+    .optional(),
+  maxCandidates: z.number().int().min(1).max(25).optional(),
+});
+
 export const domainCompetitorsSchema = z.object({
   projectId: z.string().uuid(),
   domain: z.string().min(1, "Domain is required").max(2048),
