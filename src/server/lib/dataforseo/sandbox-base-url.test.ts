@@ -58,7 +58,13 @@ const { getOptionalEnvValue } = await import("@/server/lib/runtime-env");
 describe("DATAFORSEO_BASE_URL", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    vi.mocked(getOptionalEnvValue).mockClear();
+    // mockReset, not mockClear: `mockResolvedValueOnce` queues survive
+    // mockClear, and the explicit-baseUrl test below queues a value the
+    // implementation never reads (`options.baseUrl ?? ...` short-circuits).
+    // Under shuffle that orphaned value leaked into the next test and
+    // pointed it at the sandbox. Reset restores the factory default
+    // (`async () => undefined`), so no behavior changes.
+    vi.mocked(getOptionalEnvValue).mockReset();
   });
 
   it("uses production when the variable is unset", async () => {
@@ -147,9 +153,8 @@ describe("DATAFORSEO_BASE_URL", () => {
     // whole gate against a local server) and what `serp-location-validate.ts`
     // pins to the sandbox so a location check never bills regardless of the
     // ambient setting.
-    vi.mocked(getOptionalEnvValue).mockResolvedValueOnce(
-      DATAFORSEO_SANDBOX_URL,
-    );
+    // No env value queued on purpose: the explicit argument short-circuits
+    // before the env read, so a queued value would leak to the next test.
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response("{}")),

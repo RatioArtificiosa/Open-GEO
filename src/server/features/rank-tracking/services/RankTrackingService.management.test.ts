@@ -72,6 +72,11 @@ describe("RankTrackingService management invariants", () => {
       { id: "kw_1", keyword: "seo" },
       { id: "kw_2", keyword: "audit" },
     ]);
+    // Mode mocks are shared mutable state: without neutral defaults the
+    // ceiling tests only pass when they inherit self-host mode from the
+    // paid-plan test. Order-dependence caught by --sequence.shuffle.
+    mocks.isHostedServerAuthMode.mockResolvedValue(false);
+    mocks.customerHasPaidPlan.mockResolvedValue(false);
   });
 
   it("reports only keyword rows actually inserted", async () => {

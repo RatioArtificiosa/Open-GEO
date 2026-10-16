@@ -182,6 +182,10 @@ describe("the ETV capture refuses an org with no credits", () => {
       rank: null,
       cpc: null,
     }));
+    // The vendor-call ledger is module state shared across tests: without
+    // this, the refusal test only passes when it runs before the funded
+    // tests. Order-dependence caught by --sequence.shuffle.
+    vendorCalls.length = 0;
   });
 
   it("makes no vendor call and stores nothing", async () => {

@@ -411,6 +411,10 @@ describe("GeoPatrol", () => {
   });
 
   it("keeps one platform's failure from discarding another's answers", async () => {
+    // listTargets is shared mock state: without reset() this test only
+    // passes when it runs after a test that set targets. Order-dependence
+    // caught by --sequence.shuffle.
+    reset();
     mentionsSearch
       .mockReset()
       .mockRejectedValueOnce(new Error("rate limited"))
