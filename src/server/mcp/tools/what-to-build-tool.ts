@@ -31,7 +31,7 @@ import { projectIdSchema } from "@/server/mcp/schemas";
  * input order. The module documents each refusal; this tool reports them.
  */
 
-const candidateSchema = z
+export const candidateSchema = z
   .object({
     keyword: z.string().min(1).describe("The gap keyword to price."),
     volume: z

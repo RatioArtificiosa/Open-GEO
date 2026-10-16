@@ -134,6 +134,7 @@ import {
 import { getTrendsOverviewTool } from "@/server/mcp/tools/trends-overview-tool";
 import { getSearchTrendsTool } from "@/server/mcp/tools/trends-tools";
 import { whatToBuildTool } from "@/server/mcp/tools/what-to-build-tool";
+import { generateContentBriefTool } from "@/server/mcp/tools/generate-content-brief-tool";
 import { whoamiTool } from "@/server/mcp/tools/whoami";
 
 type ToolSchema = z.ZodType | z.ZodRawShape;
@@ -274,6 +275,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   // The build list: gaps ranked with formats, priced by the opportunity
   // scorer — pure ranking over supplied candidates, no vendor call.
   register(whatToBuildTool);
+  register(generateContentBriefTool);
   register(councilMemoTool);
   // Pure readers over supplied data — grading, benchmarks, personas — no
   // vendor call in any of them, so no dry_run to offer.
