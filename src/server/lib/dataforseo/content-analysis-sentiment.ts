@@ -230,11 +230,7 @@ function dominantOf(
   return tied ? null : best;
 }
 
-function clampThreshold(value: number | undefined, fallback: number): number {
-  if (value === undefined) return fallback;
-  if (!Number.isFinite(value)) return fallback;
-  return Math.min(1, Math.max(0, value));
-}
+import { clampThreshold } from "@/server/lib/dataforseo/content-analysis";
 
 export async function fetchSentimentAnalysis(input: {
   keyword: string;

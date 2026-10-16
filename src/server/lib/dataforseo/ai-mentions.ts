@@ -47,9 +47,7 @@ const classifyAiSearchError = createDataforseoBillingClassifier({
 const assertOptions = (path: string) =>
   ({ classify: classifyAiSearchError, classifyPath: path }) as const;
 
-function clampLimit(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, Math.floor(value)));
-}
+import { clampLimit } from "@/server/lib/dataforseo/ai";
 
 function firstResult(task: DataforseoTaskLike): Record<string, unknown> | null {
   const first = task.result?.[0];

@@ -37,7 +37,9 @@ const classifyAiSearchError = createDataforseoBillingClassifier({
 const assertOptions = (path: string) =>
   ({ classify: classifyAiSearchError, classifyPath: path }) as const;
 
-function clampLimit(value: number, min: number, max: number): number {
+/** Clamp to [min, max] after flooring; shared because ai-mentions.ts
+ * spells the identical formula (A11: a rule written twice). */
+export function clampLimit(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.floor(value)));
 }
 

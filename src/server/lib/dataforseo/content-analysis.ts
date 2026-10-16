@@ -161,7 +161,10 @@ type ContentAnalysisInput = {
 /** 0-1 thresholds are clamped rather than passed through: an out-of-range
  *  value is a billed rejection, and the useful reading is "clamped", not
  *  "the server refused it". */
-function clampThreshold(value: number | undefined, fallback: number): number {
+export function clampThreshold(
+  value: number | undefined,
+  fallback: number,
+): number {
   if (value === undefined) return fallback;
   if (!Number.isFinite(value)) return fallback;
   return Math.min(1, Math.max(0, value));
