@@ -126,7 +126,7 @@ export const findTechLeadsTool = {
       return dryRunResponse({
         subject: `tech lead list for '${args.domainPattern}' (${maxCandidates} candidates)`,
         estimatedCredits: creditsFor(usd),
-        unitSentence: `USD ${DFS_DOMAIN.whois.perRequest} per WHOIS request plus USD ${DFS_DOMAIN.technologies.perRequest} per candidate examined, DataForSEO domain analytics`,
+        unitSentence: `USD ${DFS_DOMAIN.whois.perRequest} per WHOIS request plus USD ${DFS_DOMAIN.whois.perUnit} per domain, and USD ${DFS_DOMAIN.technologies.perRequest} per candidate technologies read plus USD ${DFS_DOMAIN.technologies.perUnit} per row, DataForSEO domain analytics`,
         meta: buildProjectMeta(
           context,
           args.projectId,
