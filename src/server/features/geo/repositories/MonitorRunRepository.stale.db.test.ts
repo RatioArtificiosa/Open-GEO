@@ -41,6 +41,13 @@ beforeAll(async () => {
   await client.executeMultiple(
     readFileSync("drizzle/0052_smart_the_hood.sql", "utf8"),
   );
+  // 0057 adds geo_acquisition_mode to the hand-created projects table above.
+  // The harness must track migrations that alter tables it uses, or it tests
+  // against a schema production no longer has — which is what the
+  // migration-coverage gate exists to catch.
+  await client.executeMultiple(
+    readFileSync("drizzle/0057_geo_acquisition_mode.sql", "utf8"),
+  );
   tryBeginRun = (await import("./MonitorRunRepository")).tryBeginRun;
 });
 
