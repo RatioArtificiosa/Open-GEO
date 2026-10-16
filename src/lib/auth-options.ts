@@ -17,6 +17,30 @@ export const baseAuthOptions = {
     minPasswordLength: HOSTED_PASSWORD_MIN_LENGTH,
     maxPasswordLength: HOSTED_PASSWORD_MAX_LENGTH,
   },
+  /**
+   * Brute-force protection on the password endpoints, stored in the database.
+   *
+   * Better Auth's default limiter is in-memory, which on Workers is one bucket
+   * per isolate — an attacker with N concurrent connections gets N budgets.
+   * `storage: "database"` makes the bucket global via the adapter's rateLimit
+   * table (both dialects; see the schema). The password endpoints get their own
+   * tight rules (10/min): Turnstile already gates sign-up bots, but captcha
+   * farms solve captchas while a rate cap stops the loop regardless. The
+   * general 100/min budget leaves legitimate bursts (tab restores, retries)
+   * alone. Client IP resolution (cf-connecting-ip) is configured alongside in
+   * auth-config.ts — without it every isolate shares one bucket and the limit
+   * throttles the platform instead of the attacker.
+   */
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 100,
+    storage: "database" as const,
+    customRules: {
+      "/sign-in/email": { window: 60, max: 10 },
+      "/sign-up/email": { window: 60, max: 10 },
+    },
+  },
   user: {
     additionalFields: userAdditionalFields,
   },

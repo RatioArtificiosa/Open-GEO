@@ -254,3 +254,15 @@ export const invitationRelations = relations(invitation, ({ one }) => ({
     references: [user.id],
   }),
 }));
+/**
+ * Brute-force buckets for auth rate limiting (`rateLimit.storage:
+ * "database" in auth-options). One row per IP+path, written by
+ * better-auth's own storage wrapper — no application code touches this
+ * table directly. Shape mirrors the CLI reference output field-for-field.
+ */
+export const rateLimit = sqliteTable("rate_limit", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  count: integer("count").notNull(),
+  lastRequest: integer("last_request").notNull(),
+});

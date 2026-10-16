@@ -174,6 +174,7 @@ export const {
   samSessions,
   user,
   session,
+  rateLimit,
   account,
   apikey,
   verification,

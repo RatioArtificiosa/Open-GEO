@@ -28,6 +28,13 @@ export const CITATION_GAP_KEY = "citationGapViewedRecorded";
  * Returns true when `fire` ran. Storage failure fails open — the event fires
  * and the count may be high — because an uncounted conversion is lost data
  * while a page that breaks over analytics is a broken product.
+ *
+ * Same-tab and StrictMode double-invoke are covered (synchronous check-then-
+ * mark). Cross-tab races are NOT: two tabs open in the same tick can both
+ * read absent and both fire. localStorage has no atomic check-and-set, and an
+ * async lock here would make a telemetry helper fallible infrastructure. The
+ * overcount is bounded (one extra fire per coincident double-open) and leans
+ * conservative, so it is stated rather than engineered away.
  */
 export function fireMilestoneOnce(
   storage: MilestoneStorage,
