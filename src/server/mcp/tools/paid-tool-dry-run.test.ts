@@ -58,7 +58,15 @@ const TOOLS_DIR = join(process.cwd(), "src/server/mcp/tools");
  * `name: "…"`, not the export names — mixing the two is how the exemption
  * silently stops matching.
  */
-const FREE_TOOLS = new Set(["list_business_categories", "get_page_waterfall"]);
+const FREE_TOOLS = new Set([
+  "list_business_categories",
+  "get_page_waterfall",
+  // collect_platform_reviews reads a posted reviews task, free for 30 days
+  // per both references — the spend happened at post_platform_reviews, which
+  // previews it. A dry_run on a call that cannot spend would be a control
+  // that controls nothing (the get_page_waterfall precedent, same reason).
+  "collect_platform_reviews",
+]);
 
 function toolFiles(): string[] {
   const out: string[] = [];

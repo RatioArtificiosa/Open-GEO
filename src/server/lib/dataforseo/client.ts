@@ -33,6 +33,14 @@ import {
   postGoogleReviewsTask,
   postMyBusinessUpdatesTask,
 } from "@/server/lib/dataforseo/business";
+import {
+  estimateTripadvisorReviews,
+  estimateTrustpilotReviews,
+} from "@/server/lib/dataforseo/client-estimates";
+import {
+  postTripadvisorReviewsTask,
+  postTrustpilotReviewsTask,
+} from "@/server/lib/dataforseo/reviews";
 import { fetchClickstreamVolumes } from "@/server/lib/dataforseo/clickstream";
 import {
   estimateAiKeywordVolume,
@@ -134,6 +142,20 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
       // through fetchBusinessDataTaskResult (see index.ts).
       reviewsTaskPost: meter(customer, postGoogleReviewsTask, "local_seo"),
       updatesTaskPost: meter(customer, postMyBusinessUpdatesTask, "local_seo"),
+      // task_post is where DataForSEO charges (per 20 / per 10 reviews);
+      // collection runs unmetered through the reviews readers.
+      trustpilotReviewsTaskPost: meter(
+        customer,
+        postTrustpilotReviewsTask,
+        "local_seo",
+        estimateTrustpilotReviews,
+      ),
+      tripadvisorReviewsTaskPost: meter(
+        customer,
+        postTripadvisorReviewsTask,
+        "local_seo",
+        estimateTripadvisorReviews,
+      ),
     },
     backlinks: {
       summary: meter(customer, fetchBacklinksSummary),

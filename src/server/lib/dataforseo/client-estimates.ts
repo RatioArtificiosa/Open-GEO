@@ -47,6 +47,18 @@ export function estimateTechnologies(input: { limit?: number }): number {
   );
 }
 
+/** Blocks of 20 at the standard tier; the depth the caller sends. */
+export function estimateTrustpilotReviews(input: { depth?: number }): number {
+  const blocks = Math.max(1, Math.ceil(countUnits(input.depth, 20) / 20));
+  return blocks * DFS_LOCAL.trustpilotReviews.standard;
+}
+
+/** Blocks of 10 at the standard tier; the depth the caller sends. */
+export function estimateTripadvisorReviews(input: { depth?: number }): number {
+  const blocks = Math.max(1, Math.ceil(countUnits(input.depth, 10) / 10));
+  return blocks * DFS_LOCAL.tripadvisorReviews.standard;
+}
+
 /** `limit` is required: the count is exact. */
 export function estimateBusinessListings(input: { limit: number }): number {
   return requestPlusUnits(

@@ -185,6 +185,22 @@ const EXEMPT_BINDINGS = new Map([
     "src/server/mcp/tools/get-domain-historical.ts|historicalMonthsSpanned",
     "pure calendar span over injected date strings for the dry-run preview: counts whole months without reading a clock or the network",
   ],
+  [
+    "src/server/mcp/tools/platform-reviews-tools.ts|estimateTrustpilotReviews",
+    "pure quote arithmetic over the price book for the dry-run preview: block pricing at the standard tier, makes no vendor call",
+  ],
+  [
+    "src/server/mcp/tools/platform-reviews-tools.ts|estimateTripadvisorReviews",
+    "pure quote arithmetic over the price book for the dry-run preview: block pricing at the standard tier, makes no vendor call",
+  ],
+  [
+    "src/server/mcp/tools/platform-reviews-tools.ts|fetchTrustpilotReviewsResult",
+    "the task_get collector: documented free for 30 days, because the task was charged at task_post",
+  ],
+  [
+    "src/server/mcp/tools/platform-reviews-tools.ts|fetchTripadvisorReviewsResult",
+    "the task_get collector: documented free for 30 days, because the task was charged at task_post",
+  ],
 ]);
 
 /**
