@@ -12,7 +12,7 @@ pnpm ci:check
 
 That is the whole local gate: formatting, dependency graph, both TypeScript
 projects, type-aware lint, the test suite, slop detection, and the repository's own
-consistency scripts. It takes about 75 seconds. **If it is green, a review is about
+consistency scripts. It takes a few minutes. **If it is green, a review is about
 your change and not about your machine.**
 
 The suite includes a static check on vendor spend (`scripts/cost-profile.mjs`), which
@@ -57,7 +57,8 @@ experience rather than what the screen looks like.
 
 **A note on how issues land here.** Pull requests are read but not merged yet, so an
 issue with a clear problem statement, a reproduction or a short walkthrough is worth
-more than a patch. If you have built a proof of concept, link it.
+more than a patch. If you have built a proof of concept, link it. There is no merge
+SLA while PRs are read-but-not-merged; issues with reproductions get first attention.
 
 ## Useful starting points
 
