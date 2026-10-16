@@ -162,9 +162,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # Chrome is driven over CDP by the perf spec, which is why the spec pins
-      # channel: chrome rather than bundled chromium.
+      # channel: chrome rather than bundled chromium — and why the install
+      # names the branded `chrome` build explicitly. The default install only
+      # provides chromium (a different binary path), so a spec pinned to the
+      # chrome channel fails at launch with "executable doesn't exist" while
+      # every other job stays green.
       - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps --only-shell || pnpm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps chrome
 
       - name: Run e2e
         run: pnpm exec playwright test
